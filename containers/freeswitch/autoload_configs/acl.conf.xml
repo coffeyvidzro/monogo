@@ -1,0 +1,29 @@
+<configuration
+    name="acl.conf"
+    description="Leamout Network Lists">
+
+  <network-lists>
+
+    <!--
+      FreeSWITCH ESL is an internal control-plane interface. Allow the
+      container-local drain helper over loopback and Leamout control-plane
+      clients on the private Compose network. The port is not published to
+      the host.
+    -->
+    <list name="leamout-esl" default="deny">
+      <node type="allow" cidr="127.0.0.1/32"/>
+      <node type="allow" cidr="::1/128"/>
+      <node type="allow" cidr="172.32.0.0/24"/>
+    </list>
+
+    <!-- OpenSIPS is the only SIP ingress to this profile. Docker commonly
+         reports a container interface with a host-sized netmask, which makes
+         FreeSWITCH's generated localnet.auto ACL exclude sibling containers.
+         Keep the trust boundary deterministic and limited to the private
+         control subnet shared by OpenSIPS and FreeSWITCH. -->
+    <list name="leamout-sip" default="deny">
+      <node type="allow" cidr="172.32.0.0/24"/>
+    </list>
+
+  </network-lists>
+</configuration>

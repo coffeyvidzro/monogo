@@ -1,0 +1,22 @@
+<include>
+  <context name="leamout">
+    <extension name="echo-test">
+      <condition field="destination_number" expression="^9196$">
+        <action application="answer"/>
+        <action application="echo"/>
+      </condition>
+    </extension>
+
+    <!-- OpenSIPS has already authenticated the carrier source and resolved the
+         DID to a trusted voice application. Keep the call unanswered and park
+         it so the Leamout ESL consumer owns its lifecycle and the public call
+         controls decide whether to answer, reject, or execute media actions. -->
+    <extension name="inbound-voice-application">
+      <condition field="${sip_h_X-Leamout-Voice-Application-ID}" expression="^.+$">
+        <action application="log" data="NOTICE Leamout parking inbound call application=${sip_h_X-Leamout-Voice-Application-ID} did=${destination_number}"/>
+        <action application="ring_ready"/>
+        <action application="park"/>
+      </condition>
+    </extension>
+  </context>
+</include>

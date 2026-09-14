@@ -1,0 +1,45 @@
+<configuration
+    name="event_socket.conf"
+    description="Leamout Event Socket">
+
+  <!--
+    Read the ESL password from the container environment.
+    X-PRE-PROCESS directives must keep cmd/data on the same line because
+    FreeSWITCH preprocesses configuration one line at a time.
+    Do not commit the actual password to Git.
+  -->
+  <X-PRE-PROCESS cmd="env-set" data="event_socket_password=$FREESWITCH_ESL_PASSWORD"/>
+
+  <settings>
+
+    <!-- Do not perform NAT mapping for the ESL socket. -->
+    <param
+        name="nat-map"
+        value="false"/>
+
+    <!-- Listen on the container network. -->
+    <param
+        name="listen-ip"
+        value="0.0.0.0"/>
+
+    <!-- FreeSWITCH Event Socket -->
+    <param
+        name="listen-port"
+        value="8021"/>
+
+    <!-- Password supplied through the environment. -->
+    <param
+        name="password"
+        value="$${event_socket_password}"/>
+
+    <!--
+      Restrict ESL to the Leamout control plane. This list includes loopback
+      for container-local maintenance commands and the private Compose subnet
+      for API/worker ESL clients.
+    -->
+    <param
+        name="apply-inbound-acl"
+        value="leamout-esl"/>
+
+  </settings>
+</configuration>
