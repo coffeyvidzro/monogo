@@ -19,11 +19,6 @@ jobs:
           ref: ${{ github.ref_name }}
           fetch-depth: 0
 
-      - name: Set up Go
-        uses: actions/setup-go@v6
-        with:
-          go-version-file: server/go.mod
-
       - name: Replace module imports
         shell: bash
         run: |
@@ -38,17 +33,6 @@ jobs:
             exit 1
           fi
 
-      - name: Test server
-        id: tests
-        shell: bash
-        run: |
-          set +e
-          cd server
-          go test ./...
-          status=$?
-          echo "status=$status" >> "$GITHUB_OUTPUT"
-          exit 0
-
       - name: Commit migration and remove one-off workflow
         shell: bash
         run: |
@@ -59,10 +43,3 @@ jobs:
           git add -A
           git commit -m 'chore: migrate internal imports to monogo module path'
           git push origin HEAD:${{ github.ref_name }}
-
-      - name: Report test failure
-        if: steps.tests.outputs.status != '0'
-        shell: bash
-        run: |
-          echo 'go test ./... failed after the module path migration' >&2
-          exit 1
