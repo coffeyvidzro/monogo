@@ -3,7 +3,7 @@ package main
 import (
 	"log"
 
-	"github.com/leamout/leamout/cmd/hosted/commands"
+	"github.com/coffeyvidzro/monogo/cmd/hosted/commands"
 )
 
 func main() {

@@ -5,8 +5,8 @@ import (
 	"net/http"
 	"runtime/debug"
 
-	"github.com/leamout/leamout/pkg/apperror"
-	"github.com/leamout/leamout/pkg/httputil"
+	"github.com/coffeyvidzro/monogo/pkg/apperror"
+	"github.com/coffeyvidzro/monogo/pkg/httputil"
 )
 
 // Recovery recovers panics from downstream handlers and returns a safe

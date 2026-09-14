@@ -11,7 +11,7 @@ import (
 	"github.com/google/uuid"
 	natsjs "github.com/nats-io/nats.go/jetstream"
 
-	natsintegration "github.com/leamout/leamout/internal/integrations/nats"
+	natsintegration "github.com/coffeyvidzro/monogo/internal/integrations/nats"
 )
 
 const webhookConsumerName = "webhooks"

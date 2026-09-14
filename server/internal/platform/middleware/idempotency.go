@@ -9,10 +9,10 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/leamout/leamout/internal/modules/idempotency"
-	"github.com/leamout/leamout/internal/security/authn"
-	"github.com/leamout/leamout/pkg/apperror"
-	"github.com/leamout/leamout/pkg/httputil"
+	"github.com/coffeyvidzro/monogo/internal/modules/idempotency"
+	"github.com/coffeyvidzro/monogo/internal/security/authn"
+	"github.com/coffeyvidzro/monogo/pkg/apperror"
+	"github.com/coffeyvidzro/monogo/pkg/httputil"
 )
 
 const maxIdempotentRequestBody = 1 << 20

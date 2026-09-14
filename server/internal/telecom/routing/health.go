@@ -16,7 +16,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
-	"github.com/leamout/leamout/internal/database/sqlc"
+	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
 	"golang.org/x/sync/errgroup"
 )
 

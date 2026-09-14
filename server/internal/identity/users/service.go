@@ -5,9 +5,9 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
-	"github.com/leamout/leamout/internal/database/pgconv"
-	"github.com/leamout/leamout/internal/database/sqlc"
-	"github.com/leamout/leamout/pkg/apperror"
+	"github.com/coffeyvidzro/monogo/internal/database/pgconv"
+	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
+	"github.com/coffeyvidzro/monogo/pkg/apperror"
 )
 
 type Service struct {

@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/leamout/leamout/internal/integrations/freeswitch"
+	"github.com/coffeyvidzro/monogo/internal/integrations/freeswitch"
 )
 
 // TranslateEvent converts a raw FreeSWITCH event into a normalized CallEvent.

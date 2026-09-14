@@ -7,7 +7,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-const InstrumentationName = "github.com/leamout/leamout/server"
+const InstrumentationName = "github.com/coffeyvidzro/monogo/server"
 
 // Tracer provides Leamout's application-facing tracing API.
 type Tracer struct {

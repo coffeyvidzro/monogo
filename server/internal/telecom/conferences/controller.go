@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/leamout/leamout/internal/integrations/freeswitch"
+	"github.com/coffeyvidzro/monogo/internal/integrations/freeswitch"
 )
 
 // Controller is the media-server contract used by conference controls.

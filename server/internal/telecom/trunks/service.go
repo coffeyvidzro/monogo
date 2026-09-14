@@ -12,10 +12,10 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/leamout/leamout/internal/database/sqlc"
-	"github.com/leamout/leamout/internal/modules/outbox"
-	"github.com/leamout/leamout/pkg/apperror"
-	"github.com/leamout/leamout/pkg/hasher"
+	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
+	"github.com/coffeyvidzro/monogo/internal/modules/outbox"
+	"github.com/coffeyvidzro/monogo/pkg/apperror"
+	"github.com/coffeyvidzro/monogo/pkg/hasher"
 )
 
 type Service struct {

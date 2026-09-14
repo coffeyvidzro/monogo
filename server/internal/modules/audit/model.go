@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/leamout/leamout/internal/security/authn"
+	"github.com/coffeyvidzro/monogo/internal/security/authn"
 )
 
 type Actor struct {

@@ -5,11 +5,11 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/leamout/leamout/internal/identity/session"
-	"github.com/leamout/leamout/internal/security/authn"
-	"github.com/leamout/leamout/pkg/apperror"
-	"github.com/leamout/leamout/pkg/helper"
-	"github.com/leamout/leamout/pkg/httputil"
+	"github.com/coffeyvidzro/monogo/internal/identity/session"
+	"github.com/coffeyvidzro/monogo/internal/security/authn"
+	"github.com/coffeyvidzro/monogo/pkg/apperror"
+	"github.com/coffeyvidzro/monogo/pkg/helper"
+	"github.com/coffeyvidzro/monogo/pkg/httputil"
 )
 
 type Handler struct {

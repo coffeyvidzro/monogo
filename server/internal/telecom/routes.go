@@ -5,16 +5,16 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/leamout/leamout/internal/telecom/calls"
-	"github.com/leamout/leamout/internal/telecom/carriers"
-	"github.com/leamout/leamout/internal/telecom/conferences"
-	"github.com/leamout/leamout/internal/telecom/numbers"
-	"github.com/leamout/leamout/internal/telecom/realtime"
-	"github.com/leamout/leamout/internal/telecom/recordings"
-	"github.com/leamout/leamout/internal/telecom/sip_domains"
-	"github.com/leamout/leamout/internal/telecom/subscribers"
-	"github.com/leamout/leamout/internal/telecom/trunks"
-	"github.com/leamout/leamout/internal/telecom/voice"
+	"github.com/coffeyvidzro/monogo/internal/telecom/calls"
+	"github.com/coffeyvidzro/monogo/internal/telecom/carriers"
+	"github.com/coffeyvidzro/monogo/internal/telecom/conferences"
+	"github.com/coffeyvidzro/monogo/internal/telecom/numbers"
+	"github.com/coffeyvidzro/monogo/internal/telecom/realtime"
+	"github.com/coffeyvidzro/monogo/internal/telecom/recordings"
+	"github.com/coffeyvidzro/monogo/internal/telecom/sip_domains"
+	"github.com/coffeyvidzro/monogo/internal/telecom/subscribers"
+	"github.com/coffeyvidzro/monogo/internal/telecom/trunks"
+	"github.com/coffeyvidzro/monogo/internal/telecom/voice"
 )
 
 func RegisterRoutes(

@@ -6,7 +6,7 @@ import (
 
 	"github.com/go-chi/httplog/v3"
 
-	"github.com/leamout/leamout/internal/platform/logging"
+	"github.com/coffeyvidzro/monogo/internal/platform/logging"
 )
 
 // Logging records structured HTTP request logs using Leamout's platform logger.

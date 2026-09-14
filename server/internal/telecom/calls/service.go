@@ -6,9 +6,9 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
-	"github.com/leamout/leamout/internal/database/sqlc"
-	"github.com/leamout/leamout/internal/telecom/routing"
-	"github.com/leamout/leamout/pkg/apperror"
+	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
+	"github.com/coffeyvidzro/monogo/internal/telecom/routing"
+	"github.com/coffeyvidzro/monogo/pkg/apperror"
 )
 
 // Controller is the media-server contract used by the call API.

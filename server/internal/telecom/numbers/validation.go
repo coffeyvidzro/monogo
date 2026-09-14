@@ -5,7 +5,7 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
-	"github.com/leamout/leamout/pkg/apperror"
+	"github.com/coffeyvidzro/monogo/pkg/apperror"
 )
 
 var e164 = regexp.MustCompile(`^\+[1-9][0-9]{6,14}$`)

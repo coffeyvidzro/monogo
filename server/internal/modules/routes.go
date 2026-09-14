@@ -5,8 +5,8 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/leamout/leamout/internal/modules/audit"
-	"github.com/leamout/leamout/internal/modules/webhooks"
+	"github.com/coffeyvidzro/monogo/internal/modules/audit"
+	"github.com/coffeyvidzro/monogo/internal/modules/webhooks"
 )
 
 func RegisterRoutes(

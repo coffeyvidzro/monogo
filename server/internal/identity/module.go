@@ -1,10 +1,10 @@
 package identity
 
 import (
-	"github.com/leamout/leamout/internal/database/sqlc"
-	"github.com/leamout/leamout/internal/identity/auth"
-	"github.com/leamout/leamout/internal/identity/session"
-	"github.com/leamout/leamout/internal/identity/users"
+	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
+	"github.com/coffeyvidzro/monogo/internal/identity/auth"
+	"github.com/coffeyvidzro/monogo/internal/identity/session"
+	"github.com/coffeyvidzro/monogo/internal/identity/users"
 )
 
 type Module struct {

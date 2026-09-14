@@ -3,11 +3,11 @@ package modules
 import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/leamout/leamout/internal/database/sqlc"
-	"github.com/leamout/leamout/internal/modules/audit"
-	"github.com/leamout/leamout/internal/modules/idempotency"
-	"github.com/leamout/leamout/internal/modules/webhooks"
-	"github.com/leamout/leamout/internal/platform/middleware"
+	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
+	"github.com/coffeyvidzro/monogo/internal/modules/audit"
+	"github.com/coffeyvidzro/monogo/internal/modules/idempotency"
+	"github.com/coffeyvidzro/monogo/internal/modules/webhooks"
+	"github.com/coffeyvidzro/monogo/internal/platform/middleware"
 )
 
 type Module struct {

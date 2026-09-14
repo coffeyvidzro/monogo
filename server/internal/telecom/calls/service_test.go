@@ -3,7 +3,7 @@ package calls
 import (
 	"testing"
 
-	"github.com/leamout/leamout/internal/database/sqlc"
+	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
 )
 
 func TestCanAnswer(t *testing.T) {

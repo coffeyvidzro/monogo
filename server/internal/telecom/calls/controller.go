@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
-	"github.com/leamout/leamout/internal/integrations/freeswitch"
+	"github.com/coffeyvidzro/monogo/internal/integrations/freeswitch"
 )
 
 const (
