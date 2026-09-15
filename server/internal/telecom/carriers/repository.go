@@ -7,7 +7,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
-	"github.com/coffeyvidzro/monogo/internal/modules/audit"
+	"github.com/coffeyvidzro/monogo/internal/platform/audit"
 )
 
 type Repository struct {

@@ -9,7 +9,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/coffeyvidzro/monogo/internal/modules/idempotency"
+	"github.com/coffeyvidzro/monogo/internal/platform/idempotency"
 	"github.com/coffeyvidzro/monogo/internal/security/authn"
 	"github.com/coffeyvidzro/monogo/pkg/apperror"
 	"github.com/coffeyvidzro/monogo/pkg/httputil"

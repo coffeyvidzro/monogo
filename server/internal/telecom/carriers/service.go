@@ -12,7 +12,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
-	"github.com/coffeyvidzro/monogo/internal/modules/audit"
+	"github.com/coffeyvidzro/monogo/internal/platform/audit"
 	"github.com/coffeyvidzro/monogo/internal/telecom/routing"
 	"github.com/coffeyvidzro/monogo/pkg/apperror"
 )

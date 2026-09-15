@@ -1,12 +1,12 @@
-package modules
+package platform
 
 import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
-	"github.com/coffeyvidzro/monogo/internal/modules/audit"
-	"github.com/coffeyvidzro/monogo/internal/modules/idempotency"
-	"github.com/coffeyvidzro/monogo/internal/modules/webhooks"
+	"github.com/coffeyvidzro/monogo/internal/platform/audit"
+	"github.com/coffeyvidzro/monogo/internal/platform/idempotency"
+	"github.com/coffeyvidzro/monogo/internal/platform/webhooks"
 	"github.com/coffeyvidzro/monogo/internal/platform/middleware"
 )
 
