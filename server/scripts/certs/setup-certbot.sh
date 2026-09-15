@@ -4,7 +4,7 @@ set -eu
 umask 077
 
 if [ "$(id -u)" -ne 0 ]; then
-  echo "install-certbot-renewal.sh must run as root" >&2
+  echo "setup-certbot.sh must run as root" >&2
   exit 1
 fi
 
@@ -24,11 +24,11 @@ if ! command -v systemctl >/dev/null 2>&1; then
 fi
 
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
-hook_source="$script_dir/certbot-deploy-hook.sh"
+hook_source="$script_dir/certbot-hook.sh"
 hook_target=/etc/letsencrypt/renewal-hooks/deploy/leamout
 
 if [ ! -f "$hook_source" ]; then
-  echo "missing Certbot deploy hook: $hook_source" >&2
+  echo "missing Certbot hook: $hook_source" >&2
   exit 1
 fi
 

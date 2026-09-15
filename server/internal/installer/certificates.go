@@ -9,13 +9,13 @@ import (
 
 func installCertificateLifecycle(config *Config) error {
 	certDir := filepath.Join(CurrentPath, "scripts", "certs")
-	installRenewal := filepath.Join(certDir, "install-certbot-renewal.sh")
-	provision := filepath.Join(certDir, "provision-letsencrypt.sh")
+	setupCertbot := filepath.Join(certDir, "setup-certbot.sh")
+	issueCertificates := filepath.Join(certDir, "issue-certificates.sh")
 
-	if err := runHostScript(installRenewal); err != nil {
-		return fmt.Errorf("install Certbot renewal lifecycle: %w", err)
+	if err := runHostScript(setupCertbot); err != nil {
+		return fmt.Errorf("set up Certbot lifecycle: %w", err)
 	}
-	if err := runHostScript(provision, config.Domain, ACMEWebroot); err != nil {
+	if err := runHostScript(issueCertificates, config.Domain, ACMEWebroot); err != nil {
 		return fmt.Errorf("obtain SIP/TURN certificate from Let's Encrypt: %w", err)
 	}
 

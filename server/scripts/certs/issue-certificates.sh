@@ -4,12 +4,12 @@ set -eu
 umask 077
 
 if [ "$(id -u)" -ne 0 ]; then
-  echo "provision-letsencrypt.sh must run as root" >&2
+  echo "issue-certificates.sh must run as root" >&2
   exit 1
 fi
 
 if [ "$#" -ne 2 ]; then
-  echo "usage: provision-letsencrypt.sh <base-domain> <acme-webroot>" >&2
+  echo "usage: issue-certificates.sh <base-domain> <acme-webroot>" >&2
   exit 2
 fi
 
