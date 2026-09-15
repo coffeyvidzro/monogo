@@ -42,7 +42,7 @@ jobs:
         run: |
           set -euo pipefail
           sh -n server/scripts/install.sh
-          for script in server/scripts/certs/*.sh; do
+          for script in server/scripts/certs/*.sh server/scripts/deploy/*.sh; do
             sh -n "$script"
           done
           for script in server/scripts/release/*.sh; do
