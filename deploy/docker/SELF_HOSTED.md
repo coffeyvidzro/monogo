@@ -17,21 +17,39 @@ Caddy manages HTTPS certificates for `api.<domain>` automatically. The supplied 
 
 ## Install
 
-Extract the release bundle and run:
+The intended installation command is:
 
 ```bash
-sudo ./leamout install
+curl -fsSL https://get.leamout.com/install.sh | sudo sh
 ```
+
+The bootstrap script detects Linux and the supported CPU architecture, resolves the latest release unless `LEAMOUT_VERSION` is provided, downloads the matching release archive and SHA-256 checksum, verifies the archive, installs the `leamout` CLI to `/usr/local/bin/leamout`, and starts the interactive installer.
+
+To install an exact release:
+
+```bash
+curl -fsSL https://get.leamout.com/install.sh | sudo LEAMOUT_VERSION=1.0.0 sh
+```
+
+Release archives use this naming scheme:
+
+```text
+leamout_<version>_linux_<arch>.tar.gz
+leamout_<version>_linux_<arch>.tar.gz.sha256
+```
+
+The initial release target is `linux/amd64`. Other architectures should only be published once all Leamout runtime images are available for them.
 
 The installer asks only for deployment-specific values:
 
 - base domain
 - public IP address
-- Leamout release version
-- installation directory
-- SIP/TURN TLS certificate and private key paths
+- SIP/TURN TLS certificate path
+- SIP/TURN TLS private key path
 
-It then:
+The bundled release version is selected automatically. `/opt/leamout` is the default deployment directory; advanced installations can override it with `leamout install --install-dir <path>`.
+
+The installer then:
 
 1. validates Docker and Docker Compose
 2. copies the release deployment assets to `/opt/leamout` by default
