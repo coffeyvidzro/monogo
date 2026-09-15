@@ -82,7 +82,7 @@ services:
       postgres:
         condition: service_healthy
       redis:
-        condition: service_started
+        condition: service_healthy
       nats:
         condition: service_started
       freeswitch:
