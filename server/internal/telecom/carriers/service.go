@@ -11,10 +11,10 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
-	"github.com/leamout/leamout/internal/database/sqlc"
-	"github.com/leamout/leamout/internal/modules/audit"
-	"github.com/leamout/leamout/internal/telecom/routing"
-	"github.com/leamout/leamout/pkg/apperror"
+	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
+	"github.com/coffeyvidzro/monogo/internal/modules/audit"
+	"github.com/coffeyvidzro/monogo/internal/telecom/routing"
+	"github.com/coffeyvidzro/monogo/pkg/apperror"
 )
 
 // credentialSealer is intentionally encryption-only. The customer-facing

@@ -9,7 +9,7 @@ import (
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 
-	"github.com/leamout/leamout/internal/installer"
+	"github.com/coffeyvidzro/monogo/internal/installer"
 )
 
 var installCmd = &cobra.Command{

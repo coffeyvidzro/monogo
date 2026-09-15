@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/leamout/leamout/internal/database/sqlc"
+	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
 )
 
 type ProviderOperationJobConfig struct {

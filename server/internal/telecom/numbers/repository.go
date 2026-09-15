@@ -12,9 +12,9 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	redisv9 "github.com/redis/go-redis/v9"
 
-	"github.com/leamout/leamout/internal/database/sqlc"
-	redisintegration "github.com/leamout/leamout/internal/integrations/redis"
-	"github.com/leamout/leamout/internal/modules/audit"
+	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
+	redisintegration "github.com/coffeyvidzro/monogo/internal/integrations/redis"
+	"github.com/coffeyvidzro/monogo/internal/modules/audit"
 )
 
 const managedNumberSelectionTTL = 10 * time.Minute

@@ -6,8 +6,8 @@ import (
 	"net/netip"
 
 	"github.com/google/uuid"
-	"github.com/leamout/leamout/internal/database/pgconv"
-	"github.com/leamout/leamout/internal/database/sqlc"
+	"github.com/coffeyvidzro/monogo/internal/database/pgconv"
+	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
 )
 
 type Repository struct {

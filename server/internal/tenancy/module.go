@@ -1,10 +1,10 @@
 package tenancy
 
 import (
-	"github.com/leamout/leamout/internal/database/sqlc"
-	"github.com/leamout/leamout/internal/tenancy/credentials"
-	"github.com/leamout/leamout/internal/tenancy/members"
-	"github.com/leamout/leamout/internal/tenancy/organization"
+	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
+	"github.com/coffeyvidzro/monogo/internal/tenancy/credentials"
+	"github.com/coffeyvidzro/monogo/internal/tenancy/members"
+	"github.com/coffeyvidzro/monogo/internal/tenancy/organization"
 )
 
 type Module struct {

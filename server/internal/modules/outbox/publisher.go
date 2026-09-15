@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/leamout/leamout/internal/database/sqlc"
-	natsintegration "github.com/leamout/leamout/internal/integrations/nats"
+	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
+	natsintegration "github.com/coffeyvidzro/monogo/internal/integrations/nats"
 )
 
 const (

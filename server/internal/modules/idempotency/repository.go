@@ -5,7 +5,7 @@ import (
 	"errors"
 
 	"github.com/jackc/pgx/v5"
-	"github.com/leamout/leamout/internal/database/sqlc"
+	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
 )
 
 type Repository struct{ queries *sqlc.Queries }

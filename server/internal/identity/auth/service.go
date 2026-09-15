@@ -6,12 +6,12 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/leamout/leamout/internal/database/pgconv"
-	"github.com/leamout/leamout/internal/database/sqlc"
-	"github.com/leamout/leamout/internal/security/otp"
-	"github.com/leamout/leamout/internal/security/password"
-	"github.com/leamout/leamout/internal/security/token"
-	"github.com/leamout/leamout/pkg/apperror"
+	"github.com/coffeyvidzro/monogo/internal/database/pgconv"
+	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
+	"github.com/coffeyvidzro/monogo/internal/security/otp"
+	"github.com/coffeyvidzro/monogo/internal/security/password"
+	"github.com/coffeyvidzro/monogo/internal/security/token"
+	"github.com/coffeyvidzro/monogo/pkg/apperror"
 )
 
 type Service struct {

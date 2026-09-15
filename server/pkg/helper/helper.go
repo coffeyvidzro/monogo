@@ -5,8 +5,8 @@ import (
 	"net/http"
 
 	"github.com/jackc/pgx/v5/pgtype"
-	"github.com/leamout/leamout/internal/database/pgconv"
-	"github.com/leamout/leamout/pkg/apperror"
+	"github.com/coffeyvidzro/monogo/internal/database/pgconv"
+	"github.com/coffeyvidzro/monogo/pkg/apperror"
 )
 
 func FormatTime(value pgtype.Timestamptz) string {

@@ -5,7 +5,7 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
-	"github.com/leamout/leamout/internal/security/authz"
+	"github.com/coffeyvidzro/monogo/internal/security/authz"
 )
 
 const (

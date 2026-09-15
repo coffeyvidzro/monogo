@@ -4,9 +4,9 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/leamout/leamout/internal/tenancy/credentials"
-	"github.com/leamout/leamout/internal/tenancy/members"
-	"github.com/leamout/leamout/internal/tenancy/organization"
+	"github.com/coffeyvidzro/monogo/internal/tenancy/credentials"
+	"github.com/coffeyvidzro/monogo/internal/tenancy/members"
+	"github.com/coffeyvidzro/monogo/internal/tenancy/organization"
 )
 
 func RegisterRoutes(

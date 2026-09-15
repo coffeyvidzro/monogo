@@ -4,8 +4,8 @@ import (
 	"context"
 
 	"github.com/google/uuid"
-	"github.com/leamout/leamout/internal/database/sqlc"
-	"github.com/leamout/leamout/pkg/hasher"
+	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
+	"github.com/coffeyvidzro/monogo/pkg/hasher"
 )
 
 type Repository struct {

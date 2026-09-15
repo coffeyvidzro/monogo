@@ -5,7 +5,7 @@ import (
 	"unicode"
 
 	"github.com/google/uuid"
-	"github.com/leamout/leamout/pkg/apperror"
+	"github.com/coffeyvidzro/monogo/pkg/apperror"
 )
 
 func validOrg(id uuid.UUID) error {
