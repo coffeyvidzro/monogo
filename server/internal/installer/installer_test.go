@@ -10,48 +10,41 @@ import (
 func TestValidateConfig(t *testing.T) {
 	t.Parallel()
 
-	dir := t.TempDir()
-	cert := filepath.Join(dir, "fullchain.pem")
-	key := filepath.Join(dir, "privkey.pem")
-	if err := os.WriteFile(cert, []byte("cert"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(key, []byte("key"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-
 	config := &Config{
-		Domain:         "example.com",
-		PublicIP:       "203.0.113.10",
-		Version:        "1.0.0",
-		InstallDir:     filepath.Join(dir, "install"),
-		TLSCertificate: cert,
-		TLSPrivateKey:  key,
+		Domain:   "example.com",
+		PublicIP: "203.0.113.10",
+		Version:  "1.0.0",
 	}
 	if err := validateConfig(config); err != nil {
 		t.Fatalf("validateConfig() error = %v", err)
 	}
 }
 
-func TestWriteEnvironment(t *testing.T) {
+func TestValidateConfigRejectsIPv6(t *testing.T) {
 	t.Parallel()
 
-	dir := t.TempDir()
-	path := filepath.Join(dir, ".env")
 	config := &Config{
-		Domain:     "example.com",
-		PublicIP:   "203.0.113.10",
-		Version:    "1.2.3",
-		InstallDir: dir,
+		Domain:   "example.com",
+		PublicIP: "2001:db8::1",
+		Version:  "1.0.0",
+	}
+	if err := validateConfig(config); err == nil {
+		t.Fatal("validateConfig() accepted IPv6, want IPv4-only validation")
+	}
+}
+
+func TestBuildEnvironment(t *testing.T) {
+	t.Parallel()
+
+	config := &Config{
+		Domain:   "example.com",
+		PublicIP: "203.0.113.10",
+		Version:  "1.2.3",
 	}
 
-	if err := writeEnvironment(config, path); err != nil {
-		t.Fatalf("writeEnvironment() error = %v", err)
-	}
-
-	content, err := os.ReadFile(path)
+	content, err := buildEnvironment(config)
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("buildEnvironment() error = %v", err)
 	}
 	text := string(content)
 	for _, expected := range []string{
@@ -66,20 +59,20 @@ func TestWriteEnvironment(t *testing.T) {
 			t.Fatalf("environment missing %q", expected)
 		}
 	}
+}
 
-	info, err := os.Stat(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got := info.Mode().Perm(); got != 0o600 {
-		t.Fatalf(".env permissions = %o, want 600", got)
+func TestReleaseDir(t *testing.T) {
+	t.Parallel()
+
+	if got, want := ReleaseDir("1.2.3"), "/opt/leamout/releases/1.2.3"; got != want {
+		t.Fatalf("ReleaseDir() = %q, want %q", got, want)
 	}
 }
 
 func TestDefaultVersionFromBundle(t *testing.T) {
 	dir := t.TempDir()
 	for _, path := range []string{
-		composeRelativePath,
+		bundleComposePath,
 		"deploy/docker/Caddyfile",
 		"server/migrations/atlas.sum",
 		"containers/nats/nats-server.conf",
