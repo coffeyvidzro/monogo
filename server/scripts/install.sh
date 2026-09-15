@@ -6,6 +6,7 @@ umask 077
 repo="coffeyvidzro/monogo"
 base_url="https://github.com/${repo}/releases/download"
 install_bin="/usr/local/bin/leamout"
+minisign_public_key='RWQsuFIP3yDqo+6K''v2NIBpY8W5S+FRMY''5NIvLzRbK6ohsOu6qqzsJXzR'
 
 fail() {
   echo "leamout install: $*" >&2
@@ -15,6 +16,12 @@ fail() {
 command -v curl >/dev/null 2>&1 || fail "curl is required"
 command -v tar >/dev/null 2>&1 || fail "tar is required"
 command -v sha256sum >/dev/null 2>&1 || fail "sha256sum is required"
+
+if ! command -v minisign >/dev/null 2>&1; then
+  command -v apt-get >/dev/null 2>&1 || fail "minisign is required; automatic installation currently requires apt-get"
+  DEBIAN_FRONTEND=noninteractive apt-get update
+  DEBIAN_FRONTEND=noninteractive apt-get install -y minisign
+fi
 
 os=$(uname -s | tr '[:upper:]' '[:lower:]')
 [ "$os" = "linux" ] || fail "only Linux is supported"
@@ -53,6 +60,13 @@ trap 'rm -rf "$tmp"' EXIT HUP INT TERM
 printf 'Downloading Leamout %s for %s/%s...\n' "$version" "$os" "$arch"
 curl -fL "$release_url/$archive" -o "$tmp/$archive"
 curl -fL "$release_url/checksums.txt" -o "$tmp/checksums.txt"
+curl -fL "$release_url/checksums.txt.minisig" -o "$tmp/checksums.txt.minisig"
+
+minisign -V \
+  -m "$tmp/checksums.txt" \
+  -x "$tmp/checksums.txt.minisig" \
+  -P "$minisign_public_key" \
+  -q || fail "release checksum signature verification failed"
 
 expected=$(awk -v file="$archive" '$2 == file { print $1; exit }' "$tmp/checksums.txt")
 [ -n "$expected" ] || fail "$archive is missing from checksums.txt"
