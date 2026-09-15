@@ -1,2 +1,3 @@
 /bin/
 /deploy/docker/certs/*.pem
+/deploy/kubernetes/secret.yaml
