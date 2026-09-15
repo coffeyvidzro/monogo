@@ -93,6 +93,7 @@ services:
   freeswitch:
     image: ghcr.io/coffeyvidzro/leamout-freeswitch:${LEAMOUT_VERSION:-preview}
     restart: unless-stopped
+    stop_grace_period: 60s
     environment:
       FREESWITCH_ESL_PASSWORD: ${FREESWITCH_ESL_PASSWORD:?FREESWITCH_ESL_PASSWORD is required}
     volumes:
@@ -104,6 +105,7 @@ services:
   rtpengine:
     image: ghcr.io/coffeyvidzro/leamout-rtpengine:${LEAMOUT_VERSION:-preview}
     restart: unless-stopped
+    stop_grace_period: 30s
     environment:
       RTPENGINE_PUBLIC_IP: ${RTPENGINE_PUBLIC_IP:?RTPENGINE_PUBLIC_IP is required}
     ports:
@@ -117,6 +119,7 @@ services:
   opensips:
     image: ghcr.io/coffeyvidzro/leamout-opensips:${LEAMOUT_VERSION:-preview}
     restart: unless-stopped
+    stop_grace_period: 30s
     volumes:
       - ./certs/fullchain.pem:/etc/opensips/tls/fullchain.pem:ro
       - ./certs/privkey.pem:/etc/opensips/tls/privkey.pem:ro
@@ -136,8 +139,9 @@ services:
       - "5061:5061/tcp"
       - "5062:5062/tcp"
     networks:
-      - private-control
-      - public-media
+      private-control: {}
+      public-signaling:
+        ipv4_address: 172.30.0.10
 
   coturn:
     image: coturn/coturn:4.6.3
@@ -151,7 +155,8 @@ services:
       - --pkey=/etc/coturn/tls/privkey.pem
     volumes:
       - ../../containers/coturn/turnserver.conf:/etc/coturn/turnserver.conf:ro
-      - ${TURN_TLS_DIR:?TURN_TLS_DIR is required}:/etc/coturn/tls:ro
+      - ./certs/fullchain.pem:/etc/coturn/tls/fullchain.pem:ro
+      - ./certs/privkey.pem:/etc/coturn/tls/privkey.pem:ro
     ports:
       - "3478:3478/udp"
       - "3478:3478/tcp"
@@ -171,8 +176,12 @@ networks:
   private-control:
     ipam:
       config:
-        - subnet: 172.32.0.0/16
+        - subnet: 172.32.0.0/24
   public-media:
     ipam:
       config:
-        - subnet: 172.31.0.0/16
+        - subnet: 172.31.0.0/24
+  public-signaling:
+    ipam:
+      config:
+        - subnet: 172.30.0.0/24

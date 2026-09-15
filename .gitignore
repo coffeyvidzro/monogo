@@ -1,1 +1,2 @@
 /bin/
+/deploy/docker/certs/*.pem
