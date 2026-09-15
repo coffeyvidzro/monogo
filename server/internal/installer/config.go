@@ -1,10 +1,7 @@
 package installer
 
 type Config struct {
-	Domain         string
-	PublicIP       string
-	Version        string
-	InstallDir     string
-	TLSCertificate string
-	TLSPrivateKey  string
+	Domain   string
+	PublicIP string
+	Version  string
 }
