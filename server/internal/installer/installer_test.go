@@ -53,7 +53,6 @@ func TestBuildEnvironment(t *testing.T) {
 		"LEAMOUT_VERSION=1.2.3",
 		"TURN_REALM=turn.example.com",
 		"CARRIER_CREDENTIAL_ENCRYPTION_KEY=",
-		"OPERATOR_API_SECRET=",
 	} {
 		if !strings.Contains(text, expected) {
 			t.Fatalf("environment missing %q", expected)

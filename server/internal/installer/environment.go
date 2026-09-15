@@ -26,10 +26,6 @@ func buildEnvironment(config *Config) ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("generate carrier credential encryption key: %w", err)
 	}
-	operatorSecret, err := randomSecret(32)
-	if err != nil {
-		return nil, fmt.Errorf("generate operator API secret: %w", err)
-	}
 	turnSecret, err := randomSecret(32)
 	if err != nil {
 		return nil, fmt.Errorf("generate TURN auth secret: %w", err)
@@ -44,7 +40,6 @@ func buildEnvironment(config *Config) ([]byte, error) {
 		"POSTGRES_PASSWORD=" + postgresPassword,
 		"FREESWITCH_ESL_PASSWORD=" + freeSWITCHPassword,
 		"CARRIER_CREDENTIAL_ENCRYPTION_KEY=" + credentialKey,
-		"OPERATOR_API_SECRET=" + operatorSecret,
 		"TURN_AUTH_SECRET=" + turnSecret,
 		"TURN_REALM=" + turnHost,
 		"TURN_PUBLIC_URLS=stun:" + turnHost + ":3478,turn:" + turnHost + ":3478?transport=udp,turn:" + turnHost + ":3478?transport=tcp,turns:" + turnHost + ":5349?transport=tcp",
