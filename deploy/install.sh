@@ -1,6 +1,8 @@
 #!/bin/sh
 set -eu
 
+umask 077
+
 repo="coffeyvidzro/monogo"
 base_url="https://github.com/${repo}/releases/download"
 install_bin="/usr/local/bin/leamout"
