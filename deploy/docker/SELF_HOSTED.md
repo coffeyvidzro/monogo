@@ -5,15 +5,16 @@ The self-hosted release bundle contains the Leamout installer plus the Docker Co
 ## Requirements
 
 - Linux host with Docker Engine and the Docker Compose plugin
-- an apt-based distribution for automatic Certbot installation in the initial release
-- public DNS records pointing directly to the host:
+- an apt-based systemd distribution for automatic Certbot installation and renewal in the initial release
+- public IPv4 DNS records pointing directly to the host:
   - `api.<domain>`
   - `sip.<domain>`
   - `turn.<domain>`
+- no AAAA records for those names while the Self-Hosted runtime is IPv4-only
 - TCP ports `80`, `443`, `5060`, `5061`, and `5062` available
 - UDP ports `443`, `5060`, `3478`, `5349`, `23000-32768`, and `49152-65535` available
 
-Caddy manages HTTPS for `api.<domain>`. Leamout installs Certbot and obtains a Let's Encrypt certificate for `sip.<domain>` and `turn.<domain>` automatically. Caddy serves the ACME HTTP challenge for certificate issuance and renewal.
+Caddy manages HTTPS for `api.<domain>`. Leamout installs Certbot and obtains one Let's Encrypt certificate containing `sip.<domain>` and `turn.<domain>`. Caddy keeps TCP port 80 available for the ACME HTTP-01 webroot used for initial issuance and renewal.
 
 ## Install
 
@@ -23,7 +24,7 @@ The intended installation command is:
 curl -fsSL https://get.leamout.com/install.sh | sudo sh
 ```
 
-The bootstrap script detects Linux and the supported CPU architecture, resolves the latest release unless `LEAMOUT_VERSION` is provided, downloads the matching release archive and SHA-256 checksum, verifies the archive, installs the `leamout` CLI to `/usr/local/bin/leamout`, and starts the interactive installer.
+The bootstrap script detects Linux and the supported CPU architecture, resolves the latest release unless `LEAMOUT_VERSION` is provided, downloads the matching release archive and `checksums.txt`, verifies the archive SHA-256, installs the `leamout` CLI to `/usr/local/bin/leamout`, and starts the interactive installer.
 
 To install an exact release:
 
@@ -31,11 +32,11 @@ To install an exact release:
 curl -fsSL https://get.leamout.com/install.sh | sudo env LEAMOUT_VERSION=1.0.0 sh
 ```
 
-Release archives use this naming scheme:
+Release assets use this naming scheme:
 
 ```text
 leamout_<version>_linux_<arch>.tar.gz
-leamout_<version>_linux_<arch>.tar.gz.sha256
+checksums.txt
 ```
 
 The initial release target is `linux/amd64`. Other architectures should only be published once all Leamout runtime images are available for them.
@@ -97,7 +98,9 @@ The path roles are fixed:
 
 ## Permissions and secrets
 
-Leamout installation runs as root. Sensitive directories are created as `root:root` with mode `0700`. Secret-bearing files such as `/etc/leamout/leamout.env`, TLS private keys, license material, installation state, logs, and backups are mode `0600` unless a service requires a less restrictive public-certificate mode.
+Leamout installation runs as root and the bootstrap starts with `umask 077`. Sensitive directories are `root:root` with mode `0700`. Secret-bearing files such as `/etc/leamout/leamout.env`, license material, installation state, logs, and backups are mode `0600` unless a runtime service needs a narrower group-readable exception.
+
+The deployed SIP/TURN certificate is `0644 root:root`. Its private key is `0640 root:65534`: the containing `/etc/leamout/certs` directory remains `0700 root:root`, so ordinary host users cannot traverse it, while the bind-mounted key is readable by the official Coturn image which runs as `nobody:nogroup`.
 
 The following values must never be world-readable or stored under `/opt/leamout`:
 
@@ -112,10 +115,18 @@ The following values must never be world-readable or stored under `/opt/leamout`
 
 `/etc/leamout/leamout.env` is persistent installation state. Back it up securely and never regenerate it during upgrades because it contains the carrier credential encryption key and other long-lived secrets.
 
-## TLS renewal
+## TLS issuance and renewal
 
-Certbot keeps its own renewal state under `/etc/letsencrypt`. Renewed SIP/TURN certificates are deployed into `/etc/leamout/certs` through a root-owned deploy hook. The hook atomically replaces the deployed certificate and private key and restarts OpenSIPS and Coturn when those services are running.
+Certbot keeps its ACME account, certificate lineage, and renewal configuration under `/etc/letsencrypt`. Leamout uses the fixed Certbot certificate name `leamout-sip-turn` and requests SANs for `sip.<domain>` and `turn.<domain>`. The initial installer does not invent an operator email address; Certbot registers non-interactively without an email contact.
+
+Caddy serves only `/.well-known/acme-challenge/*` for the SIP and TURN hostnames over HTTP. Certbot uses `/var/lib/leamout/acme` as its webroot. The installer enables `certbot.timer`, so TCP port 80 must remain reachable after installation for future HTTP-01 renewals.
+
+After successful issuance or renewal, a root-owned Certbot deploy hook atomically copies the certificate into `/etc/leamout/certs` and restarts OpenSIPS and Coturn when those containers are running.
 
 `carrier-ca.pem` is optional. Publicly trusted carrier TLS uses the container system CA store by default; a carrier-specific CA file should only be installed when required by that carrier.
+
+## Release authenticity
+
+`checksums.txt` is the canonical SHA-256 manifest for downloadable release archives. The next release-hardening step is to sign this manifest with Minisign and make signature verification mandatory in the bootstrap. The Minisign private key must never be committed to the repository; only the public verification key belongs in public distribution material.
 
 The application/runtime is the same Leamout runtime used by Cloud. Self-Hosted changes deployment and operations only; it does not introduce a separate application mode or BYOC/Managed behavior.
