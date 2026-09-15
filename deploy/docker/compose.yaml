@@ -1,0 +1,197 @@
+name: leamout
+
+x-app-environment: &app-environment
+  APP_ENV: production
+  LEAMOUT_DEPLOYMENT_ID: ${LEAMOUT_DEPLOYMENT_ID:-local}
+  DATABASE_URL: postgres://leamout:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@postgres:5432/leamout?sslmode=disable
+  REDIS_URL: redis://redis:6379/0
+  NATS_URL: nats://nats:4222
+  NATS_STREAM_REPLICAS: "1"
+  FREESWITCH_ESL_ADDRESS: freeswitch:8021
+  FREESWITCH_ESL_PASSWORD: ${FREESWITCH_ESL_PASSWORD:?FREESWITCH_ESL_PASSWORD is required}
+  CARRIER_CREDENTIAL_ENCRYPTION_KEY: ${CARRIER_CREDENTIAL_ENCRYPTION_KEY:?CARRIER_CREDENTIAL_ENCRYPTION_KEY is required}
+  MANAGED_SIP_ADMISSION_SECRET: ${MANAGED_SIP_ADMISSION_SECRET:?MANAGED_SIP_ADMISSION_SECRET is required}
+  TURN_AUTH_SECRET: ${TURN_AUTH_SECRET:?TURN_AUTH_SECRET is required}
+  TURN_PUBLIC_URLS: ${TURN_PUBLIC_URLS:-stun:localhost:3478,turn:localhost:3478?transport=udp,turn:localhost:3478?transport=tcp}
+  CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: leamout
+      POSTGRES_USER: leamout
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U leamout -d leamout"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    networks:
+      - private-control
+
+  redis:
+    image: redis:7.4-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    networks:
+      - private-control
+
+  nats:
+    image: nats:2.11-alpine
+    restart: unless-stopped
+    command: ["-c", "/etc/nats/nats-server.conf"]
+    volumes:
+      - ../../containers/nats/nats-server.conf:/etc/nats/nats-server.conf:ro
+      - nats-data:/data
+    networks:
+      - private-control
+
+  server:
+    image: leamout/server:local
+    build:
+      context: ../../server
+      dockerfile: Dockerfile
+      args:
+        COMMAND: server
+    restart: unless-stopped
+    environment: *app-environment
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      nats:
+        condition: service_started
+      freeswitch:
+        condition: service_started
+    ports:
+      - "8080:8080"
+    networks:
+      - private-control
+
+  worker:
+    image: leamout/worker:local
+    build:
+      context: ../../server
+      dockerfile: Dockerfile
+      args:
+        COMMAND: worker
+    restart: unless-stopped
+    environment: *app-environment
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      nats:
+        condition: service_started
+      freeswitch:
+        condition: service_started
+    networks:
+      - private-control
+
+  freeswitch:
+    image: leamout/freeswitch:local
+    build:
+      context: ../../containers/freeswitch
+    restart: unless-stopped
+    environment:
+      FREESWITCH_ESL_PASSWORD: ${FREESWITCH_ESL_PASSWORD:?FREESWITCH_ESL_PASSWORD is required}
+    volumes:
+      - recordings-data:/var/lib/freeswitch/recordings
+    networks:
+      private-control:
+        ipv4_address: 172.32.0.20
+
+  rtpengine:
+    image: leamout/rtpengine:local
+    build:
+      context: ../../containers/rtpengine
+    restart: unless-stopped
+    environment:
+      RTPENGINE_PUBLIC_IP: ${RTPENGINE_PUBLIC_IP:?RTPENGINE_PUBLIC_IP is required}
+    ports:
+      - "23000-32768:23000-32768/udp"
+    networks:
+      private-control:
+        ipv4_address: 172.32.0.10
+      public-media:
+        ipv4_address: 172.31.0.10
+
+  opensips:
+    image: leamout/opensips:local
+    build:
+      context: ../../containers/opensips
+    restart: unless-stopped
+    environment:
+      OPENSIPS_DATABASE_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      OPENSIPS_ADVERTISED_ADDRESS: ${OPENSIPS_ADVERTISED_ADDRESS:-}
+      MANAGED_SIP_ADMISSION_SECRET: ${MANAGED_SIP_ADMISSION_SECRET:?MANAGED_SIP_ADMISSION_SECRET is required}
+    volumes:
+      - ${OPENSIPS_TLS_DIR:?OPENSIPS_TLS_DIR is required}:/etc/opensips/tls:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rtpengine:
+        condition: service_started
+      freeswitch:
+        condition: service_started
+      server:
+        condition: service_started
+    ports:
+      - "5060:5060/udp"
+      - "5060:5060/tcp"
+      - "5061:5061/tcp"
+      - "5062:5062/tcp"
+    networks:
+      - private-control
+      - public-media
+
+  coturn:
+    image: coturn/coturn:4.6.3
+    restart: unless-stopped
+    command:
+      - -c
+      - /etc/coturn/turnserver.conf
+      - --static-auth-secret=${TURN_AUTH_SECRET:?TURN_AUTH_SECRET is required}
+      - --realm=${TURN_REALM:-localhost}
+      - --cert=/etc/coturn/tls/fullchain.pem
+      - --pkey=/etc/coturn/tls/privkey.pem
+    volumes:
+      - ../../containers/coturn/turnserver.conf:/etc/coturn/turnserver.conf:ro
+      - ${TURN_TLS_DIR:?TURN_TLS_DIR is required}:/etc/coturn/tls:ro
+    ports:
+      - "3478:3478/udp"
+      - "3478:3478/tcp"
+      - "5349:5349/udp"
+      - "5349:5349/tcp"
+      - "49152-65535:49152-65535/udp"
+    networks:
+      - public-media
+
+volumes:
+  postgres-data:
+  redis-data:
+  nats-data:
+  recordings-data:
+
+networks:
+  private-control:
+    ipam:
+      config:
+        - subnet: 172.32.0.0/16
+  public-media:
+    ipam:
+      config:
+        - subnet: 172.31.0.0/16
