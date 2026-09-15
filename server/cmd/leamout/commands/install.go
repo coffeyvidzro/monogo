@@ -25,131 +25,90 @@ var installCmd = &cobra.Command{
 		}
 
 		fmt.Println()
-
 		color.Yellow("Installation configuration:")
-		fmt.Printf("  Domain:           %s\n", config.Domain)
-		fmt.Printf("  PostgreSQL:       %s:%s\n", config.PostgresHost, config.PostgresPort)
-		fmt.Printf("  Database:         %s\n", config.PostgresDatabase)
-		fmt.Printf("  FreeSWITCH:       %t\n", config.InstallFreeSWITCH)
-		fmt.Printf("  Redis:            %t\n", config.InstallRedis)
-		fmt.Printf("  NATS:             %t\n", config.InstallNATS)
-
+		fmt.Printf("  Domain:       %s\n", config.Domain)
+		fmt.Printf("  Public IP:    %s\n", config.PublicIP)
+		fmt.Printf("  Version:      %s\n", config.Version)
+		fmt.Printf("  Install dir:  %s\n", config.InstallDir)
+		fmt.Printf("  TLS cert:     %s\n", config.TLSCertificate)
 		fmt.Println()
 
 		var confirmed bool
-
-		confirmPrompt := &survey.Confirm{
+		if err := survey.AskOne(&survey.Confirm{
 			Message: "Proceed with installation?",
 			Default: true,
-		}
-
-		if err := survey.AskOne(confirmPrompt, &confirmed); err != nil {
+		}, &confirmed); err != nil {
 			return err
 		}
-
 		if !confirmed {
 			color.Yellow("Installation cancelled.")
 			return nil
 		}
 
 		fmt.Println()
-
-		s := spinner.New(
-			spinner.CharSets[14],
-			100*time.Millisecond,
-		)
-
+		s := spinner.New(spinner.CharSets[14], 100*time.Millisecond)
 		s.Suffix = " Installing Leamout..."
 		s.Start()
 
 		err = installer.Install(config)
-
 		s.Stop()
-
 		if err != nil {
 			color.Red("✖ Installation failed")
 			return err
 		}
 
 		color.Green("✔ Installation completed successfully!")
-
+		fmt.Printf("Deployment directory: %s\n", config.InstallDir)
 		return nil
 	},
 }
 
 func promptInstallConfig() (*installer.Config, error) {
 	config := &installer.Config{}
-
 	prompts := []*survey.Question{
 		{
 			Name: "domain",
 			Prompt: &survey.Input{
-				Message: "Domain:",
-				Default: "localhost",
+				Message: "Base domain (for api., sip., and turn.):",
 			},
 		},
 		{
-			Name: "postgresHost",
+			Name: "publicIP",
 			Prompt: &survey.Input{
-				Message: "PostgreSQL host:",
-				Default: "localhost",
+				Message: "Public IP address:",
 			},
 		},
 		{
-			Name: "postgresPort",
+			Name: "version",
 			Prompt: &survey.Input{
-				Message: "PostgreSQL port:",
-				Default: "5432",
+				Message: "Leamout version:",
+				Default: "preview",
 			},
 		},
 		{
-			Name: "postgresDatabase",
+			Name: "installDir",
 			Prompt: &survey.Input{
-				Message: "PostgreSQL database:",
-				Default: "leamout",
+				Message: "Install directory:",
+				Default: "/opt/leamout",
 			},
 		},
 		{
-			Name: "postgresUser",
+			Name: "tlsCertificate",
 			Prompt: &survey.Input{
-				Message: "PostgreSQL username:",
-				Default: "postgres",
+				Message: "TLS certificate for sip/turn (fullchain.pem):",
 			},
 		},
 		{
-			Name: "postgresPassword",
+			Name: "tlsPrivateKey",
 			Prompt: &survey.Password{
-				Message: "PostgreSQL password:",
-			},
-		},
-		{
-			Name: "installFreeSWITCH",
-			Prompt: &survey.Confirm{
-				Message: "Install FreeSWITCH?",
-				Default: true,
-			},
-		},
-		{
-			Name: "installRedis",
-			Prompt: &survey.Confirm{
-				Message: "Install Redis?",
-				Default: true,
-			},
-		},
-		{
-			Name: "installNATS",
-			Prompt: &survey.Confirm{
-				Message: "Install NATS?",
-				Default: true,
+				Message: "TLS private key path for sip/turn:",
 			},
 		},
 	}
 
-	err := survey.Ask(prompts, config)
-	if err != nil {
+	if err := survey.Ask(prompts, config); err != nil {
 		return nil, err
 	}
-
 	return config, nil
 }
 
