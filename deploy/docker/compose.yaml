@@ -85,8 +85,6 @@ services:
         condition: service_started
       freeswitch:
         condition: service_started
-    ports:
-      - "8080:8080"
     networks:
       - private-control
 
@@ -104,6 +102,26 @@ services:
       freeswitch:
         condition: service_started
     networks:
+      - private-control
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    environment:
+      DOMAIN: ${DOMAIN:?DOMAIN is required}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      server:
+        condition: service_started
+    networks:
+      - public-web
       - private-control
 
   freeswitch:
@@ -187,6 +205,8 @@ volumes:
   redis-data:
   nats-data:
   recordings-data:
+  caddy-data:
+  caddy-config:
 
 networks:
   private-control:
@@ -201,3 +221,4 @@ networks:
     ipam:
       config:
         - subnet: 172.30.0.0/24
+  public-web:
