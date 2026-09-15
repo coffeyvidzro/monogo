@@ -157,6 +157,8 @@ services:
     image: ghcr.io/coffeyvidzro/leamout-opensips:${LEAMOUT_VERSION:-preview}
     restart: unless-stopped
     stop_grace_period: 30s
+    environment:
+      SIP_DOMAIN: sip.${DOMAIN:?DOMAIN is required}
     volumes:
       - ./certs/fullchain.pem:/etc/opensips/tls/fullchain.pem:ro
       - ./certs/privkey.pem:/etc/opensips/tls/privkey.pem:ro
