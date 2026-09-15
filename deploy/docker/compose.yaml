@@ -32,6 +32,22 @@ services:
     networks:
       - private-control
 
+  migrate:
+    image: ghcr.io/coffeyvidzro/leamout-migrate:${LEAMOUT_VERSION:-preview}
+    restart: "no"
+    command:
+      - migrate
+      - apply
+      - --dir
+      - file:///migrations
+      - --url
+      - postgres://leamout:leamout@postgres:5432/leamout?sslmode=disable&search_path=public
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - private-control
+
   redis:
     image: redis:7.4-alpine
     restart: unless-stopped
@@ -61,8 +77,8 @@ services:
     restart: unless-stopped
     environment: *app-environment
     depends_on:
-      postgres:
-        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
       nats:
@@ -79,8 +95,8 @@ services:
     restart: unless-stopped
     environment: *app-environment
     depends_on:
-      postgres:
-        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
       nats:
