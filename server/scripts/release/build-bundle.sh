@@ -22,7 +22,8 @@ mkdir -p \
   "$root/server" \
   "$root/containers/nats" \
   "$root/containers/coturn" \
-  "$root/server/scripts/certs"
+  "$root/server/scripts/certs" \
+  "$root/server/scripts/deploy"
 
 (
   cd server
@@ -40,7 +41,9 @@ cp containers/nats/nats-server.conf "$root/containers/nats/nats-server.conf"
 cp containers/coturn/turnserver.conf "$root/containers/coturn/turnserver.conf"
 cp deploy/docker/SELF_HOSTED.md "$root/README.md"
 cp server/scripts/certs/*.sh "$root/server/scripts/certs/"
+cp server/scripts/deploy/*.sh "$root/server/scripts/deploy/"
 chmod 0755 "$root/server/scripts/certs/"*.sh
+chmod 0755 "$root/server/scripts/deploy/"*.sh
 printf '%s\n' "$version" > "$root/VERSION"
 
 tar -C dist -czf "dist/${bundle}.tar.gz" "$bundle"
