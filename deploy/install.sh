@@ -45,20 +45,18 @@ esac
 
 bundle="leamout_${version}_${os}_${arch}"
 archive="${bundle}.tar.gz"
-url="${base_url}/${tag}/${archive}"
-checksum_url="${url}.sha256"
+release_url="${base_url}/${tag}"
 
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT HUP INT TERM
 
 printf 'Downloading Leamout %s for %s/%s...\n' "$version" "$os" "$arch"
-curl -fL "$url" -o "$tmp/$archive"
-curl -fL "$checksum_url" -o "$tmp/$archive.sha256"
+curl -fL "$release_url/$archive" -o "$tmp/$archive"
+curl -fL "$release_url/checksums.txt" -o "$tmp/checksums.txt"
 
-(
-  cd "$tmp"
-  sha256sum -c "$archive.sha256"
-)
+expected=$(awk -v file="$archive" '$2 == file { print $1; exit }' "$tmp/checksums.txt")
+[ -n "$expected" ] || fail "$archive is missing from checksums.txt"
+printf '%s  %s\n' "$expected" "$tmp/$archive" | sha256sum -c -
 
 tar -xzf "$tmp/$archive" -C "$tmp"
 root="$tmp/$bundle"
