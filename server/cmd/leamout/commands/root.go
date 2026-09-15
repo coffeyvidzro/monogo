@@ -6,8 +6,8 @@ import (
 
 var rootCmd = &cobra.Command{
 	Use:   "leamout",
-	Short: "Self-hosted application CLI",
-	Long:  "Install and manage the Leamout self-hosted application.",
+	Short: "Leamout application CLI",
+	Long:  "Install and manage the Leamout application.",
 }
 
 func Execute() error {
