@@ -5,7 +5,7 @@ on:
     paths:
       - ".github/workflows/self-hosted-release.yml"
       - "deploy/docker/**"
-      - "deploy/install.sh"
+      - "server/scripts/**"
       - "server/cmd/leamout/**"
       - "server/internal/installer/**"
       - "server/migrations/**"
@@ -38,7 +38,7 @@ jobs:
         run: go test ./internal/installer ./cmd/leamout/commands
 
       - name: Validate bootstrap script
-        run: sh -n deploy/install.sh
+        run: sh -n server/scripts/install.sh
 
       - name: Build bundle
         shell: bash
@@ -82,7 +82,55 @@ jobs:
           tar -C dist -czf "dist/${bundle}.tar.gz" "${bundle}"
           (
             cd dist
-            sha256sum "${bundle}.tar.gz" > "${bundle}.tar.gz.sha256"
+            sha256sum "${bundle}.tar.gz" > checksums.txt
+          )
+
+      - name: Install Minisign
+        if: github.ref_type == 'tag'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y minisign
+
+      - name: Sign and verify release manifest
+        if: github.ref_type == 'tag'
+        shell: bash
+        env:
+          LEAMOUT_MINISIGN_SECRET_KEY: ${{ secrets.LEAMOUT_MINISIGN_SECRET_KEY }}
+        run: |
+          set -euo pipefail
+
+          if [[ -z "${LEAMOUT_MINISIGN_SECRET_KEY:-}" ]]; then
+            echo "LEAMOUT_MINISIGN_SECRET_KEY is required for tagged releases" >&2
+            exit 1
+          fi
+
+          key_file="${RUNNER_TEMP}/leamout-release.key"
+          trap 'rm -f "$key_file"' EXIT
+          umask 077
+          printf '%s\n' "$LEAMOUT_MINISIGN_SECRET_KEY" > "$key_file"
+          chmod 0600 "$key_file"
+
+          minisign -S -W \
+            -s "$key_file" \
+            -m dist/checksums.txt \
+            -x dist/checksums.txt.minisig \
+            -t "Leamout ${GITHUB_REF_NAME} release checksums"
+
+          public_key=$(awk -F"'" '/^minisign_public_key=/{for (i=2; i<=NF; i+=2) printf "%s", $i; print ""; exit}' server/scripts/install.sh)
+          if [[ -z "$public_key" ]]; then
+            echo "could not read Minisign public key from server/scripts/install.sh" >&2
+            exit 1
+          fi
+
+          minisign -V \
+            -m dist/checksums.txt \
+            -x dist/checksums.txt.minisig \
+            -P "$public_key" \
+            -q
+
+          (
+            cd dist
+            sha256sum -c checksums.txt
           )
 
       - name: Upload workflow artifact
@@ -91,7 +139,8 @@ jobs:
           name: leamout-linux-amd64
           path: |
             dist/*.tar.gz
-            dist/*.tar.gz.sha256
+            dist/checksums.txt
+            dist/checksums.txt.minisig
           if-no-files-found: error
 
       - name: Attach bundle to GitHub release
@@ -100,4 +149,5 @@ jobs:
         with:
           files: |
             dist/*.tar.gz
-            dist/*.tar.gz.sha256
+            dist/checksums.txt
+            dist/checksums.txt.minisig

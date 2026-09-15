@@ -12,8 +12,6 @@ import (
 	"github.com/coffeyvidzro/monogo/internal/installer"
 )
 
-var installDir string
-
 var installCmd = &cobra.Command{
 	Use:   "install",
 	Short: "Install Leamout",
@@ -29,10 +27,12 @@ var installCmd = &cobra.Command{
 		fmt.Println()
 		color.Yellow("Installation configuration:")
 		fmt.Printf("  Domain:       %s\n", config.Domain)
-		fmt.Printf("  Public IP:    %s\n", config.PublicIP)
+		fmt.Printf("  Public IPv4:  %s\n", config.PublicIP)
 		fmt.Printf("  Version:      %s\n", config.Version)
-		fmt.Printf("  Install dir:  %s\n", config.InstallDir)
-		fmt.Printf("  TLS cert:     %s\n", config.TLSCertificate)
+		fmt.Printf("  Runtime:      %s\n", installer.InstallRoot)
+		fmt.Printf("  Configuration:%s\n", installer.ConfigRoot)
+		fmt.Printf("  State:        %s\n", installer.StateRoot)
+		fmt.Println("  TLS:          Let's Encrypt (automatic for SIP/TURN)")
 		fmt.Println()
 
 		var confirmed bool
@@ -60,15 +60,15 @@ var installCmd = &cobra.Command{
 		}
 
 		color.Green("✔ Installation completed successfully!")
-		fmt.Printf("Deployment directory: %s\n", config.InstallDir)
+		fmt.Printf("Release:       %s\n", installer.ReleaseDir(config.Version))
+		fmt.Printf("Configuration: %s\n", installer.ConfigRoot)
 		return nil
 	},
 }
 
 func promptInstallConfig() (*installer.Config, error) {
 	config := &installer.Config{
-		Version:    installer.DefaultVersion(),
-		InstallDir: installDir,
+		Version: installer.DefaultVersion(),
 	}
 	prompts := []*survey.Question{
 		{
@@ -80,19 +80,7 @@ func promptInstallConfig() (*installer.Config, error) {
 		{
 			Name: "publicIP",
 			Prompt: &survey.Input{
-				Message: "Public IP address:",
-			},
-		},
-		{
-			Name: "tlsCertificate",
-			Prompt: &survey.Input{
-				Message: "TLS certificate for sip/turn (fullchain.pem):",
-			},
-		},
-		{
-			Name: "tlsPrivateKey",
-			Prompt: &survey.Input{
-				Message: "TLS private key path for sip/turn:",
+				Message: "Public IPv4 address:",
 			},
 		},
 	}
@@ -104,6 +92,5 @@ func promptInstallConfig() (*installer.Config, error) {
 }
 
 func init() {
-	installCmd.Flags().StringVar(&installDir, "install-dir", "/opt/leamout", "self-hosted deployment directory")
 	rootCmd.AddCommand(installCmd)
 }

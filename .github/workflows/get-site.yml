@@ -5,7 +5,7 @@ on:
     branches:
       - main
     paths:
-      - "deploy/install.sh"
+      - "server/scripts/install.sh"
       - "deploy/get/**"
       - ".github/workflows/get-site.yml"
   workflow_dispatch:
@@ -37,7 +37,7 @@ jobs:
           mkdir -p dist/get
           cp deploy/get/index.html dist/get/index.html
           cp deploy/get/CNAME dist/get/CNAME
-          cp deploy/install.sh dist/get/install.sh
+          cp server/scripts/install.sh dist/get/install.sh
           chmod 0644 dist/get/install.sh
 
       - name: Configure Pages

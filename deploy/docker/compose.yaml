@@ -42,7 +42,7 @@ services:
     environment:
       DATABASE_URL: "postgres://leamout:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@postgres:5432/leamout?sslmode=disable&search_path=public"
     volumes:
-      - ../../server/migrations:/migrations:ro
+      - ./migrations:/migrations:ro
     depends_on:
       postgres:
         condition: service_healthy
@@ -68,7 +68,7 @@ services:
     restart: unless-stopped
     command: ["-c", "/etc/nats/nats-server.conf"]
     volumes:
-      - ../../containers/nats/nats-server.conf:/etc/nats/nats-server.conf:ro
+      - ./config/nats-server.conf:/etc/nats/nats-server.conf:ro
       - nats-data:/data
     networks:
       - private-control
@@ -119,11 +119,9 @@ services:
       - "443:443/udp"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - /var/lib/leamout/acme:/srv/leamout-acme:ro
       - caddy-data:/data
       - caddy-config:/config
-    depends_on:
-      server:
-        condition: service_started
     networks:
       - public-web
 
@@ -160,8 +158,8 @@ services:
     environment:
       SIP_DOMAIN: sip.${DOMAIN:?DOMAIN is required}
     volumes:
-      - ./certs/fullchain.pem:/etc/opensips/tls/fullchain.pem:ro
-      - ./certs/privkey.pem:/etc/opensips/tls/privkey.pem:ro
+      - /etc/leamout/certs/fullchain.pem:/etc/opensips/tls/fullchain.pem:ro
+      - /etc/leamout/certs/privkey.pem:/etc/opensips/tls/privkey.pem:ro
     depends_on:
       postgres:
         condition: service_healthy
@@ -193,9 +191,9 @@ services:
       - --cert=/etc/coturn/tls/fullchain.pem
       - --pkey=/etc/coturn/tls/privkey.pem
     volumes:
-      - ../../containers/coturn/turnserver.conf:/etc/coturn/turnserver.conf:ro
-      - ./certs/fullchain.pem:/etc/coturn/tls/fullchain.pem:ro
-      - ./certs/privkey.pem:/etc/coturn/tls/privkey.pem:ro
+      - ./config/turnserver.conf:/etc/coturn/turnserver.conf:ro
+      - /etc/leamout/certs/fullchain.pem:/etc/coturn/tls/fullchain.pem:ro
+      - /etc/leamout/certs/privkey.pem:/etc/coturn/tls/privkey.pem:ro
     ports:
       - "3478:3478/udp"
       - "3478:3478/tcp"
