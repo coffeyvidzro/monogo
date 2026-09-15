@@ -1,0 +1,53 @@
+name: Publish get.leamout.com
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "deploy/install.sh"
+      - "deploy/get/**"
+      - ".github/workflows/get-site.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: github-pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build site
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist/get
+          cp deploy/get/index.html dist/get/index.html
+          cp deploy/get/CNAME dist/get/CNAME
+          cp deploy/install.sh dist/get/install.sh
+          chmod 0644 dist/get/install.sh
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist/get
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
