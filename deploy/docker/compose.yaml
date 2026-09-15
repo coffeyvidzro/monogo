@@ -3,7 +3,7 @@ name: leamout
 x-app-environment: &app-environment
   APP_ENV: production
   LEAMOUT_DEPLOYMENT_ID: ${LEAMOUT_DEPLOYMENT_ID:-local}
-  DATABASE_URL: postgres://leamout:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@postgres:5432/leamout?sslmode=disable
+  DATABASE_URL: postgres://leamout:leamout@postgres:5432/leamout?sslmode=disable
   REDIS_URL: redis://redis:6379/0
   NATS_URL: nats://nats:4222
   NATS_STREAM_REPLICAS: "1"
@@ -21,7 +21,7 @@ services:
     environment:
       POSTGRES_DB: leamout
       POSTGRES_USER: leamout
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      POSTGRES_PASSWORD: leamout
     volumes:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:
@@ -133,11 +133,10 @@ services:
     build:
       context: ../../containers/opensips
     restart: unless-stopped
-    environment:
-      OPENSIPS_DATABASE_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
-      OPENSIPS_ADVERTISED_ADDRESS: ${OPENSIPS_ADVERTISED_ADDRESS:-}
     volumes:
-      - ${OPENSIPS_TLS_DIR:?OPENSIPS_TLS_DIR is required}:/etc/opensips/tls:ro
+      - ./certs/fullchain.pem:/etc/opensips/tls/fullchain.pem:ro
+      - ./certs/privkey.pem:/etc/opensips/tls/privkey.pem:ro
+      - ./certs/carrier-ca.pem:/etc/opensips/tls/carrier-ca.pem:ro
     depends_on:
       postgres:
         condition: service_healthy
