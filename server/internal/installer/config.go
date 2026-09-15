@@ -1,14 +1,10 @@
 package installer
 
 type Config struct {
-	Domain           string
-	PostgresHost     string
-	PostgresPort     string
-	PostgresDatabase string
-	PostgresUser     string
-	PostgresPassword string
-
-	InstallFreeSWITCH bool
-	InstallRedis      bool
-	InstallNATS       bool
+	Domain         string
+	PublicIP       string
+	Version        string
+	InstallDir     string
+	TLSCertificate string
+	TLSPrivateKey  string
 }
