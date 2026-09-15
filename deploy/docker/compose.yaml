@@ -2,16 +2,17 @@ name: leamout
 
 x-app-environment: &app-environment
   APP_ENV: production
-  LEAMOUT_DEPLOYMENT_ID: ${LEAMOUT_DEPLOYMENT_ID:-local}
-  DATABASE_URL: postgres://leamout:leamout@postgres:5432/leamout?sslmode=disable
+  LEAMOUT_DEPLOYMENT_ID: ${LEAMOUT_DEPLOYMENT_ID:?LEAMOUT_DEPLOYMENT_ID is required}
+  DATABASE_URL: "postgres://leamout:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@postgres:5432/leamout?sslmode=disable"
   REDIS_URL: redis://redis:6379/0
   NATS_URL: nats://nats:4222
   NATS_STREAM_REPLICAS: "1"
   FREESWITCH_ESL_ADDRESS: freeswitch:8021
   FREESWITCH_ESL_PASSWORD: ${FREESWITCH_ESL_PASSWORD:?FREESWITCH_ESL_PASSWORD is required}
   CARRIER_CREDENTIAL_ENCRYPTION_KEY: ${CARRIER_CREDENTIAL_ENCRYPTION_KEY:?CARRIER_CREDENTIAL_ENCRYPTION_KEY is required}
+  OPERATOR_API_SECRET: ${OPERATOR_API_SECRET:?OPERATOR_API_SECRET is required}
   TURN_AUTH_SECRET: ${TURN_AUTH_SECRET:?TURN_AUTH_SECRET is required}
-  TURN_PUBLIC_URLS: ${TURN_PUBLIC_URLS:-stun:localhost:3478,turn:localhost:3478?transport=udp,turn:localhost:3478?transport=tcp}
+  TURN_PUBLIC_URLS: ${TURN_PUBLIC_URLS:?TURN_PUBLIC_URLS is required}
   CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}
 
 services:
@@ -21,7 +22,7 @@ services:
     environment:
       POSTGRES_DB: leamout
       POSTGRES_USER: leamout
-      POSTGRES_PASSWORD: leamout
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
     volumes:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:
@@ -39,7 +40,7 @@ services:
     command:
       - exec /atlas migrate apply --dir file:///migrations --url "$$DATABASE_URL"
     environment:
-      DATABASE_URL: postgres://leamout:leamout@postgres:5432/leamout?sslmode=disable&search_path=public
+      DATABASE_URL: "postgres://leamout:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@postgres:5432/leamout?sslmode=disable&search_path=public"
     volumes:
       - ../../server/migrations:/migrations:ro
     depends_on:
@@ -143,7 +144,7 @@ services:
     restart: unless-stopped
     stop_grace_period: 30s
     environment:
-      RTPENGINE_PUBLIC_IP: ${RTPENGINE_PUBLIC_IP:?RTPENGINE_PUBLIC_IP is required}
+      RTPENGINE_PUBLIC_IP: ${PUBLIC_IP:?PUBLIC_IP is required}
     ports:
       - "23000-32768:23000-32768/udp"
     networks:
@@ -156,10 +157,11 @@ services:
     image: ghcr.io/coffeyvidzro/leamout-opensips:${LEAMOUT_VERSION:-preview}
     restart: unless-stopped
     stop_grace_period: 30s
+    environment:
+      SIP_DOMAIN: sip.${DOMAIN:?DOMAIN is required}
     volumes:
       - ./certs/fullchain.pem:/etc/opensips/tls/fullchain.pem:ro
       - ./certs/privkey.pem:/etc/opensips/tls/privkey.pem:ro
-      - ./certs/carrier-ca.pem:/etc/opensips/tls/carrier-ca.pem:ro
     depends_on:
       postgres:
         condition: service_healthy
@@ -186,7 +188,8 @@ services:
       - -c
       - /etc/coturn/turnserver.conf
       - --static-auth-secret=${TURN_AUTH_SECRET:?TURN_AUTH_SECRET is required}
-      - --realm=${TURN_REALM:-localhost}
+      - --realm=${TURN_REALM:?TURN_REALM is required}
+      - --external-ip=${PUBLIC_IP:?PUBLIC_IP is required}
       - --cert=/etc/coturn/tls/fullchain.pem
       - --pkey=/etc/coturn/tls/privkey.pem
     volumes:
