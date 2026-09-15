@@ -107,8 +107,25 @@ jobs:
           key_file="${RUNNER_TEMP}/leamout-release.key"
           trap 'rm -f "$key_file"' EXIT
           umask 077
-          printf '%s\n' "$LEAMOUT_MINISIGN_SECRET_KEY" > "$key_file"
+
+          # Preserve the secret exactly as stored, except normalize CRLF copied
+          # from Windows. Do not append an extra newline: Minisign expects the
+          # secret key file to contain exactly its two canonical lines.
+          printf '%s' "$LEAMOUT_MINISIGN_SECRET_KEY" | tr -d '\r' > "$key_file"
           chmod 0600 "$key_file"
+
+          if ! head -n 1 "$key_file" | grep -Eq '^untrusted comment: minisign (encrypted )?secret key '; then
+            echo "LEAMOUT_MINISIGN_SECRET_KEY does not contain a Minisign secret key file" >&2
+            exit 1
+          fi
+          if [[ "$(awk 'END { print NR }' "$key_file")" -ne 2 ]]; then
+            echo "LEAMOUT_MINISIGN_SECRET_KEY must contain exactly the two lines from leamout-release.key" >&2
+            exit 1
+          fi
+          if ! sed -n '2p' "$key_file" | grep -Eq '^[A-Za-z0-9+/=]{180,}$'; then
+            echo "LEAMOUT_MINISIGN_SECRET_KEY has an invalid key payload" >&2
+            exit 1
+          fi
 
           minisign -S -W \
             -s "$key_file" \
