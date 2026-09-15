@@ -23,36 +23,22 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - image: server
+          - image: leamout
+            package: leamout
             context: ./server
             dockerfile: ./server/Dockerfile
-            target: runtime
-            build_args: COMMAND=server
-          - image: worker
-            context: ./server
-            dockerfile: ./server/Dockerfile
-            target: runtime
-            build_args: COMMAND=worker
-          - image: migrate
-            context: ./server
-            dockerfile: ./server/Dockerfile
-            target: migrate
-            build_args: ""
           - image: opensips
+            package: leamout-opensips
             context: ./containers/opensips
             dockerfile: ./containers/opensips/Dockerfile
-            target: ""
-            build_args: ""
           - image: freeswitch
+            package: leamout-freeswitch
             context: ./containers/freeswitch
             dockerfile: ./containers/freeswitch/Dockerfile
-            target: ""
-            build_args: ""
           - image: rtpengine
+            package: leamout-rtpengine
             context: ./containers/rtpengine
             dockerfile: ./containers/rtpengine/Dockerfile
-            target: ""
-            build_args: ""
 
     steps:
       - name: Checkout
@@ -72,7 +58,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.REGISTRY }}/${{ github.repository_owner }}/leamout-${{ matrix.image }}
+          images: ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ matrix.package }}
           flavor: latest=false
           tags: |
             type=raw,value=preview,enable=${{ github.ref == 'refs/heads/main' }}
@@ -84,10 +70,8 @@ jobs:
         with:
           context: ${{ matrix.context }}
           file: ${{ matrix.dockerfile }}
-          target: ${{ matrix.target }}
           push: true
           platforms: linux/amd64
-          build-args: ${{ matrix.build_args }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha,scope=${{ matrix.image }}
