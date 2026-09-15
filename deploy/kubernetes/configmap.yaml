@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: leamout-config
+  namespace: leamout
+data:
+  APP_ENV: production
+  LEAMOUT_DEPLOYMENT_ID: cloud-primary
+  DATABASE_URL: postgres://leamout:$(POSTGRES_PASSWORD)@postgres:5432/leamout?sslmode=disable
+  REDIS_URL: redis://redis:6379/0
+  NATS_URL: nats://nats:4222
+  NATS_STREAM_REPLICAS: "1"
+  FREESWITCH_ESL_ADDRESS: freeswitch:8021
+  TURN_PUBLIC_URLS: stun:turn.example.com:3478,turn:turn.example.com:3478?transport=udp,turn:turn.example.com:3478?transport=tcp,turns:turn.example.com:5349?transport=tcp
+  CORS_ORIGINS: https://example.com,https://api.example.com
