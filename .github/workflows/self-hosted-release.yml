@@ -94,6 +94,8 @@ jobs:
       - name: Sign and verify release manifest
         if: github.ref_type == 'tag'
         shell: bash
+        env:
+          LEAMOUT_MINISIGN_SECRET_KEY: ${{ secrets.LEAMOUT_MINISIGN_SECRET_KEY }}
         run: |
           set -euo pipefail
 
