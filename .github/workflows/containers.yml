@@ -24,15 +24,19 @@ jobs:
       matrix:
         include:
           - image: leamout
+            package: leamout
             context: ./server
             dockerfile: ./server/Dockerfile
           - image: opensips
+            package: leamout-opensips
             context: ./containers/opensips
             dockerfile: ./containers/opensips/Dockerfile
           - image: freeswitch
+            package: leamout-freeswitch
             context: ./containers/freeswitch
             dockerfile: ./containers/freeswitch/Dockerfile
           - image: rtpengine
+            package: leamout-rtpengine
             context: ./containers/rtpengine
             dockerfile: ./containers/rtpengine/Dockerfile
 
@@ -54,7 +58,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ matrix.image == 'leamout' && 'leamout' || format('leamout-{0}', matrix.image) }}
+          images: ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ matrix.package }}
           flavor: latest=false
           tags: |
             type=raw,value=preview,enable=${{ github.ref == 'refs/heads/main' }}
