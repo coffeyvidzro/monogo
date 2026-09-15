@@ -5,7 +5,7 @@ on:
     paths:
       - ".github/workflows/self-hosted-release.yml"
       - "deploy/docker/**"
-      - "deploy/install.sh"
+      - "server/scripts/**"
       - "server/cmd/leamout/**"
       - "server/internal/installer/**"
       - "server/migrations/**"
@@ -38,7 +38,7 @@ jobs:
         run: go test ./internal/installer ./cmd/leamout/commands
 
       - name: Validate bootstrap script
-        run: sh -n deploy/install.sh
+        run: sh -n server/scripts/install.sh
 
       - name: Build bundle
         shell: bash
