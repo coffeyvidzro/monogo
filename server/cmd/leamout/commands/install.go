@@ -14,9 +14,9 @@ import (
 
 var installCmd = &cobra.Command{
 	Use:   "install",
-	Short: "Install the self-hosted application",
+	Short: "Install Leamout",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		color.Cyan("🚀 Initializing Leamout Self-Hosted...")
+		color.Cyan("🚀 Initializing Leamout...")
 		fmt.Println()
 
 		config, err := promptInstallConfig()
@@ -59,7 +59,7 @@ var installCmd = &cobra.Command{
 			100*time.Millisecond,
 		)
 
-		s.Suffix = " Installing Leamout Self-Hosted..."
+		s.Suffix = " Installing Leamout..."
 		s.Start()
 
 		err = installer.Install(config)
