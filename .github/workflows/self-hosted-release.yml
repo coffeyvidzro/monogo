@@ -76,9 +76,11 @@ jobs:
           cp deploy/docker/SELF_HOSTED.md "${root}/README.md"
           printf '%s\n' "${version}" > "${root}/VERSION"
 
-          archive="dist/${bundle}.tar.gz"
-          tar -C dist -czf "${archive}" "${bundle}"
-          sha256sum "${archive}" > "${archive}.sha256"
+          tar -C dist -czf "dist/${bundle}.tar.gz" "${bundle}"
+          (
+            cd dist
+            sha256sum "${bundle}.tar.gz" > "${bundle}.tar.gz.sha256"
+          )
 
       - name: Upload workflow artifact
         uses: actions/upload-artifact@v4
