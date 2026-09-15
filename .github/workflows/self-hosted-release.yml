@@ -85,6 +85,52 @@ jobs:
             sha256sum "${bundle}.tar.gz" > checksums.txt
           )
 
+      - name: Install Minisign
+        if: github.ref_type == 'tag'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y minisign
+
+      - name: Sign and verify release manifest
+        if: github.ref_type == 'tag'
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ -z "${LEAMOUT_MINISIGN_SECRET_KEY:-}" ]]; then
+            echo "LEAMOUT_MINISIGN_SECRET_KEY is required for tagged releases" >&2
+            exit 1
+          fi
+
+          key_file="${RUNNER_TEMP}/leamout-release.key"
+          trap 'rm -f "$key_file"' EXIT
+          umask 077
+          printf '%s\n' "$LEAMOUT_MINISIGN_SECRET_KEY" > "$key_file"
+          chmod 0600 "$key_file"
+
+          minisign -S -W \
+            -s "$key_file" \
+            -m dist/checksums.txt \
+            -x dist/checksums.txt.minisig \
+            -t "Leamout ${GITHUB_REF_NAME} release checksums"
+
+          public_key=$(awk -F"'" '/^minisign_public_key=/{for (i=2; i<=NF; i+=2) printf "%s", $i; print ""; exit}' server/scripts/install.sh)
+          if [[ -z "$public_key" ]]; then
+            echo "could not read Minisign public key from server/scripts/install.sh" >&2
+            exit 1
+          fi
+
+          minisign -V \
+            -m dist/checksums.txt \
+            -x dist/checksums.txt.minisig \
+            -P "$public_key" \
+            -q
+
+          (
+            cd dist
+            sha256sum -c checksums.txt
+          )
+
       - name: Upload workflow artifact
         uses: actions/upload-artifact@v4
         with:
@@ -92,6 +138,7 @@ jobs:
           path: |
             dist/*.tar.gz
             dist/checksums.txt
+            dist/checksums.txt.minisig
           if-no-files-found: error
 
       - name: Attach bundle to GitHub release
@@ -101,3 +148,4 @@ jobs:
           files: |
             dist/*.tar.gz
             dist/checksums.txt
+            dist/checksums.txt.minisig
