@@ -5,7 +5,7 @@ import (
 )
 
 var rootCmd = &cobra.Command{
-	Use:   "hosted",
+	Use:   "leamout",
 	Short: "Self-hosted application CLI",
 	Long:  "Install and manage the Leamout self-hosted application.",
 }
