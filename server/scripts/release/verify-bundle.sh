@@ -36,6 +36,11 @@ required=(
   "server/scripts/certs/certbot-deploy-hook.sh"
   "server/scripts/certs/install-certbot-renewal.sh"
   "server/scripts/certs/provision-letsencrypt.sh"
+  "server/scripts/deploy/lib.sh"
+  "server/scripts/deploy/preflight.sh"
+  "server/scripts/deploy/up.sh"
+  "server/scripts/deploy/verify.sh"
+  "server/scripts/deploy/restart.sh"
 )
 
 for path in "${required[@]}"; do
@@ -45,8 +50,12 @@ for path in "${required[@]}"; do
   fi
 done
 
-for script in "$root"/server/scripts/certs/*.sh; do
+for script in "$root"/server/scripts/certs/*.sh "$root"/server/scripts/deploy/*.sh; do
   sh -n "$script"
+  if [[ ! -x "$script" ]]; then
+    echo "bundle script is not executable: ${script#"$root/"}" >&2
+    exit 1
+  fi
 done
 
 "$root/leamout" --help >/dev/null
