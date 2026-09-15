@@ -5,6 +5,7 @@ on:
     paths:
       - ".github/workflows/self-hosted-release.yml"
       - "deploy/docker/**"
+      - "deploy/install.sh"
       - "server/cmd/leamout/**"
       - "server/internal/installer/**"
       - "server/migrations/**"
@@ -47,7 +48,9 @@ jobs:
             version="preview"
           fi
 
-          bundle="leamout-self-hosted_${version}_linux_amd64"
+          os="linux"
+          arch="amd64"
+          bundle="leamout_${version}_${os}_${arch}"
           root="dist/${bundle}"
 
           mkdir -p \
@@ -58,7 +61,7 @@ jobs:
 
           (
             cd server
-            CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
+            CGO_ENABLED=0 GOOS="${os}" GOARCH="${arch}" go build \
               -trimpath \
               -ldflags="-s -w" \
               -o "../${root}/leamout" \
@@ -73,17 +76,23 @@ jobs:
           cp deploy/docker/SELF_HOSTED.md "${root}/README.md"
           printf '%s\n' "${version}" > "${root}/VERSION"
 
-          tar -C dist -czf "dist/${bundle}.tar.gz" "${bundle}"
+          archive="dist/${bundle}.tar.gz"
+          tar -C dist -czf "${archive}" "${bundle}"
+          sha256sum "${archive}" > "${archive}.sha256"
 
       - name: Upload workflow artifact
         uses: actions/upload-artifact@v4
         with:
-          name: leamout-self-hosted
-          path: dist/*.tar.gz
+          name: leamout-linux-amd64
+          path: |
+            dist/*.tar.gz
+            dist/*.tar.gz.sha256
           if-no-files-found: error
 
       - name: Attach bundle to GitHub release
         if: github.ref_type == 'tag'
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/*.tar.gz
+          files: |
+            dist/*.tar.gz
+            dist/*.tar.gz.sha256
