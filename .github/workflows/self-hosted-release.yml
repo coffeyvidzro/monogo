@@ -1,6 +1,15 @@
 name: Publish self-hosted bundle
 
 on:
+  pull_request:
+    paths:
+      - ".github/workflows/self-hosted-release.yml"
+      - "deploy/docker/**"
+      - "server/cmd/leamout/**"
+      - "server/internal/installer/**"
+      - "server/migrations/**"
+      - "containers/nats/**"
+      - "containers/coturn/**"
   push:
     tags:
       - "v*"
@@ -22,6 +31,10 @@ jobs:
         with:
           go-version-file: server/go.mod
           cache-dependency-path: server/go.sum
+
+      - name: Test installer
+        working-directory: server
+        run: go test ./internal/installer ./cmd/leamout/commands
 
       - name: Build bundle
         shell: bash
