@@ -134,7 +134,9 @@ services:
       context: ../../containers/opensips
     restart: unless-stopped
     volumes:
-      - ${OPENSIPS_TLS_DIR:?OPENSIPS_TLS_DIR is required}:/etc/opensips/tls:ro
+      - ./certs/fullchain.pem:/etc/opensips/tls/fullchain.pem:ro
+      - ./certs/privkey.pem:/etc/opensips/tls/privkey.pem:ro
+      - ./certs/carrier-ca.pem:/etc/opensips/tls/carrier-ca.pem:ro
     depends_on:
       postgres:
         condition: service_healthy
