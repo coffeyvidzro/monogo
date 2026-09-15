@@ -86,6 +86,7 @@ services:
       freeswitch:
         condition: service_started
     networks:
+      - public-web
       - private-control
 
   worker:
@@ -122,7 +123,6 @@ services:
         condition: service_started
     networks:
       - public-web
-      - private-control
 
   freeswitch:
     image: ghcr.io/coffeyvidzro/leamout-freeswitch:${LEAMOUT_VERSION:-preview}
