@@ -2,53 +2,47 @@
 
 ARG GO_VERSION=1.26.6
 
-FROM golang:${GO_VERSION}-bookworm AS build
+FROM golang:${GO_VERSION}-alpine AS build
 
 WORKDIR /src
+
+RUN apk add --no-cache \
+    ca-certificates \
+    git \
+    tzdata
 
 COPY go.mod go.sum ./
 RUN go mod download
 
 COPY . .
 
-ARG COMMAND=server
-RUN case "${COMMAND}" in \
-      server|worker) ;; \
-      *) echo "unsupported command: ${COMMAND}" >&2; exit 1 ;; \
-    esac \
-    && CGO_ENABLED=0 GOOS=linux go build \
-      -trimpath \
-      -ldflags="-s -w" \
-      -o /out/leamout \
-      "./cmd/${COMMAND}"
+RUN set -eux; \
+    CGO_ENABLED=0 GOOS=linux go build \
+        -trimpath \
+        -ldflags="-s -w" \
+        -o /out/server \
+        ./cmd/server; \
+    CGO_ENABLED=0 GOOS=linux go build \
+        -trimpath \
+        -ldflags="-s -w" \
+        -o /out/worker \
+        ./cmd/worker
 
-FROM debian:bookworm-slim AS runtime
+FROM alpine:3.22
 
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends ca-certificates \
-    && rm -rf /var/lib/apt/lists/* \
-    && groupadd --system leamout \
-    && useradd \
-      --system \
-      --gid leamout \
-      --home-dir /nonexistent \
-      --shell /usr/sbin/nologin \
-      leamout
+WORKDIR /leamout
 
-COPY --from=build /out/leamout /usr/local/bin/leamout
+RUN apk add --no-cache \
+        ca-certificates \
+        tzdata \
+    && addgroup -S leamout \
+    && adduser -S -D -H -G leamout leamout
+
+COPY --from=build /out/server /leamout/server
+COPY --from=build /out/worker /leamout/worker
 
 USER leamout
 
-ENTRYPOINT ["/usr/local/bin/leamout"]
+EXPOSE 8080
 
-FROM arigaio/atlas:1.3.0-alpine AS migration-build
-
-COPY migrations /migrations
-
-RUN /atlas migrate hash --dir file:///migrations
-
-FROM arigaio/atlas:1.3.0-alpine AS migrate
-
-COPY --from=migration-build /migrations /migrations
-
-ENTRYPOINT ["/atlas"]
+CMD ["/leamout/server"]
