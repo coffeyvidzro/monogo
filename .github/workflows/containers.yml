@@ -31,6 +31,10 @@ jobs:
             context: ./server
             dockerfile: ./server/Dockerfile
             build_args: COMMAND=worker
+          - image: migrate
+            context: ./server
+            dockerfile: ./server/Dockerfile.migrate
+            build_args: ""
           - image: opensips
             context: ./containers/opensips
             dockerfile: ./containers/opensips/Dockerfile
