@@ -57,12 +57,7 @@ services:
       - private-control
 
   server:
-    image: leamout/server:local
-    build:
-      context: ../../server
-      dockerfile: Dockerfile
-      args:
-        COMMAND: server
+    image: ghcr.io/coffeyvidzro/leamout-server:${LEAMOUT_VERSION:-preview}
     restart: unless-stopped
     environment: *app-environment
     depends_on:
@@ -80,12 +75,7 @@ services:
       - private-control
 
   worker:
-    image: leamout/worker:local
-    build:
-      context: ../../server
-      dockerfile: Dockerfile
-      args:
-        COMMAND: worker
+    image: ghcr.io/coffeyvidzro/leamout-worker:${LEAMOUT_VERSION:-preview}
     restart: unless-stopped
     environment: *app-environment
     depends_on:
@@ -101,9 +91,7 @@ services:
       - private-control
 
   freeswitch:
-    image: leamout/freeswitch:local
-    build:
-      context: ../../containers/freeswitch
+    image: ghcr.io/coffeyvidzro/leamout-freeswitch:${LEAMOUT_VERSION:-preview}
     restart: unless-stopped
     environment:
       FREESWITCH_ESL_PASSWORD: ${FREESWITCH_ESL_PASSWORD:?FREESWITCH_ESL_PASSWORD is required}
@@ -114,9 +102,7 @@ services:
         ipv4_address: 172.32.0.20
 
   rtpengine:
-    image: leamout/rtpengine:local
-    build:
-      context: ../../containers/rtpengine
+    image: ghcr.io/coffeyvidzro/leamout-rtpengine:${LEAMOUT_VERSION:-preview}
     restart: unless-stopped
     environment:
       RTPENGINE_PUBLIC_IP: ${RTPENGINE_PUBLIC_IP:?RTPENGINE_PUBLIC_IP is required}
@@ -129,9 +115,7 @@ services:
         ipv4_address: 172.31.0.10
 
   opensips:
-    image: leamout/opensips:local
-    build:
-      context: ../../containers/opensips
+    image: ghcr.io/coffeyvidzro/leamout-opensips:${LEAMOUT_VERSION:-preview}
     restart: unless-stopped
     volumes:
       - ./certs/fullchain.pem:/etc/opensips/tls/fullchain.pem:ro
