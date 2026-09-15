@@ -14,7 +14,7 @@ import (
 
 	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
 	redisintegration "github.com/coffeyvidzro/monogo/internal/integrations/redis"
-	"github.com/coffeyvidzro/monogo/internal/modules/audit"
+	"github.com/coffeyvidzro/monogo/internal/platform/audit"
 )
 
 const managedNumberSelectionTTL = 10 * time.Minute

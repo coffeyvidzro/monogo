@@ -7,7 +7,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
-	"github.com/coffeyvidzro/monogo/internal/modules/audit"
+	"github.com/coffeyvidzro/monogo/internal/platform/audit"
 )
 
 type fakeNumberRepository struct {
