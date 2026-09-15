@@ -49,7 +49,6 @@ The generated `.env` is installation state. Back it up securely and do not regen
 ```text
 /opt/leamout/
 ├── .env
-├── VERSION
 ├── deploy/docker/
 │   ├── compose.yaml
 │   ├── Caddyfile
@@ -60,5 +59,7 @@ The generated `.env` is installation state. Back it up securely and do not regen
 ├── containers/nats/nats-server.conf
 └── containers/coturn/turnserver.conf
 ```
+
+The selected release version is stored in `.env` as `LEAMOUT_VERSION`.
 
 The application/runtime is the same Leamout runtime used by Cloud. Self-Hosted changes deployment and operations only; it does not introduce a separate application mode or BYOC/Managed behavior.
