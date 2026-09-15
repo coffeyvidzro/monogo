@@ -71,18 +71,16 @@ func TestReleaseDir(t *testing.T) {
 
 func TestDefaultVersionFromBundle(t *testing.T) {
 	dir := t.TempDir()
-	for _, path := range []string{
-		bundleComposePath,
-		"deploy/docker/Caddyfile",
-		"server/migrations/atlas.sum",
-		"containers/nats/nats-server.conf",
-		"containers/coturn/turnserver.conf",
-	} {
+	for _, path := range requiredBundleFiles {
 		full := filepath.Join(dir, path)
 		if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil {
 			t.Fatal(err)
 		}
-		if err := os.WriteFile(full, []byte("test"), 0o644); err != nil {
+		mode := os.FileMode(0o644)
+		if strings.HasSuffix(path, ".sh") {
+			mode = 0o755
+		}
+		if err := os.WriteFile(full, []byte("test"), mode); err != nil {
 			t.Fatal(err)
 		}
 	}
