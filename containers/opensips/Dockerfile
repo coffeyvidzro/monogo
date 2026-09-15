@@ -1,7 +1,6 @@
 FROM debian:bookworm-slim
 
 ARG OPENSIPS_VERSION=4.0.1
-ARG DISTRIBUTION=cloud
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates curl openssl \
@@ -51,7 +50,7 @@ RUN apt-get update \
     && apt-get purge -y --auto-remove curl \
     && rm -rf /var/lib/apt/lists/*
 
-COPY ${DISTRIBUTION}/opensips.cfg /etc/opensips/opensips.cfg
+COPY opensips.cfg /etc/opensips/opensips.cfg
 COPY tls.cfg /etc/opensips/tls.cfg
 COPY drain.cfg /etc/opensips/drain.cfg
 COPY apply-drain-config.sh /usr/local/bin/apply-opensips-drain-config
