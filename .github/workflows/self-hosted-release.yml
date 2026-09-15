@@ -37,6 +37,9 @@ jobs:
         working-directory: server
         run: go test ./internal/installer ./cmd/leamout/commands
 
+      - name: Validate bootstrap script
+        run: sh -n deploy/install.sh
+
       - name: Build bundle
         shell: bash
         run: |
