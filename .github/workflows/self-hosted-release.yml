@@ -37,10 +37,19 @@ jobs:
         working-directory: server
         run: go test ./internal/installer ./cmd/leamout/commands
 
-      - name: Validate bootstrap script
-        run: sh -n server/scripts/install.sh
+      - name: Validate scripts
+        shell: bash
+        run: |
+          set -euo pipefail
+          sh -n server/scripts/install.sh
+          for script in server/scripts/certs/*.sh; do
+            sh -n "$script"
+          done
+          for script in server/scripts/release/*.sh; do
+            bash -n "$script"
+          done
 
-      - name: Build bundle
+      - name: Build and verify bundle
         shell: bash
         run: |
           set -euo pipefail
@@ -51,39 +60,8 @@ jobs:
             version="preview"
           fi
 
-          os="linux"
-          arch="amd64"
-          bundle="leamout_${version}_${os}_${arch}"
-          root="dist/${bundle}"
-
-          mkdir -p \
-            "${root}/deploy/docker" \
-            "${root}/server" \
-            "${root}/containers/nats" \
-            "${root}/containers/coturn"
-
-          (
-            cd server
-            CGO_ENABLED=0 GOOS="${os}" GOARCH="${arch}" go build \
-              -trimpath \
-              -ldflags="-s -w" \
-              -o "../${root}/leamout" \
-              ./cmd/leamout
-          )
-
-          cp deploy/docker/compose.yaml "${root}/deploy/docker/compose.yaml"
-          cp deploy/docker/Caddyfile "${root}/deploy/docker/Caddyfile"
-          cp -R server/migrations "${root}/server/migrations"
-          cp containers/nats/nats-server.conf "${root}/containers/nats/nats-server.conf"
-          cp containers/coturn/turnserver.conf "${root}/containers/coturn/turnserver.conf"
-          cp deploy/docker/SELF_HOSTED.md "${root}/README.md"
-          printf '%s\n' "${version}" > "${root}/VERSION"
-
-          tar -C dist -czf "dist/${bundle}.tar.gz" "${bundle}"
-          (
-            cd dist
-            sha256sum "${bundle}.tar.gz" > checksums.txt
-          )
+          archive=$(bash server/scripts/release/build-bundle.sh "$version" linux amd64)
+          bash server/scripts/release/verify-bundle.sh "$archive"
 
       - name: Install Minisign
         if: github.ref_type == 'tag'
@@ -108,9 +86,6 @@ jobs:
           trap 'rm -f "$key_file"' EXIT
           umask 077
 
-          # Preserve the secret exactly as stored, except normalize CRLF copied
-          # from Windows. Do not append an extra newline: Minisign expects the
-          # secret key file to contain exactly its two canonical lines.
           printf '%s' "$LEAMOUT_MINISIGN_SECRET_KEY" | tr -d '\r' > "$key_file"
           chmod 0600 "$key_file"
 
