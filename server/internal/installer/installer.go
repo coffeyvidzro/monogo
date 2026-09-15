@@ -16,6 +16,8 @@ import (
 
 const bundleComposePath = "deploy/docker/compose.yaml"
 
+const certbotDeployHookPath = "/etc/letsencrypt/renewal-hooks/deploy/leamout"
+
 func Install(config *Config) error {
 	if os.Geteuid() != 0 {
 		return fmt.Errorf("Leamout installation must run as root")
@@ -126,14 +128,17 @@ func validateDNS(config *Config) error {
 		if err != nil {
 			return fmt.Errorf("DNS for %s must resolve to %s before installation: %w", host, config.PublicIP, err)
 		}
-		matched := false
+
+		matchedIPv4 := false
 		for _, address := range addresses {
+			if address.To4() == nil {
+				return fmt.Errorf("DNS for %s has an AAAA record but this Self-Hosted release is IPv4-only; remove the AAAA record before installation", host)
+			}
 			if address.String() == config.PublicIP {
-				matched = true
-				break
+				matchedIPv4 = true
 			}
 		}
-		if !matched {
+		if !matchedIPv4 {
 			return fmt.Errorf("DNS for %s does not resolve to %s", host, config.PublicIP)
 		}
 	}
@@ -167,7 +172,7 @@ func prepareFilesystem() error {
 		{LicenseDir, 0o700},
 		{StateRoot, 0o700},
 		{InstallStateDir, 0o700},
-		{ACMEWebroot, 0o700},
+		{ACMEWebroot, 0o755},
 		{BackupsDir, 0o700},
 		{StagingDir, 0o700},
 		{LogRoot, 0o700},
@@ -241,10 +246,10 @@ func installBundleFiles(bundleDir, releaseDir, version string) error {
 		return err
 	}
 	files := map[string]string{
-		bundleComposePath:                         "compose.yaml",
-		"deploy/docker/Caddyfile":                "Caddyfile",
-		"containers/nats/nats-server.conf":       "config/nats-server.conf",
-		"containers/coturn/turnserver.conf":      "config/turnserver.conf",
+		bundleComposePath:                    "compose.yaml",
+		"deploy/docker/Caddyfile":           "Caddyfile",
+		"containers/nats/nats-server.conf":  "config/nats-server.conf",
+		"containers/coturn/turnserver.conf": "config/turnserver.conf",
 	}
 	for source, destination := range files {
 		if err := copyFile(filepath.Join(bundleDir, source), filepath.Join(releaseDir, destination), 0o644); err != nil {
@@ -346,55 +351,69 @@ func writeSecretFileExclusive(path string, content []byte) error {
 }
 
 func ensureCertbot() error {
-	if _, err := exec.LookPath("certbot"); err == nil {
-		return nil
-	}
 	if _, err := exec.LookPath("apt-get"); err != nil {
-		return fmt.Errorf("Certbot is required and automatic installation is currently supported on apt-based Linux hosts")
+		return fmt.Errorf("automatic Let's Encrypt setup currently requires an apt-based Linux host")
 	}
-	update := exec.Command("apt-get", "update")
-	update.Stdout = os.Stdout
-	update.Stderr = os.Stderr
-	if err := update.Run(); err != nil {
-		return fmt.Errorf("update package index for Certbot: %w", err)
+	if _, err := exec.LookPath("certbot"); err != nil {
+		update := exec.Command("apt-get", "update")
+		update.Stdout = os.Stdout
+		update.Stderr = os.Stderr
+		if err := update.Run(); err != nil {
+			return fmt.Errorf("update package index for Certbot: %w", err)
+		}
+		install := exec.Command("apt-get", "install", "-y", "certbot")
+		install.Env = append(os.Environ(), "DEBIAN_FRONTEND=noninteractive")
+		install.Stdout = os.Stdout
+		install.Stderr = os.Stderr
+		if err := install.Run(); err != nil {
+			return fmt.Errorf("install Certbot: %w", err)
+		}
 	}
-	install := exec.Command("apt-get", "install", "-y", "certbot")
-	install.Env = append(os.Environ(), "DEBIAN_FRONTEND=noninteractive")
-	install.Stdout = os.Stdout
-	install.Stderr = os.Stderr
-	if err := install.Run(); err != nil {
-		return fmt.Errorf("install Certbot: %w", err)
+
+	if _, err := exec.LookPath("systemctl"); err != nil {
+		return fmt.Errorf("systemd is required for automatic Certbot renewal")
+	}
+	timer := exec.Command("systemctl", "enable", "--now", "certbot.timer")
+	timer.Stdout = os.Stdout
+	timer.Stderr = os.Stderr
+	if err := timer.Run(); err != nil {
+		return fmt.Errorf("enable automatic Certbot renewal: %w", err)
 	}
 	return nil
 }
 
 func installCertificateDeployHook() error {
-	hookDir := "/etc/letsencrypt/renewal-hooks/deploy"
+	hookDir := filepath.Dir(certbotDeployHookPath)
 	if err := os.MkdirAll(hookDir, 0o755); err != nil {
 		return fmt.Errorf("create Certbot deploy hook directory: %w", err)
 	}
 	hook := `#!/bin/sh
 set -eu
 
+umask 077
+
 [ -n "${RENEWED_LINEAGE:-}" ] || exit 0
 
-install -d -m 0700 /etc/leamout/certs
-install -m 0644 "$RENEWED_LINEAGE/fullchain.pem" /etc/leamout/certs/fullchain.pem.new
-install -m 0600 "$RENEWED_LINEAGE/privkey.pem" /etc/leamout/certs/privkey.pem.new
+install -d -o root -g root -m 0700 /etc/leamout/certs
+install -o root -g root -m 0644 "$RENEWED_LINEAGE/fullchain.pem" /etc/leamout/certs/fullchain.pem.new
+install -o root -g 65534 -m 0640 "$RENEWED_LINEAGE/privkey.pem" /etc/leamout/certs/privkey.pem.new
 mv /etc/leamout/certs/fullchain.pem.new /etc/leamout/certs/fullchain.pem
 mv /etc/leamout/certs/privkey.pem.new /etc/leamout/certs/privkey.pem
 
 if [ -f /etc/leamout/leamout.env ] && [ -L /opt/leamout/current ]; then
-  if docker compose --env-file /etc/leamout/leamout.env -f /opt/leamout/current/compose.yaml ps -q opensips 2>/dev/null | grep -q .; then
-    docker compose --env-file /etc/leamout/leamout.env -f /opt/leamout/current/compose.yaml restart opensips coturn
-  fi
+  services=""
+  for service in opensips coturn; do
+    if docker compose --env-file /etc/leamout/leamout.env -f /opt/leamout/current/compose.yaml ps -q "$service" 2>/dev/null | grep -q .; then
+      services="$services $service"
+    fi
+  done
+  [ -z "$services" ] || docker compose --env-file /etc/leamout/leamout.env -f /opt/leamout/current/compose.yaml restart $services
 fi
 `
-	path := filepath.Join(hookDir, "leamout")
-	if err := os.WriteFile(path, []byte(hook), 0o700); err != nil {
+	if err := os.WriteFile(certbotDeployHookPath, []byte(hook), 0o700); err != nil {
 		return fmt.Errorf("write Certbot deploy hook: %w", err)
 	}
-	return os.Chmod(path, 0o700)
+	return os.Chmod(certbotDeployHookPath, 0o700)
 }
 
 func issueCertificates(config *Config) error {
@@ -402,12 +421,13 @@ func issueCertificates(config *Config) error {
 		"certbot", "certonly",
 		"--non-interactive",
 		"--agree-tos",
-		"--email", "admin@"+config.Domain,
+		"--register-unsafely-without-email",
+		"--cert-name", "leamout-sip-turn",
 		"--webroot",
 		"--webroot-path", ACMEWebroot,
 		"-d", "sip."+config.Domain,
 		"-d", "turn."+config.Domain,
-		"--deploy-hook", "/etc/letsencrypt/renewal-hooks/deploy/leamout",
+		"--deploy-hook", certbotDeployHookPath,
 	)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
