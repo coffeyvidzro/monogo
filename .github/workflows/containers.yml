@@ -26,22 +26,32 @@ jobs:
           - image: server
             context: ./server
             dockerfile: ./server/Dockerfile
+            target: runtime
             build_args: COMMAND=server
           - image: worker
             context: ./server
             dockerfile: ./server/Dockerfile
+            target: runtime
             build_args: COMMAND=worker
+          - image: migrate
+            context: ./server
+            dockerfile: ./server/Dockerfile
+            target: migrate
+            build_args: ""
           - image: opensips
             context: ./containers/opensips
             dockerfile: ./containers/opensips/Dockerfile
+            target: ""
             build_args: ""
           - image: freeswitch
             context: ./containers/freeswitch
             dockerfile: ./containers/freeswitch/Dockerfile
+            target: ""
             build_args: ""
           - image: rtpengine
             context: ./containers/rtpengine
             dockerfile: ./containers/rtpengine/Dockerfile
+            target: ""
             build_args: ""
 
     steps:
@@ -74,6 +84,7 @@ jobs:
         with:
           context: ${{ matrix.context }}
           file: ${{ matrix.dockerfile }}
+          target: ${{ matrix.target }}
           push: true
           platforms: linux/amd64
           build-args: ${{ matrix.build_args }}

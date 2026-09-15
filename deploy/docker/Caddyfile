@@ -1,0 +1,20 @@
+{
+    email admin@{$DOMAIN}
+}
+
+api.{$DOMAIN} {
+    reverse_proxy server:8080
+
+    header {
+        -Server
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "DENY"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        Strict-Transport-Security "max-age=31536000"
+    }
+
+    log {
+        output stdout
+        format json
+    }
+}
