@@ -2,6 +2,15 @@
     email admin@{$DOMAIN}
 }
 
+http://sip.{$DOMAIN}, http://turn.{$DOMAIN} {
+    handle /.well-known/acme-challenge/* {
+        root * /srv/leamout-acme
+        file_server
+    }
+
+    respond 404
+}
+
 api.{$DOMAIN} {
     reverse_proxy server:8080
 
