@@ -82,7 +82,7 @@ func promptInstallConfig() (*installer.Config, error) {
 			Name: "version",
 			Prompt: &survey.Input{
 				Message: "Leamout version:",
-				Default: "preview",
+				Default: installer.DefaultVersion(),
 			},
 		},
 		{
@@ -100,7 +100,7 @@ func promptInstallConfig() (*installer.Config, error) {
 		},
 		{
 			Name: "tlsPrivateKey",
-			Prompt: &survey.Password{
+			Prompt: &survey.Input{
 				Message: "TLS private key path for sip/turn:",
 			},
 		},
