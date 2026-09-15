@@ -12,6 +12,8 @@ import (
 	"github.com/coffeyvidzro/monogo/internal/installer"
 )
 
+var installDir string
+
 var installCmd = &cobra.Command{
 	Use:   "install",
 	Short: "Install Leamout",
@@ -64,7 +66,10 @@ var installCmd = &cobra.Command{
 }
 
 func promptInstallConfig() (*installer.Config, error) {
-	config := &installer.Config{}
+	config := &installer.Config{
+		Version:    installer.DefaultVersion(),
+		InstallDir: installDir,
+	}
 	prompts := []*survey.Question{
 		{
 			Name: "domain",
@@ -76,20 +81,6 @@ func promptInstallConfig() (*installer.Config, error) {
 			Name: "publicIP",
 			Prompt: &survey.Input{
 				Message: "Public IP address:",
-			},
-		},
-		{
-			Name: "version",
-			Prompt: &survey.Input{
-				Message: "Leamout version:",
-				Default: installer.DefaultVersion(),
-			},
-		},
-		{
-			Name: "installDir",
-			Prompt: &survey.Input{
-				Message: "Install directory:",
-				Default: "/opt/leamout",
 			},
 		},
 		{
@@ -113,5 +104,6 @@ func promptInstallConfig() (*installer.Config, error) {
 }
 
 func init() {
+	installCmd.Flags().StringVar(&installDir, "install-dir", "/opt/leamout", "self-hosted deployment directory")
 	rootCmd.AddCommand(installCmd)
 }
