@@ -6,12 +6,19 @@ script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 . "$script_dir/lib.sh"
 
 require_root
+require_command docker
 require_file "$LEAMOUT_ENV"
-require_symlink "$LEAMOUT_CURRENT"
+require_current_release
 require_file "$LEAMOUT_COMPOSE"
 
 if [ "$#" -eq 0 ]; then
-  compose restart
-else
-  compose restart "$@"
+  compose restart $LEAMOUT_RUNTIME_SERVICES
+  exit 0
 fi
+
+for service in "$@"; do
+  require_runtime_service "$service"
+  service_exists "$service" || fail "Compose service is missing: $service"
+done
+
+compose restart "$@"
