@@ -40,3 +40,15 @@ COPY --from=build /out/leamout /usr/local/bin/leamout
 USER leamout
 
 ENTRYPOINT ["/usr/local/bin/leamout"]
+
+FROM arigaio/atlas:1.3.0-alpine AS migration-build
+
+COPY migrations /migrations
+
+RUN /atlas migrate hash --dir file:///migrations
+
+FROM arigaio/atlas:1.3.0-alpine AS migrate
+
+COPY --from=migration-build /migrations /migrations
+
+ENTRYPOINT ["/atlas"]
