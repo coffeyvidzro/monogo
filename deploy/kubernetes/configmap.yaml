@@ -6,7 +6,6 @@ metadata:
 data:
   APP_ENV: production
   LEAMOUT_DEPLOYMENT_ID: cloud-primary
-  DATABASE_URL: postgres://leamout:$(POSTGRES_PASSWORD)@postgres:5432/leamout?sslmode=disable
   REDIS_URL: redis://redis:6379/0
   NATS_URL: nats://nats:4222
   NATS_STREAM_REPLICAS: "1"
