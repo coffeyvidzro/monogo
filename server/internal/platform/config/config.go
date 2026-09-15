@@ -45,7 +45,6 @@ type Config struct {
 	CommPeak              CommPeakConfig `envPrefix:"COMMPEAK_"`
 	Stripe                StripeConfig   `envPrefix:"STRIPE_"`
 	Paystack              PaystackConfig `envPrefix:"PAYSTACK_"`
-	OperatorAPISecret     string         `env:"OPERATOR_API_SECRET"`
 	TURNAuthSecret        string         `env:"TURN_AUTH_SECRET,required"`
 	TURNPublicURLs        []string       `env:"TURN_PUBLIC_URLS" envSeparator:"," envDefault:"stun:localhost:3478,turn:localhost:3478?transport=udp,turn:localhost:3478?transport=tcp"`
 	CORSOrigins           []string       `env:"CORS_ORIGINS" envSeparator:"," envDefault:"http://localhost:3000,http://127.0.0.1:3000"`
@@ -88,7 +87,6 @@ func (c *Config) normalize() {
 	c.Stripe.APIBaseURL = strings.TrimRight(strings.TrimSpace(c.Stripe.APIBaseURL), "/")
 	c.Paystack.SecretKey = strings.TrimSpace(c.Paystack.SecretKey)
 	c.Paystack.APIBaseURL = strings.TrimRight(strings.TrimSpace(c.Paystack.APIBaseURL), "/")
-	c.OperatorAPISecret = strings.TrimSpace(c.OperatorAPISecret)
 	c.TURNAuthSecret = strings.TrimSpace(c.TURNAuthSecret)
 	c.TURNPublicURLs = normalizeStrings(c.TURNPublicURLs)
 	c.CORSOrigins = normalizeStrings(c.CORSOrigins)
