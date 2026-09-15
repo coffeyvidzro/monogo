@@ -1,0 +1,76 @@
+name: Publish self-hosted bundle
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  bundle:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: server/go.mod
+          cache-dependency-path: server/go.sum
+
+      - name: Build bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ "${GITHUB_REF_TYPE:-}" == "tag" ]]; then
+            version="${GITHUB_REF_NAME#v}"
+          else
+            version="preview"
+          fi
+
+          bundle="leamout-self-hosted_${version}_linux_amd64"
+          root="dist/${bundle}"
+
+          mkdir -p \
+            "${root}/deploy/docker" \
+            "${root}/server" \
+            "${root}/containers/nats" \
+            "${root}/containers/coturn"
+
+          (
+            cd server
+            CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
+              -trimpath \
+              -ldflags="-s -w" \
+              -o "../${root}/leamout" \
+              ./cmd/leamout
+          )
+
+          cp deploy/docker/compose.yaml "${root}/deploy/docker/compose.yaml"
+          cp deploy/docker/Caddyfile "${root}/deploy/docker/Caddyfile"
+          cp -R server/migrations "${root}/server/migrations"
+          cp containers/nats/nats-server.conf "${root}/containers/nats/nats-server.conf"
+          cp containers/coturn/turnserver.conf "${root}/containers/coturn/turnserver.conf"
+          cp deploy/docker/SELF_HOSTED.md "${root}/README.md"
+          printf '%s\n' "${version}" > "${root}/VERSION"
+
+          tar -C dist -czf "dist/${bundle}.tar.gz" "${bundle}"
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: leamout-self-hosted
+          path: dist/*.tar.gz
+          if-no-files-found: error
+
+      - name: Attach bundle to GitHub release
+        if: github.ref_type == 'tag'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*.tar.gz
