@@ -53,7 +53,7 @@ func run() error {
 	}()
 
 	limits := natsintegration.DefaultStreamLimits()
-	limits.Replicas = cfg.NATSStreamReplicas
+	limits.Replicas = 1
 	if err := natsClient.Provision(ctx, limits); err != nil {
 		return fmt.Errorf("provision NATS streams: %w", err)
 	}
