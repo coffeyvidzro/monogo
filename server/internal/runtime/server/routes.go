@@ -1,9 +1,52 @@
 package server
 
-import "github.com/go-chi/chi/v5"
+import (
+	"net/http"
+
+	"github.com/go-chi/chi/v5"
+
+	"github.com/coffeyvidzro/monogo/internal/identity"
+	"github.com/coffeyvidzro/monogo/internal/platform"
+	"github.com/coffeyvidzro/monogo/internal/tenancy"
+)
 
 func newRouter(modules *modules) *chi.Mux {
 	router := chi.NewRouter()
 	registerHealthRoutes(router, modules)
+
+	organizationAccess := func(resource string) func(http.Handler) http.Handler {
+		return func(next http.Handler) http.Handler {
+			requireAuthenticated := modules.organizationsContext.RequireAuthenticated(modules.authn)
+			requireAccess := modules.organizationsContext.RequireAccess(resource)
+			return requireAuthenticated(modules.rateLimit.Handle(requireAccess(next)))
+		}
+	}
+	sessionOrganizationAccess := func(resource string) func(http.Handler) http.Handler {
+		return func(next http.Handler) http.Handler {
+			requireAccess := modules.organizationsContext.RequireAccess(resource)
+			return modules.authn.RequireSession(
+				modules.organizationsContext.Require(modules.rateLimit.Handle(requireAccess(next))),
+			)
+		}
+	}
+	organizationContextAccess := func(resource string) func(http.Handler) http.Handler {
+		return func(next http.Handler) http.Handler {
+			requireAccess := modules.organizationsContext.RequireAccess(resource)
+			return modules.organizationsContext.Require(modules.rateLimit.Handle(requireAccess(next)))
+		}
+	}
+
+	router.Route("/v1", func(r chi.Router) {
+		identity.RegisterRoutes(r, modules.identity, modules.authn.RequireSession)
+		tenancy.RegisterRoutes(
+			r,
+			modules.tenancy,
+			modules.authn.RequireSession,
+			organizationContextAccess,
+			sessionOrganizationAccess,
+		)
+		platform.RegisterRoutes(r, modules.platform, organizationAccess)
+	})
+
 	return router
 }
