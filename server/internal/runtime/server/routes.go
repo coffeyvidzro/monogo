@@ -7,12 +7,26 @@ import (
 
 	"github.com/coffeyvidzro/monogo/internal/identity"
 	"github.com/coffeyvidzro/monogo/internal/platform"
+	"github.com/coffeyvidzro/monogo/internal/platform/metrics"
+	"github.com/coffeyvidzro/monogo/internal/platform/middleware"
+	"github.com/coffeyvidzro/monogo/internal/telecom"
 	"github.com/coffeyvidzro/monogo/internal/tenancy"
 )
 
-func newRouter(modules *modules) *chi.Mux {
+func newRouter(cfg config.Config, logger *logging.Logger, modules *modules) *chi.Mux {
 	router := chi.NewRouter()
+	router.Use(
+		middleware.Recovery,
+		middleware.Tracing(),
+		middleware.Request(),
+		middleware.Logging(logger),
+		middleware.Metrics(modules.metrics),
+		middleware.Secure,
+		middleware.CORS(cfg.CORSOrigins, cfg.IsDevelopment()),
+	)
+
 	registerHealthRoutes(router, modules)
+	router.Handle("/metrics", metrics.Handler(modules.metrics))
 
 	organizationAccess := func(resource string) func(http.Handler) http.Handler {
 		return func(next http.Handler) http.Handler {
@@ -46,6 +60,12 @@ func newRouter(modules *modules) *chi.Mux {
 			sessionOrganizationAccess,
 		)
 		platform.RegisterRoutes(r, modules.platform, organizationAccess)
+		telecom.RegisterRoutes(
+			r,
+			modules.telecom,
+			organizationAccess,
+			modules.platform.Idempotency.Middleware.Handle,
+		)
 	})
 
 	return router
