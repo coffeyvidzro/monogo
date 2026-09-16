@@ -27,7 +27,7 @@ func Run(ctx context.Context) error {
 
 	httpServer := &http.Server{
 		Addr:              ":8080",
-		Handler:           newRouter(modules),
+		Handler:           newRouter(cfg, logger, modules),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 
