@@ -12,5 +12,8 @@ func (m *modules) ready(ctx context.Context) error {
 	if err := m.nats.Ping(ctx); err != nil {
 		return fmt.Errorf("nats: %w", err)
 	}
+	if err := m.freeSwitch.HealthCheck(ctx); err != nil {
+		return fmt.Errorf("freeswitch: %w", err)
+	}
 	return nil
 }
