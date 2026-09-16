@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
+	"github.com/coffeyvidzro/monogo/internal/integrations/freeswitch"
 	natsintegration "github.com/coffeyvidzro/monogo/internal/integrations/nats"
 	"github.com/coffeyvidzro/monogo/internal/integrations/postgres"
 	"github.com/coffeyvidzro/monogo/internal/platform/config"
@@ -16,6 +17,7 @@ import (
 type modules struct {
 	postgres        *postgres.Client
 	nats            *natsintegration.Client
+	freeSwitch      *freeswitch.Client
 	outbox          *outbox.PublisherJob
 	webhookConsumer *webhooks.Consumer
 	webhookDelivery *webhooks.DeliveryJob
@@ -39,6 +41,27 @@ func newModules(ctx context.Context, cfg config.Config) (*modules, error) {
 		return nil, fmt.Errorf("provision NATS streams: %w", err)
 	}
 
+	freeSwitch, err := freeswitch.New(
+		freeswitch.DefaultConfig(cfg.FreeSWITCHESLAddress, cfg.FreeSWITCHESLPassword),
+	)
+	if err != nil {
+		_ = natsClient.Close()
+		postgresClient.Close()
+		return nil, fmt.Errorf("initialize FreeSWITCH: %w", err)
+	}
+	if err := freeSwitch.Connect(ctx); err != nil {
+		_ = freeSwitch.Close()
+		_ = natsClient.Close()
+		postgresClient.Close()
+		return nil, fmt.Errorf("connect FreeSWITCH: %w", err)
+	}
+
+	closeDependencies := func() {
+		_ = freeSwitch.Close()
+		_ = natsClient.Close()
+		postgresClient.Close()
+	}
+
 	queries := sqlc.New(postgresClient.Pool())
 	workerID := cfg.DeploymentID
 	if workerID == "" {
@@ -51,8 +74,7 @@ func newModules(ctx context.Context, cfg config.Config) (*modules, error) {
 		outbox.DefaultPublisherJobConfig(workerID+"-outbox"),
 	)
 	if err != nil {
-		_ = natsClient.Close()
-		postgresClient.Close()
+		closeDependencies()
 		return nil, fmt.Errorf("initialize outbox publisher: %w", err)
 	}
 
@@ -64,14 +86,14 @@ func newModules(ctx context.Context, cfg config.Config) (*modules, error) {
 		webhooks.DefaultDeliveryJobConfig(workerID+"-webhooks"),
 	)
 	if err != nil {
-		_ = natsClient.Close()
-		postgresClient.Close()
+		closeDependencies()
 		return nil, fmt.Errorf("initialize webhook delivery worker: %w", err)
 	}
 
 	return &modules{
 		postgres:        postgresClient,
 		nats:            natsClient,
+		freeSwitch:      freeSwitch,
 		outbox:          outboxJob,
 		webhookConsumer: webhooks.NewConsumer(natsClient, webhookService),
 		webhookDelivery: webhookDeliveryJob,
@@ -81,6 +103,11 @@ func newModules(ctx context.Context, cfg config.Config) (*modules, error) {
 func (m *modules) close(logger *logging.Logger) {
 	if m == nil {
 		return
+	}
+	if m.freeSwitch != nil {
+		if err := m.freeSwitch.Close(); err != nil {
+			logger.Warn(context.Background(), "close FreeSWITCH", "error", err)
+		}
 	}
 	if m.nats != nil {
 		if err := m.nats.Close(); err != nil {
