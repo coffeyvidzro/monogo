@@ -27,6 +27,10 @@ func registerHealthRoutes(router chi.Router, modules *modules) {
 			http.Error(w, "redis unavailable", http.StatusServiceUnavailable)
 			return
 		}
+		if err := modules.freeSwitch.HealthCheck(ctx); err != nil {
+			http.Error(w, "freeswitch unavailable", http.StatusServiceUnavailable)
+			return
+		}
 
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		w.WriteHeader(http.StatusOK)
