@@ -3,6 +3,7 @@ set -eu
 
 config=${OPENSIPS_CONFIG:-/etc/opensips/opensips.cfg}
 sip_domain=${SIP_DOMAIN:-sip.leamout.com}
+: "${OPENSIPS_DATABASE_URL:?OPENSIPS_DATABASE_URL must be set}"
 
 # Managed customer-facing SIP admission is intentionally disabled for now.
 # Keep the rest of the SIP edge intact while removing the unfinished control-
@@ -51,6 +52,23 @@ awk -v domain="$sip_domain" '
   fi
   exit "$rc"
 }
+cat "$tmp" > "$config"
+rm -f "$tmp"
+
+# Keep database credentials in deployment configuration instead of baking them
+# into the image. Both modules must use the same Cloud database.
+tmp=$(mktemp)
+awk -v url="$OPENSIPS_DATABASE_URL" '
+  /^modparam\("sqlops", "db_url",/ {
+    print "modparam(\"sqlops\", \"db_url\", \"" url "\")"
+    next
+  }
+  /^modparam\("auth_db", "db_url",/ {
+    print "modparam(\"auth_db\", \"db_url\", \"" url "\")"
+    next
+  }
+  { print }
+' "$config" > "$tmp"
 cat "$tmp" > "$config"
 rm -f "$tmp"
 

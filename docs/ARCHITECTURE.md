@@ -126,9 +126,9 @@ media control, event production, webhooks, commercial services,
 provider-orchestration, usage-ingestion, reconciliation, fraud control, and
 fleet management.
 
-The Kubernetes manifests in `deploy/kubernetes` provide a portable runtime-cell
-foundation. Production environments add the Cloud control-plane services and
-provider-specific telecom edge through deployment-specific overlays.
+The Docker Compose model in `deploy/compose.yaml` defines the Leamout Cloud
+runtime and its telecom edge. Leamout operates this deployment and supplies its
+production secrets, public addresses, DNS, and SIP/TURN certificates.
 
 ## Availability rules
 

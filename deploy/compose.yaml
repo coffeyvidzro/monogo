@@ -1,0 +1,216 @@
+name: leamout-cloud
+
+x-app-environment: &app-environment
+  APP_ENV: production
+  LEAMOUT_DEPLOYMENT_ID: ${LEAMOUT_DEPLOYMENT_ID:-cloud-primary}
+  DATABASE_URL: postgres://leamout:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@postgres:5432/leamout?sslmode=disable
+  REDIS_URL: redis://redis:6379/0
+  NATS_URL: nats://nats:4222
+  FREESWITCH_ESL_ADDRESS: freeswitch:8021
+  FREESWITCH_ESL_PASSWORD: ${FREESWITCH_ESL_PASSWORD:?FREESWITCH_ESL_PASSWORD is required}
+  CARRIER_CREDENTIAL_ENCRYPTION_KEY: ${CARRIER_CREDENTIAL_ENCRYPTION_KEY:?CARRIER_CREDENTIAL_ENCRYPTION_KEY is required}
+  TURN_AUTH_SECRET: ${TURN_AUTH_SECRET:?TURN_AUTH_SECRET is required}
+  TURN_PUBLIC_URLS: ${TURN_PUBLIC_URLS:?TURN_PUBLIC_URLS is required}
+  CORS_ORIGINS: ${CORS_ORIGINS:?CORS_ORIGINS is required}
+  LEAMOUT_SESSION_COOKIE_DOMAIN: ${LEAMOUT_SESSION_COOKIE_DOMAIN:-}
+  DIDWW_API_KEY: ${DIDWW_API_KEY:-}
+  COMMPEAK_API_AUTHORIZATION: ${COMMPEAK_API_AUTHORIZATION:-}
+  STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
+  STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
+  PAYSTACK_SECRET_KEY: ${PAYSTACK_SECRET_KEY:-}
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: leamout
+      POSTGRES_USER: leamout
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U leamout -d leamout"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    networks: [control]
+
+  migrate:
+    image: ghcr.io/coffeyvidzro/leamout-migrate:${LEAMOUT_VERSION:-preview}
+    restart: "no"
+    command: ["migrate", "apply", "--dir", "file:///migrations", "--url", "$$DATABASE_URL"]
+    environment:
+      DATABASE_URL: postgres://leamout:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@postgres:5432/leamout?sslmode=disable&search_path=public
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks: [control]
+
+  redis:
+    image: redis:7.4-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    networks: [control]
+
+  nats:
+    image: nats:2.11-alpine
+    restart: unless-stopped
+    command: ["-c", "/etc/nats/nats-server.conf"]
+    volumes:
+      - ../containers/nats/nats-server.conf:/etc/nats/nats-server.conf:ro
+      - nats-data:/data
+    networks: [control]
+
+  server:
+    image: ghcr.io/coffeyvidzro/leamout:${LEAMOUT_VERSION:-preview}
+    restart: unless-stopped
+    command: ["/leamout/server"]
+    environment: *app-environment
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+      nats:
+        condition: service_started
+      freeswitch:
+        condition: service_started
+    networks: [edge, control]
+
+  worker:
+    image: ghcr.io/coffeyvidzro/leamout:${LEAMOUT_VERSION:-preview}
+    restart: unless-stopped
+    command: ["/leamout/worker"]
+    environment: *app-environment
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+      nats:
+        condition: service_started
+      freeswitch:
+        condition: service_started
+    networks: [control]
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    environment:
+      ACME_EMAIL: ${ACME_EMAIL:?ACME_EMAIL is required}
+      API_DOMAIN: ${API_DOMAIN:?API_DOMAIN is required}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      server:
+        condition: service_started
+    networks: [edge]
+
+  freeswitch:
+    image: ghcr.io/coffeyvidzro/leamout-freeswitch:${LEAMOUT_VERSION:-preview}
+    restart: unless-stopped
+    stop_grace_period: 60s
+    environment:
+      FREESWITCH_ESL_PASSWORD: ${FREESWITCH_ESL_PASSWORD:?FREESWITCH_ESL_PASSWORD is required}
+    volumes:
+      - recordings-data:/var/lib/freeswitch/recordings
+    networks:
+      control:
+        ipv4_address: 172.32.0.20
+
+  rtpengine:
+    image: ghcr.io/coffeyvidzro/leamout-rtpengine:${LEAMOUT_VERSION:-preview}
+    restart: unless-stopped
+    stop_grace_period: 30s
+    environment:
+      RTPENGINE_PUBLIC_IP: ${PUBLIC_IP:?PUBLIC_IP is required}
+    ports:
+      - "23000-32768:23000-32768/udp"
+    networks:
+      control:
+        ipv4_address: 172.32.0.10
+      media:
+        ipv4_address: 172.31.0.10
+
+  opensips:
+    image: ghcr.io/coffeyvidzro/leamout-opensips:${LEAMOUT_VERSION:-preview}
+    restart: unless-stopped
+    stop_grace_period: 30s
+    environment:
+      SIP_DOMAIN: ${SIP_DOMAIN:?SIP_DOMAIN is required}
+      OPENSIPS_DATABASE_URL: postgres://leamout:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@postgres:5432/leamout
+    volumes:
+      - ${TLS_CERTIFICATE_PATH:?TLS_CERTIFICATE_PATH is required}:/etc/opensips/tls/fullchain.pem:ro
+      - ${TLS_PRIVATE_KEY_PATH:?TLS_PRIVATE_KEY_PATH is required}:/etc/opensips/tls/privkey.pem:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rtpengine:
+        condition: service_started
+      freeswitch:
+        condition: service_started
+      server:
+        condition: service_started
+    ports:
+      - "5060:5060/udp"
+      - "5060:5060/tcp"
+      - "5061:5061/tcp"
+      - "5062:5062/tcp"
+    networks: [control, signaling]
+
+  coturn:
+    image: coturn/coturn:4.6.3
+    restart: unless-stopped
+    command:
+      - -c
+      - /etc/coturn/turnserver.conf
+      - --static-auth-secret=${TURN_AUTH_SECRET:?TURN_AUTH_SECRET is required}
+      - --realm=${TURN_REALM:?TURN_REALM is required}
+      - --external-ip=${PUBLIC_IP:?PUBLIC_IP is required}
+      - --cert=/etc/coturn/tls/fullchain.pem
+      - --pkey=/etc/coturn/tls/privkey.pem
+    volumes:
+      - ../containers/coturn/turnserver.conf:/etc/coturn/turnserver.conf:ro
+      - ${TLS_CERTIFICATE_PATH:?TLS_CERTIFICATE_PATH is required}:/etc/coturn/tls/fullchain.pem:ro
+      - ${TLS_PRIVATE_KEY_PATH:?TLS_PRIVATE_KEY_PATH is required}:/etc/coturn/tls/privkey.pem:ro
+    ports:
+      - "3478:3478/udp"
+      - "3478:3478/tcp"
+      - "5349:5349/udp"
+      - "5349:5349/tcp"
+      - "49152-65535:49152-65535/udp"
+    networks: [media]
+
+volumes:
+  postgres-data:
+  redis-data:
+  nats-data:
+  recordings-data:
+  caddy-data:
+  caddy-config:
+
+networks:
+  control:
+    ipam:
+      config:
+        - subnet: 172.32.0.0/24
+  media:
+    ipam:
+      config:
+        - subnet: 172.31.0.0/24
+  signaling:
+  edge:

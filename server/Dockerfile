@@ -48,7 +48,7 @@ EXPOSE 8080
 CMD ["/leamout/server"]
 
 # Atlas and the immutable migration set are published as a separate target so
-# Kubernetes can run schema changes before rolling out application workloads.
+# Docker Compose can run schema changes before rolling out application workloads.
 FROM arigaio/atlas:1.3.0-alpine AS migration-build
 
 COPY migrations /migrations
