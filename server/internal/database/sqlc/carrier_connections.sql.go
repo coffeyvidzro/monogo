@@ -37,6 +37,7 @@ func (q *Queries) ClearCarrierConnectionOutboundAuth(ctx context.Context, arg Cl
 
 const createCarrierConnection = `-- name: CreateCarrierConnection :one
 INSERT INTO carrier_connections (
+    id,
     organization_id,
     provider_id,
     scope,
@@ -57,34 +58,37 @@ INSERT INTO carrier_connections (
     supports_fax
 )
 SELECT
-    $1 AS organization_id,
-    $2 AS provider_id,
+    $1 AS id,
+    $2 AS organization_id,
+    $3 AS provider_id,
     'organization' AS scope,
-    $3 AS name,
-    COALESCE($4, 'active') AS status,
-    COALESCE($5, 'none') AS outbound_auth_method,
-    $6 AS auth_username,
-    $7 AS auth_secret_ciphertext,
-    COALESCE($8, false) AS inbound_enabled,
-    COALESCE($9, 'ip') AS inbound_auth_method,
-    $10 AS inbound_username,
-    $11 AS inbound_secret_ciphertext,
-    COALESCE($12, 10) AS max_cps,
-    COALESCE($13, 100) AS max_concurrent_calls,
-    $14 AS max_daily_minutes,
-    COALESCE($15, ARRAY['PCMU','PCMA']::TEXT[]) AS codecs,
-    COALESCE($16, false) AS supports_video,
-    COALESCE($17, false) AS supports_fax
+    $4 AS name,
+    COALESCE($5, 'active') AS status,
+    COALESCE($6, 'none') AS outbound_auth_method,
+    $7 AS auth_username,
+    $8 AS auth_secret_ciphertext,
+    COALESCE($9, false) AS inbound_enabled,
+    COALESCE($10, 'ip') AS inbound_auth_method,
+    $11 AS inbound_username,
+    $12 AS inbound_secret_ciphertext,
+    COALESCE($13, 10) AS max_cps,
+    COALESCE($14, 100) AS max_concurrent_calls,
+    $15 AS max_daily_minutes,
+    COALESCE($16, ARRAY['PCMU','PCMA']::TEXT[]) AS codecs,
+    COALESCE($17, false) AS supports_video,
+    COALESCE($18, false) AS supports_fax
 FROM organizations AS o
-JOIN carrier_providers AS cp ON cp.id = $2
-WHERE o.id = $1
+JOIN carrier_providers AS cp ON cp.id = $3
+WHERE o.id = $2
   AND o.status = 'active'
   AND o.deleted_at IS NULL
   AND cp.status = 'active'
+  AND cp.slug <> 'leamout'
 RETURNING id, organization_id, provider_id, scope, name, status, outbound_auth_method, auth_username, auth_secret_ciphertext, inbound_enabled, inbound_auth_method, inbound_username, inbound_secret_ciphertext, max_cps, max_concurrent_calls, max_daily_minutes, codecs, supports_video, supports_fax, created_at, updated_at
 `
 
 type CreateCarrierConnectionParams struct {
+	ID                      uuid.UUID  `db:"id" json:"id"`
 	OrganizationID          *uuid.UUID `db:"organization_id" json:"organization_id"`
 	ProviderID              uuid.UUID  `db:"provider_id" json:"provider_id"`
 	Name                    string     `db:"name" json:"name"`
@@ -106,6 +110,7 @@ type CreateCarrierConnectionParams struct {
 
 func (q *Queries) CreateCarrierConnection(ctx context.Context, arg CreateCarrierConnectionParams) (CarrierConnection, error) {
 	row := q.db.QueryRow(ctx, createCarrierConnection,
+		arg.ID,
 		arg.OrganizationID,
 		arg.ProviderID,
 		arg.Name,

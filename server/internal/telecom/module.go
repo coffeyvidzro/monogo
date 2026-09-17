@@ -6,6 +6,7 @@ import (
 	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
 	"github.com/coffeyvidzro/monogo/internal/integrations/redis"
 	"github.com/coffeyvidzro/monogo/internal/security/encryption"
+	"github.com/coffeyvidzro/monogo/internal/telecom/carriers"
 	"github.com/coffeyvidzro/monogo/internal/telecom/conferences"
 	"github.com/coffeyvidzro/monogo/internal/telecom/realtime"
 	"github.com/coffeyvidzro/monogo/internal/telecom/recordings"
@@ -26,7 +27,7 @@ type Dependencies struct {
 
 type Module struct {
 	// Calls       CallsModule
-	// Carriers    CarriersModule
+	Carriers    CarriersModule
 	Conferences ConferencesModule
 	Realtime    RealtimeModule
 	Recordings  RecordingsModule
@@ -42,11 +43,11 @@ type Module struct {
 // 	Handler    *calls.Handler
 // }
 
-// type CarriersModule struct {
-// 	Repository *carriers.Repository
-// 	Service    *carriers.Service
-// 	Handler    *carriers.Handler
-// }
+type CarriersModule struct {
+	Repository *carriers.Repository
+	Service    *carriers.Service
+	Handler    *carriers.Handler
+}
 
 type ConferencesModule struct {
 	Repository *conferences.Repository
@@ -110,6 +111,8 @@ func New(deps Dependencies) (*Module, error) {
 
 	trunksRepository := trunks.NewRepository(deps.Queries)
 	trunksService := trunks.NewService(trunksRepository, deps.DB)
+	carriersRepository := carriers.NewRepository(deps.Queries)
+	carriersService := carriers.NewService(carriersRepository, deps.DB, deps.CredentialCipher)
 
 	return &Module{
 		Voice: VoiceModule{
@@ -142,11 +145,11 @@ func New(deps Dependencies) (*Module, error) {
 			Service:    sipDomainsService,
 			Handler:    sip_domains.NewHandler(sipDomainsService),
 		},
-		// Carriers: CarriersModule{
-		// 	Repository: carriersRepository,
-		// 	Service:    carriersService,
-		// 	Handler:    carriers.NewHandler(carriersService),
-		// },
+		Carriers: CarriersModule{
+			Repository: carriersRepository,
+			Service:    carriersService,
+			Handler:    carriers.NewHandler(carriersService),
+		},
 		Trunks: TrunksModule{
 			Repository: trunksRepository,
 			Service:    trunksService,

@@ -1,5 +1,6 @@
 -- name: CreateCarrierConnection :one
 INSERT INTO carrier_connections (
+    id,
     organization_id,
     provider_id,
     scope,
@@ -20,6 +21,7 @@ INSERT INTO carrier_connections (
     supports_fax
 )
 SELECT
+    sqlc.arg(id) AS id,
     sqlc.arg(organization_id) AS organization_id,
     sqlc.arg(provider_id) AS provider_id,
     'organization' AS scope,
@@ -44,6 +46,7 @@ WHERE o.id = sqlc.arg(organization_id)
   AND o.status = 'active'
   AND o.deleted_at IS NULL
   AND cp.status = 'active'
+  AND cp.slug <> 'leamout'
 RETURNING *;
 
 -- name: CreatePlatformCarrierConnection :one
