@@ -164,20 +164,6 @@ type ConferenceParticipant struct {
 	UpdatedAt         pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 }
 
-type Deployment struct {
-	ID            uuid.UUID          `db:"id" json:"id"`
-	LicenseID     uuid.UUID          `db:"license_id" json:"license_id"`
-	DeploymentID  string             `db:"deployment_id" json:"deployment_id"`
-	PublicKey     string             `db:"public_key" json:"public_key"`
-	Name          *string            `db:"name" json:"name"`
-	Status        string             `db:"status" json:"status"`
-	ActivatedAt   pgtype.Timestamptz `db:"activated_at" json:"activated_at"`
-	LastSeenAt    pgtype.Timestamptz `db:"last_seen_at" json:"last_seen_at"`
-	DeactivatedAt pgtype.Timestamptz `db:"deactivated_at" json:"deactivated_at"`
-	CreatedAt     pgtype.Timestamptz `db:"created_at" json:"created_at"`
-	UpdatedAt     pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
-}
-
 // Durable request replay records scoped to an authenticated principal or organization.
 type Idempotency struct {
 	Scope               string             `db:"scope" json:"scope"`

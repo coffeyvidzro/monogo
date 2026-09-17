@@ -13,12 +13,9 @@ import (
 	"github.com/coffeyvidzro/monogo/internal/platform/config"
 	"github.com/coffeyvidzro/monogo/internal/platform/idempotency"
 	"github.com/coffeyvidzro/monogo/internal/platform/logging"
-	"github.com/coffeyvidzro/monogo/internal/platform/metrics"
 	"github.com/coffeyvidzro/monogo/internal/platform/outbox"
 	"github.com/coffeyvidzro/monogo/internal/platform/webhooks"
-	"github.com/coffeyvidzro/monogo/internal/telecom/calls"
 	"github.com/coffeyvidzro/monogo/internal/telecom/recordings"
-	"github.com/coffeyvidzro/monogo/internal/telecom/routing"
 )
 
 type modules struct {
@@ -29,12 +26,9 @@ type modules struct {
 	outbox                  *outbox.PublisherJob
 	webhookConsumer         *webhooks.Consumer
 	webhookDelivery         *webhooks.DeliveryJob
-	callConsumer            *calls.Consumer
 	recordingConsumer       *recordings.Consumer
-	callReconciliation      *calls.ReconciliationJob
 	recordingReconciliation *recordings.ReconciliationJob
 	idempotencyCleanup      *idempotency.CleanupJob
-	endpointHealth          *routing.EndpointHealthJob
 }
 
 func newModules(ctx context.Context, cfg config.Config) (*modules, error) {
@@ -92,37 +86,6 @@ func newModules(ctx context.Context, cfg config.Config) (*modules, error) {
 		workerID = "worker"
 	}
 
-	telecomMetrics := metrics.New(redisClient)
-	routingRepository := routing.NewRepository(queries)
-	routeResolver := routing.NewResolver(routingRepository)
-	routeResolver.SetMetrics(telecomMetrics)
-	routingService := routing.NewService(routeResolver)
-
-	callsRepository := calls.NewRepository(postgresClient.Pool())
-	callAdmission, err := calls.NewAdmissionController(redisClient, callsRepository)
-	if err != nil {
-		closeDependencies()
-		return nil, fmt.Errorf("initialize call admission: %w", err)
-	}
-	callsService := calls.NewService(
-		callsRepository,
-		calls.NewFreeSWITCHController(freeSwitch),
-		routingService,
-		callAdmission,
-	)
-	callsService.SetMetrics(telecomMetrics)
-	callReconciliation, err := calls.NewReconciliationJob(
-		callsRepository,
-		freeSwitch,
-		calls.DefaultReconciliationJobConfig(),
-		callAdmission,
-	)
-	if err != nil {
-		closeDependencies()
-		return nil, fmt.Errorf("initialize call reconciliation: %w", err)
-	}
-	callReconciliation.SetMetrics(telecomMetrics)
-
 	recordingsRepository := recordings.NewRepository(postgresClient.Pool())
 	recordingsService := recordings.NewService(recordingsRepository, nil)
 	recordingReconciliation, err := recordings.NewReconciliationJob(
@@ -142,13 +105,6 @@ func newModules(ctx context.Context, cfg config.Config) (*modules, error) {
 		closeDependencies()
 		return nil, fmt.Errorf("initialize idempotency cleanup: %w", err)
 	}
-
-	endpointHealth, err := routing.NewEndpointHealthJob(queries, routing.NewSIPOptionsProber())
-	if err != nil {
-		closeDependencies()
-		return nil, fmt.Errorf("initialize endpoint health: %w", err)
-	}
-	endpointHealth.SetMetrics(telecomMetrics)
 
 	outboxJob, err := outbox.NewPublisherJob(
 		outbox.NewRepository(queries),
@@ -180,12 +136,9 @@ func newModules(ctx context.Context, cfg config.Config) (*modules, error) {
 		outbox:                  outboxJob,
 		webhookConsumer:         webhooks.NewConsumer(natsClient, webhookService),
 		webhookDelivery:         webhookDeliveryJob,
-		callConsumer:            calls.NewConsumer(callsService),
 		recordingConsumer:       recordings.NewConsumer(recordingsService),
-		callReconciliation:      callReconciliation,
 		recordingReconciliation: recordingReconciliation,
 		idempotencyCleanup:      idempotencyCleanup,
-		endpointHealth:          endpointHealth,
 	}, nil
 }
 

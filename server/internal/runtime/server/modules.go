@@ -17,7 +17,6 @@ import (
 	"github.com/coffeyvidzro/monogo/internal/security/authn"
 	"github.com/coffeyvidzro/monogo/internal/security/encryption"
 	"github.com/coffeyvidzro/monogo/internal/telecom"
-	"github.com/coffeyvidzro/monogo/internal/telecom/calls"
 	"github.com/coffeyvidzro/monogo/internal/telecom/conferences"
 	"github.com/coffeyvidzro/monogo/internal/telecom/realtime"
 	"github.com/coffeyvidzro/monogo/internal/tenancy"
@@ -31,10 +30,10 @@ type modules struct {
 	tenancy              *tenancy.Module
 	platform             *platform.Module
 	telecom              *telecom.Module
-	authn                 *middleware.AuthnMiddleware
+	authn                *middleware.AuthnMiddleware
 	organizationsContext *middleware.OrganizationMiddleware
-	rateLimit             *middleware.RateLimitMiddleware
-	metrics               *metrics.Registry
+	rateLimit            *middleware.RateLimitMiddleware
+	metrics              *metrics.Registry
 }
 
 func newModules(ctx context.Context, cfg config.Config) (*modules, error) {
@@ -93,10 +92,10 @@ func newModules(ctx context.Context, cfg config.Config) (*modules, error) {
 	tenancyModule := tenancy.New(queries)
 	platformModule := platform.New(postgresClient.Pool(), queries)
 	telecomModule, err := telecom.New(telecom.Dependencies{
-		DB:                   postgresClient.Pool(),
-		Queries:              queries,
-		Redis:                redisClient,
-		CallsController:      calls.NewFreeSWITCHController(freeSwitch),
+		DB:      postgresClient.Pool(),
+		Queries: queries,
+		Redis:   redisClient,
+		// CallsController:      calls.NewFreeSWITCHController(freeSwitch),
 		ConferenceController: conferences.NewFreeSWITCHController(freeSwitch),
 		CredentialCipher:     credentialCipher,
 		RealtimeService:      turnService,
@@ -129,10 +128,10 @@ func newModules(ctx context.Context, cfg config.Config) (*modules, error) {
 		tenancy:              tenancyModule,
 		platform:             platformModule,
 		telecom:              telecomModule,
-		authn:                 authMiddleware,
+		authn:                authMiddleware,
 		organizationsContext: organizationMiddleware,
-		rateLimit:             rateLimitMiddleware,
-		metrics:               metrics.New(redisClient),
+		rateLimit:            rateLimitMiddleware,
+		metrics:              metrics.New(redisClient),
 	}, nil
 }
 

@@ -5,10 +5,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/coffeyvidzro/monogo/internal/telecom/calls"
-	"github.com/coffeyvidzro/monogo/internal/telecom/carriers"
 	"github.com/coffeyvidzro/monogo/internal/telecom/conferences"
-	"github.com/coffeyvidzro/monogo/internal/telecom/numbers"
 	"github.com/coffeyvidzro/monogo/internal/telecom/realtime"
 	"github.com/coffeyvidzro/monogo/internal/telecom/recordings"
 	"github.com/coffeyvidzro/monogo/internal/telecom/sip_domains"
@@ -29,11 +26,6 @@ func RegisterRoutes(
 		organizationAccess("voice-applications"),
 	)
 
-	calls.RegisterRoutes(
-		router,
-		module.Calls.Handler,
-		organizationAccess("calls"),
-	)
 
 	recordings.RegisterRoutes(
 		router,
@@ -47,13 +39,6 @@ func RegisterRoutes(
 		organizationAccess("subscribers"),
 	)
 
-	numbers.RegisterRoutes(
-		router,
-		module.Numbers.Handler,
-		organizationAccess("numbers"),
-		idempotency,
-	)
-
 	sip_domains.RegisterRoutes(
 		router,
 		module.SIPDomains.Handler,
@@ -64,12 +49,6 @@ func RegisterRoutes(
 		router,
 		module.Trunks.Handler,
 		organizationAccess("trunks"),
-	)
-
-	carriers.RegisterRoutes(
-		router,
-		module.Carriers.Handler,
-		organizationAccess("carriers"),
 	)
 
 	conferences.RegisterRoutes(
