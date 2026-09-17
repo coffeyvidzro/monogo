@@ -1,21 +1,29 @@
 {
-	email {$ACME_EMAIL}
+    email caddy@{$DOMAIN}
 }
 
-{$API_DOMAIN} {
-	encode zstd gzip
-	reverse_proxy server:8080
+http://sip.{$DOMAIN}, http://turn.{$DOMAIN} {
+    handle /.well-known/acme-challenge/* {
+        root * /srv/leamout-acme
+        file_server
+    }
 
-	header {
-		-Server
-		X-Content-Type-Options "nosniff"
-		X-Frame-Options "DENY"
-		Referrer-Policy "strict-origin-when-cross-origin"
-		Strict-Transport-Security "max-age=31536000; includeSubDomains"
-	}
+    respond 404
+}
 
-	log {
-		output stdout
-		format json
-	}
+api.{$DOMAIN} {
+    reverse_proxy server:8080
+
+    header {
+        -Server
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "DENY"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        Strict-Transport-Security "max-age=31536000"
+    }
+
+    log {
+        output stdout
+        format json
+    }
 }
