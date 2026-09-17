@@ -13,7 +13,9 @@ import (
 
 type Handler struct{ service *Service }
 
-func NewHandler(service *Service) *Handler { return &Handler{service: service} }
+func NewHandler(service *Service) *Handler {
+	return &Handler{service: service}
+}
 
 func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 	org, err := requestOrganizationID(r)
@@ -33,6 +35,7 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 	httputil.Created(w, item)
 }
+
 func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 	org, err := requestOrganizationID(r)
 	if err != nil {
@@ -46,6 +49,7 @@ func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 	}
 	httputil.OK(w, map[string]any{"carrier_connections": items})
 }
+
 func (h *Handler) Get(w http.ResponseWriter, r *http.Request) {
 	org, id, err := requestConnectionIDs(r)
 	if err != nil {
@@ -186,6 +190,7 @@ func (h *Handler) CreateSourceIP(w http.ResponseWriter, r *http.Request) {
 	}
 	httputil.Created(w, item)
 }
+
 func (h *Handler) ListSourceIPs(w http.ResponseWriter, r *http.Request) {
 	org, id, err := requestConnectionIDs(r)
 	if err != nil {
@@ -199,6 +204,7 @@ func (h *Handler) ListSourceIPs(w http.ResponseWriter, r *http.Request) {
 	}
 	httputil.OK(w, map[string]any{"source_ips": items})
 }
+
 func (h *Handler) DeleteSourceIP(w http.ResponseWriter, r *http.Request) {
 	org, id, err := requestConnectionIDs(r)
 	if err != nil {
@@ -224,6 +230,7 @@ func requestOrganizationID(r *http.Request) (uuid.UUID, error) {
 	}
 	return id, nil
 }
+
 func requestConnectionIDs(r *http.Request) (uuid.UUID, uuid.UUID, error) {
 	org, err := requestOrganizationID(r)
 	if err != nil {

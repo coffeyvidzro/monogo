@@ -28,7 +28,10 @@ func TestRegisterRoutesExposesCarrierConnectionLifecycle(t *testing.T) {
 		{http.MethodDelete, "/carrier-connections/8d86799d-e068-47ec-97f5-76322a676dcf/inbound-auth"},
 		{http.MethodPost, "/carrier-connections/8d86799d-e068-47ec-97f5-76322a676dcf/source-ips"},
 		{http.MethodGet, "/carrier-connections/8d86799d-e068-47ec-97f5-76322a676dcf/source-ips"},
-		{http.MethodDelete, "/carrier-connections/8d86799d-e068-47ec-97f5-76322a676dcf/source-ips/554cc6c9-9b57-42ed-bacf-66a515bb0805"},
+		{
+			http.MethodDelete,
+			"/carrier-connections/8d86799d-e068-47ec-97f5-76322a676dcf/source-ips/554cc6c9-9b57-42ed-bacf-66a515bb0805",
+		},
 	}
 
 	for _, route := range routes {

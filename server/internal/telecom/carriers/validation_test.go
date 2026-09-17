@@ -52,4 +52,6 @@ func TestParseCIDRMasksHostBits(t *testing.T) {
 	}
 }
 
-func stringPointer(value string) *string { return &value }
+func stringPointer(value string) *string {
+	return &value
+}

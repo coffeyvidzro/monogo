@@ -67,7 +67,15 @@ func normalizeCreate(req *CreateRequest) error {
 }
 
 func normalizeUpdate(req *UpdateRequest) error {
-	if req.Name == nil && req.Status == nil && req.InboundEnabled == nil && req.MaxCPS == nil && req.MaxConcurrentCalls == nil && req.MaxDailyMinutes == nil && req.Codecs == nil && req.SupportsVideo == nil && req.SupportsFax == nil {
+	if req.Name == nil &&
+		req.Status == nil &&
+		req.InboundEnabled == nil &&
+		req.MaxCPS == nil &&
+		req.MaxConcurrentCalls == nil &&
+		req.MaxDailyMinutes == nil &&
+		req.Codecs == nil &&
+		req.SupportsVideo == nil &&
+		req.SupportsFax == nil {
 		return fmt.Errorf("at least one field is required")
 	}
 	if req.Name != nil {
@@ -105,7 +113,9 @@ func normalizeUpdate(req *UpdateRequest) error {
 
 func normalizeAuth(req *AuthRequest, inbound bool) error {
 	req.Method = strings.ToLower(strings.TrimSpace(req.Method))
-	allowed := req.Method == "digest" || (!inbound && req.Method == "none") || (inbound && (req.Method == "ip" || req.Method == "none"))
+	allowed := req.Method == "digest" ||
+		(!inbound && req.Method == "none") ||
+		(inbound && (req.Method == "ip" || req.Method == "none"))
 	if !allowed {
 		return fmt.Errorf("invalid authentication method")
 	}
@@ -133,6 +143,7 @@ func normalizeName(v string) (string, error) {
 	}
 	return v, nil
 }
+
 func normalizeCredential(c *DigestCredential) error {
 	c.Username = strings.TrimSpace(c.Username)
 	if c.Username == "" || len(c.Username) > 255 {
@@ -143,6 +154,7 @@ func normalizeCredential(c *DigestCredential) error {
 	}
 	return nil
 }
+
 func normalizeCodecs(values []string) ([]string, error) {
 	if len(values) == 0 {
 		return nil, nil
@@ -162,6 +174,7 @@ func normalizeCodecs(values []string) ([]string, error) {
 	}
 	return result, nil
 }
+
 func parseCIDR(value string) (netip.Prefix, error) {
 	prefix, err := netip.ParsePrefix(strings.TrimSpace(value))
 	if err != nil {
