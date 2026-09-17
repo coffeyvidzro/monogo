@@ -30,7 +30,6 @@ required=(
   "VERSION"
   "deploy/docker/compose.yaml"
   "deploy/docker/Caddyfile"
-  "server/migrations/atlas.sum"
   "containers/nats/nats-server.conf"
   "containers/coturn/turnserver.conf"
   "server/scripts/certs/certbot-hook.sh"

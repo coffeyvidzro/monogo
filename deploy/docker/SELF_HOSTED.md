@@ -1,6 +1,6 @@
 # Leamout Self-Hosted
 
-The self-hosted release bundle contains the Leamout installer plus the Docker Compose deployment assets, database migrations, and service configuration required to install without cloning the source repository.
+The self-hosted release bundle contains the Leamout installer plus the Docker Compose deployment assets and service configuration required to install without cloning the source repository. Database migrations are versioned inside the matching `leamout-migrate` image so Self-Hosted and Cloud execute the exact same schema artifact.
 
 ## Requirements
 
@@ -60,7 +60,6 @@ The filesystem layout is a Leamout contract and is not configurable.
         ├── VERSION
         ├── compose.yaml
         ├── Caddyfile
-        ├── migrations/
         └── config/
             ├── nats-server.conf
             └── turnserver.conf
