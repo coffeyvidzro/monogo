@@ -10,8 +10,8 @@ orchestration, and provider-specific telecom-edge responsibilities. See
 
 ## Architecture
 
-The base installs the durable control-plane dependencies and the application
-processes that are shared with Self-Hosted:
+The base installs the durable runtime-cell dependencies and application
+processes:
 
 - namespace
 - application ConfigMap
@@ -54,11 +54,8 @@ and public DNS belong in a provider-specific telecom overlay. They are not safe
 to model as portable ClusterIP services because public IP advertisement, UDP
 load-balancer behavior, topology, and certificate provisioning vary by cloud.
 
-The Docker Compose deployment remains the reference all-in-one Self-Hosted
-runtime topology. This Kubernetes base is a portable Cloud runtime-cell
-foundation; Cloud services and overlays own the commercial control plane,
-public HTTP edge, and telecom edges. The products share runtime components and
-communications contracts without treating their complete control planes as
-identical.
+This Kubernetes base is a portable Cloud runtime-cell foundation. Cloud
+services and deployment-specific overlays own the commercial control plane,
+public HTTP edge, and telecom edges.
 
 Terraform is not part of the Leamout deployment model.

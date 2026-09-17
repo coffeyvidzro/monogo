@@ -18,8 +18,8 @@ if grep -q '# BEGIN MANAGED SIP ADMISSION' "$config"; then
   rm -f "$tmp"
 fi
 
-# The public SIP hostname is deployment configuration. Cloud and Self-Hosted
-# use the same image and provide the hostname at runtime.
+# The public SIP hostname is deployment configuration and is provided to the
+# Cloud image at runtime.
 tmp=$(mktemp)
 awk -v domain="$sip_domain" '
   BEGIN { replaced = 0 }
