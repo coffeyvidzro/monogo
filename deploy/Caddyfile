@@ -1,5 +1,5 @@
 {
-    email admin@{$DOMAIN}
+    email caddy@{$DOMAIN}
 }
 
 http://sip.{$DOMAIN}, http://turn.{$DOMAIN} {

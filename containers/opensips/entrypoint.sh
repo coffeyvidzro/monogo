@@ -3,23 +3,10 @@ set -eu
 
 config=${OPENSIPS_CONFIG:-/etc/opensips/opensips.cfg}
 sip_domain=${SIP_DOMAIN:-sip.leamout.com}
+: "${OPENSIPS_DATABASE_URL:?OPENSIPS_DATABASE_URL must be set}"
 
-# Managed customer-facing SIP admission is intentionally disabled for now.
-# Keep the rest of the SIP edge intact while removing the unfinished control-
-# plane callback path between these markers from the effective runtime config.
-if grep -q '# BEGIN MANAGED SIP ADMISSION' "$config"; then
-  tmp=$(mktemp)
-  awk '
-    /# BEGIN MANAGED SIP ADMISSION/ { skip = 1; next }
-    /# END MANAGED SIP ADMISSION/ { skip = 0; next }
-    !skip { print }
-  ' "$config" > "$tmp"
-  cat "$tmp" > "$config"
-  rm -f "$tmp"
-fi
-
-# The public SIP hostname is deployment configuration. Cloud and Self-Hosted
-# use the same image and provide the hostname at runtime.
+# The public SIP hostname is deployment configuration and is provided to the
+# Cloud image at runtime.
 tmp=$(mktemp)
 awk -v domain="$sip_domain" '
   BEGIN { replaced = 0 }
@@ -51,6 +38,23 @@ awk -v domain="$sip_domain" '
   fi
   exit "$rc"
 }
+cat "$tmp" > "$config"
+rm -f "$tmp"
+
+# Keep database credentials in deployment configuration instead of baking them
+# into the image. Both modules must use the same Cloud database.
+tmp=$(mktemp)
+awk -v url="$OPENSIPS_DATABASE_URL" '
+  /^modparam\("sqlops", "db_url",/ {
+    print "modparam(\"sqlops\", \"db_url\", \"" url "\")"
+    next
+  }
+  /^modparam\("auth_db", "db_url",/ {
+    print "modparam(\"auth_db\", \"db_url\", \"" url "\")"
+    next
+  }
+  { print }
+' "$config" > "$tmp"
 cat "$tmp" > "$config"
 rm -f "$tmp"
 

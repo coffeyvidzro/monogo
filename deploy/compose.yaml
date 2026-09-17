@@ -1,9 +1,9 @@
-name: leamout
+name: leamout-cloud
 
 x-app-environment: &app-environment
   APP_ENV: production
-  LEAMOUT_DEPLOYMENT_ID: ${LEAMOUT_DEPLOYMENT_ID:?LEAMOUT_DEPLOYMENT_ID is required}
-  DATABASE_URL: "postgres://leamout:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@postgres:5432/leamout?sslmode=disable"
+  LEAMOUT_DEPLOYMENT_ID: ${LEAMOUT_DEPLOYMENT_ID:-cloud-primary}
+  DATABASE_URL: postgres://leamout:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@postgres:5432/leamout?sslmode=disable
   REDIS_URL: redis://redis:6379/0
   NATS_URL: nats://nats:4222
   FREESWITCH_ESL_ADDRESS: freeswitch:8021
@@ -11,7 +11,13 @@ x-app-environment: &app-environment
   CARRIER_CREDENTIAL_ENCRYPTION_KEY: ${CARRIER_CREDENTIAL_ENCRYPTION_KEY:?CARRIER_CREDENTIAL_ENCRYPTION_KEY is required}
   TURN_AUTH_SECRET: ${TURN_AUTH_SECRET:?TURN_AUTH_SECRET is required}
   TURN_PUBLIC_URLS: ${TURN_PUBLIC_URLS:?TURN_PUBLIC_URLS is required}
-  CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}
+  CORS_ORIGINS: ${CORS_ORIGINS:?CORS_ORIGINS is required}
+  LEAMOUT_SESSION_COOKIE_DOMAIN: ${LEAMOUT_SESSION_COOKIE_DOMAIN:-}
+  DIDWW_API_KEY: ${DIDWW_API_KEY:-}
+  COMMPEAK_API_AUTHORIZATION: ${COMMPEAK_API_AUTHORIZATION:-}
+  STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
+  STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
+  PAYSTACK_SECRET_KEY: ${PAYSTACK_SECRET_KEY:-}
 
 services:
   postgres:
@@ -28,26 +34,21 @@ services:
       interval: 5s
       timeout: 5s
       retries: 12
-    networks:
-      - private-control
+    networks: [control]
 
   migrate:
-    image: ghcr.io/coffeyvidzro/leamout-migrate:${LEAMOUT_VERSION:-preview}
+    build:
+      context: ../server
+      dockerfile: Dockerfile
+      target: migrate
     restart: "no"
-    command:
-      - migrate
-      - apply
-      - --dir
-      - file:///migrations
-      - --url
-      - "$$DATABASE_URL"
+    command: ["migrate", "apply", "--dir", "file:///migrations", "--url", "$$DATABASE_URL"]
     environment:
-      DATABASE_URL: "postgres://leamout:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@postgres:5432/leamout?sslmode=disable&search_path=public"
+      DATABASE_URL: postgres://leamout:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@postgres:5432/leamout?sslmode=disable&search_path=public
     depends_on:
       postgres:
         condition: service_healthy
-    networks:
-      - private-control
+    networks: [control]
 
   redis:
     image: redis:7.4-alpine
@@ -60,21 +61,22 @@ services:
       interval: 5s
       timeout: 3s
       retries: 12
-    networks:
-      - private-control
+    networks: [control]
 
   nats:
     image: nats:2.11-alpine
     restart: unless-stopped
     command: ["-c", "/etc/nats/nats-server.conf"]
     volumes:
-      - ./config/nats-server.conf:/etc/nats/nats-server.conf:ro
+      - ../containers/nats/nats-server.conf:/etc/nats/nats-server.conf:ro
       - nats-data:/data
-    networks:
-      - private-control
+    networks: [control]
 
   server:
-    image: ghcr.io/coffeyvidzro/leamout:${LEAMOUT_VERSION:-preview}
+    build:
+      context: ../server
+      dockerfile: Dockerfile
+      target: runtime
     restart: unless-stopped
     command: ["/leamout/server"]
     environment: *app-environment
@@ -87,12 +89,13 @@ services:
         condition: service_started
       freeswitch:
         condition: service_started
-    networks:
-      - public-web
-      - private-control
+    networks: [edge, control]
 
   worker:
-    image: ghcr.io/coffeyvidzro/leamout:${LEAMOUT_VERSION:-preview}
+    build:
+      context: ../server
+      dockerfile: Dockerfile
+      target: runtime
     restart: unless-stopped
     command: ["/leamout/worker"]
     environment: *app-environment
@@ -105,8 +108,7 @@ services:
         condition: service_started
       freeswitch:
         condition: service_started
-    networks:
-      - private-control
+    networks: [control]
 
   caddy:
     image: caddy:2-alpine
@@ -122,11 +124,15 @@ services:
       - /var/lib/leamout/acme:/srv/leamout-acme:ro
       - caddy-data:/data
       - caddy-config:/config
-    networks:
-      - public-web
+    depends_on:
+      server:
+        condition: service_started
+    networks: [edge]
 
   freeswitch:
-    image: ghcr.io/coffeyvidzro/leamout-freeswitch:${LEAMOUT_VERSION:-preview}
+    build:
+      context: ../containers/freeswitch
+      dockerfile: Dockerfile
     restart: unless-stopped
     stop_grace_period: 60s
     environment:
@@ -134,11 +140,13 @@ services:
     volumes:
       - recordings-data:/var/lib/freeswitch/recordings
     networks:
-      private-control:
+      control:
         ipv4_address: 172.32.0.20
 
   rtpengine:
-    image: ghcr.io/coffeyvidzro/leamout-rtpengine:${LEAMOUT_VERSION:-preview}
+    build:
+      context: ../containers/rtpengine
+      dockerfile: Dockerfile
     restart: unless-stopped
     stop_grace_period: 30s
     environment:
@@ -146,17 +154,20 @@ services:
     ports:
       - "23000-32768:23000-32768/udp"
     networks:
-      private-control:
+      control:
         ipv4_address: 172.32.0.10
-      public-media:
+      media:
         ipv4_address: 172.31.0.10
 
   opensips:
-    image: ghcr.io/coffeyvidzro/leamout-opensips:${LEAMOUT_VERSION:-preview}
+    build:
+      context: ../containers/opensips
+      dockerfile: Dockerfile
     restart: unless-stopped
     stop_grace_period: 30s
     environment:
-      SIP_DOMAIN: sip.${DOMAIN:?DOMAIN is required}
+      SIP_DOMAIN: ${SIP_DOMAIN:?SIP_DOMAIN is required}
+      OPENSIPS_DATABASE_URL: postgres://leamout:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@postgres:5432/leamout
     volumes:
       - /etc/leamout/certs/fullchain.pem:/etc/opensips/tls/fullchain.pem:ro
       - /etc/leamout/certs/privkey.pem:/etc/opensips/tls/privkey.pem:ro
@@ -174,10 +185,7 @@ services:
       - "5060:5060/tcp"
       - "5061:5061/tcp"
       - "5062:5062/tcp"
-    networks:
-      private-control: {}
-      public-signaling:
-        ipv4_address: 172.30.0.10
+    networks: [control, signaling]
 
   coturn:
     image: coturn/coturn:4.6.3
@@ -191,7 +199,7 @@ services:
       - --cert=/etc/coturn/tls/fullchain.pem
       - --pkey=/etc/coturn/tls/privkey.pem
     volumes:
-      - ./config/turnserver.conf:/etc/coturn/turnserver.conf:ro
+      - ../containers/coturn/turnserver.conf:/etc/coturn/turnserver.conf:ro
       - /etc/leamout/certs/fullchain.pem:/etc/coturn/tls/fullchain.pem:ro
       - /etc/leamout/certs/privkey.pem:/etc/coturn/tls/privkey.pem:ro
     ports:
@@ -200,8 +208,7 @@ services:
       - "5349:5349/udp"
       - "5349:5349/tcp"
       - "49152-65535:49152-65535/udp"
-    networks:
-      - public-media
+    networks: [media]
 
 volumes:
   postgres-data:
@@ -212,16 +219,13 @@ volumes:
   caddy-config:
 
 networks:
-  private-control:
+  control:
     ipam:
       config:
         - subnet: 172.32.0.0/24
-  public-media:
+  media:
     ipam:
       config:
         - subnet: 172.31.0.0/24
-  public-signaling:
-    ipam:
-      config:
-        - subnet: 172.30.0.0/24
-  public-web:
+  signaling:
+  edge:
