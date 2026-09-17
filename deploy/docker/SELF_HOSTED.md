@@ -3,9 +3,10 @@
 The self-hosted release bundle contains the Leamout installer plus the Docker Compose deployment assets and service configuration required to install without cloning the source repository. Database migrations are versioned inside the matching `leamout-migrate` image so Self-Hosted and Cloud execute the exact same schema artifact.
 
 Self-Hosted is a distinct product operated in customer infrastructure, not a
-single-node edition of Leamout Cloud. It supports customer-owned BYOC
-connectivity locally and can optionally consume Leamout-managed carrier
-services without receiving Leamout's payment or upstream-provider credentials.
+single-node edition of Leamout Cloud. It is licensed as Enterprise Self-Hosted
+and uses BYOC connectivity selected and configured by the customer. That
+carrier may be a third party or Leamout Carrier; selecting Leamout Carrier does
+not turn the installation into the Cloud Managed delivery mode.
 
 ## Requirements
 
@@ -133,4 +134,6 @@ After successful issuance or renewal, a root-owned Certbot deploy hook atomicall
 
 `checksums.txt` is the canonical SHA-256 manifest for downloadable release archives. The next release-hardening step is to sign this manifest with Minisign and make signature verification mandatory in the bootstrap. The Minisign private key must never be committed to the repository; only the public verification key belongs in public distribution material.
 
-The application/runtime is the same Leamout runtime used by Cloud. Self-Hosted changes deployment and operations only; it does not introduce a separate application mode or BYOC/Managed behavior.
+Self-Hosted shares communications runtime components and contracts with Cloud,
+but has a distinct product and operational boundary: Enterprise licensing,
+customer-operated infrastructure, and customer-selected BYOC connectivity.
