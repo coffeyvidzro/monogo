@@ -37,7 +37,10 @@ services:
     networks: [control]
 
   migrate:
-    image: ghcr.io/coffeyvidzro/leamout-migrate:${LEAMOUT_VERSION:-preview}
+    build:
+      context: ../server
+      dockerfile: Dockerfile
+      target: migrate
     restart: "no"
     command: ["migrate", "apply", "--dir", "file:///migrations", "--url", "$$DATABASE_URL"]
     environment:
@@ -70,7 +73,10 @@ services:
     networks: [control]
 
   server:
-    image: ghcr.io/coffeyvidzro/leamout:${LEAMOUT_VERSION:-preview}
+    build:
+      context: ../server
+      dockerfile: Dockerfile
+      target: runtime
     restart: unless-stopped
     command: ["/leamout/server"]
     environment: *app-environment
@@ -86,7 +92,10 @@ services:
     networks: [edge, control]
 
   worker:
-    image: ghcr.io/coffeyvidzro/leamout:${LEAMOUT_VERSION:-preview}
+    build:
+      context: ../server
+      dockerfile: Dockerfile
+      target: runtime
     restart: unless-stopped
     command: ["/leamout/worker"]
     environment: *app-environment
@@ -121,7 +130,9 @@ services:
     networks: [edge]
 
   freeswitch:
-    image: ghcr.io/coffeyvidzro/leamout-freeswitch:${LEAMOUT_VERSION:-preview}
+    build:
+      context: ../containers/freeswitch
+      dockerfile: Dockerfile
     restart: unless-stopped
     stop_grace_period: 60s
     environment:
@@ -133,7 +144,9 @@ services:
         ipv4_address: 172.32.0.20
 
   rtpengine:
-    image: ghcr.io/coffeyvidzro/leamout-rtpengine:${LEAMOUT_VERSION:-preview}
+    build:
+      context: ../containers/rtpengine
+      dockerfile: Dockerfile
     restart: unless-stopped
     stop_grace_period: 30s
     environment:
@@ -147,7 +160,9 @@ services:
         ipv4_address: 172.31.0.10
 
   opensips:
-    image: ghcr.io/coffeyvidzro/leamout-opensips:${LEAMOUT_VERSION:-preview}
+    build:
+      context: ../containers/opensips
+      dockerfile: Dockerfile
     restart: unless-stopped
     stop_grace_period: 30s
     environment:
