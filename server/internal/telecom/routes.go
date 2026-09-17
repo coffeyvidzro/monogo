@@ -5,6 +5,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
+	"github.com/coffeyvidzro/monogo/internal/telecom/carriers"
 	"github.com/coffeyvidzro/monogo/internal/telecom/conferences"
 	"github.com/coffeyvidzro/monogo/internal/telecom/realtime"
 	"github.com/coffeyvidzro/monogo/internal/telecom/recordings"
@@ -25,7 +26,7 @@ func RegisterRoutes(
 		module.Voice.Handler,
 		organizationAccess("voice-applications"),
 	)
-
+	carriers.RegisterRoutes(router, module.Carriers.Handler, organizationAccess("carriers"))
 
 	recordings.RegisterRoutes(
 		router,
