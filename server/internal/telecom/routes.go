@@ -26,7 +26,7 @@ func RegisterRoutes(
 		module.Voice.Handler,
 		organizationAccess("voice-applications"),
 	)
-	carriers.RegisterRoutes(router, module.Carriers.Handler, organizationAccess("carriers"), idempotency)
+	carriers.RegisterRoutes(router, module.Carriers.Handler, organizationAccess("carriers"))
 
 	recordings.RegisterRoutes(
 		router,

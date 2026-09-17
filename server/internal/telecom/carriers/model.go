@@ -79,3 +79,9 @@ type SourceIPResponse struct {
 	CIDR                netip.Prefix `json:"cidr"`
 	CreatedAt           time.Time    `json:"created_at"`
 }
+
+type ValidationResponse struct {
+	Valid    bool     `json:"valid"`
+	Errors   []string `json:"errors"`
+	Warnings []string `json:"warnings"`
+}

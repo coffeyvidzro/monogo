@@ -59,6 +59,21 @@ func (h *Handler) Get(w http.ResponseWriter, r *http.Request) {
 	}
 	httputil.OK(w, item)
 }
+
+func (h *Handler) Validate(w http.ResponseWriter, r *http.Request) {
+	org, id, err := requestConnectionIDs(r)
+	if err != nil {
+		httputil.Error(w, err)
+		return
+	}
+	result, err := h.service.Validate(r.Context(), org, id)
+	if err != nil {
+		httputil.Error(w, err)
+		return
+	}
+	httputil.OK(w, result)
+}
+
 func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 	org, id, err := requestConnectionIDs(r)
 	if err != nil {
@@ -77,6 +92,20 @@ func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 	}
 	httputil.OK(w, item)
 }
+
+func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
+	org, id, err := requestConnectionIDs(r)
+	if err != nil {
+		httputil.Error(w, err)
+		return
+	}
+	if err := h.service.Delete(r.Context(), org, id); err != nil {
+		httputil.Error(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
 func (h *Handler) SetOutboundAuth(w http.ResponseWriter, r *http.Request) {
 	org, id, err := requestConnectionIDs(r)
 	if err != nil {
@@ -94,6 +123,20 @@ func (h *Handler) SetOutboundAuth(w http.ResponseWriter, r *http.Request) {
 	}
 	w.WriteHeader(http.StatusNoContent)
 }
+
+func (h *Handler) ClearOutboundAuth(w http.ResponseWriter, r *http.Request) {
+	org, id, err := requestConnectionIDs(r)
+	if err != nil {
+		httputil.Error(w, err)
+		return
+	}
+	if err := h.service.ClearOutboundAuth(r.Context(), org, id); err != nil {
+		httputil.Error(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
 func (h *Handler) SetInboundAuth(w http.ResponseWriter, r *http.Request) {
 	org, id, err := requestConnectionIDs(r)
 	if err != nil {
@@ -111,7 +154,21 @@ func (h *Handler) SetInboundAuth(w http.ResponseWriter, r *http.Request) {
 	}
 	w.WriteHeader(http.StatusNoContent)
 }
-func (h *Handler) AddSourceIP(w http.ResponseWriter, r *http.Request) {
+
+func (h *Handler) ClearInboundAuth(w http.ResponseWriter, r *http.Request) {
+	org, id, err := requestConnectionIDs(r)
+	if err != nil {
+		httputil.Error(w, err)
+		return
+	}
+	if err := h.service.ClearInboundAuth(r.Context(), org, id); err != nil {
+		httputil.Error(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *Handler) CreateSourceIP(w http.ResponseWriter, r *http.Request) {
 	org, id, err := requestConnectionIDs(r)
 	if err != nil {
 		httputil.Error(w, err)
@@ -122,7 +179,7 @@ func (h *Handler) AddSourceIP(w http.ResponseWriter, r *http.Request) {
 		httputil.Error(w, err)
 		return
 	}
-	item, err := h.service.AddSourceIP(r.Context(), org, id, req.CIDR)
+	item, err := h.service.CreateSourceIP(r.Context(), org, id, req.CIDR)
 	if err != nil {
 		httputil.Error(w, err)
 		return

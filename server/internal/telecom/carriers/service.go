@@ -81,6 +81,47 @@ func (s *Service) Get(ctx context.Context, org, id uuid.UUID) (Response, error) 
 	}
 	return responseFromGet(row), nil
 }
+
+// Validate checks whether a connection is internally ready for the configured
+// authentication modes. Provider reachability is deliberately handled by the
+// asynchronous probing layer rather than this control-plane operation.
+func (s *Service) Validate(ctx context.Context, org, id uuid.UUID) (ValidationResponse, error) {
+	connection, err := s.Get(ctx, org, id)
+	if err != nil {
+		return ValidationResponse{}, err
+	}
+
+	result := ValidationResponse{Errors: []string{}, Warnings: []string{}}
+	if connection.OutboundAuthMethod == "digest" && !connection.HasOutboundCredentials {
+		result.Errors = append(result.Errors, "outbound digest credentials are missing")
+	}
+	if connection.InboundEnabled {
+		switch connection.InboundAuthMethod {
+		case "digest":
+			if !connection.HasInboundCredentials {
+				result.Errors = append(result.Errors, "inbound digest credentials are missing")
+			}
+		case "ip":
+			sourceIPs, err := s.ListSourceIPs(ctx, org, id)
+			if err != nil {
+				return ValidationResponse{}, err
+			}
+			if len(sourceIPs) == 0 {
+				result.Errors = append(result.Errors, "inbound IP authentication requires at least one source CIDR")
+			}
+		case "none":
+			result.Warnings = append(result.Warnings, "inbound traffic is enabled without authentication")
+		default:
+			result.Errors = append(result.Errors, "inbound authentication method is invalid")
+		}
+	}
+	if connection.Status != "active" {
+		result.Warnings = append(result.Warnings, "carrier connection is disabled")
+	}
+	result.Valid = len(result.Errors) == 0
+	return result, nil
+}
+
 func (s *Service) List(ctx context.Context, org uuid.UUID) ([]Response, error) {
 	if org == uuid.Nil {
 		return nil, apperror.NewBadRequest("organization context required")
@@ -108,6 +149,24 @@ func (s *Service) Update(ctx context.Context, org, id uuid.UUID, req UpdateReque
 	}
 	return responseFromRow(row), nil
 }
+
+// Delete is an idempotent soft delete. Connections remain available for call
+// attribution and audit history, but disabled connections are excluded from
+// runtime routing queries.
+func (s *Service) Delete(ctx context.Context, org, id uuid.UUID) error {
+	connection, err := s.Get(ctx, org, id)
+	if err != nil {
+		return err
+	}
+	if connection.Status == "disabled" {
+		return nil
+	}
+	if err := s.repo.Disable(ctx, org, id); err != nil {
+		return writeError(err, "carrier connection could not be disabled")
+	}
+	return nil
+}
+
 func (s *Service) SetOutboundAuth(ctx context.Context, org, id uuid.UUID, req AuthRequest) error {
 	if err := validIDs(org, id); err != nil {
 		return err
@@ -130,6 +189,20 @@ func (s *Service) SetOutboundAuth(ctx context.Context, org, id uuid.UUID, req Au
 	}
 	return s.repo.SetOutboundDigest(ctx, org, id, *req.Username, encrypted)
 }
+
+func (s *Service) ClearOutboundAuth(ctx context.Context, org, id uuid.UUID) error {
+	if err := validIDs(org, id); err != nil {
+		return err
+	}
+	if _, err := s.repo.Get(ctx, org, id); err != nil {
+		return readError(err)
+	}
+	if err := s.repo.ClearOutbound(ctx, org, id); err != nil {
+		return writeError(err, "outbound carrier authentication could not be cleared")
+	}
+	return nil
+}
+
 func (s *Service) SetInboundAuth(ctx context.Context, org, id uuid.UUID, req AuthRequest) error {
 	if err := validIDs(org, id); err != nil {
 		return err
@@ -155,7 +228,21 @@ func (s *Service) SetInboundAuth(ctx context.Context, org, id uuid.UUID, req Aut
 	}
 	return s.repo.SetInboundDigest(ctx, org, id, *req.Username, encrypted)
 }
-func (s *Service) AddSourceIP(ctx context.Context, org, id uuid.UUID, value string) (SourceIPResponse, error) {
+
+func (s *Service) ClearInboundAuth(ctx context.Context, org, id uuid.UUID) error {
+	if err := validIDs(org, id); err != nil {
+		return err
+	}
+	if _, err := s.repo.Get(ctx, org, id); err != nil {
+		return readError(err)
+	}
+	if err := s.repo.SetInboundNone(ctx, org, id); err != nil {
+		return writeError(err, "inbound carrier authentication could not be cleared")
+	}
+	return nil
+}
+
+func (s *Service) CreateSourceIP(ctx context.Context, org, id uuid.UUID, value string) (SourceIPResponse, error) {
 	if err := validIDs(org, id); err != nil {
 		return SourceIPResponse{}, err
 	}
@@ -163,7 +250,7 @@ func (s *Service) AddSourceIP(ctx context.Context, org, id uuid.UUID, value stri
 	if err != nil {
 		return SourceIPResponse{}, apperror.NewBadRequest(err.Error())
 	}
-	row, err := s.repo.AddSourceIP(ctx, org, id, cidr)
+	row, err := s.repo.CreateSourceIP(ctx, org, id, cidr)
 	if err != nil {
 		return SourceIPResponse{}, writeError(err, "carrier connection not found")
 	}
