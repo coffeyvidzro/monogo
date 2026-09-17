@@ -154,8 +154,8 @@ services:
       SIP_DOMAIN: ${SIP_DOMAIN:?SIP_DOMAIN is required}
       OPENSIPS_DATABASE_URL: postgres://leamout:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@postgres:5432/leamout
     volumes:
-      - ${TLS_CERTIFICATE_PATH:?TLS_CERTIFICATE_PATH is required}:/etc/opensips/tls/fullchain.pem:ro
-      - ${TLS_PRIVATE_KEY_PATH:?TLS_PRIVATE_KEY_PATH is required}:/etc/opensips/tls/privkey.pem:ro
+      - /etc/leamout/certs/fullchain.pem:/etc/opensips/tls/fullchain.pem:ro
+      - /etc/leamout/certs/privkey.pem:/etc/opensips/tls/privkey.pem:ro
     depends_on:
       postgres:
         condition: service_healthy
@@ -185,8 +185,8 @@ services:
       - --pkey=/etc/coturn/tls/privkey.pem
     volumes:
       - ../containers/coturn/turnserver.conf:/etc/coturn/turnserver.conf:ro
-      - ${TLS_CERTIFICATE_PATH:?TLS_CERTIFICATE_PATH is required}:/etc/coturn/tls/fullchain.pem:ro
-      - ${TLS_PRIVATE_KEY_PATH:?TLS_PRIVATE_KEY_PATH is required}:/etc/coturn/tls/privkey.pem:ro
+      - /etc/leamout/certs/fullchain.pem:/etc/coturn/tls/fullchain.pem:ro
+      - /etc/leamout/certs/privkey.pem:/etc/coturn/tls/privkey.pem:ro
     ports:
       - "3478:3478/udp"
       - "3478:3478/tcp"
