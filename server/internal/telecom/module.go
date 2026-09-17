@@ -6,10 +6,12 @@ import (
 	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
 	"github.com/coffeyvidzro/monogo/internal/integrations/redis"
 	"github.com/coffeyvidzro/monogo/internal/security/encryption"
+	"github.com/coffeyvidzro/monogo/internal/telecom/calls"
 	"github.com/coffeyvidzro/monogo/internal/telecom/carriers"
 	"github.com/coffeyvidzro/monogo/internal/telecom/conferences"
 	"github.com/coffeyvidzro/monogo/internal/telecom/realtime"
 	"github.com/coffeyvidzro/monogo/internal/telecom/recordings"
+	"github.com/coffeyvidzro/monogo/internal/telecom/routing"
 	"github.com/coffeyvidzro/monogo/internal/telecom/sip_domains"
 	"github.com/coffeyvidzro/monogo/internal/telecom/subscribers"
 	"github.com/coffeyvidzro/monogo/internal/telecom/trunks"
@@ -26,22 +28,23 @@ type Dependencies struct {
 }
 
 type Module struct {
-	// Calls       CallsModule
+	Calls       CallsModule
 	Carriers    CarriersModule
 	Conferences ConferencesModule
 	Realtime    RealtimeModule
 	Recordings  RecordingsModule
+	Routing     RoutingModule
 	SIPDomains  SIPDomainsModule
 	Subscribers SubscribersModule
 	Trunks      TrunksModule
 	Voice       VoiceModule
 }
 
-// type CallsModule struct {
-// 	Repository *calls.Repository
-// 	Service    *calls.Service
-// 	Handler    *calls.Handler
-// }
+type CallsModule struct {
+	Repository *calls.Repository
+	Service    *calls.Service
+	Handler    *calls.Handler
+}
 
 type CarriersModule struct {
 	Repository *carriers.Repository
@@ -64,6 +67,11 @@ type RecordingsModule struct {
 	Repository *recordings.Repository
 	Service    *recordings.Service
 	Handler    *recordings.Handler
+}
+
+type RoutingModule struct {
+	Repository *routing.Repository
+	Service    *routing.Service
 }
 
 type SIPDomainsModule struct {
@@ -91,6 +99,12 @@ type VoiceModule struct {
 }
 
 func New(deps Dependencies) (*Module, error) {
+	routingRepository := routing.NewRepository(deps.Queries)
+	routingService := routing.NewService(routingRepository, nil)
+
+	callsRepository := calls.NewRepository(deps.Queries)
+	callsService := calls.NewService(callsRepository)
+
 	voiceRepository := voice.NewRepository(deps.Queries)
 	voiceService := voice.NewService(voiceRepository)
 
@@ -115,16 +129,20 @@ func New(deps Dependencies) (*Module, error) {
 	carriersService := carriers.NewService(carriersRepository, deps.DB, deps.CredentialCipher)
 
 	return &Module{
+		Calls: CallsModule{
+			Repository: callsRepository,
+			Service:    callsService,
+			Handler:    calls.NewHandler(callsService),
+		},
+		Routing: RoutingModule{
+			Repository: routingRepository,
+			Service:    routingService,
+		},
 		Voice: VoiceModule{
 			Repository: voiceRepository,
 			Service:    voiceService,
 			Handler:    voice.NewHandler(voiceService),
 		},
-		// Calls: CallsModule{
-		// 	Repository: callsRepository,
-		// 	Service:    callsService,
-		// 	Handler:    calls.NewHandler(callsService),
-		// },
 		Recordings: RecordingsModule{
 			Repository: recordingsRepository,
 			Service:    recordingsService,
