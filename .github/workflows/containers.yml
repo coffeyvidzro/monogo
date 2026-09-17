@@ -27,6 +27,12 @@ jobs:
             package: leamout
             context: ./server
             dockerfile: ./server/Dockerfile
+            target: runtime
+          - image: migrate
+            package: leamout-migrate
+            context: ./server
+            dockerfile: ./server/Dockerfile
+            target: migrate
           - image: opensips
             package: leamout-opensips
             context: ./containers/opensips
@@ -70,6 +76,7 @@ jobs:
         with:
           context: ${{ matrix.context }}
           file: ${{ matrix.dockerfile }}
+          target: ${{ matrix.target }}
           push: true
           platforms: linux/amd64
           tags: ${{ steps.meta.outputs.tags }}

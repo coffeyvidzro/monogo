@@ -12,7 +12,6 @@ const bundleComposePath = "deploy/docker/compose.yaml"
 var requiredBundleFiles = []string{
 	bundleComposePath,
 	"deploy/docker/Caddyfile",
-	"server/migrations/atlas.sum",
 	"containers/nats/nats-server.conf",
 	"containers/coturn/turnserver.conf",
 	"server/scripts/certs/certbot-hook.sh",
@@ -71,9 +70,6 @@ func installBundleFiles(bundleDir, releaseDir, version string) error {
 		}
 	}
 
-	if err := copyDir(filepath.Join(bundleDir, "server/migrations"), filepath.Join(releaseDir, "migrations"), 0o644); err != nil {
-		return fmt.Errorf("install migrations: %w", err)
-	}
 	if err := copyDir(filepath.Join(bundleDir, "server/scripts/certs"), filepath.Join(releaseDir, "scripts/certs"), 0o755); err != nil {
 		return fmt.Errorf("install certificate scripts: %w", err)
 	}

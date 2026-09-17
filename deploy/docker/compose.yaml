@@ -32,15 +32,17 @@ services:
       - private-control
 
   migrate:
-    image: arigaio/atlas:1.3.0-alpine
+    image: ghcr.io/coffeyvidzro/leamout-migrate:${LEAMOUT_VERSION:-preview}
     restart: "no"
-    entrypoint: ["/bin/sh", "-c"]
     command:
-      - exec /atlas migrate apply --dir file:///migrations --url "$$DATABASE_URL"
+      - migrate
+      - apply
+      - --dir
+      - file:///migrations
+      - --url
+      - "$$DATABASE_URL"
     environment:
       DATABASE_URL: "postgres://leamout:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@postgres:5432/leamout?sslmode=disable&search_path=public"
-    volumes:
-      - ./migrations:/migrations:ro
     depends_on:
       postgres:
         condition: service_healthy

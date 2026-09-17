@@ -36,7 +36,6 @@ mkdir -p \
 
 cp deploy/docker/compose.yaml "$root/deploy/docker/compose.yaml"
 cp deploy/docker/Caddyfile "$root/deploy/docker/Caddyfile"
-cp -R server/migrations "$root/server/migrations"
 cp containers/nats/nats-server.conf "$root/containers/nats/nats-server.conf"
 cp containers/coturn/turnserver.conf "$root/containers/coturn/turnserver.conf"
 cp deploy/docker/SELF_HOSTED.md "$root/README.md"
