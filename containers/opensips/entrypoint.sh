@@ -5,20 +5,6 @@ config=${OPENSIPS_CONFIG:-/etc/opensips/opensips.cfg}
 sip_domain=${SIP_DOMAIN:-sip.leamout.com}
 : "${OPENSIPS_DATABASE_URL:?OPENSIPS_DATABASE_URL must be set}"
 
-# Managed customer-facing SIP admission is intentionally disabled for now.
-# Keep the rest of the SIP edge intact while removing the unfinished control-
-# plane callback path between these markers from the effective runtime config.
-if grep -q '# BEGIN MANAGED SIP ADMISSION' "$config"; then
-  tmp=$(mktemp)
-  awk '
-    /# BEGIN MANAGED SIP ADMISSION/ { skip = 1; next }
-    /# END MANAGED SIP ADMISSION/ { skip = 0; next }
-    !skip { print }
-  ' "$config" > "$tmp"
-  cat "$tmp" > "$config"
-  rm -f "$tmp"
-fi
-
 # The public SIP hostname is deployment configuration and is provided to the
 # Cloud image at runtime.
 tmp=$(mktemp)
