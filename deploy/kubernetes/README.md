@@ -2,7 +2,11 @@
 
 This directory contains the Kubernetes deployment path for Leamout Cloud.
 
-Cloud and Self-Hosted run the same application/runtime. Kubernetes is a deployment concern; the Go application does not switch into a separate cloud mode.
+This directory provides a Kubernetes **runtime-cell foundation** for Leamout
+Cloud. It reuses Leamout's shared communications runtime, but it is not the
+complete Cloud product: Cloud also has commercial, fleet, usage, provider
+orchestration, and provider-specific telecom-edge responsibilities. See
+[`docs/ARCHITECTURE.md`](../../docs/ARCHITECTURE.md).
 
 ## Architecture
 
@@ -51,8 +55,10 @@ to model as portable ClusterIP services because public IP advertisement, UDP
 load-balancer behavior, topology, and certificate provisioning vary by cloud.
 
 The Docker Compose deployment remains the reference all-in-one Self-Hosted
-topology. This Kubernetes base is the portable Cloud control plane; overlays
-own the public HTTP and telecom edges. Both paths use the same application
-images, migrations, configuration contract, and runtime processes.
+runtime topology. This Kubernetes base is a portable Cloud runtime-cell
+foundation; Cloud services and overlays own the commercial control plane,
+public HTTP edge, and telecom edges. The products share runtime components and
+communications contracts without treating their complete control planes as
+identical.
 
 Terraform is not part of the Leamout deployment model.

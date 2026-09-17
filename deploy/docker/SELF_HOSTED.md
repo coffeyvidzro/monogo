@@ -2,6 +2,11 @@
 
 The self-hosted release bundle contains the Leamout installer plus the Docker Compose deployment assets and service configuration required to install without cloning the source repository. Database migrations are versioned inside the matching `leamout-migrate` image so Self-Hosted and Cloud execute the exact same schema artifact.
 
+Self-Hosted is a distinct product operated in customer infrastructure, not a
+single-node edition of Leamout Cloud. It supports customer-owned BYOC
+connectivity locally and can optionally consume Leamout-managed carrier
+services without receiving Leamout's payment or upstream-provider credentials.
+
 ## Requirements
 
 - Linux host with Docker Engine and the Docker Compose plugin
