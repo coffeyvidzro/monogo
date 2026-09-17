@@ -6,3 +6,6 @@ resources:
   - postgres.yaml
   - redis.yaml
   - nats.yaml
+  - migrate.yaml
+  - freeswitch.yaml
+  - application.yaml

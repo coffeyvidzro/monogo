@@ -28,7 +28,7 @@ RUN set -eux; \
         -o /out/worker \
         ./cmd/worker
 
-FROM alpine:3.22
+FROM alpine:3.22 AS runtime
 
 WORKDIR /leamout
 
@@ -46,3 +46,15 @@ USER leamout
 EXPOSE 8080
 
 CMD ["/leamout/server"]
+
+# Atlas and the immutable migration set are published as a separate target so
+# Kubernetes can run schema changes before rolling out application workloads.
+FROM arigaio/atlas:1.3.0-alpine AS migration-build
+
+COPY migrations /migrations
+RUN /atlas migrate hash --dir file:///migrations
+
+FROM arigaio/atlas:1.3.0-alpine AS migrate
+
+COPY --from=migration-build /migrations /migrations
+ENTRYPOINT ["/atlas"]
