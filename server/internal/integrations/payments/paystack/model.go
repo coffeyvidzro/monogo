@@ -25,13 +25,13 @@ func DefaultConfig(secretKey string) Config {
 
 func (c Config) Validate() error {
 	if strings.TrimSpace(c.SecretKey) == "" {
-		return fmt.Errorf("Paystack secret key is required")
+		return fmt.Errorf("paystack secret key is required")
 	}
 	if strings.TrimSpace(c.BaseURL) == "" {
-		return fmt.Errorf("Paystack base URL is required")
+		return fmt.Errorf("paystack base URL is required")
 	}
 	if c.HTTPClient == nil {
-		return fmt.Errorf("Paystack HTTP client is required")
+		return fmt.Errorf("paystack HTTP client is required")
 	}
 	return nil
 }
@@ -57,13 +57,13 @@ type ChargeRequest struct {
 
 func (r ChargeRequest) Validate() error {
 	if strings.TrimSpace(r.Email) == "" {
-		return fmt.Errorf("Paystack charge email is required")
+		return fmt.Errorf("paystack charge email is required")
 	}
 	if r.AmountMinor <= 0 {
-		return fmt.Errorf("Paystack charge amount must be positive")
+		return fmt.Errorf("paystack charge amount must be positive")
 	}
 	if strings.TrimSpace(r.MobileMoney.Phone) == "" {
-		return fmt.Errorf("Paystack mobile money phone is required")
+		return fmt.Errorf("paystack mobile money phone is required")
 	}
 	switch r.MobileMoney.Network {
 	case MobileMoneyNetworkMTN, MobileMoneyNetworkAT, MobileMoneyNetworkTelecel:

@@ -3,8 +3,8 @@ package audit
 import (
 	"context"
 
-	"github.com/google/uuid"
 	"github.com/coffeyvidzro/monogo/pkg/apperror"
+	"github.com/google/uuid"
 )
 
 type Service struct{ repo *Repository }

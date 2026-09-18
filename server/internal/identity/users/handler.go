@@ -3,11 +3,11 @@ package users
 import (
 	"net/http"
 
-	"github.com/google/uuid"
 	"github.com/coffeyvidzro/monogo/internal/security/authn"
 	"github.com/coffeyvidzro/monogo/pkg/apperror"
 	"github.com/coffeyvidzro/monogo/pkg/helper"
 	"github.com/coffeyvidzro/monogo/pkg/httputil"
+	"github.com/google/uuid"
 )
 
 type Handler struct {

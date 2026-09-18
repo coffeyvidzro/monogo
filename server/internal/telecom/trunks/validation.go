@@ -4,8 +4,8 @@ import (
 	"net"
 	"strings"
 
-	"github.com/google/uuid"
 	"github.com/coffeyvidzro/monogo/pkg/apperror"
+	"github.com/google/uuid"
 )
 
 func validateID(id uuid.UUID, field string) error {

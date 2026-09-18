@@ -1,0 +1,133 @@
+name: Server
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "server/**"
+      - ".golangci.yml"
+      - ".github/workflows/server.yml"
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "server/**"
+      - ".golangci.yml"
+      - ".github/workflows/server.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: server-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Test + lint
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: server
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7.0.1
+
+      - name: Set up Go
+        uses: actions/setup-go@v7.0.0
+        with:
+          go-version-file: server/go.mod
+          cache: true
+          cache-dependency-path: server/go.sum
+
+      - name: Download dependencies
+        run: go mod download
+
+      - name: Verify dependencies
+        run: go mod verify
+
+      - name: Check formatting
+        run: |
+          unformatted="$(gofmt -l .)"
+          if [ -n "$unformatted" ]; then
+            echo "The following Go files are not gofmt-formatted:"
+            echo "$unformatted"
+            exit 1
+          fi
+
+      - name: Run tests
+        run: go test -race -coverprofile=coverage.out ./...
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Lint
+        uses: golangci/golangci-lint-action@v9.3.0
+        with:
+          version: v2.13.2
+          working-directory: server
+          args: --config=../.golangci.yml --timeout=5m
+
+      - name: Build packages
+        run: go build ./...
+
+  sqlc:
+    name: Validate sqlc
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: server
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7.0.1
+
+      - name: Set up Go
+        uses: actions/setup-go@v7.0.0
+        with:
+          go-version-file: server/go.mod
+          cache: true
+          cache-dependency-path: server/go.sum
+
+      - name: Install sqlc
+        run: go install github.com/sqlc-dev/sqlc/cmd/sqlc@v1.31.1
+
+      - name: Vet SQL queries
+        run: sqlc vet
+
+      - name: Generate sqlc
+        run: sqlc generate
+
+      - name: Check generated code
+        run: git diff --exit-code -- internal/database/sqlc
+
+  migrations:
+    name: Validate migrations
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: server
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7.0.1
+
+      - name: Set up Atlas
+        uses: ariga/setup-atlas@v0.3
+        with:
+          version: v1.3.0
+
+      - name: Validate Atlas migrations
+        run: atlas migrate validate --dir file://migrations
+
+      - name: Regenerate Atlas checksum
+        run: atlas migrate hash --dir file://migrations
+
+      - name: Check Atlas checksum
+        run: git diff --exit-code -- migrations/atlas.sum

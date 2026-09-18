@@ -1,0 +1,67 @@
+name: Docker CI
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/docker.yml"
+      - ".env.example"
+      - "deploy/**"
+      - "containers/**"
+      - "server/**"
+  pull_request:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/docker.yml"
+      - ".env.example"
+      - "deploy/**"
+      - "containers/**"
+      - "server/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: docker-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  compose:
+    name: Validate Docker Compose
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7.0.1
+
+      - name: Validate Docker Compose configuration
+        run: docker compose --env-file .env.example -f deploy/compose.yaml config --quiet
+
+  build:
+    name: Build ${{ matrix.target }} image
+    needs: compose
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - runtime
+          - migrate
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7.0.1
+
+      - name: Build ${{ matrix.target }} image
+        run: |
+          docker build \
+            --target "${{ matrix.target }}" \
+            --file server/Dockerfile \
+            --tag "leamout-${{ matrix.target }}:ci" \
+            server

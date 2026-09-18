@@ -82,7 +82,7 @@ func (r *Repository) CarrierDailyUsageSeconds(
 	ctx context.Context,
 	carrierConnectionID uuid.UUID,
 ) (int64, error) {
-	return r.queries.GetCarrierDailyUsageSeconds(ctx, carrierConnectionID)
+	return r.queries.GetCarrierDailyUsageSeconds(ctx, &carrierConnectionID)
 }
 
 func (r *Repository) ListActiveForAdmissionReconciliation(

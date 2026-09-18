@@ -87,10 +87,6 @@ func newModules(ctx context.Context, cfg config.Config) (*modules, error) {
 	}
 
 	queries := sqlc.New(postgresClient.Pool())
-	workerID := cfg.DeploymentID
-	if workerID == "" {
-		workerID = "worker"
-	}
 
 	routingRepository := routing.NewRepository(queries)
 	routingService := routing.NewService(routingRepository, nil)
@@ -138,7 +134,7 @@ func newModules(ctx context.Context, cfg config.Config) (*modules, error) {
 	outboxJob, err := outbox.NewPublisherJob(
 		outbox.NewRepository(queries),
 		outbox.NewPublisher(natsClient),
-		outbox.DefaultPublisherJobConfig(workerID+"-outbox"),
+		outbox.DefaultPublisherJobConfig("worker-outbox"),
 	)
 	if err != nil {
 		closeDependencies()
@@ -150,7 +146,7 @@ func newModules(ctx context.Context, cfg config.Config) (*modules, error) {
 	webhookDeliveryJob, err := webhooks.NewDeliveryJob(
 		webhookRepository,
 		webhooks.NewHTTPSender(),
-		webhooks.DefaultDeliveryJobConfig(workerID+"-webhooks"),
+		webhooks.DefaultDeliveryJobConfig("worker-webhooks"),
 	)
 	if err != nil {
 		closeDependencies()

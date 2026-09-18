@@ -5,9 +5,9 @@ import (
 	"encoding/json"
 	"net/netip"
 
-	"github.com/google/uuid"
 	"github.com/coffeyvidzro/monogo/internal/database/pgconv"
 	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
+	"github.com/google/uuid"
 )
 
 type Repository struct {

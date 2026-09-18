@@ -54,7 +54,7 @@ func (c *Client) ChargeMobileMoney(ctx context.Context, request ChargeRequest) (
 		return Charge{}, err
 	}
 	if !response.Status {
-		return Charge{}, fmt.Errorf("Paystack charge failed: %s", response.Message)
+		return Charge{}, fmt.Errorf("paystack charge failed: %s", response.Message)
 	}
 
 	return response.Data, nil
@@ -63,7 +63,7 @@ func (c *Client) ChargeMobileMoney(ctx context.Context, request ChargeRequest) (
 func (c *Client) VerifyTransaction(ctx context.Context, reference string) (Transaction, error) {
 	reference = strings.TrimSpace(reference)
 	if reference == "" {
-		return Transaction{}, fmt.Errorf("Paystack reference is required")
+		return Transaction{}, fmt.Errorf("paystack reference is required")
 	}
 
 	var response apiResponse[Transaction]
@@ -77,7 +77,7 @@ func (c *Client) VerifyTransaction(ctx context.Context, reference string) (Trans
 		return Transaction{}, err
 	}
 	if !response.Status {
-		return Transaction{}, fmt.Errorf("Paystack verification failed: %s", response.Message)
+		return Transaction{}, fmt.Errorf("paystack verification failed: %s", response.Message)
 	}
 
 	return response.Data, nil
@@ -86,7 +86,7 @@ func (c *Client) VerifyTransaction(ctx context.Context, reference string) (Trans
 func (c *Client) ParseWebhook(payload []byte, signature string) (WebhookEvent, error) {
 	signature = strings.TrimSpace(signature)
 	if signature == "" {
-		return WebhookEvent{}, fmt.Errorf("Paystack webhook signature is required")
+		return WebhookEvent{}, fmt.Errorf("paystack webhook signature is required")
 	}
 
 	mac := hmac.New(sha512.New, []byte(c.secretKey))
@@ -101,10 +101,10 @@ func (c *Client) ParseWebhook(payload []byte, signature string) (WebhookEvent, e
 		return WebhookEvent{}, fmt.Errorf("decode Paystack webhook: %w", err)
 	}
 	if strings.TrimSpace(event.Event) == "" {
-		return WebhookEvent{}, fmt.Errorf("Paystack webhook event type is required")
+		return WebhookEvent{}, fmt.Errorf("paystack webhook event type is required")
 	}
 	if strings.TrimSpace(event.Data.Reference) == "" {
-		return WebhookEvent{}, fmt.Errorf("Paystack webhook reference is required")
+		return WebhookEvent{}, fmt.Errorf("paystack webhook reference is required")
 	}
 
 	return event, nil
@@ -117,7 +117,7 @@ func (c *Client) doJSON(
 	target any,
 ) error {
 	if ctx == nil {
-		return fmt.Errorf("Paystack context is required")
+		return fmt.Errorf("paystack context is required")
 	}
 
 	var reader io.Reader
@@ -143,7 +143,9 @@ func (c *Client) doJSON(
 	if err != nil {
 		return fmt.Errorf("send Paystack request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	payload, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
 	if err != nil {
@@ -151,7 +153,7 @@ func (c *Client) doJSON(
 	}
 	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
 		return fmt.Errorf(
-			"Paystack request failed with status %d: %s",
+			"paystack request failed with status %d: %s",
 			resp.StatusCode,
 			strings.TrimSpace(string(payload)),
 		)

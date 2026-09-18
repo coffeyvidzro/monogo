@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/coffeyvidzro/monogo/internal/security/authn"
+	"github.com/google/uuid"
 )
 
 type Actor struct {

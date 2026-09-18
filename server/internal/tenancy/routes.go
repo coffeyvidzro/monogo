@@ -3,10 +3,10 @@ package tenancy
 import (
 	"net/http"
 
-	"github.com/go-chi/chi/v5"
 	"github.com/coffeyvidzro/monogo/internal/tenancy/credentials"
 	"github.com/coffeyvidzro/monogo/internal/tenancy/members"
 	"github.com/coffeyvidzro/monogo/internal/tenancy/organization"
+	"github.com/go-chi/chi/v5"
 )
 
 func RegisterRoutes(

@@ -71,7 +71,7 @@ func TranslateInboundFreeSWITCHEvent(event freeswitch.Event) (InboundEvent, erro
 	}
 
 	headers := map[string]string{
-		"organization_id":        event.Header("variable_sip_h_X-Leamout-Organization-ID"),
+		"organization_id":       event.Header("variable_sip_h_X-Leamout-Organization-ID"),
 		"carrier_connection_id": event.Header("variable_sip_h_X-Leamout-Carrier-Connection-ID"),
 		"phone_number_id":       event.Header("variable_sip_h_X-Leamout-Phone-Number-ID"),
 		"voice_binding_id":      event.Header("variable_sip_h_X-Leamout-Voice-Binding-ID"),

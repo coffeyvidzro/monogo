@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
-	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
 )
 
 type Repository struct{ queries *sqlc.Queries }

@@ -33,7 +33,6 @@ type PaystackConfig struct {
 
 type Config struct {
 	AppEnv                string         `env:"APP_ENV" envDefault:"development"`
-	DeploymentID          string         `env:"LEAMOUT_DEPLOYMENT_ID"`
 	DatabaseURL           string         `env:"DATABASE_URL,required"`
 	RedisURL              string         `env:"REDIS_URL,required"`
 	NATSURL               string         `env:"NATS_URL,required"`
@@ -70,7 +69,6 @@ func (c Config) IsDevelopment() bool {
 
 func (c *Config) normalize() {
 	c.AppEnv = strings.TrimSpace(c.AppEnv)
-	c.DeploymentID = strings.TrimSpace(c.DeploymentID)
 	c.DatabaseURL = strings.TrimSpace(c.DatabaseURL)
 	c.RedisURL = strings.TrimSpace(c.RedisURL)
 	c.NATSURL = strings.TrimSpace(c.NATSURL)
