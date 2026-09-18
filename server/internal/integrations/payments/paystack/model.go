@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-const defaultBaseURL = "https://api.paystack.co"
+const DefaultBaseURL = "https://api.paystack.co"
 
 type Config struct {
 	SecretKey  string
@@ -18,7 +18,7 @@ type Config struct {
 func DefaultConfig(secretKey string) Config {
 	return Config{
 		SecretKey:  strings.TrimSpace(secretKey),
-		BaseURL:    defaultBaseURL,
+		BaseURL:    DefaultBaseURL,
 		HTTPClient: &http.Client{Timeout: 10 * time.Second},
 	}
 }
@@ -36,73 +36,57 @@ func (c Config) Validate() error {
 	return nil
 }
 
-type MobileMoneyProvider string
+type MobileMoneyNetwork string
 
 const (
-	MobileMoneyMTN     MobileMoneyProvider = "mtn"
-	MobileMoneyATMoney MobileMoneyProvider = "atl"
-	MobileMoneyTelecel MobileMoneyProvider = "vod"
+	MobileMoneyNetworkMTN     MobileMoneyNetwork = "mtn"
+	MobileMoneyNetworkAT      MobileMoneyNetwork = "atl"
+	MobileMoneyNetworkTelecel MobileMoneyNetwork = "vod"
 )
 
 type MobileMoney struct {
-	Phone    string              `json:"phone"`
-	Provider MobileMoneyProvider `json:"provider"`
+	Phone   string             `json:"phone"`
+	Network MobileMoneyNetwork `json:"provider"`
 }
 
 type ChargeRequest struct {
-	Email       string       `json:"email"`
-	Amount      int64        `json:"amount"`
-	MobileMoney *MobileMoney `json:"mobile_money"`
+	Email       string      `json:"email"`
+	AmountMinor int64       `json:"amount"`
+	MobileMoney MobileMoney `json:"mobile_money"`
 }
 
 func (r ChargeRequest) Validate() error {
 	if strings.TrimSpace(r.Email) == "" {
 		return fmt.Errorf("Paystack charge email is required")
 	}
-	if r.Amount <= 0 {
+	if r.AmountMinor <= 0 {
 		return fmt.Errorf("Paystack charge amount must be positive")
-	}
-	if r.MobileMoney == nil {
-		return fmt.Errorf("Paystack mobile money details are required")
 	}
 	if strings.TrimSpace(r.MobileMoney.Phone) == "" {
 		return fmt.Errorf("Paystack mobile money phone is required")
 	}
-	switch r.MobileMoney.Provider {
-	case MobileMoneyMTN, MobileMoneyATMoney, MobileMoneyTelecel:
+	switch r.MobileMoney.Network {
+	case MobileMoneyNetworkMTN, MobileMoneyNetworkAT, MobileMoneyNetworkTelecel:
+		return nil
 	default:
-		return fmt.Errorf("unsupported Paystack mobile money provider %q", r.MobileMoney.Provider)
+		return fmt.Errorf("unsupported Paystack mobile money network %q", r.MobileMoney.Network)
 	}
-	return nil
 }
 
-type ChargeData struct {
+type Charge struct {
 	Reference   string `json:"reference"`
 	Status      string `json:"status"`
 	DisplayText string `json:"display_text"`
 }
 
-type ChargeResponse struct {
-	Status  bool       `json:"status"`
-	Message string     `json:"message"`
-	Data    ChargeData `json:"data"`
-}
-
-type TransactionData struct {
-	Reference string `json:"reference"`
-	Status    string `json:"status"`
-	Message   string `json:"message"`
-	Amount    int64  `json:"amount"`
-	Currency  string `json:"currency"`
-}
-
-type TransactionResponse struct {
-	Status  bool            `json:"status"`
-	Message string          `json:"message"`
-	Data    TransactionData `json:"data"`
+type Transaction struct {
+	Reference   string `json:"reference"`
+	Status      string `json:"status"`
+	AmountMinor int64  `json:"amount"`
+	Currency    string `json:"currency"`
 }
 
 type WebhookEvent struct {
-	Event string          `json:"event"`
-	Data  TransactionData `json:"data"`
+	Event string      `json:"event"`
+	Data  Transaction `json:"data"`
 }
