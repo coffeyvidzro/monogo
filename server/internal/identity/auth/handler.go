@@ -15,15 +15,21 @@ import (
 type Handler struct {
 	service        *Service
 	sessionService *session.Service
+	development    bool
+	cookieDomain   string
 }
 
 func NewHandler(
 	service *Service,
 	sessionService *session.Service,
+	development bool,
+	cookieDomain string,
 ) *Handler {
 	return &Handler{
 		service:        service,
 		sessionService: sessionService,
+		development:    development,
+		cookieDomain:   cookieDomain,
 	}
 }
 
@@ -215,6 +221,8 @@ func (h *Handler) createSession(
 		w,
 		token,
 		sess.ExpiresAt.Time,
+		h.development,
+		h.cookieDomain,
 	)
 
 	httputil.OK(
