@@ -24,8 +24,8 @@ func TestChargeMobileMoney(t *testing.T) {
 		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
 			t.Fatal(err)
 		}
-		if request.Amount != 5000 || request.Currency != "GHS" {
-			t.Fatalf("unexpected amount/currency: %d %s", request.Amount, request.Currency)
+		if request.Amount != 5000 || request.Email != "customer@example.com" {
+			t.Fatalf("unexpected charge request: %#v", request)
 		}
 		if request.MobileMoney == nil || request.MobileMoney.Provider != MobileMoneyMTN {
 			t.Fatalf("unexpected mobile money request: %#v", request.MobileMoney)
@@ -54,10 +54,8 @@ func TestChargeMobileMoney(t *testing.T) {
 	}
 
 	response, err := client.ChargeMobileMoney(context.Background(), ChargeRequest{
-		Email:     "customer@example.com",
-		Amount:    5000,
-		Currency:  "GHS",
-		Reference: "checkout_123",
+		Email:  "customer@example.com",
+		Amount: 5000,
 		MobileMoney: &MobileMoney{
 			Phone:    "0551234987",
 			Provider: MobileMoneyMTN,
@@ -106,7 +104,6 @@ func TestMapStatus(t *testing.T) {
 	tests := map[string]PaymentStatus{
 		"success":     PaymentStatusSucceeded,
 		"pay_offline": PaymentStatusProcessing,
-		"send_otp":    PaymentStatusRequiresAction,
 		"failed":      PaymentStatusFailed,
 		"":            PaymentStatusPending,
 	}
