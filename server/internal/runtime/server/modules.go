@@ -70,7 +70,7 @@ func newModules(ctx context.Context, cfg config.Config) (*modules, error) {
 		postgresClient.Close()
 	}
 
-	credentialCipher, err := encryption.New(cfg.CarrierCredentialKey)
+	credentialCipher, err := encryption.New(cfg.EncryptionKey)
 	if err != nil {
 		closeDependencies()
 		return nil, fmt.Errorf("initialize carrier credential encryption: %w", err)
