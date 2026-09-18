@@ -11,7 +11,6 @@ import (
 	"github.com/coffeyvidzro/monogo/internal/integrations/freeswitch"
 	"github.com/coffeyvidzro/monogo/internal/platform/logging"
 	"github.com/coffeyvidzro/monogo/internal/runtime/calling"
-	"github.com/coffeyvidzro/monogo/internal/telecom/calls"
 )
 
 var freeSWITCHLifecycleEvents = append(

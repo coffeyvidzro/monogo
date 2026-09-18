@@ -97,15 +97,25 @@ func TranslateInboundFreeSWITCHEvent(event freeswitch.Event) (InboundEvent, erro
 	}
 
 	organizationID, err := parseID("organization_id")
-	if err != nil { return InboundEvent{}, err }
+	if err != nil {
+		return InboundEvent{}, err
+	}
 	carrierConnectionID, err := parseID("carrier_connection_id")
-	if err != nil { return InboundEvent{}, err }
+	if err != nil {
+		return InboundEvent{}, err
+	}
 	phoneNumberID, err := parseID("phone_number_id")
-	if err != nil { return InboundEvent{}, err }
+	if err != nil {
+		return InboundEvent{}, err
+	}
 	voiceBindingID, err := parseID("voice_binding_id")
-	if err != nil { return InboundEvent{}, err }
+	if err != nil {
+		return InboundEvent{}, err
+	}
 	applicationID, err := parseID("application_id")
-	if err != nil { return InboundEvent{}, err }
+	if err != nil {
+		return InboundEvent{}, err
+	}
 
 	channelID := strings.TrimSpace(event.Header("Unique-ID"))
 	if channelID == "" {
@@ -129,10 +139,16 @@ func TranslateInboundFreeSWITCHEvent(event freeswitch.Event) (InboundEvent, erro
 	}
 
 	return InboundEvent{
-		ChannelID: channelID, SIPCallID: sipCallID, OrganizationID: organizationID,
-		ApplicationID: applicationID, PhoneNumberID: phoneNumberID, VoiceBindingID: voiceBindingID,
-		CarrierConnectionID: carrierConnectionID, FromURI: strings.TrimSpace(fromURI),
-		ToURI: strings.TrimSpace(toURI), OccurredAt: occurredAt,
+		ChannelID:           channelID,
+		SIPCallID:           sipCallID,
+		OrganizationID:      organizationID,
+		ApplicationID:       applicationID,
+		PhoneNumberID:       phoneNumberID,
+		VoiceBindingID:      voiceBindingID,
+		CarrierConnectionID: carrierConnectionID,
+		FromURI:             strings.TrimSpace(fromURI),
+		ToURI:               strings.TrimSpace(toURI),
+		OccurredAt:          occurredAt,
 	}, nil
 }
 
@@ -175,7 +191,9 @@ func lifecycleEventType(event freeswitch.Event) (LifecycleType, error) {
 	case "CHANNEL_UNHOLD":
 		return LifecycleResumed, nil
 	case "CHANNEL_HANGUP_COMPLETE":
-		if eventAnswered(event) { return LifecycleCompleted, nil }
+		if eventAnswered(event) {
+			return LifecycleCompleted, nil
+		}
 		if strings.EqualFold(strings.TrimSpace(event.Header("Hangup-Cause")), "ORIGINATOR_CANCEL") {
 			return LifecycleCancelled, nil
 		}
@@ -187,26 +205,36 @@ func lifecycleEventType(event freeswitch.Event) (LifecycleType, error) {
 
 func eventAnswered(event freeswitch.Event) bool {
 	for _, value := range []string{event.Header("Answered"), event.Header("variable_answered")} {
-		if strings.EqualFold(strings.TrimSpace(value), "true") { return true }
+		if strings.EqualFold(strings.TrimSpace(value), "true") {
+			return true
+		}
 	}
 	for _, value := range []string{event.Header("variable_answer_epoch"), event.Header("answer_epoch"), event.Header("billmsec"), event.Header("variable_billmsec")} {
 		parsed, err := strconv.ParseInt(strings.TrimSpace(value), 10, 64)
-		if err == nil && parsed > 0 { return true }
+		if err == nil && parsed > 0 {
+			return true
+		}
 	}
 	return false
 }
 
 func freeSWITCHEventTime(event freeswitch.Event) (time.Time, error) {
 	raw := strings.TrimSpace(event.Header("Event-Date-Timestamp"))
-	if raw == "" { return time.Now().UTC(), nil }
+	if raw == "" {
+		return time.Now().UTC(), nil
+	}
 	micros, err := strconv.ParseInt(raw, 10, 64)
-	if err != nil { return time.Time{}, fmt.Errorf("parse FreeSWITCH event timestamp: %w", err) }
+	if err != nil {
+		return time.Time{}, fmt.Errorf("parse FreeSWITCH event timestamp: %w", err)
+	}
 	return time.UnixMicro(micros).UTC(), nil
 }
 
 func firstNonEmpty(values ...string) string {
 	for _, value := range values {
-		if value = strings.TrimSpace(value); value != "" { return value }
+		if value = strings.TrimSpace(value); value != "" {
+			return value
+		}
 	}
 	return ""
 }

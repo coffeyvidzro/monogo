@@ -136,8 +136,7 @@ func freeSWITCHEgress(req OriginateRequest) (string, string, error) {
 	if host == "" {
 		return "", "", fmt.Errorf("resolved route host is required")
 	}
-	if strings.ContainsAny(host, " 	
-,{}[]") {
+	if strings.ContainsAny(host, " \t\r\n,{}[]") {
 		return "", "", fmt.Errorf("resolved route host is invalid")
 	}
 	if req.Port == 0 {
