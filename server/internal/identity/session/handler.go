@@ -2,7 +2,6 @@ package session
 
 import (
 	"net/http"
-	"os"
 	"strings"
 	"time"
 
@@ -15,12 +14,20 @@ import (
 )
 
 type Handler struct {
-	service *Service
+	service      *Service
+	development  bool
+	cookieDomain string
 }
 
-func NewHandler(service *Service) *Handler {
+func NewHandler(
+	service *Service,
+	development bool,
+	cookieDomain string,
+) *Handler {
 	return &Handler{
-		service: service,
+		service:      service,
+		development:  development,
+		cookieDomain: strings.TrimSpace(cookieDomain),
 	}
 }
 
@@ -101,7 +108,7 @@ func (h *Handler) Revoke(
 
 	currentSessionID, err := h.sessionID(r)
 	if err == nil && currentSessionID == sessionID {
-		ClearCookie(w)
+		ClearCookie(w, h.development, h.cookieDomain)
 	}
 
 	httputil.OK(w, map[string]string{"message": "session revoked"})
@@ -122,7 +129,7 @@ func (h *Handler) RevokeAll(
 		return
 	}
 
-	ClearCookie(w)
+	ClearCookie(w, h.development, h.cookieDomain)
 
 	httputil.OK(w, map[string]string{"message": "logged out from all sessions"})
 }
@@ -131,6 +138,8 @@ func SetCookie(
 	w http.ResponseWriter,
 	token string,
 	expiresAt time.Time,
+	development bool,
+	cookieDomain string,
 ) {
 	maxAge := int(time.Until(expiresAt).Seconds())
 	if maxAge < 0 {
@@ -141,27 +150,34 @@ func SetCookie(
 		Name:     authn.SessionCookieName,
 		Value:    token,
 		Path:     "/",
-		Domain:   sessionCookieDomain(),
+		Domain:   cookieDomainValue(development, cookieDomain),
 		MaxAge:   maxAge,
 		HttpOnly: true,
-		Secure:   true,
+		Secure:   !development,
 		SameSite: http.SameSiteLaxMode,
 	})
 }
 
-func ClearCookie(w http.ResponseWriter) {
+func ClearCookie(
+	w http.ResponseWriter,
+	development bool,
+	cookieDomain string,
+) {
 	http.SetCookie(w, &http.Cookie{
 		Name:     authn.SessionCookieName,
 		Value:    "",
 		Path:     "/",
-		Domain:   sessionCookieDomain(),
+		Domain:   cookieDomainValue(development, cookieDomain),
 		MaxAge:   -1,
 		HttpOnly: true,
-		Secure:   true,
+		Secure:   !development,
 		SameSite: http.SameSiteLaxMode,
 	})
 }
 
-func sessionCookieDomain() string {
-	return strings.TrimSpace(os.Getenv("LEAMOUT_SESSION_COOKIE_DOMAIN"))
+func cookieDomainValue(development bool, domain string) string {
+	if development {
+		return ""
+	}
+	return strings.TrimSpace(domain)
 }

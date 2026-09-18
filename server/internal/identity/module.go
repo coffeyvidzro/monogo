@@ -31,7 +31,11 @@ type UsersModule struct {
 	Handler    *users.Handler
 }
 
-func New(queries *sqlc.Queries) *Module {
+func New(
+	queries *sqlc.Queries,
+	development bool,
+	cookieDomain string,
+) *Module {
 	sessionRepository := session.NewRepository(queries)
 	sessionService := session.NewService(sessionRepository)
 
@@ -45,12 +49,21 @@ func New(queries *sqlc.Queries) *Module {
 		Auth: AuthModule{
 			Repository: authRepository,
 			Service:    authService,
-			Handler:    auth.NewHandler(authService, sessionService),
+			Handler: auth.NewHandler(
+				authService,
+				sessionService,
+				development,
+				cookieDomain,
+			),
 		},
 		Session: SessionModule{
 			Repository: sessionRepository,
 			Service:    sessionService,
-			Handler:    session.NewHandler(sessionService),
+			Handler: session.NewHandler(
+				sessionService,
+				development,
+				cookieDomain,
+			),
 		},
 		Users: UsersModule{
 			Repository: usersRepository,

@@ -8,11 +8,10 @@ import (
 	"github.com/coffeyvidzro/monogo/internal/security/authn"
 )
 
-func TestSetCookieIsHostOnlyByDefault(t *testing.T) {
-	t.Setenv("LEAMOUT_SESSION_COOKIE_DOMAIN", "")
+func TestSetCookieIsHostOnlyInDevelopment(t *testing.T) {
 	recorder := httptest.NewRecorder()
 
-	SetCookie(recorder, "secret", time.Now().Add(time.Hour))
+	SetCookie(recorder, "secret", time.Now().Add(time.Hour), true, "leamout.com")
 
 	cookies := recorder.Result().Cookies()
 	if len(cookies) != 1 {
@@ -25,28 +24,33 @@ func TestSetCookieIsHostOnlyByDefault(t *testing.T) {
 	if cookie.Domain != "" {
 		t.Fatalf("cookie domain = %q, want host-only cookie", cookie.Domain)
 	}
+	if cookie.Secure {
+		t.Fatal("development cookie is secure, want false")
+	}
 }
 
-func TestSetCookieUsesConfiguredSharedDomain(t *testing.T) {
-	t.Setenv("LEAMOUT_SESSION_COOKIE_DOMAIN", "leamout.com")
+func TestSetCookieUsesProductionDomain(t *testing.T) {
 	recorder := httptest.NewRecorder()
 
-	SetCookie(recorder, "secret", time.Now().Add(time.Hour))
+	SetCookie(recorder, "secret", time.Now().Add(time.Hour), false, " leamout.com ")
 
 	cookies := recorder.Result().Cookies()
 	if len(cookies) != 1 {
 		t.Fatalf("cookie count = %d, want 1", len(cookies))
 	}
-	if domain := cookies[0].Domain; domain != "leamout.com" {
-		t.Fatalf("cookie domain = %q, want leamout.com", domain)
+	cookie := cookies[0]
+	if cookie.Domain != "leamout.com" {
+		t.Fatalf("cookie domain = %q, want leamout.com", cookie.Domain)
+	}
+	if !cookie.Secure {
+		t.Fatal("production cookie is not secure")
 	}
 }
 
-func TestClearCookieUsesConfiguredSharedDomain(t *testing.T) {
-	t.Setenv("LEAMOUT_SESSION_COOKIE_DOMAIN", "leamout.com")
+func TestClearCookieUsesProductionDomain(t *testing.T) {
 	recorder := httptest.NewRecorder()
 
-	ClearCookie(recorder)
+	ClearCookie(recorder, false, "leamout.com")
 
 	cookies := recorder.Result().Cookies()
 	if len(cookies) != 1 {
@@ -58,5 +62,8 @@ func TestClearCookieUsesConfiguredSharedDomain(t *testing.T) {
 	}
 	if cookie.MaxAge >= 0 {
 		t.Fatalf("cookie MaxAge = %d, want negative", cookie.MaxAge)
+	}
+	if !cookie.Secure {
+		t.Fatal("production clear cookie is not secure")
 	}
 }

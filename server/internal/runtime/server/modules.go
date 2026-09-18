@@ -70,7 +70,7 @@ func newModules(ctx context.Context, cfg config.Config) (*modules, error) {
 		postgresClient.Close()
 	}
 
-	credentialCipher, err := encryption.New(cfg.CarrierCredentialKey)
+	credentialCipher, err := encryption.New(cfg.EncryptionKey)
 	if err != nil {
 		closeDependencies()
 		return nil, fmt.Errorf("initialize carrier credential encryption: %w", err)
@@ -89,7 +89,11 @@ func newModules(ctx context.Context, cfg config.Config) (*modules, error) {
 	}
 
 	queries := sqlc.New(postgresClient.Pool())
-	identityModule := identity.New(queries)
+	identityModule := identity.New(
+		queries,
+		cfg.IsDevelopment(),
+		cfg.Domain,
+	)
 	tenancyModule := tenancy.New(queries)
 	platformModule := platform.New(postgresClient.Pool(), queries)
 	telecomModule, err := telecom.New(telecom.Dependencies{

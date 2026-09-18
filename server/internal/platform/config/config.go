@@ -33,12 +33,13 @@ type PaystackConfig struct {
 
 type Config struct {
 	AppEnv                string         `env:"APP_ENV" envDefault:"development"`
+	Domain                string         `env:"DOMAIN"`
 	DatabaseURL           string         `env:"DATABASE_URL,required"`
 	RedisURL              string         `env:"REDIS_URL,required"`
 	NATSURL               string         `env:"NATS_URL,required"`
 	FreeSWITCHESLAddress  string         `env:"FREESWITCH_ESL_ADDRESS" envDefault:"127.0.0.1:8021"`
 	FreeSWITCHESLPassword string         `env:"FREESWITCH_ESL_PASSWORD,required"`
-	CarrierCredentialKey  string         `env:"CARRIER_CREDENTIAL_ENCRYPTION_KEY,required"`
+	EncryptionKey         string         `env:"ENCRYPTION_KEY,required"`
 	DIDWW                 DIDWWConfig    `envPrefix:"DIDWW_"`
 	CommPeak              CommPeakConfig `envPrefix:"COMMPEAK_"`
 	Stripe                StripeConfig   `envPrefix:"STRIPE_"`
@@ -69,12 +70,13 @@ func (c Config) IsDevelopment() bool {
 
 func (c *Config) normalize() {
 	c.AppEnv = strings.TrimSpace(c.AppEnv)
+	c.Domain = strings.TrimSpace(c.Domain)
 	c.DatabaseURL = strings.TrimSpace(c.DatabaseURL)
 	c.RedisURL = strings.TrimSpace(c.RedisURL)
 	c.NATSURL = strings.TrimSpace(c.NATSURL)
 	c.FreeSWITCHESLAddress = strings.TrimSpace(c.FreeSWITCHESLAddress)
 	c.FreeSWITCHESLPassword = strings.TrimSpace(c.FreeSWITCHESLPassword)
-	c.CarrierCredentialKey = strings.TrimSpace(c.CarrierCredentialKey)
+	c.EncryptionKey = strings.TrimSpace(c.EncryptionKey)
 	c.DIDWW.APIKey = strings.TrimSpace(c.DIDWW.APIKey)
 	c.DIDWW.APIBaseURL = strings.TrimRight(strings.TrimSpace(c.DIDWW.APIBaseURL), "/")
 	c.CommPeak.Authorization = strings.TrimSpace(c.CommPeak.Authorization)
