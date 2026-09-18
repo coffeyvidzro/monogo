@@ -24,3 +24,19 @@ type InboundDecision struct {
 	CalledNumber        string
 	Limits              Limits
 }
+
+type OutboundRequest struct {
+	OrganizationID uuid.UUID
+	TrunkID        *uuid.UUID
+	Destination    string
+}
+
+type OutboundDecision struct {
+	CarrierConnectionID uuid.UUID
+	TrunkID             uuid.UUID
+	TrunkEndpointID     uuid.UUID
+	ProvisioningMode    string
+	Host                string
+	Port                uint16
+	Transport           string
+}

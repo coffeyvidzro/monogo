@@ -54,3 +54,31 @@ func (s *Service) ResolveInbound(
 		Limits:              limits,
 	}, nil
 }
+
+func (s *Service) ResolveOutbound(
+	ctx context.Context,
+	req OutboundRequest,
+) (OutboundDecision, error) {
+	req = normalizeOutboundRequest(req)
+	if err := validateOutboundRequest(req); err != nil {
+		return OutboundDecision{}, err
+	}
+
+	var (
+		decision OutboundDecision
+		err      error
+	)
+	if req.TrunkID != nil {
+		decision, err = s.repo.ResolveBYOCOutbound(ctx, req.OrganizationID, *req.TrunkID)
+	} else {
+		decision, err = s.repo.ResolveManagedOutbound(ctx)
+	}
+
+	if errors.Is(err, pgx.ErrNoRows) {
+		return OutboundDecision{}, apperror.NewNotFound("no eligible outbound route")
+	}
+	if err != nil {
+		return OutboundDecision{}, apperror.NewInternal("resolve outbound route", err)
+	}
+	return decision, nil
+}

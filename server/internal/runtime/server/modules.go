@@ -17,6 +17,7 @@ import (
 	"github.com/coffeyvidzro/monogo/internal/security/authn"
 	"github.com/coffeyvidzro/monogo/internal/security/encryption"
 	"github.com/coffeyvidzro/monogo/internal/telecom"
+	"github.com/coffeyvidzro/monogo/internal/telecom/calls"
 	"github.com/coffeyvidzro/monogo/internal/telecom/conferences"
 	"github.com/coffeyvidzro/monogo/internal/telecom/realtime"
 	"github.com/coffeyvidzro/monogo/internal/tenancy"
@@ -95,7 +96,7 @@ func newModules(ctx context.Context, cfg config.Config) (*modules, error) {
 		DB:      postgresClient.Pool(),
 		Queries: queries,
 		Redis:   redisClient,
-		// CallsController:      calls.NewFreeSWITCHController(freeSwitch),
+		CallsController:      calls.NewFreeSWITCHController(freeSwitch),
 		ConferenceController: conferences.NewFreeSWITCHController(freeSwitch),
 		CredentialCipher:     credentialCipher,
 		RealtimeService:      turnService,

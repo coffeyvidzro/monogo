@@ -26,6 +26,7 @@ func RegisterRoutes(
 		router,
 		module.Calls.Handler,
 		organizationAccess("calls"),
+		idempotency,
 	)
 
 	voice.RegisterRoutes(

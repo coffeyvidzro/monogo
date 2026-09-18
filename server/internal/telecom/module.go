@@ -22,6 +22,7 @@ type Dependencies struct {
 	DB                   *pgxpool.Pool
 	Queries              *sqlc.Queries
 	Redis                *redis.Client
+	CallsController      calls.Controller
 	ConferenceController conferences.Controller
 	CredentialCipher     *encryption.Cipher
 	RealtimeService      *realtime.Service
@@ -103,7 +104,12 @@ func New(deps Dependencies) (*Module, error) {
 	routingService := routing.NewService(routingRepository, nil)
 
 	callsRepository := calls.NewRepository(deps.Queries)
-	callsService := calls.NewService(callsRepository)
+	callsService := calls.NewService(
+		callsRepository,
+		routingService,
+		deps.CallsController,
+		calls.NewRedisChannelStore(deps.Redis),
+	)
 
 	voiceRepository := voice.NewRepository(deps.Queries)
 	voiceService := voice.NewService(voiceRepository)

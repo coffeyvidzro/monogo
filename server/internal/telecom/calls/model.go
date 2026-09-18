@@ -1,12 +1,15 @@
 package calls
 
 import (
+	"errors"
 	"time"
 
 	"github.com/coffeyvidzro/monogo/internal/database/pgconv"
 	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
 	"github.com/google/uuid"
 )
+
+var ErrChannelUnavailable = errors.New("active call channel unavailable")
 
 type Direction string
 
@@ -57,11 +60,33 @@ type LifecycleEvent struct {
 }
 
 type CreateRequest struct {
-	ApplicationID *uuid.UUID `json:"application_id,omitempty"`
-	Direction     Direction  `json:"direction"`
-	FromURI       string     `json:"from_uri"`
-	ToURI         string     `json:"to_uri"`
-	SIPCallID     *string    `json:"sip_call_id,omitempty"`
+	ApplicationID   *uuid.UUID `json:"application_id,omitempty"`
+	TrunkID         *uuid.UUID `json:"trunk_id,omitempty"`
+	FromURI         string     `json:"from_uri"`
+	ToURI           string     `json:"to_uri"`
+	Privacy         bool       `json:"privacy,omitempty"`
+	DTMFMode        string     `json:"dtmf_mode,omitempty"`
+	MediaEncryption string     `json:"media_encryption,omitempty"`
+
+	Direction Direction `json:"-"`
+	SIPCallID *string   `json:"-"`
+}
+
+type TransferActionRequest struct {
+	Destination string `json:"destination"`
+}
+
+type PlayActionRequest struct {
+	Path string `json:"path"`
+}
+
+type RecordActionRequest struct {
+	Path   string `json:"path"`
+	Action string `json:"action,omitempty"`
+}
+
+type DTMFActionRequest struct {
+	Digits string `json:"digits"`
 }
 
 type ListRequest struct {

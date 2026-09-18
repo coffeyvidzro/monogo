@@ -29,14 +29,12 @@ func validateIDs(organizationID, callID uuid.UUID) error {
 }
 
 func normalizeCreateRequest(req CreateRequest) (CreateRequest, error) {
-	switch req.Direction {
-	case DirectionInbound, DirectionOutbound:
-	default:
-		return CreateRequest{}, apperror.NewBadRequest("direction must be inbound or outbound")
-	}
-
+	req.Direction = DirectionOutbound
 	req.FromURI = strings.TrimSpace(req.FromURI)
 	req.ToURI = strings.TrimSpace(req.ToURI)
+	req.DTMFMode = strings.ToLower(strings.TrimSpace(req.DTMFMode))
+	req.MediaEncryption = strings.ToLower(strings.TrimSpace(req.MediaEncryption))
+
 	if req.FromURI == "" {
 		return CreateRequest{}, apperror.NewBadRequest("from_uri is required")
 	}
@@ -46,12 +44,18 @@ func normalizeCreateRequest(req CreateRequest) (CreateRequest, error) {
 	if req.ApplicationID != nil && *req.ApplicationID == uuid.Nil {
 		return CreateRequest{}, apperror.NewBadRequest("application_id is invalid")
 	}
-	if req.SIPCallID != nil {
-		value := strings.TrimSpace(*req.SIPCallID)
-		if value == "" {
-			return CreateRequest{}, apperror.NewBadRequest("sip_call_id cannot be empty")
-		}
-		req.SIPCallID = &value
+	if req.TrunkID != nil && *req.TrunkID == uuid.Nil {
+		return CreateRequest{}, apperror.NewBadRequest("trunk_id is invalid")
+	}
+	switch req.DTMFMode {
+	case "", "rfc2833", "info", "none":
+	default:
+		return CreateRequest{}, apperror.NewBadRequest("dtmf_mode is invalid")
+	}
+	switch req.MediaEncryption {
+	case "", "none", "sdes_srtp":
+	default:
+		return CreateRequest{}, apperror.NewBadRequest("media_encryption is invalid")
 	}
 	return req, nil
 }
@@ -66,7 +70,6 @@ func validateListRequest(req ListRequest) error {
 	if req.State == nil {
 		return nil
 	}
-
 	state := State(strings.TrimSpace(*req.State))
 	switch state {
 	case StateInitiating, StateRinging, StateAnswered, StateActive, StateCompleted, StateFailed, StateCancelled:
@@ -98,4 +101,43 @@ func normalizeOptionalReason(reason *string) *string {
 		return nil
 	}
 	return &value
+}
+
+func normalizeTransfer(req TransferActionRequest) (TransferActionRequest, error) {
+	req.Destination = strings.TrimSpace(req.Destination)
+	if req.Destination == "" {
+		return TransferActionRequest{}, apperror.NewBadRequest("destination is required")
+	}
+	return req, nil
+}
+
+func normalizePlay(req PlayActionRequest) (PlayActionRequest, error) {
+	req.Path = strings.TrimSpace(req.Path)
+	if req.Path == "" {
+		return PlayActionRequest{}, apperror.NewBadRequest("path is required")
+	}
+	return req, nil
+}
+
+func normalizeRecord(req RecordActionRequest) (RecordActionRequest, error) {
+	req.Path = strings.TrimSpace(req.Path)
+	req.Action = strings.ToLower(strings.TrimSpace(req.Action))
+	if req.Path == "" {
+		return RecordActionRequest{}, apperror.NewBadRequest("path is required")
+	}
+	if req.Action == "" {
+		req.Action = "start"
+	}
+	if req.Action != "start" && req.Action != "stop" {
+		return RecordActionRequest{}, apperror.NewBadRequest("action must be start or stop")
+	}
+	return req, nil
+}
+
+func normalizeDTMF(req DTMFActionRequest) (DTMFActionRequest, error) {
+	req.Digits = strings.TrimSpace(req.Digits)
+	if req.Digits == "" {
+		return DTMFActionRequest{}, apperror.NewBadRequest("digits are required")
+	}
+	return req, nil
 }

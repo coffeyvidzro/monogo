@@ -17,6 +17,7 @@ import (
 	"github.com/coffeyvidzro/monogo/internal/platform/webhooks"
 		"github.com/coffeyvidzro/monogo/internal/telecom/calls"
 	"github.com/coffeyvidzro/monogo/internal/telecom/recordings"
+	"github.com/coffeyvidzro/monogo/internal/telecom/routing"
 )
 
 type modules struct {
@@ -88,8 +89,15 @@ func newModules(ctx context.Context, cfg config.Config) (*modules, error) {
 		workerID = "worker"
 	}
 
+	routingRepository := routing.NewRepository(queries)
+	routingService := routing.NewService(routingRepository, nil)
 	callsRepository := calls.NewRepository(queries)
-	callsService := calls.NewService(callsRepository)
+	callsService := calls.NewService(
+		callsRepository,
+		routingService,
+		calls.NewFreeSWITCHController(freeSwitch),
+		calls.NewRedisChannelStore(redisClient),
+	)
 
 	recordingsRepository := recordings.NewRepository(postgresClient.Pool())
 	recordingsService := recordings.NewService(recordingsRepository, nil)

@@ -30,3 +30,21 @@ func validateInboundRequest(req InboundRequest) error {
 	}
 	return nil
 }
+
+func normalizeOutboundRequest(req OutboundRequest) OutboundRequest {
+	req.Destination = strings.TrimSpace(req.Destination)
+	return req
+}
+
+func validateOutboundRequest(req OutboundRequest) error {
+	if req.OrganizationID == uuid.Nil {
+		return apperror.NewBadRequest("organization_id is required")
+	}
+	if req.TrunkID != nil && *req.TrunkID == uuid.Nil {
+		return apperror.NewBadRequest("trunk_id is invalid")
+	}
+	if req.Destination == "" {
+		return apperror.NewBadRequest("destination is required")
+	}
+	return nil
+}
