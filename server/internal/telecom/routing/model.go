@@ -41,4 +41,5 @@ type OutboundDecision struct {
 	Host                string
 	Port                uint16
 	Transport           string
+	Limits              Limits
 }

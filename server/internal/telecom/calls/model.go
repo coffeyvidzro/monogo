@@ -9,7 +9,12 @@ import (
 	"github.com/google/uuid"
 )
 
-var ErrChannelUnavailable = errors.New("active call channel unavailable")
+var (
+	ErrChannelUnavailable       = errors.New("active call channel unavailable")
+	ErrAdmissionCPS             = errors.New("carrier CPS limit exceeded")
+	ErrAdmissionConcurrent      = errors.New("carrier concurrent call limit exceeded")
+	ErrAdmissionDailyMinutes    = errors.New("carrier daily minute limit exceeded")
+)
 
 type Direction string
 

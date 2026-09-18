@@ -11,13 +11,12 @@ type Repository struct {
 	queries *sqlc.Queries
 }
 
-type LifecycleSnapshot struct {
-	OrganizationID uuid.UUID
-	State          string
-	MediaState     string
-}
+type LifecycleSnapshot = sqlc.GetCallLifecycleSnapshotRow
 
 func NewRepository(queries *sqlc.Queries) *Repository {
+	if queries == nil {
+		panic("calls: queries are required")
+	}
 	return &Repository{queries: queries}
 }
 
@@ -76,19 +75,20 @@ func (r *Repository) GetLifecycleSnapshot(
 	ctx context.Context,
 	id uuid.UUID,
 ) (LifecycleSnapshot, error) {
-	row, err := r.queries.GetBackofficeCall(ctx, id)
-	if err != nil {
-		return LifecycleSnapshot{}, err
-	}
-	organizationID, err := uuid.Parse(row.OrganizationID)
-	if err != nil {
-		return LifecycleSnapshot{}, err
-	}
-	return LifecycleSnapshot{
-		OrganizationID: organizationID,
-		State:          row.State,
-		MediaState:     row.MediaState,
-	}, nil
+	return r.queries.GetCallLifecycleSnapshot(ctx, id)
+}
+
+func (r *Repository) CarrierDailyUsageSeconds(
+	ctx context.Context,
+	carrierConnectionID uuid.UUID,
+) (int64, error) {
+	return r.queries.GetCarrierDailyUsageSeconds(ctx, carrierConnectionID)
+}
+
+func (r *Repository) ListActiveForAdmissionReconciliation(
+	ctx context.Context,
+) ([]sqlc.ListActiveCallsForAdmissionReconciliationRow, error) {
+	return r.queries.ListActiveCallsForAdmissionReconciliation(ctx)
 }
 
 func (r *Repository) List(

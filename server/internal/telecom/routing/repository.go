@@ -67,6 +67,14 @@ func (r *Repository) ResolveBYOCOutbound(
 		return OutboundDecision{}, pgx.ErrNoRows
 	}
 
+	connection, err := r.queries.GetCarrierConnectionByID(ctx, sqlc.GetCarrierConnectionByIDParams{
+		ID:             *trunk.CarrierConnectionID,
+		OrganizationID: &organizationID,
+	})
+	if err != nil {
+		return OutboundDecision{}, err
+	}
+
 	endpoints, err := r.queries.ListActiveOutboundTrunkEndpoints(
 		ctx,
 		sqlc.ListActiveOutboundTrunkEndpointsParams{
@@ -93,6 +101,11 @@ func (r *Repository) ResolveBYOCOutbound(
 			Host:                endpoint.Host,
 			Port:                uint16(endpoint.Port),
 			Transport:           endpoint.Transport,
+			Limits: Limits{
+				MaxCPS:             connection.MaxCps,
+				MaxConcurrentCalls: connection.MaxConcurrentCalls,
+				MaxDailyMinutes:    connection.MaxDailyMinutes,
+			},
 		}, nil
 	}
 
@@ -120,6 +133,11 @@ func (r *Repository) ResolveManagedOutbound(ctx context.Context) (OutboundDecisi
 			Host:                route.Host,
 			Port:                uint16(route.Port),
 			Transport:           route.Transport,
+			Limits: Limits{
+				MaxCPS:             route.MaxCps,
+				MaxConcurrentCalls: route.MaxConcurrentCalls,
+				MaxDailyMinutes:    route.MaxDailyMinutes,
+			},
 		}, nil
 	}
 

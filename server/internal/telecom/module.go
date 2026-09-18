@@ -109,6 +109,7 @@ func New(deps Dependencies) (*Module, error) {
 		routingService,
 		deps.CallsController,
 		calls.NewRedisChannelStore(deps.Redis),
+		calls.NewRedisAdmissionLimiter(deps.Redis, callsRepository),
 	)
 
 	voiceRepository := voice.NewRepository(deps.Queries)
