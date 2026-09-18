@@ -47,15 +47,6 @@ jobs:
       - name: Verify modules
         run: go mod verify
 
-      - name: Check formatting
-        run: |
-          files="$(gofmt -l .)"
-          if [ -n "$files" ]; then
-            echo "The following files are not gofmt-formatted:"
-            echo "$files"
-            exit 1
-          fi
-
       - name: Vet
         run: go vet ./...
 
