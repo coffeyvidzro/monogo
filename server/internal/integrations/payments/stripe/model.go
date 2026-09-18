@@ -33,6 +33,9 @@ func (c Config) Validate() error {
 	if strings.TrimSpace(c.SecretKey) == "" {
 		return fmt.Errorf("Stripe secret key is required")
 	}
+	if strings.TrimSpace(c.WebhookSecret) == "" {
+		return fmt.Errorf("Stripe webhook secret is required")
+	}
 	if strings.TrimSpace(c.BaseURL) == "" {
 		return fmt.Errorf("Stripe base URL is required")
 	}
@@ -43,12 +46,12 @@ func (c Config) Validate() error {
 }
 
 type CreateCheckoutSessionRequest struct {
-	Amount   int64
-	Currency string
+	AmountMinor int64
+	Currency    string
 }
 
 func (r CreateCheckoutSessionRequest) Validate() error {
-	if r.Amount <= 0 {
+	if r.AmountMinor <= 0 {
 		return fmt.Errorf("Stripe checkout amount must be positive")
 	}
 	if strings.TrimSpace(r.Currency) == "" {
@@ -82,5 +85,6 @@ func (e WebhookEvent) DecodeCheckoutSession() (CheckoutSession, error) {
 	if strings.TrimSpace(session.ID) == "" {
 		return CheckoutSession{}, fmt.Errorf("Stripe checkout session ID is required")
 	}
+
 	return session, nil
 }
