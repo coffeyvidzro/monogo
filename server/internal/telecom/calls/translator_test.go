@@ -1,4 +1,4 @@
-package callcontrol
+package calls
 
 import (
 	"errors"
@@ -6,13 +6,12 @@ import (
 	"time"
 
 	"github.com/coffeyvidzro/monogo/internal/integrations/freeswitch"
-	"github.com/coffeyvidzro/monogo/internal/telecom/calls"
 	"github.com/google/uuid"
 )
 
-func TestTranslateEventKeepsCallAndChannelIdentitySeparate(t *testing.T) {
+func TestTranslateFreeSWITCHEventKeepsCallAndChannelIdentitySeparate(t *testing.T) {
 	callID := uuid.New()
-	event, err := TranslateEvent(freeswitch.Event{
+	event, err := TranslateFreeSWITCHEvent(freeswitch.Event{
 		Name: "CHANNEL_ANSWER",
 		Headers: map[string]string{
 			"Unique-ID":                "fs-channel-1",
@@ -30,8 +29,8 @@ func TestTranslateEventKeepsCallAndChannelIdentitySeparate(t *testing.T) {
 	if event.ChannelID != "fs-channel-1" {
 		t.Fatalf("channel id = %q, want fs-channel-1", event.ChannelID)
 	}
-	if event.Type != calls.LifecycleAnswered {
-		t.Fatalf("type = %q, want %q", event.Type, calls.LifecycleAnswered)
+	if event.Type != LifecycleAnswered {
+		t.Fatalf("type = %q, want %q", event.Type, LifecycleAnswered)
 	}
 
 	wantTime := time.Date(2026, time.August, 29, 8, 0, 0, 0, time.UTC)
@@ -40,8 +39,8 @@ func TestTranslateEventKeepsCallAndChannelIdentitySeparate(t *testing.T) {
 	}
 }
 
-func TestTranslateEventRequiresLeamoutCallID(t *testing.T) {
-	_, err := TranslateEvent(freeswitch.Event{
+func TestTranslateFreeSWITCHEventRequiresLeamoutCallID(t *testing.T) {
+	_, err := TranslateFreeSWITCHEvent(freeswitch.Event{
 		Name: "CHANNEL_ANSWER",
 		Headers: map[string]string{
 			"Unique-ID": "fs-channel-1",
@@ -52,9 +51,9 @@ func TestTranslateEventRequiresLeamoutCallID(t *testing.T) {
 	}
 }
 
-func TestTranslateHangupKeepsCauseAsReason(t *testing.T) {
+func TestTranslateFreeSWITCHHangupKeepsCauseAsReason(t *testing.T) {
 	callID := uuid.New()
-	event, err := TranslateEvent(freeswitch.Event{
+	event, err := TranslateFreeSWITCHEvent(freeswitch.Event{
 		Name: "CHANNEL_HANGUP_COMPLETE",
 		Headers: map[string]string{
 			"Unique-ID":                "fs-channel-1",
@@ -66,8 +65,8 @@ func TestTranslateHangupKeepsCauseAsReason(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if event.Type != calls.LifecycleFailed {
-		t.Fatalf("type = %q, want %q", event.Type, calls.LifecycleFailed)
+	if event.Type != LifecycleFailed {
+		t.Fatalf("type = %q, want %q", event.Type, LifecycleFailed)
 	}
 	if event.HangupReason == nil || *event.HangupReason != "USER_BUSY" {
 		t.Fatalf("hangup reason = %v, want USER_BUSY", event.HangupReason)

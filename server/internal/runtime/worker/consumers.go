@@ -2,12 +2,14 @@ package worker
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"golang.org/x/sync/errgroup"
 
 	"github.com/coffeyvidzro/monogo/internal/integrations/freeswitch"
 	"github.com/coffeyvidzro/monogo/internal/platform/logging"
+	"github.com/coffeyvidzro/monogo/internal/telecom/calls"
 )
 
 var freeSWITCHLifecycleEvents = []string{
@@ -26,9 +28,28 @@ func subscribeFreeSWITCH(ctx context.Context, logger *logging.Logger, modules *m
 		freeswitch.EventFormatPlain,
 		freeSWITCHLifecycleEvents,
 		func(eventCtx context.Context, event freeswitch.Event) error {
-			if err := modules.callConsumer.HandleFreeSWITCHEvent(eventCtx, event); err != nil {
-				logger.Error(eventCtx, "handle call FreeSWITCH event", "event", event.Name, "error", err)
+			callEvent, err := calls.TranslateFreeSWITCHEvent(event)
+			switch {
+			case errors.Is(err, calls.ErrUnsupportedEvent),
+				errors.Is(err, calls.ErrUncorrelatedEvent):
+			case err != nil:
+				logger.Error(
+					eventCtx,
+					"translate call FreeSWITCH event",
+					"event", event.Name,
+					"error", err,
+				)
+			default:
+				if err := modules.callsService.ObserveLifecycle(eventCtx, callEvent); err != nil {
+					logger.Error(
+						eventCtx,
+						"handle call FreeSWITCH event",
+						"event", event.Name,
+						"error", err,
+					)
+				}
 			}
+
 			if err := modules.recordingConsumer.HandleFreeSWITCHEvent(eventCtx, event); err != nil {
 				logger.Error(eventCtx, "handle recording FreeSWITCH event", "event", event.Name, "error", err)
 			}

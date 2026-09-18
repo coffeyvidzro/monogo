@@ -1,7 +1,6 @@
-package callcontrol
+package calls
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"strconv"
@@ -9,7 +8,6 @@ import (
 	"time"
 
 	"github.com/coffeyvidzro/monogo/internal/integrations/freeswitch"
-	"github.com/coffeyvidzro/monogo/internal/telecom/calls"
 	"github.com/google/uuid"
 )
 
@@ -18,55 +16,32 @@ var (
 	ErrUncorrelatedEvent = errors.New("uncorrelated FreeSWITCH call event")
 )
 
-type lifecycleObserver interface {
-	ObserveLifecycle(context.Context, calls.LifecycleEvent) error
-}
-
-type Consumer struct {
-	service lifecycleObserver
-}
-
-func NewConsumer(service lifecycleObserver) *Consumer {
-	if service == nil {
-		panic("callcontrol: lifecycle service is required")
-	}
-	return &Consumer{service: service}
-}
-
-func (c *Consumer) HandleFreeSWITCHEvent(ctx context.Context, event freeswitch.Event) error {
-	input, err := TranslateEvent(event)
-	if errors.Is(err, ErrUnsupportedEvent) || errors.Is(err, ErrUncorrelatedEvent) {
-		return nil
-	}
-	if err != nil {
-		return err
-	}
-	return c.service.ObserveLifecycle(ctx, input)
-}
-
-func TranslateEvent(event freeswitch.Event) (calls.LifecycleEvent, error) {
+// TranslateFreeSWITCHEvent converts a raw FreeSWITCH channel event into a
+// normalized call lifecycle event. Leamout call identity is carried explicitly
+// in variable_leamout_call_id; FreeSWITCH Unique-ID remains the channel ID.
+func TranslateFreeSWITCHEvent(event freeswitch.Event) (LifecycleEvent, error) {
 	eventType, err := lifecycleEventType(event)
 	if err != nil {
-		return calls.LifecycleEvent{}, err
+		return LifecycleEvent{}, err
 	}
 
 	rawCallID := strings.TrimSpace(event.Header("variable_leamout_call_id"))
 	callID, err := uuid.Parse(rawCallID)
 	if err != nil {
-		return calls.LifecycleEvent{}, fmt.Errorf("%w: missing valid Leamout call id", ErrUncorrelatedEvent)
+		return LifecycleEvent{}, fmt.Errorf("%w: missing valid Leamout call id", ErrUncorrelatedEvent)
 	}
 
 	channelID := strings.TrimSpace(event.Header("Unique-ID"))
 	if channelID == "" {
-		return calls.LifecycleEvent{}, fmt.Errorf("FreeSWITCH call event is missing Unique-ID")
+		return LifecycleEvent{}, fmt.Errorf("FreeSWITCH call event is missing Unique-ID")
 	}
 
 	occurredAt, err := freeSWITCHEventTime(event)
 	if err != nil {
-		return calls.LifecycleEvent{}, err
+		return LifecycleEvent{}, err
 	}
 
-	result := calls.LifecycleEvent{
+	result := LifecycleEvent{
 		CallID:     callID,
 		ChannelID:  channelID,
 		Type:       eventType,
@@ -86,24 +61,24 @@ func TranslateEvent(event freeswitch.Event) (calls.LifecycleEvent, error) {
 	return result, nil
 }
 
-func lifecycleEventType(event freeswitch.Event) (calls.LifecycleEventType, error) {
+func lifecycleEventType(event freeswitch.Event) (LifecycleEventType, error) {
 	switch event.Name {
 	case "CHANNEL_CREATE":
-		return calls.LifecycleInitiated, nil
+		return LifecycleInitiated, nil
 	case "CHANNEL_ANSWER":
-		return calls.LifecycleAnswered, nil
+		return LifecycleAnswered, nil
 	case "CHANNEL_HOLD":
-		return calls.LifecycleHeld, nil
+		return LifecycleHeld, nil
 	case "CHANNEL_UNHOLD":
-		return calls.LifecycleResumed, nil
+		return LifecycleResumed, nil
 	case "CHANNEL_HANGUP_COMPLETE":
 		if eventAnswered(event) {
-			return calls.LifecycleCompleted, nil
+			return LifecycleCompleted, nil
 		}
 		if strings.EqualFold(strings.TrimSpace(event.Header("Hangup-Cause")), "ORIGINATOR_CANCEL") {
-			return calls.LifecycleCancelled, nil
+			return LifecycleCancelled, nil
 		}
-		return calls.LifecycleFailed, nil
+		return LifecycleFailed, nil
 	default:
 		return "", fmt.Errorf("%w: %s", ErrUnsupportedEvent, event.Name)
 	}
