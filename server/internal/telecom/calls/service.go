@@ -147,12 +147,8 @@ func lifecycleAlreadyApplied(snapshot LifecycleSnapshot, eventType LifecycleEven
 		return snapshot.MediaState == string(MediaStateHeld) || isTerminalState(snapshot.State)
 	case LifecycleResumed:
 		return snapshot.MediaState == string(MediaStateActive) || isTerminalState(snapshot.State)
-	case LifecycleCompleted:
-		return snapshot.State == string(StateCompleted)
-	case LifecycleFailed:
-		return snapshot.State == string(StateFailed)
-	case LifecycleCancelled:
-		return snapshot.State == string(StateCancelled)
+	case LifecycleCompleted, LifecycleFailed, LifecycleCancelled:
+		return isTerminalState(snapshot.State)
 	default:
 		return false
 	}
