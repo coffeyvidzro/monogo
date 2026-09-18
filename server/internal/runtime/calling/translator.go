@@ -13,11 +13,20 @@ import (
 )
 
 var (
-	ErrUnsupportedEvent     = errors.New("unsupported FreeSWITCH call event")
-	ErrUncorrelatedEvent    = errors.New("uncorrelated FreeSWITCH call event")
-	ErrNotInboundAdmission  = errors.New("not an inbound FreeSWITCH admission event")
+	ErrUnsupportedEvent    = errors.New("unsupported FreeSWITCH call event")
+	ErrUncorrelatedEvent   = errors.New("uncorrelated FreeSWITCH call event")
+	ErrNotInboundAdmission = errors.New("not an inbound FreeSWITCH admission event")
 )
 
+func FreeSWITCHEvents() []string {
+	return []string{
+		"CHANNEL_CREATE",
+		"CHANNEL_ANSWER",
+		"CHANNEL_HOLD",
+		"CHANNEL_UNHOLD",
+		"CHANNEL_HANGUP_COMPLETE",
+	}
+}
 
 // TranslateInboundFreeSWITCHEvent converts the first trusted carrier-ingress
 // channel event into the admission request used to create a Leamout call.

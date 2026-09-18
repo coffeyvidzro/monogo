@@ -27,8 +27,8 @@ type modules struct {
 	nats                    *natsintegration.Client
 	freeSwitch              *freeswitch.Client
 	callsService            *calls.Service
-	callingConsumer         *calling.Consumer
-	callReconciliation      *calling.ReconciliationJob
+	callConsumer            *calls.Consumer
+	callReconciliation      *calls.ReconciliationJob
 	outbox                  *outbox.PublisherJob
 	webhookConsumer         *webhooks.Consumer
 	webhookDelivery         *webhooks.DeliveryJob
@@ -104,11 +104,11 @@ func newModules(ctx context.Context, cfg config.Config) (*modules, error) {
 		calling.NewRedisChannelStore(redisClient),
 		admissionLimiter,
 	)
-	callingConsumer := calling.NewConsumer(callsService, callController)
-	callReconciliation, err := calling.NewReconciliationJob(
+	callConsumer := calls.NewConsumer(callsService)
+	callReconciliation, err := calls.NewReconciliationJob(
 		callsRepository,
-		admissionLimiter,
-		calling.DefaultReconciliationJobConfig(),
+		callsService,
+		calls.DefaultReconciliationJobConfig(),
 	)
 	if err != nil {
 		closeDependencies()
@@ -163,7 +163,7 @@ func newModules(ctx context.Context, cfg config.Config) (*modules, error) {
 		nats:                    natsClient,
 		freeSwitch:              freeSwitch,
 		callsService:            callsService,
-		callingConsumer:         callingConsumer,
+		callConsumer:            callConsumer,
 		callReconciliation:      callReconciliation,
 		outbox:                  outboxJob,
 		webhookConsumer:         webhooks.NewConsumer(natsClient, webhookService),

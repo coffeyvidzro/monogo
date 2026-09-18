@@ -1,4 +1,4 @@
-package calling
+package calls
 
 import (
 	"context"
@@ -6,9 +6,6 @@ import (
 	"fmt"
 	"log"
 	"time"
-
-	"github.com/coffeyvidzro/monogo/internal/telecom/calls"
-	"github.com/google/uuid"
 )
 
 type ReconciliationJobConfig struct {
@@ -21,41 +18,31 @@ func DefaultReconciliationJobConfig() ReconciliationJobConfig {
 	}
 }
 
-type reconciliationRepository interface {
-	ListActiveForAdmissionReconciliation(
-		context.Context,
-	) ([]calls.ActiveAdmissionCall, error)
-}
-
-type reconciliationAdmission interface {
-	Refresh(context.Context, uuid.UUID, uuid.UUID) error
-}
-
 type ReconciliationJob struct {
-	repo      reconciliationRepository
-	admission reconciliationAdmission
-	config    ReconciliationJobConfig
+	repo    *Repository
+	service *Service
+	config  ReconciliationJobConfig
 }
 
 func NewReconciliationJob(
-	repo reconciliationRepository,
-	admission reconciliationAdmission,
+	repo *Repository,
+	service *Service,
 	config ReconciliationJobConfig,
 ) (*ReconciliationJob, error) {
 	if repo == nil {
 		return nil, fmt.Errorf("call reconciliation repository is required")
 	}
-	if admission == nil {
-		return nil, fmt.Errorf("call reconciliation admission limiter is required")
+	if service == nil {
+		return nil, fmt.Errorf("call reconciliation service is required")
 	}
 	if config.Interval <= 0 {
 		config.Interval = 30 * time.Second
 	}
 
 	return &ReconciliationJob{
-		repo:      repo,
-		admission: admission,
-		config:    config,
+		repo:    repo,
+		service: service,
+		config:  config,
 	}, nil
 }
 
@@ -92,7 +79,7 @@ func (j *ReconciliationJob) Reconcile(ctx context.Context) error {
 	}
 
 	for _, call := range active {
-		if err := j.admission.Refresh(ctx, call.CarrierConnectionID, call.ID); err != nil {
+		if err := j.service.admission.Refresh(ctx, call.CarrierConnectionID, call.ID); err != nil {
 			return fmt.Errorf("refresh admission lease for call %s: %w", call.ID, err)
 		}
 	}
