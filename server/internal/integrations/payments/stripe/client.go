@@ -72,7 +72,7 @@ func (c *Client) CreateCheckoutSession(
 func (c *Client) RetrieveCheckoutSession(ctx context.Context, id string) (CheckoutSession, error) {
 	id = strings.TrimSpace(id)
 	if id == "" {
-		return CheckoutSession{}, fmt.Errorf("Stripe checkout session ID is required")
+		return CheckoutSession{}, fmt.Errorf("stripe checkout session ID is required")
 	}
 
 	var session CheckoutSession
@@ -104,7 +104,7 @@ func (c *Client) ParseWebhook(
 
 	eventTime := time.Unix(timestamp, 0)
 	if now.Sub(eventTime) > webhookTolerance || eventTime.Sub(now) > webhookTolerance {
-		return WebhookEvent{}, fmt.Errorf("Stripe webhook timestamp is outside tolerance")
+		return WebhookEvent{}, fmt.Errorf("stripe webhook timestamp is outside tolerance")
 	}
 
 	signedPayload := strconv.FormatInt(timestamp, 10) + "." + string(payload)
@@ -129,10 +129,10 @@ func (c *Client) ParseWebhook(
 		return WebhookEvent{}, fmt.Errorf("decode Stripe webhook: %w", err)
 	}
 	if strings.TrimSpace(event.ID) == "" {
-		return WebhookEvent{}, fmt.Errorf("Stripe webhook event ID is required")
+		return WebhookEvent{}, fmt.Errorf("stripe webhook event ID is required")
 	}
 	if strings.TrimSpace(event.Type) == "" {
-		return WebhookEvent{}, fmt.Errorf("Stripe webhook event type is required")
+		return WebhookEvent{}, fmt.Errorf("stripe webhook event type is required")
 	}
 
 	return event, nil
@@ -145,7 +145,7 @@ func (c *Client) doForm(
 	target any,
 ) error {
 	if ctx == nil {
-		return fmt.Errorf("Stripe context is required")
+		return fmt.Errorf("stripe context is required")
 	}
 
 	var body io.Reader
@@ -168,7 +168,9 @@ func (c *Client) doForm(
 	if err != nil {
 		return fmt.Errorf("send Stripe request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	payload, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
 	if err != nil {
@@ -176,7 +178,7 @@ func (c *Client) doForm(
 	}
 	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
 		return fmt.Errorf(
-			"Stripe request failed with status %d: %s",
+			"stripe request failed with status %d: %s",
 			resp.StatusCode,
 			strings.TrimSpace(string(payload)),
 		)
@@ -211,10 +213,10 @@ func parseSignatureHeader(header string) (int64, []string, error) {
 	}
 
 	if timestamp == 0 {
-		return 0, nil, fmt.Errorf("Stripe webhook timestamp is required")
+		return 0, nil, fmt.Errorf("stripe webhook timestamp is required")
 	}
 	if len(signatures) == 0 {
-		return 0, nil, fmt.Errorf("Stripe webhook signature is required")
+		return 0, nil, fmt.Errorf("stripe webhook signature is required")
 	}
 
 	return timestamp, signatures, nil
