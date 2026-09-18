@@ -15,7 +15,9 @@ import (
 	"github.com/coffeyvidzro/monogo/internal/platform/logging"
 	"github.com/coffeyvidzro/monogo/internal/platform/outbox"
 	"github.com/coffeyvidzro/monogo/internal/platform/webhooks"
+		"github.com/coffeyvidzro/monogo/internal/telecom/calls"
 	"github.com/coffeyvidzro/monogo/internal/telecom/recordings"
+	"github.com/coffeyvidzro/monogo/internal/telecom/routing"
 )
 
 type modules struct {
@@ -23,6 +25,7 @@ type modules struct {
 	redis                   *redisintegration.Client
 	nats                    *natsintegration.Client
 	freeSwitch              *freeswitch.Client
+	callsService            *calls.Service
 	outbox                  *outbox.PublisherJob
 	webhookConsumer         *webhooks.Consumer
 	webhookDelivery         *webhooks.DeliveryJob
@@ -86,6 +89,16 @@ func newModules(ctx context.Context, cfg config.Config) (*modules, error) {
 		workerID = "worker"
 	}
 
+	routingRepository := routing.NewRepository(queries)
+	routingService := routing.NewService(routingRepository, nil)
+	callsRepository := calls.NewRepository(queries)
+	callsService := calls.NewService(
+		callsRepository,
+		routingService,
+		calls.NewFreeSWITCHController(freeSwitch),
+		calls.NewRedisChannelStore(redisClient),
+	)
+
 	recordingsRepository := recordings.NewRepository(postgresClient.Pool())
 	recordingsService := recordings.NewService(recordingsRepository, nil)
 	recordingReconciliation, err := recordings.NewReconciliationJob(
@@ -133,6 +146,7 @@ func newModules(ctx context.Context, cfg config.Config) (*modules, error) {
 		redis:                   redisClient,
 		nats:                    natsClient,
 		freeSwitch:              freeSwitch,
+		callsService:            callsService,
 		outbox:                  outboxJob,
 		webhookConsumer:         webhooks.NewConsumer(natsClient, webhookService),
 		webhookDelivery:         webhookDeliveryJob,

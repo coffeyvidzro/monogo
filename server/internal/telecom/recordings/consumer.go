@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/coffeyvidzro/monogo/internal/integrations/freeswitch"
+	"github.com/google/uuid"
 )
 
 const (
@@ -52,6 +53,12 @@ func (c *Consumer) HandleFreeSWITCHEvent(ctx context.Context, event freeswitch.E
 }
 
 func recordingLifecycleEvent(event freeswitch.Event) (LifecycleEvent, error) {
+	rawCallID := strings.TrimSpace(event.Header("variable_leamout_call_id"))
+	callID, err := uuid.Parse(rawCallID)
+	if err != nil {
+		return LifecycleEvent{}, fmt.Errorf("FreeSWITCH recording event is missing valid Leamout call id")
+	}
+
 	channelID := strings.TrimSpace(event.Header("Unique-ID"))
 	if channelID == "" {
 		return LifecycleEvent{}, fmt.Errorf("FreeSWITCH recording event is missing Unique-ID")
@@ -76,6 +83,7 @@ func recordingLifecycleEvent(event freeswitch.Event) (LifecycleEvent, error) {
 	}
 
 	return LifecycleEvent{
+		CallID:     callID,
 		ChannelID:  channelID,
 		Path:       path,
 		OccurredAt: occurredAt,

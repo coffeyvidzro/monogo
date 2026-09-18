@@ -5,6 +5,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
+	"github.com/coffeyvidzro/monogo/internal/telecom/calls"
 	"github.com/coffeyvidzro/monogo/internal/telecom/carriers"
 	"github.com/coffeyvidzro/monogo/internal/telecom/conferences"
 	"github.com/coffeyvidzro/monogo/internal/telecom/realtime"
@@ -21,6 +22,13 @@ func RegisterRoutes(
 	organizationAccess func(string) func(http.Handler) http.Handler,
 	idempotency func(http.Handler) http.Handler,
 ) {
+	calls.RegisterRoutes(
+		router,
+		module.Calls.Handler,
+		organizationAccess("calls"),
+		idempotency,
+	)
+
 	voice.RegisterRoutes(
 		router,
 		module.Voice.Handler,

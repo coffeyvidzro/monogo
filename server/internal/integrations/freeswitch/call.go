@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+
+	"github.com/google/uuid"
 )
 
 const (
@@ -17,33 +19,35 @@ func (c *Client) Originate(ctx context.Context, req OriginateRequest) (Call, err
 		return Call{}, err
 	}
 
+	channelID := uuid.NewString()
+	variables := make(map[string]string, len(req.Variables)+1)
+	for key, value := range req.Variables {
+		variables[key] = value
+	}
+	variables["origination_uuid"] = channelID
+
 	endpoint := req.Endpoint
 	if req.CallerID != "" {
 		callerIDVar := "origination_caller_id_number=" + commandWord(req.CallerID)
-		if prefix := formatVariables(req.Variables); prefix != "" {
+		if prefix := formatVariables(variables); prefix != "" {
 			endpoint = strings.TrimSuffix(prefix, "}") + "," + callerIDVar + "}" + endpoint
 		} else {
 			endpoint = "{" + callerIDVar + "}" + endpoint
 		}
-	} else if prefix := formatVariables(req.Variables); prefix != "" {
+	} else if prefix := formatVariables(variables); prefix != "" {
 		endpoint = prefix + endpoint
 	}
 
-	// Once the B-leg answers, keep the channel parked under ESL control instead
-	// of sending it through a user-facing dialplan destination.
+	// Queue origination through bgapi so the API request does not block while
+	// the remote destination rings. origination_uuid gives Leamout the channel
+	// identity immediately while calls.id remains a separate logical identity.
 	command := "originate " + commandWords(endpoint, "&park()")
-
-	reply, err := c.Command(ctx, command)
-	if err != nil {
+	if _, err := c.BGAPI(ctx, command); err != nil {
 		return Call{}, err
-	}
-	body := strings.TrimSpace(reply.Body)
-	if !strings.HasPrefix(body, "+OK") {
-		return Call{}, fmt.Errorf("FreeSWITCH originate failed: %s", body)
 	}
 
 	return Call{
-		UUID:        strings.TrimSpace(strings.TrimPrefix(body, "+OK")),
+		UUID:        channelID,
 		Destination: req.Destination,
 	}, nil
 }

@@ -5,12 +5,12 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
+	"github.com/coffeyvidzro/monogo/internal/platform/outbox"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
-	"github.com/coffeyvidzro/monogo/internal/platform/outbox"
 )
 
 type Repository struct {
@@ -74,11 +74,15 @@ func (r *Repository) GetByCallStorageKey(
 	})
 }
 
-func (r *Repository) GetCallByChannelID(
+func (r *Repository) GetCallOrganizationID(
 	ctx context.Context,
-	channelID string,
-) (sqlc.Call, error) {
-	return r.queries.GetCallBySIPCallIDGlobal(ctx, &channelID)
+	callID uuid.UUID,
+) (uuid.UUID, error) {
+	row, err := r.queries.GetBackofficeCall(ctx, callID)
+	if err != nil {
+		return uuid.Nil, err
+	}
+	return uuid.Parse(row.OrganizationID)
 }
 
 func (r *Repository) List(
@@ -110,7 +114,7 @@ func (r *Repository) ListForReconciliation(
 
 func (r *Repository) Start(
 	ctx context.Context,
-	call sqlc.Call,
+	organizationID, callID uuid.UUID,
 	path string,
 	occurredAt time.Time,
 ) (sqlc.Recording, error) {
@@ -120,8 +124,8 @@ func (r *Repository) Start(
 		func(repo *Repository) (sqlc.Recording, error) {
 			provider := "freeswitch-local"
 			return repo.queries.CreateRecording(ctx, sqlc.CreateRecordingParams{
-				OrganizationID:  call.OrganizationID,
-				CallID:          call.ID,
+				OrganizationID:  organizationID,
+				CallID:          callID,
 				Status:          string(StatusRecording),
 				StorageKey:      &path,
 				StorageProvider: &provider,
