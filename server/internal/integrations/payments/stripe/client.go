@@ -26,7 +26,7 @@ type Client struct {
 
 func New(cfg Config) (*Client, error) {
 	if cfg.BaseURL == "" {
-		cfg.BaseURL = defaultBaseURL
+		cfg.BaseURL = DefaultBaseURL
 	}
 	if cfg.HTTPClient == nil {
 		cfg.HTTPClient = DefaultConfig(cfg.SecretKey, cfg.WebhookSecret).HTTPClient
@@ -60,7 +60,7 @@ func (c *Client) CreateCheckoutSession(
 	values.Set("line_items[0][price_data][product_data][name]", "Leamout")
 
 	var session CheckoutSession
-	if err := c.doForm(ctx, http.MethodPost, "/v1/checkout/sessions", values, &session); err != nil {
+	if err := c.doForm(ctx, http.MethodPost, "/checkout/sessions", values, &session); err != nil {
 		return CheckoutSession{}, err
 	}
 	return session, nil
@@ -76,7 +76,7 @@ func (c *Client) RetrieveCheckoutSession(ctx context.Context, id string) (Checko
 	if err := c.doForm(
 		ctx,
 		http.MethodGet,
-		"/v1/checkout/sessions/"+url.PathEscape(id),
+		"/checkout/sessions/"+url.PathEscape(id),
 		nil,
 		&session,
 	); err != nil {
@@ -150,6 +150,7 @@ func (c *Client) doForm(
 		return fmt.Errorf("create Stripe request: %w", err)
 	}
 	req.Header.Set("Authorization", "Bearer "+c.secretKey)
+	req.Header.Set("Stripe-Version", DefaultAPIVersion)
 	req.Header.Set("Accept", "application/json")
 	if values != nil {
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
