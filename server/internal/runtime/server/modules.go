@@ -16,6 +16,7 @@ import (
 	"github.com/coffeyvidzro/monogo/internal/platform/middleware"
 	"github.com/coffeyvidzro/monogo/internal/security/authn"
 	"github.com/coffeyvidzro/monogo/internal/security/encryption"
+	"github.com/coffeyvidzro/monogo/internal/runtime/calling"
 	"github.com/coffeyvidzro/monogo/internal/telecom"
 	"github.com/coffeyvidzro/monogo/internal/telecom/calls"
 	"github.com/coffeyvidzro/monogo/internal/telecom/conferences"
@@ -93,10 +94,11 @@ func newModules(ctx context.Context, cfg config.Config) (*modules, error) {
 	tenancyModule := tenancy.New(queries)
 	platformModule := platform.New(postgresClient.Pool(), queries)
 	telecomModule, err := telecom.New(telecom.Dependencies{
-		DB:      postgresClient.Pool(),
-		Queries: queries,
-		Redis:   redisClient,
-		CallsController:      calls.NewFreeSWITCHController(freeSwitch),
+		DB:                    postgresClient.Pool(),
+		Queries:               queries,
+		CallsController:       calling.NewFreeSWITCHController(freeSwitch),
+		CallsChannelStore:     calling.NewRedisChannelStore(redisClient),
+		CallsAdmission:        calling.NewRedisAdmissionLimiter(redisClient, calls.NewRepository(queries)),
 		ConferenceController: conferences.NewFreeSWITCHController(freeSwitch),
 		CredentialCipher:     credentialCipher,
 		RealtimeService:      turnService,

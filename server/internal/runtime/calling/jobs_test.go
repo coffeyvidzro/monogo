@@ -1,20 +1,20 @@
-package calls
+package calling
 
 import (
 	"context"
 	"testing"
 
-	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
+	"github.com/coffeyvidzro/monogo/internal/telecom/calls"
 	"github.com/google/uuid"
 )
 
 type fakeCallReconciliationRepository struct {
-	calls []sqlc.ListActiveCallsForAdmissionReconciliationRow
+	calls []calls.ActiveAdmissionCall
 }
 
 func (f *fakeCallReconciliationRepository) ListActiveForAdmissionReconciliation(
 	context.Context,
-) ([]sqlc.ListActiveCallsForAdmissionReconciliationRow, error) {
+) ([]calls.ActiveAdmissionCall, error) {
 	return f.calls, nil
 }
 
@@ -35,8 +35,8 @@ func TestCallReconciliationRefreshesActiveCarrierLeases(t *testing.T) {
 	carrierID := uuid.New()
 	callID := uuid.New()
 	repo := &fakeCallReconciliationRepository{
-		calls: []sqlc.ListActiveCallsForAdmissionReconciliationRow{
-			{ID: callID, CarrierConnectionID: &carrierID},
+		calls: []calls.ActiveAdmissionCall{
+			{ID: callID, CarrierConnectionID: carrierID},
 		},
 	}
 	admission := &fakeReconciliationAdmission{}
@@ -61,8 +61,8 @@ func TestCallReconciliationRestartIsIdempotent(t *testing.T) {
 	carrierID := uuid.New()
 	callID := uuid.New()
 	repo := &fakeCallReconciliationRepository{
-		calls: []sqlc.ListActiveCallsForAdmissionReconciliationRow{
-			{ID: callID, CarrierConnectionID: &carrierID},
+		calls: []calls.ActiveAdmissionCall{
+			{ID: callID, CarrierConnectionID: carrierID},
 		},
 	}
 	admission := &fakeReconciliationAdmission{}

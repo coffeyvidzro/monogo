@@ -1,4 +1,4 @@
-package calls
+package calling
 
 import (
 	"context"
@@ -9,6 +9,7 @@ import (
 	"unicode"
 
 	"github.com/coffeyvidzro/monogo/internal/integrations/freeswitch"
+	"github.com/coffeyvidzro/monogo/internal/telecom/calls"
 	"github.com/google/uuid"
 )
 
@@ -23,75 +24,32 @@ const (
 	mediaEncryptionHeaderVar   = "sip_h_X-Leamout-Media-Encryption"
 )
 
-// Controller is the media-server contract used by call controls.
-type Controller interface {
-	Originate(context.Context, OriginateRequest) (OriginateResult, error)
-	Answer(context.Context, string) error
-	Hangup(context.Context, string) error
-	Transfer(context.Context, string, TransferRequest) error
-	Hold(context.Context, string) error
-	Resume(context.Context, string) error
-	PlayAudio(context.Context, string, string) error
-	StopPlayback(context.Context, string) error
-	Record(context.Context, string, RecordRequest) error
-	SendDTMF(context.Context, string, string) error
-	SetCallID(context.Context, string, uuid.UUID) error
-}
-
-type OriginateRequest struct {
-	CallID              uuid.UUID
-	Destination         string
-	CallerID            string
-	CarrierConnectionID uuid.UUID
-	Host                string
-	Port                uint16
-	Transport           string
-	Privacy             bool
-	DTMFMode            string
-	MediaEncryption     string
-}
-
-type OriginateResult struct {
-	ChannelID string
-}
-
-type TransferRequest struct {
-	Destination string
-	Dialplan    string
-	Context     string
-}
-
-type RecordRequest struct {
-	Path   string
-	Action string
-}
-
 // FreeSWITCHController adapts the FreeSWITCH client to call controls.
 type FreeSWITCHController struct {
 	client *freeswitch.Client
 }
 
-var _ Controller = (*FreeSWITCHController)(nil)
+var _ calls.Controller = (*FreeSWITCHController)(nil)
 
 func NewFreeSWITCHController(client *freeswitch.Client) *FreeSWITCHController {
 	if client == nil {
-		panic("calls: FreeSWITCH client is required")
+		panic("calling: FreeSWITCH client is required")
 	}
 	return &FreeSWITCHController{client: client}
 }
 
 func (c *FreeSWITCHController) Originate(
 	ctx context.Context,
-	req OriginateRequest,
-) (OriginateResult, error) {
+	req calls.OriginateRequest,
+) (calls.OriginateResult, error) {
 	endpoint, routeURI, err := freeSWITCHEgress(req)
 	if err != nil {
-		return OriginateResult{}, err
+		return calls.OriginateResult{}, err
 	}
 
 	variables, err := egressVariables(req, routeURI)
 	if err != nil {
-		return OriginateResult{}, err
+		return calls.OriginateResult{}, err
 	}
 
 	call, err := c.client.Originate(ctx, freeswitch.OriginateRequest{
@@ -101,16 +59,16 @@ func (c *FreeSWITCHController) Originate(
 		Variables:   variables,
 	})
 	if err != nil {
-		return OriginateResult{}, fmt.Errorf("originate call: %w", err)
+		return calls.OriginateResult{}, fmt.Errorf("originate call: %w", err)
 	}
 	if strings.TrimSpace(call.UUID) == "" {
-		return OriginateResult{}, fmt.Errorf("FreeSWITCH returned empty channel UUID")
+		return calls.OriginateResult{}, fmt.Errorf("FreeSWITCH returned empty channel UUID")
 	}
 
-	return OriginateResult{ChannelID: call.UUID}, nil
+	return calls.OriginateResult{ChannelID: call.UUID}, nil
 }
 
-func egressVariables(req OriginateRequest, routeURI string) (map[string]string, error) {
+func egressVariables(req calls.OriginateRequest, routeURI string) (map[string]string, error) {
 	if req.CallID == uuid.Nil {
 		return nil, fmt.Errorf("call id is required")
 	}
@@ -149,7 +107,7 @@ func egressVariables(req OriginateRequest, routeURI string) (map[string]string, 
 	return variables, nil
 }
 
-func freeSWITCHEgress(req OriginateRequest) (string, string, error) {
+func freeSWITCHEgress(req calls.OriginateRequest) (string, string, error) {
 	host := strings.TrimSpace(req.Host)
 	if host == "" {
 		return "", "", fmt.Errorf("resolved route host is required")
@@ -220,7 +178,7 @@ func (c *FreeSWITCHController) Hangup(ctx context.Context, channelID string) err
 func (c *FreeSWITCHController) Transfer(
 	ctx context.Context,
 	channelID string,
-	req TransferRequest,
+	req calls.TransferRequest,
 ) error {
 	if err := c.client.Transfer(ctx, freeswitch.TransferRequest{
 		CallID:      channelID,
@@ -264,7 +222,7 @@ func (c *FreeSWITCHController) StopPlayback(ctx context.Context, channelID strin
 func (c *FreeSWITCHController) Record(
 	ctx context.Context,
 	channelID string,
-	req RecordRequest,
+	req calls.RecordRequest,
 ) error {
 	if err := c.client.Record(ctx, freeswitch.RecordRequest{
 		CallID: channelID,

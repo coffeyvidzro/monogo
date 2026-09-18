@@ -1,4 +1,4 @@
-package calls
+package calling
 
 import (
 	"context"
@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/coffeyvidzro/monogo/internal/telecom/calls"
 	"github.com/coffeyvidzro/monogo/internal/telecom/routing"
 	"github.com/google/uuid"
 )
@@ -90,8 +91,8 @@ func TestAdmissionLimiterRejectsDailyMinuteLimitBeforeLease(t *testing.T) {
 			MaxDailyMinutes:    int64Ptr(100),
 		},
 	)
-	if !errors.Is(err, ErrAdmissionDailyMinutes) {
-		t.Fatalf("error = %v, want ErrAdmissionDailyMinutes", err)
+	if !errors.Is(err, calls.ErrAdmissionDailyMinutes) {
+		t.Fatalf("error = %v, want calls.ErrAdmissionDailyMinutes", err)
 	}
 	if store.acquireCalls != 0 {
 		t.Fatalf("acquire calls = %d, want 0", store.acquireCalls)
@@ -111,8 +112,8 @@ func TestAdmissionLimiterMapsCPSRejection(t *testing.T) {
 		"lease-1",
 		routing.Limits{MaxCPS: 1, MaxConcurrentCalls: 10},
 	)
-	if !errors.Is(err, ErrAdmissionCPS) {
-		t.Fatalf("error = %v, want ErrAdmissionCPS", err)
+	if !errors.Is(err, calls.ErrAdmissionCPS) {
+		t.Fatalf("error = %v, want calls.ErrAdmissionCPS", err)
 	}
 }
 
@@ -129,8 +130,8 @@ func TestAdmissionLimiterMapsConcurrentRejection(t *testing.T) {
 		"lease-1",
 		routing.Limits{MaxCPS: 10, MaxConcurrentCalls: 1},
 	)
-	if !errors.Is(err, ErrAdmissionConcurrent) {
-		t.Fatalf("error = %v, want ErrAdmissionConcurrent", err)
+	if !errors.Is(err, calls.ErrAdmissionConcurrent) {
+		t.Fatalf("error = %v, want calls.ErrAdmissionConcurrent", err)
 	}
 }
 

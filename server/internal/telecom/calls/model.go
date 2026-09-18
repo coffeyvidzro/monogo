@@ -77,6 +77,34 @@ type InboundAdmissionRequest struct {
 	OccurredAt           time.Time
 }
 
+type OriginateRequest struct {
+	CallID              uuid.UUID
+	Destination         string
+	CallerID            string
+	CarrierConnectionID uuid.UUID
+	Host                string
+	Port                uint16
+	Transport           string
+	Privacy             bool
+	DTMFMode            string
+	MediaEncryption     string
+}
+
+type OriginateResult struct {
+	ChannelID string
+}
+
+type TransferRequest struct {
+	Destination string
+	Dialplan    string
+	Context     string
+}
+
+type RecordRequest struct {
+	Path   string
+	Action string
+}
+
 type CreateRequest struct {
 	ApplicationID   *uuid.UUID `json:"application_id,omitempty"`
 	TrunkID         *uuid.UUID `json:"trunk_id,omitempty"`
@@ -105,6 +133,11 @@ type RecordActionRequest struct {
 
 type DTMFActionRequest struct {
 	Digits string `json:"digits"`
+}
+
+type ActiveAdmissionCall struct {
+	ID                  uuid.UUID
+	CarrierConnectionID uuid.UUID
 }
 
 type ListRequest struct {

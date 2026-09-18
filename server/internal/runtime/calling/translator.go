@@ -1,4 +1,4 @@
-package calls
+package calling
 
 import (
 	"errors"
@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/coffeyvidzro/monogo/internal/integrations/freeswitch"
+	"github.com/coffeyvidzro/monogo/internal/telecom/calls"
 	"github.com/google/uuid"
 )
 
@@ -22,12 +23,12 @@ var (
 // channel event into the admission request used to create a Leamout call.
 // External SIP peers cannot supply these values directly to FreeSWITCH:
 // OpenSIPS strips them and writes its own resolved X-Leamout metadata.
-func TranslateInboundFreeSWITCHEvent(event freeswitch.Event) (InboundAdmissionRequest, error) {
+func TranslateInboundFreeSWITCHEvent(event freeswitch.Event) (calls.InboundAdmissionRequest, error) {
 	if event.Name != "CHANNEL_CREATE" {
-		return InboundAdmissionRequest{}, fmt.Errorf("%w: %s", ErrNotInboundAdmission, event.Name)
+		return calls.InboundAdmissionRequest{}, fmt.Errorf("%w: %s", ErrNotInboundAdmission, event.Name)
 	}
 	if strings.TrimSpace(event.Header("variable_leamout_call_id")) != "" {
-		return InboundAdmissionRequest{}, ErrNotInboundAdmission
+		return calls.InboundAdmissionRequest{}, ErrNotInboundAdmission
 	}
 
 	headers := map[string]string{
@@ -46,7 +47,7 @@ func TranslateInboundFreeSWITCHEvent(event freeswitch.Event) (InboundAdmissionRe
 		}
 	}
 	if !hasTrustedMetadata {
-		return InboundAdmissionRequest{}, ErrNotInboundAdmission
+		return calls.InboundAdmissionRequest{}, ErrNotInboundAdmission
 	}
 
 	parseID := func(name string) (uuid.UUID, error) {
@@ -60,33 +61,33 @@ func TranslateInboundFreeSWITCHEvent(event freeswitch.Event) (InboundAdmissionRe
 
 	organizationID, err := parseID("organization_id")
 	if err != nil {
-		return InboundAdmissionRequest{}, err
+		return calls.InboundAdmissionRequest{}, err
 	}
 	carrierConnectionID, err := parseID("carrier_connection_id")
 	if err != nil {
-		return InboundAdmissionRequest{}, err
+		return calls.InboundAdmissionRequest{}, err
 	}
 	phoneNumberID, err := parseID("phone_number_id")
 	if err != nil {
-		return InboundAdmissionRequest{}, err
+		return calls.InboundAdmissionRequest{}, err
 	}
 	voiceBindingID, err := parseID("voice_binding_id")
 	if err != nil {
-		return InboundAdmissionRequest{}, err
+		return calls.InboundAdmissionRequest{}, err
 	}
 	applicationID, err := parseID("application_id")
 	if err != nil {
-		return InboundAdmissionRequest{}, err
+		return calls.InboundAdmissionRequest{}, err
 	}
 
 	channelID := strings.TrimSpace(event.Header("Unique-ID"))
 	if channelID == "" {
-		return InboundAdmissionRequest{}, fmt.Errorf("FreeSWITCH inbound event is missing Unique-ID")
+		return calls.InboundAdmissionRequest{}, fmt.Errorf("FreeSWITCH inbound event is missing Unique-ID")
 	}
 
 	sipCallID := strings.TrimSpace(event.Header("variable_sip_call_id"))
 	if sipCallID == "" {
-		return InboundAdmissionRequest{}, fmt.Errorf("FreeSWITCH inbound event is missing SIP Call-ID")
+		return calls.InboundAdmissionRequest{}, fmt.Errorf("FreeSWITCH inbound event is missing SIP Call-ID")
 	}
 
 	fromURI := firstNonEmpty(
@@ -95,7 +96,7 @@ func TranslateInboundFreeSWITCHEvent(event freeswitch.Event) (InboundAdmissionRe
 		event.Header("Caller-ANI"),
 	)
 	if fromURI == "" {
-		return InboundAdmissionRequest{}, fmt.Errorf("FreeSWITCH inbound event is missing caller identity")
+		return calls.InboundAdmissionRequest{}, fmt.Errorf("FreeSWITCH inbound event is missing caller identity")
 	}
 
 	toURI := firstNonEmpty(
@@ -103,15 +104,15 @@ func TranslateInboundFreeSWITCHEvent(event freeswitch.Event) (InboundAdmissionRe
 		event.Header("variable_sip_to_user"),
 	)
 	if toURI == "" {
-		return InboundAdmissionRequest{}, fmt.Errorf("FreeSWITCH inbound event is missing called number")
+		return calls.InboundAdmissionRequest{}, fmt.Errorf("FreeSWITCH inbound event is missing called number")
 	}
 
 	occurredAt, err := freeSWITCHEventTime(event)
 	if err != nil {
-		return InboundAdmissionRequest{}, err
+		return calls.InboundAdmissionRequest{}, err
 	}
 
-	return InboundAdmissionRequest{
+	return calls.InboundAdmissionRequest{
 		ChannelID:           channelID,
 		SIPCallID:           sipCallID,
 		OrganizationID:      organizationID,
@@ -128,29 +129,29 @@ func TranslateInboundFreeSWITCHEvent(event freeswitch.Event) (InboundAdmissionRe
 // TranslateFreeSWITCHEvent converts a raw FreeSWITCH channel event into a
 // normalized call lifecycle event. Leamout call identity is carried explicitly
 // in variable_leamout_call_id; FreeSWITCH Unique-ID remains the channel ID.
-func TranslateFreeSWITCHEvent(event freeswitch.Event) (LifecycleEvent, error) {
+func TranslateFreeSWITCHEvent(event freeswitch.Event) (calls.LifecycleEvent, error) {
 	eventType, err := lifecycleEventType(event)
 	if err != nil {
-		return LifecycleEvent{}, err
+		return calls.LifecycleEvent{}, err
 	}
 
 	rawCallID := strings.TrimSpace(event.Header("variable_leamout_call_id"))
 	callID, err := uuid.Parse(rawCallID)
 	if err != nil {
-		return LifecycleEvent{}, fmt.Errorf("%w: missing valid Leamout call id", ErrUncorrelatedEvent)
+		return calls.LifecycleEvent{}, fmt.Errorf("%w: missing valid Leamout call id", ErrUncorrelatedEvent)
 	}
 
 	channelID := strings.TrimSpace(event.Header("Unique-ID"))
 	if channelID == "" {
-		return LifecycleEvent{}, fmt.Errorf("FreeSWITCH call event is missing Unique-ID")
+		return calls.LifecycleEvent{}, fmt.Errorf("FreeSWITCH call event is missing Unique-ID")
 	}
 
 	occurredAt, err := freeSWITCHEventTime(event)
 	if err != nil {
-		return LifecycleEvent{}, err
+		return calls.LifecycleEvent{}, err
 	}
 
-	result := LifecycleEvent{
+	result := calls.LifecycleEvent{
 		CallID:     callID,
 		ChannelID:  channelID,
 		Type:       eventType,
@@ -170,24 +171,24 @@ func TranslateFreeSWITCHEvent(event freeswitch.Event) (LifecycleEvent, error) {
 	return result, nil
 }
 
-func lifecycleEventType(event freeswitch.Event) (LifecycleEventType, error) {
+func lifecycleEventType(event freeswitch.Event) (calls.LifecycleEventType, error) {
 	switch event.Name {
 	case "CHANNEL_CREATE":
-		return LifecycleInitiated, nil
+		return calls.LifecycleInitiated, nil
 	case "CHANNEL_ANSWER":
-		return LifecycleAnswered, nil
+		return calls.LifecycleAnswered, nil
 	case "CHANNEL_HOLD":
-		return LifecycleHeld, nil
+		return calls.LifecycleHeld, nil
 	case "CHANNEL_UNHOLD":
-		return LifecycleResumed, nil
+		return calls.LifecycleResumed, nil
 	case "CHANNEL_HANGUP_COMPLETE":
 		if eventAnswered(event) {
-			return LifecycleCompleted, nil
+			return calls.LifecycleCompleted, nil
 		}
 		if strings.EqualFold(strings.TrimSpace(event.Header("Hangup-Cause")), "ORIGINATOR_CANCEL") {
-			return LifecycleCancelled, nil
+			return calls.LifecycleCancelled, nil
 		}
-		return LifecycleFailed, nil
+		return calls.LifecycleFailed, nil
 	default:
 		return "", fmt.Errorf("%w: %s", ErrUnsupportedEvent, event.Name)
 	}

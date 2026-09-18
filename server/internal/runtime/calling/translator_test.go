@@ -1,4 +1,4 @@
-package calls
+package calling
 
 import (
 	"errors"
@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/coffeyvidzro/monogo/internal/integrations/freeswitch"
+	"github.com/coffeyvidzro/monogo/internal/telecom/calls"
 	"github.com/google/uuid"
 )
 
@@ -29,8 +30,8 @@ func TestTranslateFreeSWITCHEventKeepsCallAndChannelIdentitySeparate(t *testing.
 	if event.ChannelID != "fs-channel-1" {
 		t.Fatalf("channel id = %q, want fs-channel-1", event.ChannelID)
 	}
-	if event.Type != LifecycleAnswered {
-		t.Fatalf("type = %q, want %q", event.Type, LifecycleAnswered)
+	if event.Type != calls.LifecycleAnswered {
+		t.Fatalf("type = %q, want %q", event.Type, calls.LifecycleAnswered)
 	}
 
 	wantTime := time.Date(2026, time.August, 29, 8, 0, 0, 0, time.UTC)
@@ -65,8 +66,8 @@ func TestTranslateFreeSWITCHHangupKeepsCauseAsReason(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if event.Type != LifecycleFailed {
-		t.Fatalf("type = %q, want %q", event.Type, LifecycleFailed)
+	if event.Type != calls.LifecycleFailed {
+		t.Fatalf("type = %q, want %q", event.Type, calls.LifecycleFailed)
 	}
 	if event.HangupReason == nil || *event.HangupReason != "USER_BUSY" {
 		t.Fatalf("hangup reason = %v, want USER_BUSY", event.HangupReason)

@@ -1,4 +1,4 @@
-package calls
+package calling
 
 import (
 	"context"
@@ -7,7 +7,7 @@ import (
 	"log"
 	"time"
 
-	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
+	"github.com/coffeyvidzro/monogo/internal/telecom/calls"
 	"github.com/google/uuid"
 )
 
@@ -24,7 +24,7 @@ func DefaultReconciliationJobConfig() ReconciliationJobConfig {
 type reconciliationRepository interface {
 	ListActiveForAdmissionReconciliation(
 		context.Context,
-	) ([]sqlc.ListActiveCallsForAdmissionReconciliationRow, error)
+	) ([]calls.ActiveAdmissionCall, error)
 }
 
 type reconciliationAdmission interface {
@@ -92,10 +92,7 @@ func (j *ReconciliationJob) Reconcile(ctx context.Context) error {
 	}
 
 	for _, call := range active {
-		if call.CarrierConnectionID == nil {
-			continue
-		}
-		if err := j.admission.Refresh(ctx, *call.CarrierConnectionID, call.ID); err != nil {
+		if err := j.admission.Refresh(ctx, call.CarrierConnectionID, call.ID); err != nil {
 			return fmt.Errorf("refresh admission lease for call %s: %w", call.ID, err)
 		}
 	}

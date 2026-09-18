@@ -4,7 +4,6 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
-	"github.com/coffeyvidzro/monogo/internal/integrations/redis"
 	"github.com/coffeyvidzro/monogo/internal/security/encryption"
 	"github.com/coffeyvidzro/monogo/internal/telecom/calls"
 	"github.com/coffeyvidzro/monogo/internal/telecom/carriers"
@@ -21,8 +20,9 @@ import (
 type Dependencies struct {
 	DB                   *pgxpool.Pool
 	Queries              *sqlc.Queries
-	Redis                *redis.Client
 	CallsController      calls.Controller
+	CallsChannelStore    calls.ChannelStore
+	CallsAdmission       calls.AdmissionLimiter
 	ConferenceController conferences.Controller
 	CredentialCipher     *encryption.Cipher
 	RealtimeService      *realtime.Service
@@ -108,8 +108,8 @@ func New(deps Dependencies) (*Module, error) {
 		callsRepository,
 		routingService,
 		deps.CallsController,
-		calls.NewRedisChannelStore(deps.Redis),
-		calls.NewRedisAdmissionLimiter(deps.Redis, callsRepository),
+		deps.CallsChannelStore,
+		deps.CallsAdmission,
 	)
 
 	voiceRepository := voice.NewRepository(deps.Queries)
