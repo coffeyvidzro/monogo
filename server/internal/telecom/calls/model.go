@@ -59,6 +59,19 @@ type LifecycleEvent struct {
 	HangupReason *string
 }
 
+type InboundAdmissionRequest struct {
+	ChannelID            string
+	SIPCallID            string
+	OrganizationID       uuid.UUID
+	ApplicationID        uuid.UUID
+	PhoneNumberID        uuid.UUID
+	VoiceBindingID       uuid.UUID
+	CarrierConnectionID  uuid.UUID
+	FromURI              string
+	ToURI                string
+	OccurredAt           time.Time
+}
+
 type CreateRequest struct {
 	ApplicationID   *uuid.UUID `json:"application_id,omitempty"`
 	TrunkID         *uuid.UUID `json:"trunk_id,omitempty"`

@@ -37,6 +37,31 @@ func (r *Repository) Create(
 	})
 }
 
+func (r *Repository) CreateInbound(
+	ctx context.Context,
+	req InboundAdmissionRequest,
+) (sqlc.Call, error) {
+	state := string(StateRinging)
+	applicationID := req.ApplicationID
+	sipCallID := req.SIPCallID
+	return r.queries.CreateCall(ctx, sqlc.CreateCallParams{
+		OrganizationID: req.OrganizationID,
+		ApplicationID:  &applicationID,
+		Direction:      string(DirectionInbound),
+		State:          &state,
+		FromUri:        req.FromURI,
+		ToUri:          req.ToURI,
+		SipCallID:      &sipCallID,
+	})
+}
+
+func (r *Repository) GetBySIPCallIDGlobal(
+	ctx context.Context,
+	sipCallID string,
+) (sqlc.Call, error) {
+	return r.queries.GetCallBySIPCallIDGlobal(ctx, &sipCallID)
+}
+
 func (r *Repository) Get(
 	ctx context.Context,
 	organizationID, id uuid.UUID,

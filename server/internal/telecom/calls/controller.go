@@ -35,6 +35,7 @@ type Controller interface {
 	StopPlayback(context.Context, string) error
 	Record(context.Context, string, RecordRequest) error
 	SendDTMF(context.Context, string, string) error
+	SetCallID(context.Context, string, uuid.UUID) error
 }
 
 type OriginateRequest struct {
@@ -278,6 +279,20 @@ func (c *FreeSWITCHController) Record(
 func (c *FreeSWITCHController) SendDTMF(ctx context.Context, channelID, digits string) error {
 	if err := c.client.SendDTMF(ctx, channelID, digits); err != nil {
 		return fmt.Errorf("send DTMF: %w", err)
+	}
+	return nil
+}
+
+func (c *FreeSWITCHController) SetCallID(
+	ctx context.Context,
+	channelID string,
+	callID uuid.UUID,
+) error {
+	if callID == uuid.Nil {
+		return fmt.Errorf("call id is required")
+	}
+	if err := c.client.SetVariable(ctx, channelID, leamoutCallIDVar, callID.String()); err != nil {
+		return fmt.Errorf("set call id: %w", err)
 	}
 	return nil
 }

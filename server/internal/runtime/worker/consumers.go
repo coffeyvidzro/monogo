@@ -28,25 +28,62 @@ func subscribeFreeSWITCH(ctx context.Context, logger *logging.Logger, modules *m
 		freeswitch.EventFormatPlain,
 		freeSWITCHLifecycleEvents,
 		func(eventCtx context.Context, event freeswitch.Event) error {
-			callEvent, err := calls.TranslateFreeSWITCHEvent(event)
-			switch {
-			case errors.Is(err, calls.ErrUnsupportedEvent),
-				errors.Is(err, calls.ErrUncorrelatedEvent):
-			case err != nil:
-				logger.Error(
-					eventCtx,
-					"translate call FreeSWITCH event",
-					"event", event.Name,
-					"error", err,
-				)
-			default:
-				if err := modules.callsService.ObserveLifecycle(eventCtx, callEvent); err != nil {
+			admittedInbound := false
+			if event.Name == "CHANNEL_CREATE" &&
+				event.Header("variable_leamout_call_id") == "" {
+				admission, err := calls.TranslateInboundFreeSWITCHEvent(event)
+				switch {
+				case errors.Is(err, calls.ErrNotInboundAdmission):
+				case err != nil:
 					logger.Error(
 						eventCtx,
-						"handle call FreeSWITCH event",
+						"translate inbound FreeSWITCH event",
+						"error", err,
+					)
+					if channelID := event.Header("Unique-ID"); channelID != "" {
+						if hangupErr := modules.freeSwitch.Hangup(eventCtx, channelID); hangupErr != nil {
+							logger.Error(
+								eventCtx,
+								"reject malformed inbound FreeSWITCH channel",
+								"channel_id", channelID,
+								"error", hangupErr,
+							)
+						}
+					}
+				default:
+					if _, err := modules.callsService.AdmitInbound(eventCtx, admission); err != nil {
+						logger.Error(
+							eventCtx,
+							"admit inbound call",
+							"channel_id", admission.ChannelID,
+							"error", err,
+						)
+					}
+					admittedInbound = true
+				}
+			}
+
+			if !admittedInbound {
+				callEvent, err := calls.TranslateFreeSWITCHEvent(event)
+				switch {
+				case errors.Is(err, calls.ErrUnsupportedEvent),
+					errors.Is(err, calls.ErrUncorrelatedEvent):
+				case err != nil:
+					logger.Error(
+						eventCtx,
+						"translate call FreeSWITCH event",
 						"event", event.Name,
 						"error", err,
 					)
+				default:
+					if err := modules.callsService.ObserveLifecycle(eventCtx, callEvent); err != nil {
+						logger.Error(
+							eventCtx,
+							"handle call FreeSWITCH event",
+							"event", event.Name,
+							"error", err,
+						)
+					}
 				}
 			}
 

@@ -12,9 +12,118 @@ import (
 )
 
 var (
-	ErrUnsupportedEvent  = errors.New("unsupported FreeSWITCH call event")
-	ErrUncorrelatedEvent = errors.New("uncorrelated FreeSWITCH call event")
+	ErrUnsupportedEvent     = errors.New("unsupported FreeSWITCH call event")
+	ErrUncorrelatedEvent    = errors.New("uncorrelated FreeSWITCH call event")
+	ErrNotInboundAdmission  = errors.New("not an inbound FreeSWITCH admission event")
 )
+
+
+// TranslateInboundFreeSWITCHEvent converts the first trusted carrier-ingress
+// channel event into the admission request used to create a Leamout call.
+// External SIP peers cannot supply these values directly to FreeSWITCH:
+// OpenSIPS strips them and writes its own resolved X-Leamout metadata.
+func TranslateInboundFreeSWITCHEvent(event freeswitch.Event) (InboundAdmissionRequest, error) {
+	if event.Name != "CHANNEL_CREATE" {
+		return InboundAdmissionRequest{}, fmt.Errorf("%w: %s", ErrNotInboundAdmission, event.Name)
+	}
+	if strings.TrimSpace(event.Header("variable_leamout_call_id")) != "" {
+		return InboundAdmissionRequest{}, ErrNotInboundAdmission
+	}
+
+	headers := map[string]string{
+		"organization_id":        event.Header("variable_sip_h_X-Leamout-Organization-ID"),
+		"carrier_connection_id": event.Header("variable_sip_h_X-Leamout-Carrier-Connection-ID"),
+		"phone_number_id":       event.Header("variable_sip_h_X-Leamout-Phone-Number-ID"),
+		"voice_binding_id":      event.Header("variable_sip_h_X-Leamout-Voice-Binding-ID"),
+		"application_id":        event.Header("variable_sip_h_X-Leamout-Voice-Application-ID"),
+	}
+
+	hasTrustedMetadata := false
+	for _, value := range headers {
+		if strings.TrimSpace(value) != "" {
+			hasTrustedMetadata = true
+			break
+		}
+	}
+	if !hasTrustedMetadata {
+		return InboundAdmissionRequest{}, ErrNotInboundAdmission
+	}
+
+	parseID := func(name string) (uuid.UUID, error) {
+		value := strings.TrimSpace(headers[name])
+		id, err := uuid.Parse(value)
+		if err != nil {
+			return uuid.Nil, fmt.Errorf("invalid inbound %s", name)
+		}
+		return id, nil
+	}
+
+	organizationID, err := parseID("organization_id")
+	if err != nil {
+		return InboundAdmissionRequest{}, err
+	}
+	carrierConnectionID, err := parseID("carrier_connection_id")
+	if err != nil {
+		return InboundAdmissionRequest{}, err
+	}
+	phoneNumberID, err := parseID("phone_number_id")
+	if err != nil {
+		return InboundAdmissionRequest{}, err
+	}
+	voiceBindingID, err := parseID("voice_binding_id")
+	if err != nil {
+		return InboundAdmissionRequest{}, err
+	}
+	applicationID, err := parseID("application_id")
+	if err != nil {
+		return InboundAdmissionRequest{}, err
+	}
+
+	channelID := strings.TrimSpace(event.Header("Unique-ID"))
+	if channelID == "" {
+		return InboundAdmissionRequest{}, fmt.Errorf("FreeSWITCH inbound event is missing Unique-ID")
+	}
+
+	sipCallID := strings.TrimSpace(event.Header("variable_sip_call_id"))
+	if sipCallID == "" {
+		return InboundAdmissionRequest{}, fmt.Errorf("FreeSWITCH inbound event is missing SIP Call-ID")
+	}
+
+	fromURI := firstNonEmpty(
+		event.Header("variable_sip_from_uri"),
+		event.Header("Caller-Caller-ID-Number"),
+		event.Header("Caller-ANI"),
+	)
+	if fromURI == "" {
+		return InboundAdmissionRequest{}, fmt.Errorf("FreeSWITCH inbound event is missing caller identity")
+	}
+
+	toURI := firstNonEmpty(
+		event.Header("Caller-Destination-Number"),
+		event.Header("variable_sip_to_user"),
+	)
+	if toURI == "" {
+		return InboundAdmissionRequest{}, fmt.Errorf("FreeSWITCH inbound event is missing called number")
+	}
+
+	occurredAt, err := freeSWITCHEventTime(event)
+	if err != nil {
+		return InboundAdmissionRequest{}, err
+	}
+
+	return InboundAdmissionRequest{
+		ChannelID:           channelID,
+		SIPCallID:           sipCallID,
+		OrganizationID:      organizationID,
+		ApplicationID:       applicationID,
+		PhoneNumberID:       phoneNumberID,
+		VoiceBindingID:      voiceBindingID,
+		CarrierConnectionID: carrierConnectionID,
+		FromURI:             strings.TrimSpace(fromURI),
+		ToURI:               strings.TrimSpace(toURI),
+		OccurredAt:          occurredAt,
+	}, nil
+}
 
 // TranslateFreeSWITCHEvent converts a raw FreeSWITCH channel event into a
 // normalized call lifecycle event. Leamout call identity is carried explicitly

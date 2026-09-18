@@ -6,6 +6,7 @@ type InboundRequest struct {
 	OrganizationID      uuid.UUID
 	ApplicationID       uuid.UUID
 	PhoneNumberID       uuid.UUID
+	VoiceBindingID      uuid.UUID
 	CarrierConnectionID uuid.UUID
 	CalledNumber        string
 }
@@ -20,6 +21,7 @@ type InboundDecision struct {
 	OrganizationID      uuid.UUID
 	ApplicationID       uuid.UUID
 	PhoneNumberID       uuid.UUID
+	VoiceBindingID      uuid.UUID
 	CarrierConnectionID uuid.UUID
 	CalledNumber        string
 	Limits              Limits

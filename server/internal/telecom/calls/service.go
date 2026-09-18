@@ -98,6 +98,155 @@ func (s *Service) Create(ctx context.Context, organizationID uuid.UUID, req Crea
 	return s.repo.Get(ctx, organizationID, call.ID)
 }
 
+
+func (s *Service) AdmitInbound(
+	ctx context.Context,
+	req InboundAdmissionRequest,
+) (sqlc.Call, error) {
+	if err := validateInboundAdmission(req); err != nil {
+		return sqlc.Call{}, err
+	}
+
+	existing, err := s.repo.GetBySIPCallIDGlobal(ctx, req.SIPCallID)
+	if err == nil {
+		if err := validateExistingInbound(existing, req); err != nil {
+			return sqlc.Call{}, s.rejectInbound(ctx, req.ChannelID, err)
+		}
+		existing, err = s.ensureInboundAttribution(ctx, existing, req)
+		if err != nil {
+			return sqlc.Call{}, s.rejectInbound(ctx, req.ChannelID, err)
+		}
+		if err := s.bindInboundChannel(ctx, existing, req.ChannelID); err != nil {
+			return sqlc.Call{}, s.rejectInbound(ctx, req.ChannelID, err)
+		}
+		return existing, nil
+	}
+	if !errors.Is(err, pgx.ErrNoRows) {
+		return sqlc.Call{}, s.rejectInbound(
+			ctx,
+			req.ChannelID,
+			apperror.NewInternal("lookup inbound SIP call", err),
+		)
+	}
+
+	_, err = s.router.ResolveInbound(ctx, routing.InboundRequest{
+		OrganizationID:      req.OrganizationID,
+		ApplicationID:       req.ApplicationID,
+		PhoneNumberID:       req.PhoneNumberID,
+		VoiceBindingID:      req.VoiceBindingID,
+		CarrierConnectionID: req.CarrierConnectionID,
+		CalledNumber:        req.ToURI,
+	})
+	if err != nil {
+		return sqlc.Call{}, s.rejectInbound(ctx, req.ChannelID, err)
+	}
+
+	call, err := s.repo.CreateInbound(ctx, req)
+	if err != nil {
+		// A duplicate CHANNEL_CREATE or a concurrent admission can race the
+		// unique SIP Call-ID constraint. Re-read and reuse the durable call.
+		existing, readErr := s.repo.GetBySIPCallIDGlobal(ctx, req.SIPCallID)
+		if readErr == nil {
+			if validateErr := validateExistingInbound(existing, req); validateErr != nil {
+				return sqlc.Call{}, s.rejectInbound(ctx, req.ChannelID, validateErr)
+			}
+			existing, attributionErr := s.ensureInboundAttribution(ctx, existing, req)
+			if attributionErr != nil {
+				return sqlc.Call{}, s.rejectInbound(ctx, req.ChannelID, attributionErr)
+			}
+			if bindErr := s.bindInboundChannel(ctx, existing, req.ChannelID); bindErr != nil {
+				return sqlc.Call{}, s.rejectInbound(ctx, req.ChannelID, bindErr)
+			}
+			return existing, nil
+		}
+		return sqlc.Call{}, s.rejectInbound(
+			ctx,
+			req.ChannelID,
+			apperror.NewInternal("create inbound call", err),
+		)
+	}
+
+	carrierID := req.CarrierConnectionID
+	call, err = s.repo.SetRouteAttribution(ctx, req.OrganizationID, call.ID, RouteAttribution{
+		CarrierConnectionID: &carrierID,
+	})
+	if err != nil {
+		reason := "inbound_attribution_failed"
+		_, _ = s.repo.MarkFailed(ctx, req.OrganizationID, call.ID, &reason)
+		return sqlc.Call{}, s.rejectInbound(
+			ctx,
+			req.ChannelID,
+			apperror.NewInternal("set inbound route attribution", err),
+		)
+	}
+
+	if err := s.bindInboundChannel(ctx, call, req.ChannelID); err != nil {
+		reason := "inbound_channel_binding_failed"
+		_, _ = s.repo.MarkFailed(ctx, req.OrganizationID, call.ID, &reason)
+		return sqlc.Call{}, s.rejectInbound(ctx, req.ChannelID, err)
+	}
+
+	return call, nil
+}
+
+func validateExistingInbound(call sqlc.Call, req InboundAdmissionRequest) error {
+	if call.Direction != string(DirectionInbound) ||
+		call.OrganizationID != req.OrganizationID ||
+		call.ApplicationID == nil ||
+		*call.ApplicationID != req.ApplicationID ||
+		call.ToUri != req.ToURI {
+		return apperror.NewConflict("SIP Call-ID is already associated with a different call")
+	}
+	if call.CarrierConnectionID != nil && *call.CarrierConnectionID != req.CarrierConnectionID {
+		return apperror.NewConflict("SIP Call-ID carrier attribution does not match")
+	}
+	if isTerminalState(call.State) {
+		return apperror.NewConflict("inbound SIP call is already terminal")
+	}
+	return nil
+}
+
+
+func (s *Service) ensureInboundAttribution(
+	ctx context.Context,
+	call sqlc.Call,
+	req InboundAdmissionRequest,
+) (sqlc.Call, error) {
+	if call.CarrierConnectionID != nil {
+		return call, nil
+	}
+	carrierID := req.CarrierConnectionID
+	updated, err := s.repo.SetRouteAttribution(ctx, req.OrganizationID, call.ID, RouteAttribution{
+		CarrierConnectionID: &carrierID,
+	})
+	if err != nil {
+		return sqlc.Call{}, apperror.NewInternal("set inbound route attribution", err)
+	}
+	return updated, nil
+}
+
+func (s *Service) bindInboundChannel(
+	ctx context.Context,
+	call sqlc.Call,
+	channelID string,
+) error {
+	if err := s.channels.Bind(ctx, call.ID, channelID); err != nil {
+		return apperror.NewInternal("bind inbound call channel", err)
+	}
+	if err := s.controller.SetCallID(ctx, channelID, call.ID); err != nil {
+		_ = s.channels.Delete(ctx, call.ID)
+		return apperror.NewInternal("correlate inbound FreeSWITCH channel", err)
+	}
+	return nil
+}
+
+func (s *Service) rejectInbound(ctx context.Context, channelID string, cause error) error {
+	if err := s.controller.Hangup(ctx, channelID); err != nil {
+		return errors.Join(cause, err)
+	}
+	return cause
+}
+
 func (s *Service) Get(ctx context.Context, organizationID, id uuid.UUID) (sqlc.Call, error) {
 	if err := validateIDs(organizationID, id); err != nil {
 		return sqlc.Call{}, err

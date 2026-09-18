@@ -49,6 +49,7 @@ func (s *Service) ResolveInbound(
 		OrganizationID:      req.OrganizationID,
 		ApplicationID:       req.ApplicationID,
 		PhoneNumberID:       req.PhoneNumberID,
+		VoiceBindingID:      req.VoiceBindingID,
 		CarrierConnectionID: req.CarrierConnectionID,
 		CalledNumber:        req.CalledNumber,
 		Limits:              limits,
