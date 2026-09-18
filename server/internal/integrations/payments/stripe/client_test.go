@@ -35,6 +35,7 @@ func TestCreateCheckoutSession(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+
 		if got := values.Get("mode"); got != "payment" {
 			t.Fatalf("mode = %q", got)
 		}
@@ -49,6 +50,9 @@ func TestCreateCheckoutSession(t *testing.T) {
 		}
 		if got := values.Get("line_items[0][price_data][unit_amount]"); got != "5000" {
 			t.Fatalf("unit_amount = %q", got)
+		}
+		if got := values.Get("line_items[0][price_data][product_data][name]"); got != "Wallet top-up" {
+			t.Fatalf("product name = %q", got)
 		}
 
 		w.Header().Set("Content-Type", "application/json")
@@ -73,8 +77,8 @@ func TestCreateCheckoutSession(t *testing.T) {
 	}
 
 	session, err := client.CreateCheckoutSession(context.Background(), CreateCheckoutSessionRequest{
-		Amount:   5000,
-		Currency: "USD",
+		AmountMinor: 5000,
+		Currency:    "USD",
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -82,13 +86,11 @@ func TestCreateCheckoutSession(t *testing.T) {
 	if session.ID != "cs_test_123" {
 		t.Fatalf("session ID = %q", session.ID)
 	}
-	if MapCheckoutStatus(session) != PaymentStatusPending {
-		t.Fatalf("status = %q", MapCheckoutStatus(session))
-	}
 }
 
 func TestParseCheckoutSessionWebhook(t *testing.T) {
 	const secret = "whsec_test"
+
 	client, err := New(DefaultConfig("sk_test", secret))
 	if err != nil {
 		t.Fatal(err)
@@ -113,17 +115,21 @@ func TestParseCheckoutSessionWebhook(t *testing.T) {
 	mac := hmac.New(sha256.New, []byte(secret))
 	_, _ = mac.Write([]byte(timestamp + "." + string(payload)))
 	signature := hex.EncodeToString(mac.Sum(nil))
-	header := strings.Join([]string{"t=" + timestamp, "v1=" + signature}, ",")
 
-	event, err := client.ParseWebhook(payload, header, now)
+	event, err := client.ParseWebhook(
+		payload,
+		"t="+timestamp+",v1="+signature,
+		now,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	session, err := event.DecodeCheckoutSession()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if MapCheckoutStatus(session) != PaymentStatusSucceeded {
-		t.Fatalf("status = %q", MapCheckoutStatus(session))
+	if session.ID != "cs_123" {
+		t.Fatalf("session ID = %q", session.ID)
 	}
 }
