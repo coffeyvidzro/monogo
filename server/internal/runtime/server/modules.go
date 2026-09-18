@@ -89,7 +89,11 @@ func newModules(ctx context.Context, cfg config.Config) (*modules, error) {
 	}
 
 	queries := sqlc.New(postgresClient.Pool())
-	identityModule := identity.New(queries)
+	identityModule := identity.New(
+		queries,
+		cfg.IsDevelopment(),
+		cfg.Domain,
+	)
 	tenancyModule := tenancy.New(queries)
 	platformModule := platform.New(postgresClient.Pool(), queries)
 	telecomModule, err := telecom.New(telecom.Dependencies{
