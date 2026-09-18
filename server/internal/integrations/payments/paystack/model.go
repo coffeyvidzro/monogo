@@ -10,15 +10,15 @@ import (
 const defaultBaseURL = "https://api.paystack.co"
 
 type Config struct {
-	SecretKey string
-	BaseURL   string
+	SecretKey  string
+	BaseURL    string
 	HTTPClient *http.Client
 }
 
 func DefaultConfig(secretKey string) Config {
 	return Config{
-		SecretKey: strings.TrimSpace(secretKey),
-		BaseURL:   defaultBaseURL,
+		SecretKey:  strings.TrimSpace(secretKey),
+		BaseURL:    defaultBaseURL,
 		HTTPClient: &http.Client{Timeout: 10 * time.Second},
 	}
 }
@@ -50,12 +50,9 @@ type MobileMoney struct {
 }
 
 type ChargeRequest struct {
-	Email       string            `json:"email"`
-	Amount      int64             `json:"amount"`
-	Currency    string            `json:"currency"`
-	Reference   string            `json:"reference,omitempty"`
-	MobileMoney *MobileMoney      `json:"mobile_money,omitempty"`
-	Metadata    map[string]string `json:"metadata,omitempty"`
+	Email       string       `json:"email"`
+	Amount      int64        `json:"amount"`
+	MobileMoney *MobileMoney `json:"mobile_money"`
 }
 
 func (r ChargeRequest) Validate() error {
@@ -64,9 +61,6 @@ func (r ChargeRequest) Validate() error {
 	}
 	if r.Amount <= 0 {
 		return fmt.Errorf("Paystack charge amount must be positive")
-	}
-	if strings.TrimSpace(r.Currency) == "" {
-		return fmt.Errorf("Paystack charge currency is required")
 	}
 	if r.MobileMoney == nil {
 		return fmt.Errorf("Paystack mobile money details are required")
@@ -86,28 +80,12 @@ type ChargeData struct {
 	Reference   string `json:"reference"`
 	Status      string `json:"status"`
 	DisplayText string `json:"display_text"`
-	Message     string `json:"message"`
 }
 
 type ChargeResponse struct {
 	Status  bool       `json:"status"`
 	Message string     `json:"message"`
 	Data    ChargeData `json:"data"`
-}
-
-type SubmitOTPRequest struct {
-	OTP       string `json:"otp"`
-	Reference string `json:"reference"`
-}
-
-func (r SubmitOTPRequest) Validate() error {
-	if strings.TrimSpace(r.OTP) == "" {
-		return fmt.Errorf("Paystack OTP is required")
-	}
-	if strings.TrimSpace(r.Reference) == "" {
-		return fmt.Errorf("Paystack reference is required")
-	}
-	return nil
 }
 
 type TransactionData struct {
