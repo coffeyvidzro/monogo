@@ -1,4 +1,4 @@
-name: Server CI
+name: Server
 
 on:
   push:
@@ -21,12 +21,12 @@ permissions:
   contents: read
 
 concurrency:
-  group: server-${{ github.workflow }}-${{ github.ref }}
+  group: server-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  go:
-    name: go
+  test:
+    name: Test + lint
     runs-on: ubuntu-latest
 
     defaults:
@@ -44,8 +44,23 @@ jobs:
           cache: true
           cache-dependency-path: server/go.sum
 
-      - name: Verify modules
+      - name: Download dependencies
+        run: go mod download
+
+      - name: Verify dependencies
         run: go mod verify
+
+      - name: Check formatting
+        run: |
+          unformatted="$(gofmt -l .)"
+          if [ -n "$unformatted" ]; then
+            echo "The following Go files are not gofmt-formatted:"
+            echo "$unformatted"
+            exit 1
+          fi
+
+      - name: Run tests
+        run: go test -race -coverprofile=coverage.out ./...
 
       - name: Vet
         run: go vet ./...
@@ -57,17 +72,11 @@ jobs:
           working-directory: server
           args: --config=../.golangci.yml --timeout=5m
 
-      - name: Test
-        run: go test ./...
+      - name: Build packages
+        run: go build ./...
 
-      - name: Build server
-        run: go build ./cmd/server
-
-      - name: Build worker
-        run: go build ./cmd/worker
-
-  database:
-    name: database
+  sqlc:
+    name: Validate sqlc
     runs-on: ubuntu-latest
 
     defaults:
@@ -94,19 +103,31 @@ jobs:
       - name: Generate sqlc
         run: sqlc generate
 
-      - name: Check generated sqlc
+      - name: Check generated code
         run: git diff --exit-code -- internal/database/sqlc
+
+  migrations:
+    name: Validate migrations
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: server
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7.0.1
 
       - name: Set up Atlas
         uses: ariga/setup-atlas@v0.3
         with:
           version: v1.3.0
 
-      - name: Validate migrations
+      - name: Validate Atlas migrations
         run: atlas migrate validate --dir file://migrations
 
-      - name: Recalculate migration hash
+      - name: Regenerate Atlas checksum
         run: atlas migrate hash --dir file://migrations
 
-      - name: Check migration hash
+      - name: Check Atlas checksum
         run: git diff --exit-code -- migrations/atlas.sum
