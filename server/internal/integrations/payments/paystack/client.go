@@ -48,30 +48,6 @@ func (c *Client) ChargeMobileMoney(ctx context.Context, request ChargeRequest) (
 	return response, nil
 }
 
-func (c *Client) SubmitOTP(ctx context.Context, request SubmitOTPRequest) (ChargeResponse, error) {
-	if err := request.Validate(); err != nil {
-		return ChargeResponse{}, err
-	}
-	var response ChargeResponse
-	if err := c.doJSON(ctx, http.MethodPost, "/charge/submit_otp", request, &response); err != nil {
-		return ChargeResponse{}, err
-	}
-	return response, nil
-}
-
-func (c *Client) CheckCharge(ctx context.Context, reference string) (ChargeResponse, error) {
-	reference = strings.TrimSpace(reference)
-	if reference == "" {
-		return ChargeResponse{}, fmt.Errorf("Paystack reference is required")
-	}
-	var response ChargeResponse
-	path := "/charge/" + url.PathEscape(reference)
-	if err := c.doJSON(ctx, http.MethodGet, path, nil, &response); err != nil {
-		return ChargeResponse{}, err
-	}
-	return response, nil
-}
-
 func (c *Client) VerifyTransaction(ctx context.Context, reference string) (TransactionResponse, error) {
 	reference = strings.TrimSpace(reference)
 	if reference == "" {
