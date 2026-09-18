@@ -8,7 +8,10 @@ import (
 	"time"
 )
 
-const defaultBaseURL = "https://api.stripe.com"
+const (
+	DefaultBaseURL    = "https://api.stripe.com/v1"
+	DefaultAPIVersion = "2026-08-26.dahlia"
+)
 
 type Config struct {
 	SecretKey     string
@@ -21,7 +24,7 @@ func DefaultConfig(secretKey, webhookSecret string) Config {
 	return Config{
 		SecretKey:     strings.TrimSpace(secretKey),
 		WebhookSecret: strings.TrimSpace(webhookSecret),
-		BaseURL:       defaultBaseURL,
+		BaseURL:       DefaultBaseURL,
 		HTTPClient:    &http.Client{Timeout: 10 * time.Second},
 	}
 }
