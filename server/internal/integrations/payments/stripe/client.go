@@ -55,6 +55,7 @@ func (c *Client) CreateCheckoutSession(
 	values := url.Values{}
 	values.Set("mode", "payment")
 	values.Set("ui_mode", "custom")
+	values.Set("payment_method_types[0]", "card")
 	values.Set("customer_email", request.Email)
 	values.Set("line_items[0][quantity]", "1")
 	values.Set("line_items[0][price_data][currency]", strings.ToLower(request.Currency))
