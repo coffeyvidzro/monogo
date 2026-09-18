@@ -94,6 +94,15 @@ WHERE state IN ('initiating', 'ringing', 'answered', 'active')
 ORDER BY updated_at ASC
 LIMIT sqlc.arg(batch_size);
 
+-- name: ListActiveCallsForAdmissionReconciliation :many
+SELECT
+    id,
+    carrier_connection_id
+FROM calls
+WHERE state IN ('initiating', 'ringing', 'answered', 'active')
+  AND carrier_connection_id IS NOT NULL
+ORDER BY created_at ASC;
+
 -- Revalidate the DID-derived tenant and route tuple before the call service
 -- persists or admits an inbound call.
 -- name: GetInboundCallContext :one

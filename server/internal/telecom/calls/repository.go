@@ -85,6 +85,12 @@ func (r *Repository) CarrierDailyUsageSeconds(
 	return r.queries.GetCarrierDailyUsageSeconds(ctx, carrierConnectionID)
 }
 
+func (r *Repository) ListActiveForAdmissionReconciliation(
+	ctx context.Context,
+) ([]sqlc.ListActiveCallsForAdmissionReconciliationRow, error) {
+	return r.queries.ListActiveCallsForAdmissionReconciliation(ctx)
+}
+
 func (r *Repository) List(
 	ctx context.Context,
 	organizationID uuid.UUID,

@@ -111,7 +111,7 @@ func runWorkloads(ctx context.Context, logger *logging.Logger, modules *modules)
 	run("outbox publisher", modules.outbox.Run)
 	run("webhook consumer", modules.webhookConsumer.Run)
 	run("webhook delivery worker", modules.webhookDelivery.Run)
-	// run("call reconciliation", modules.callReconciliation.Run)
+	run("call reconciliation", modules.callReconciliation.Run)
 	run("recording reconciliation", modules.recordingReconciliation.Run)
 	run("idempotency cleanup", modules.idempotencyCleanup.Run)
 

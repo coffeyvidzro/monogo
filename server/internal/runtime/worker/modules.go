@@ -15,7 +15,7 @@ import (
 	"github.com/coffeyvidzro/monogo/internal/platform/logging"
 	"github.com/coffeyvidzro/monogo/internal/platform/outbox"
 	"github.com/coffeyvidzro/monogo/internal/platform/webhooks"
-		"github.com/coffeyvidzro/monogo/internal/telecom/calls"
+	"github.com/coffeyvidzro/monogo/internal/telecom/calls"
 	"github.com/coffeyvidzro/monogo/internal/telecom/recordings"
 	"github.com/coffeyvidzro/monogo/internal/telecom/routing"
 )
@@ -26,6 +26,7 @@ type modules struct {
 	nats                    *natsintegration.Client
 	freeSwitch              *freeswitch.Client
 	callsService            *calls.Service
+	callReconciliation      *calls.ReconciliationJob
 	outbox                  *outbox.PublisherJob
 	webhookConsumer         *webhooks.Consumer
 	webhookDelivery         *webhooks.DeliveryJob
@@ -92,13 +93,23 @@ func newModules(ctx context.Context, cfg config.Config) (*modules, error) {
 	routingRepository := routing.NewRepository(queries)
 	routingService := routing.NewService(routingRepository, nil)
 	callsRepository := calls.NewRepository(queries)
+	admissionLimiter := calls.NewRedisAdmissionLimiter(redisClient, callsRepository)
 	callsService := calls.NewService(
 		callsRepository,
 		routingService,
 		calls.NewFreeSWITCHController(freeSwitch),
 		calls.NewRedisChannelStore(redisClient),
-		calls.NewRedisAdmissionLimiter(redisClient, callsRepository),
+		admissionLimiter,
 	)
+	callReconciliation, err := calls.NewReconciliationJob(
+		callsRepository,
+		admissionLimiter,
+		calls.DefaultReconciliationJobConfig(),
+	)
+	if err != nil {
+		closeDependencies()
+		return nil, fmt.Errorf("initialize call reconciliation: %w", err)
+	}
 
 	recordingsRepository := recordings.NewRepository(postgresClient.Pool())
 	recordingsService := recordings.NewService(recordingsRepository, nil)
@@ -148,6 +159,7 @@ func newModules(ctx context.Context, cfg config.Config) (*modules, error) {
 		nats:                    natsClient,
 		freeSwitch:              freeSwitch,
 		callsService:            callsService,
+		callReconciliation:      callReconciliation,
 		outbox:                  outboxJob,
 		webhookConsumer:         webhooks.NewConsumer(natsClient, webhookService),
 		webhookDelivery:         webhookDeliveryJob,

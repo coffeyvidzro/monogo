@@ -3,13 +3,153 @@ package calls
 import (
 	"context"
 	"errors"
+	"fmt"
+	"time"
 
 	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
+	redisintegration "github.com/coffeyvidzro/monogo/internal/integrations/redis"
 	"github.com/coffeyvidzro/monogo/internal/telecom/routing"
 	"github.com/coffeyvidzro/monogo/pkg/apperror"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 )
+
+const callAdmissionLeaseTTL = 26 * time.Hour
+
+type AdmissionLimiter interface {
+	Acquire(context.Context, uuid.UUID, string, routing.Limits) error
+	Bind(context.Context, uuid.UUID, string, uuid.UUID) error
+	Release(context.Context, uuid.UUID, string) error
+	Refresh(context.Context, uuid.UUID, uuid.UUID) error
+}
+
+type callLeaseStore interface {
+	AcquireCallLease(context.Context, string, string, int64, int64, time.Duration) (bool, string, error)
+	BindCallLease(context.Context, string, string, string) error
+	ReleaseCallLease(context.Context, string, string) error
+	RefreshCallLease(context.Context, string, string, time.Duration) error
+}
+
+type dailyUsageReader interface {
+	CarrierDailyUsageSeconds(context.Context, uuid.UUID) (int64, error)
+}
+
+type RedisAdmissionLimiter struct {
+	store callLeaseStore
+	usage dailyUsageReader
+}
+
+func NewRedisAdmissionLimiter(
+	client *redisintegration.Client,
+	usage dailyUsageReader,
+) *RedisAdmissionLimiter {
+	if client == nil {
+		panic("calls: Redis admission store is required")
+	}
+	if usage == nil {
+		panic("calls: daily usage reader is required")
+	}
+	return &RedisAdmissionLimiter{store: client, usage: usage}
+}
+
+func (l *RedisAdmissionLimiter) Acquire(
+	ctx context.Context,
+	carrierConnectionID uuid.UUID,
+	leaseID string,
+	limits routing.Limits,
+) error {
+	if carrierConnectionID == uuid.Nil || leaseID == "" {
+		return fmt.Errorf("carrier connection id and lease id are required")
+	}
+	if limits.MaxCPS < 1 || limits.MaxConcurrentCalls < 1 {
+		return fmt.Errorf("carrier admission limits must be positive")
+	}
+
+	if limits.MaxDailyMinutes != nil {
+		usedSeconds, err := l.usage.CarrierDailyUsageSeconds(ctx, carrierConnectionID)
+		if err != nil {
+			return fmt.Errorf("read carrier daily usage: %w", err)
+		}
+		if usedSeconds >= *limits.MaxDailyMinutes*60 {
+			return ErrAdmissionDailyMinutes
+		}
+	}
+
+	allowed, reason, err := l.store.AcquireCallLease(
+		ctx,
+		admissionPrefix(carrierConnectionID),
+		leaseID,
+		int64(limits.MaxCPS),
+		int64(limits.MaxConcurrentCalls),
+		callAdmissionLeaseTTL,
+	)
+	if err != nil {
+		return fmt.Errorf("acquire carrier call lease: %w", err)
+	}
+	if allowed {
+		return nil
+	}
+
+	switch reason {
+	case "cps":
+		return ErrAdmissionCPS
+	case "concurrent":
+		return ErrAdmissionConcurrent
+	default:
+		return fmt.Errorf("carrier admission rejected: %s", reason)
+	}
+}
+
+func (l *RedisAdmissionLimiter) Bind(
+	ctx context.Context,
+	carrierConnectionID uuid.UUID,
+	leaseID string,
+	callID uuid.UUID,
+) error {
+	if carrierConnectionID == uuid.Nil || leaseID == "" || callID == uuid.Nil {
+		return fmt.Errorf("carrier connection id, lease id, and call id are required")
+	}
+	return l.store.BindCallLease(
+		ctx,
+		admissionPrefix(carrierConnectionID),
+		leaseID,
+		callID.String(),
+	)
+}
+
+func (l *RedisAdmissionLimiter) Release(
+	ctx context.Context,
+	carrierConnectionID uuid.UUID,
+	callOrLeaseID string,
+) error {
+	if carrierConnectionID == uuid.Nil || callOrLeaseID == "" {
+		return fmt.Errorf("carrier connection id and call or lease id are required")
+	}
+	return l.store.ReleaseCallLease(
+		ctx,
+		admissionPrefix(carrierConnectionID),
+		callOrLeaseID,
+	)
+}
+
+func (l *RedisAdmissionLimiter) Refresh(
+	ctx context.Context,
+	carrierConnectionID, callID uuid.UUID,
+) error {
+	if carrierConnectionID == uuid.Nil || callID == uuid.Nil {
+		return fmt.Errorf("carrier connection id and call id are required")
+	}
+	return l.store.RefreshCallLease(
+		ctx,
+		admissionPrefix(carrierConnectionID),
+		callID.String(),
+		callAdmissionLeaseTTL,
+	)
+}
+
+func admissionPrefix(carrierConnectionID uuid.UUID) string {
+	return "telecom:admission:carrier:" + carrierConnectionID.String()
+}
 
 type Service struct {
 	repo       *Repository
@@ -358,69 +498,6 @@ func (s *Service) SetRouteAttribution(ctx context.Context, organizationID, id uu
 	return call, translateMutationError(err)
 }
 
-func (s *Service) ObserveLifecycle(ctx context.Context, event LifecycleEvent) error {
-	if event.CallID == uuid.Nil {
-		return apperror.NewBadRequest("call lifecycle event requires call id")
-	}
-	if event.ChannelID != "" && !isTerminalLifecycle(event.Type) {
-		if err := s.channels.Bind(ctx, event.CallID, event.ChannelID); err != nil {
-			return apperror.NewInternal("bind call channel", err)
-		}
-	}
-
-	snapshot, err := s.repo.GetLifecycleSnapshot(ctx, event.CallID)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return nil
-	}
-	if err != nil {
-		return apperror.NewInternal("resolve lifecycle call", err)
-	}
-	if !isTerminalLifecycle(event.Type) && snapshot.CarrierConnectionID != nil {
-		if err := s.admission.Refresh(ctx, *snapshot.CarrierConnectionID, event.CallID); err != nil {
-			return apperror.NewServiceUnavailable("refresh carrier call lease", err)
-		}
-	}
-	if lifecycleAlreadyApplied(snapshot, event.Type) {
-		if isTerminalLifecycle(event.Type) {
-			_ = s.channels.Delete(ctx, event.CallID)
-			if snapshot.CarrierConnectionID != nil {
-				_ = s.admission.Release(ctx, *snapshot.CarrierConnectionID, event.CallID.String())
-			}
-		}
-		return nil
-	}
-
-	switch event.Type {
-	case LifecycleInitiated:
-		return nil
-	case LifecycleRinging:
-		_, err = s.MarkRinging(ctx, snapshot.OrganizationID, event.CallID)
-	case LifecycleAnswered:
-		_, err = s.MarkAnswered(ctx, snapshot.OrganizationID, event.CallID)
-	case LifecycleActive:
-		_, err = s.MarkActive(ctx, snapshot.OrganizationID, event.CallID)
-	case LifecycleHeld:
-		_, err = s.MarkHeld(ctx, snapshot.OrganizationID, event.CallID)
-	case LifecycleResumed:
-		_, err = s.MarkResumed(ctx, snapshot.OrganizationID, event.CallID)
-	case LifecycleCompleted:
-		_, err = s.MarkCompleted(ctx, snapshot.OrganizationID, event.CallID, event.HangupReason)
-	case LifecycleFailed:
-		_, err = s.MarkFailed(ctx, snapshot.OrganizationID, event.CallID, event.HangupReason)
-	case LifecycleCancelled:
-		_, err = s.MarkCancelled(ctx, snapshot.OrganizationID, event.CallID, event.HangupReason)
-	default:
-		return apperror.NewBadRequest("unsupported call lifecycle event")
-	}
-	if err == nil && isTerminalLifecycle(event.Type) {
-		_ = s.channels.Delete(ctx, event.CallID)
-		if snapshot.CarrierConnectionID != nil {
-			_ = s.admission.Release(ctx, *snapshot.CarrierConnectionID, event.CallID.String())
-		}
-	}
-	return err
-}
-
 func (s *Service) Answer(ctx context.Context, org, id uuid.UUID) error {
 	return s.control(ctx, org, id, []State{StateInitiating, StateRinging}, func(channelID string) error {
 		return s.controller.Answer(ctx, channelID)
@@ -555,74 +632,6 @@ func (s *Service) controlContext(ctx context.Context, org, id uuid.UUID) (sqlc.C
 		return sqlc.Call{}, "", apperror.NewInternal("resolve call channel", err)
 	}
 	return call, channelID, nil
-}
-
-func lifecycleAlreadyApplied(snapshot LifecycleSnapshot, eventType LifecycleEventType) bool {
-	switch eventType {
-	case LifecycleInitiated:
-		return true
-	case LifecycleRinging:
-		return snapshot.State != string(StateInitiating)
-	case LifecycleAnswered:
-		return snapshot.State == string(StateAnswered) || snapshot.State == string(StateActive) || isTerminalState(snapshot.State)
-	case LifecycleActive:
-		return snapshot.State == string(StateActive) || isTerminalState(snapshot.State)
-	case LifecycleHeld:
-		return snapshot.MediaState == string(MediaStateHeld) || isTerminalState(snapshot.State)
-	case LifecycleResumed:
-		return snapshot.MediaState == string(MediaStateActive) || isTerminalState(snapshot.State)
-	case LifecycleCompleted, LifecycleFailed, LifecycleCancelled:
-		return isTerminalState(snapshot.State)
-	default:
-		return false
-	}
-}
-
-func isTerminalLifecycle(eventType LifecycleEventType) bool {
-	return eventType == LifecycleCompleted || eventType == LifecycleFailed || eventType == LifecycleCancelled
-}
-
-func isTerminalState(state string) bool {
-	return state == string(StateCompleted) || state == string(StateFailed) || state == string(StateCancelled)
-}
-
-func (s *Service) MarkRinging(ctx context.Context, organizationID, id uuid.UUID) (sqlc.Call, error) {
-	return s.transition(ctx, organizationID, id, s.repo.MarkRinging)
-}
-func (s *Service) MarkAnswered(ctx context.Context, organizationID, id uuid.UUID) (sqlc.Call, error) {
-	return s.transition(ctx, organizationID, id, s.repo.MarkAnswered)
-}
-func (s *Service) MarkActive(ctx context.Context, organizationID, id uuid.UUID) (sqlc.Call, error) {
-	return s.transition(ctx, organizationID, id, s.repo.MarkActive)
-}
-func (s *Service) MarkHeld(ctx context.Context, organizationID, id uuid.UUID) (sqlc.Call, error) {
-	return s.transition(ctx, organizationID, id, s.repo.MarkHeld)
-}
-func (s *Service) MarkResumed(ctx context.Context, organizationID, id uuid.UUID) (sqlc.Call, error) {
-	return s.transition(ctx, organizationID, id, s.repo.MarkResumed)
-}
-func (s *Service) MarkCompleted(ctx context.Context, organizationID, id uuid.UUID, reason *string) (sqlc.Call, error) {
-	if err := validateIDs(organizationID, id); err != nil { return sqlc.Call{}, err }
-	reason = normalizeOptionalReason(reason)
-	call, err := s.repo.MarkCompleted(ctx, organizationID, id, reason)
-	return call, translateMutationError(err)
-}
-func (s *Service) MarkFailed(ctx context.Context, organizationID, id uuid.UUID, reason *string) (sqlc.Call, error) {
-	if err := validateIDs(organizationID, id); err != nil { return sqlc.Call{}, err }
-	reason = normalizeOptionalReason(reason)
-	call, err := s.repo.MarkFailed(ctx, organizationID, id, reason)
-	return call, translateMutationError(err)
-}
-func (s *Service) MarkCancelled(ctx context.Context, organizationID, id uuid.UUID, reason *string) (sqlc.Call, error) {
-	if err := validateIDs(organizationID, id); err != nil { return sqlc.Call{}, err }
-	reason = normalizeOptionalReason(reason)
-	call, err := s.repo.MarkCancelled(ctx, organizationID, id, reason)
-	return call, translateMutationError(err)
-}
-func (s *Service) transition(ctx context.Context, organizationID, id uuid.UUID, fn func(context.Context, uuid.UUID, uuid.UUID) (sqlc.Call, error)) (sqlc.Call, error) {
-	if err := validateIDs(organizationID, id); err != nil { return sqlc.Call{}, err }
-	call, err := fn(ctx, organizationID, id)
-	return call, translateMutationError(err)
 }
 
 func admissionError(err error) error {

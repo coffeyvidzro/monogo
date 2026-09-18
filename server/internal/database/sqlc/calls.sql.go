@@ -448,6 +448,42 @@ func (q *Queries) GetInboundCallContext(ctx context.Context, arg GetInboundCallC
 	return i, err
 }
 
+
+const listActiveCallsForAdmissionReconciliation = `-- name: ListActiveCallsForAdmissionReconciliation :many
+SELECT
+    id,
+    carrier_connection_id
+FROM calls
+WHERE state IN ('initiating', 'ringing', 'answered', 'active')
+  AND carrier_connection_id IS NOT NULL
+ORDER BY created_at ASC
+`
+
+type ListActiveCallsForAdmissionReconciliationRow struct {
+	ID                  uuid.UUID  `db:"id" json:"id"`
+	CarrierConnectionID *uuid.UUID `db:"carrier_connection_id" json:"carrier_connection_id"`
+}
+
+func (q *Queries) ListActiveCallsForAdmissionReconciliation(ctx context.Context) ([]ListActiveCallsForAdmissionReconciliationRow, error) {
+	rows, err := q.db.Query(ctx, listActiveCallsForAdmissionReconciliation)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListActiveCallsForAdmissionReconciliationRow{}
+	for rows.Next() {
+		var i ListActiveCallsForAdmissionReconciliationRow
+		if err := rows.Scan(&i.ID, &i.CarrierConnectionID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listBackofficeCalls = `-- name: ListBackofficeCalls :many
 SELECT
     c.id::TEXT AS id,
