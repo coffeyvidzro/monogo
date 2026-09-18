@@ -17,11 +17,14 @@ import (
 
 func TestCreateCheckoutSession(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/v1/checkout/sessions" {
+		if r.URL.Path != "/checkout/sessions" {
 			t.Fatalf("path = %q", r.URL.Path)
 		}
 		if got := r.Header.Get("Authorization"); got != "Bearer sk_test" {
 			t.Fatalf("authorization = %q", got)
+		}
+		if got := r.Header.Get("Stripe-Version"); got != DefaultAPIVersion {
+			t.Fatalf("Stripe-Version = %q", got)
 		}
 
 		payload, err := io.ReadAll(r.Body)
