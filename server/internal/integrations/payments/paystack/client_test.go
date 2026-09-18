@@ -12,8 +12,6 @@ import (
 )
 
 func TestChargeMobileMoney(t *testing.T) {
-	t.Helper()
-
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/charge" {
 			t.Fatalf("path = %q, want /charge", r.URL.Path)
@@ -55,7 +53,7 @@ func TestChargeMobileMoney(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	response, err := client.Charge(context.Background(), ChargeRequest{
+	response, err := client.ChargeMobileMoney(context.Background(), ChargeRequest{
 		Email:     "customer@example.com",
 		Amount:    5000,
 		Currency:  "GHS",
