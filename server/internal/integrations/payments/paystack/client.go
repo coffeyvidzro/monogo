@@ -37,7 +37,7 @@ func New(cfg Config) (*Client, error) {
 	}, nil
 }
 
-func (c *Client) Charge(ctx context.Context, request ChargeRequest) (ChargeResponse, error) {
+func (c *Client) ChargeMobileMoney(ctx context.Context, request ChargeRequest) (ChargeResponse, error) {
 	if err := request.Validate(); err != nil {
 		return ChargeResponse{}, err
 	}
