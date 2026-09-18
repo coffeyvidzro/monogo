@@ -21,7 +21,6 @@ type Client struct {
 	secretKey     string
 	webhookSecret string
 	baseURL       string
-	apiVersion    string
 	httpClient    *http.Client
 }
 
@@ -39,7 +38,6 @@ func New(cfg Config) (*Client, error) {
 		secretKey:     cfg.SecretKey,
 		webhookSecret: cfg.WebhookSecret,
 		baseURL:       strings.TrimRight(cfg.BaseURL, "/"),
-		apiVersion:    strings.TrimSpace(cfg.APIVersion),
 		httpClient:    cfg.HTTPClient,
 	}, nil
 }
@@ -56,20 +54,10 @@ func (c *Client) CreateCheckoutSession(
 	values.Set("mode", "payment")
 	values.Set("ui_mode", "custom")
 	values.Set("payment_method_types[0]", "card")
-	values.Set("customer_email", request.Email)
 	values.Set("line_items[0][quantity]", "1")
 	values.Set("line_items[0][price_data][currency]", strings.ToLower(request.Currency))
 	values.Set("line_items[0][price_data][unit_amount]", strconv.FormatInt(request.Amount, 10))
-	values.Set("line_items[0][price_data][product_data][name]", checkoutDescription(request.Description))
-	if request.ReturnURL != "" {
-		values.Set("return_url", request.ReturnURL)
-	}
-	if request.Reference != "" {
-		values.Set("client_reference_id", request.Reference)
-	}
-	for key, value := range request.Metadata {
-		values.Set("metadata["+key+"]", value)
-	}
+	values.Set("line_items[0][price_data][product_data][name]", "Leamout")
 
 	var session CheckoutSession
 	if err := c.doForm(ctx, http.MethodPost, "/v1/checkout/sessions", values, &session); err != nil {
@@ -166,9 +154,6 @@ func (c *Client) doForm(
 	if values != nil {
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	}
-	if c.apiVersion != "" {
-		req.Header.Set("Stripe-Version", c.apiVersion)
-	}
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
@@ -187,14 +172,6 @@ func (c *Client) doForm(
 		return fmt.Errorf("decode Stripe response: %w", err)
 	}
 	return nil
-}
-
-func checkoutDescription(description string) string {
-	description = strings.TrimSpace(description)
-	if description == "" {
-		return "Leamout payment"
-	}
-	return description
 }
 
 func parseSignatureHeader(header string) (int64, []string, error) {
