@@ -31,16 +31,16 @@ func DefaultConfig(secretKey, webhookSecret string) Config {
 
 func (c Config) Validate() error {
 	if strings.TrimSpace(c.SecretKey) == "" {
-		return fmt.Errorf("Stripe secret key is required")
+		return fmt.Errorf("stripe secret key is required")
 	}
 	if strings.TrimSpace(c.WebhookSecret) == "" {
-		return fmt.Errorf("Stripe webhook secret is required")
+		return fmt.Errorf("stripe webhook secret is required")
 	}
 	if strings.TrimSpace(c.BaseURL) == "" {
-		return fmt.Errorf("Stripe base URL is required")
+		return fmt.Errorf("stripe base URL is required")
 	}
 	if c.HTTPClient == nil {
-		return fmt.Errorf("Stripe HTTP client is required")
+		return fmt.Errorf("stripe HTTP client is required")
 	}
 	return nil
 }
@@ -52,10 +52,10 @@ type CreateCheckoutSessionRequest struct {
 
 func (r CreateCheckoutSessionRequest) Validate() error {
 	if r.AmountMinor <= 0 {
-		return fmt.Errorf("Stripe checkout amount must be positive")
+		return fmt.Errorf("stripe checkout amount must be positive")
 	}
 	if strings.TrimSpace(r.Currency) == "" {
-		return fmt.Errorf("Stripe checkout currency is required")
+		return fmt.Errorf("stripe checkout currency is required")
 	}
 	return nil
 }
@@ -83,7 +83,7 @@ func (e WebhookEvent) DecodeCheckoutSession() (CheckoutSession, error) {
 		return CheckoutSession{}, fmt.Errorf("decode Stripe checkout session: %w", err)
 	}
 	if strings.TrimSpace(session.ID) == "" {
-		return CheckoutSession{}, fmt.Errorf("Stripe checkout session ID is required")
+		return CheckoutSession{}, fmt.Errorf("stripe checkout session ID is required")
 	}
 
 	return session, nil
