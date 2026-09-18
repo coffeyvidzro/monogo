@@ -43,18 +43,20 @@ func (s *Service) Create(ctx context.Context, organizationID uuid.UUID, req Crea
 		return sqlc.Call{}, err
 	}
 
+	call, err := s.repo.Create(ctx, organizationID, req)
+	if err != nil {
+		return sqlc.Call{}, apperror.NewInternal("create call", err)
+	}
+
 	decision, err := s.router.ResolveOutbound(ctx, routing.OutboundRequest{
 		OrganizationID: organizationID,
 		TrunkID:        req.TrunkID,
 		Destination:    req.ToURI,
 	})
 	if err != nil {
+		reason := "route_resolution_failed"
+		_, _ = s.repo.MarkFailed(ctx, organizationID, call.ID, &reason)
 		return sqlc.Call{}, err
-	}
-
-	call, err := s.repo.Create(ctx, organizationID, req)
-	if err != nil {
-		return sqlc.Call{}, apperror.NewInternal("create call", err)
 	}
 
 	carrierID, trunkID, endpointID := decision.CarrierConnectionID, decision.TrunkID, decision.TrunkEndpointID
@@ -64,6 +66,8 @@ func (s *Service) Create(ctx context.Context, organizationID uuid.UUID, req Crea
 		TrunkEndpointID:     &endpointID,
 	})
 	if err != nil {
+		reason := "route_attribution_failed"
+		_, _ = s.repo.MarkFailed(ctx, organizationID, call.ID, &reason)
 		return sqlc.Call{}, apperror.NewInternal("set call route attribution", err)
 	}
 
