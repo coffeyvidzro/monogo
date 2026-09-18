@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/coffeyvidzro/monogo/internal/integrations/freeswitch"
+	"github.com/google/uuid"
 )
 
 type fakeLifecycleService struct {
@@ -30,13 +31,15 @@ func TestConsumerMapsRecordStart(t *testing.T) {
 	service := &fakeLifecycleService{}
 	consumer := &Consumer{service: service}
 	timestamp := time.Date(2026, time.August, 29, 8, 0, 0, 0, time.UTC)
+	callID := uuid.New()
 
 	err := consumer.HandleFreeSWITCHEvent(context.Background(), freeswitch.Event{
 		Name: freeSWITCHEventRecordStart,
 		Headers: map[string]string{
-			"Unique-ID":            "channel-1",
-			"Record-File-Path":     "/var/lib/freeswitch/recordings/call-1.wav",
-			"Event-Date-Timestamp": "1787990400000000",
+			"Unique-ID":                "channel-1",
+			"variable_leamout_call_id": callID.String(),
+			"Record-File-Path":         "/var/lib/freeswitch/recordings/call-1.wav",
+			"Event-Date-Timestamp":     "1787990400000000",
 		},
 	})
 	if err != nil {
@@ -44,6 +47,9 @@ func TestConsumerMapsRecordStart(t *testing.T) {
 	}
 	if service.started != 1 || service.stopped != 0 {
 		t.Fatalf("lifecycle calls = started:%d stopped:%d, want 1/0", service.started, service.stopped)
+	}
+	if service.last.CallID != callID {
+		t.Fatalf("call id = %s, want %s", service.last.CallID, callID)
 	}
 	if service.last.ChannelID != "channel-1" {
 		t.Fatalf("channel = %q, want channel-1", service.last.ChannelID)
@@ -59,12 +65,14 @@ func TestConsumerMapsRecordStart(t *testing.T) {
 func TestConsumerMapsRecordStop(t *testing.T) {
 	service := &fakeLifecycleService{}
 	consumer := &Consumer{service: service}
+	callID := uuid.New()
 
 	err := consumer.HandleFreeSWITCHEvent(context.Background(), freeswitch.Event{
 		Name: freeSWITCHEventRecordStop,
 		Headers: map[string]string{
-			"Unique-ID":        "channel-2",
-			"Record-File-Path": "/var/lib/freeswitch/recordings/call-2.wav",
+			"Unique-ID":                "channel-2",
+			"variable_leamout_call_id": callID.String(),
+			"Record-File-Path":         "/var/lib/freeswitch/recordings/call-2.wav",
 		},
 	})
 	if err != nil {
@@ -88,16 +96,28 @@ func TestConsumerIgnoresUnrelatedEvent(t *testing.T) {
 }
 
 func TestRecordingLifecycleEventRequiresIdentity(t *testing.T) {
+	callID := uuid.New().String()
 	tests := []struct {
 		name    string
 		headers map[string]string
 	}{
-		{name: "missing channel", headers: map[string]string{"Record-File-Path": "/tmp/test.wav"}},
-		{name: "missing path", headers: map[string]string{"Unique-ID": "channel-3"}},
+		{name: "missing call", headers: map[string]string{
+			"Unique-ID":        "channel-3",
+			"Record-File-Path": "/tmp/test.wav",
+		}},
+		{name: "missing channel", headers: map[string]string{
+			"variable_leamout_call_id": callID,
+			"Record-File-Path":         "/tmp/test.wav",
+		}},
+		{name: "missing path", headers: map[string]string{
+			"variable_leamout_call_id": callID,
+			"Unique-ID":                "channel-3",
+		}},
 		{name: "invalid timestamp", headers: map[string]string{
-			"Unique-ID":            "channel-3",
-			"Record-File-Path":     "/tmp/test.wav",
-			"Event-Date-Timestamp": "not-a-timestamp",
+			"variable_leamout_call_id": callID,
+			"Unique-ID":                "channel-3",
+			"Record-File-Path":         "/tmp/test.wav",
+			"Event-Date-Timestamp":     "not-a-timestamp",
 		}},
 	}
 

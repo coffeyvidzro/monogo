@@ -15,6 +15,8 @@ import (
 	"github.com/coffeyvidzro/monogo/internal/platform/logging"
 	"github.com/coffeyvidzro/monogo/internal/platform/outbox"
 	"github.com/coffeyvidzro/monogo/internal/platform/webhooks"
+	"github.com/coffeyvidzro/monogo/internal/runtime/callcontrol"
+	"github.com/coffeyvidzro/monogo/internal/telecom/calls"
 	"github.com/coffeyvidzro/monogo/internal/telecom/recordings"
 )
 
@@ -23,6 +25,7 @@ type modules struct {
 	redis                   *redisintegration.Client
 	nats                    *natsintegration.Client
 	freeSwitch              *freeswitch.Client
+	callConsumer            *callcontrol.Consumer
 	outbox                  *outbox.PublisherJob
 	webhookConsumer         *webhooks.Consumer
 	webhookDelivery         *webhooks.DeliveryJob
@@ -86,6 +89,9 @@ func newModules(ctx context.Context, cfg config.Config) (*modules, error) {
 		workerID = "worker"
 	}
 
+	callsRepository := calls.NewRepository(queries)
+	callsService := calls.NewService(callsRepository)
+
 	recordingsRepository := recordings.NewRepository(postgresClient.Pool())
 	recordingsService := recordings.NewService(recordingsRepository, nil)
 	recordingReconciliation, err := recordings.NewReconciliationJob(
@@ -133,6 +139,7 @@ func newModules(ctx context.Context, cfg config.Config) (*modules, error) {
 		redis:                   redisClient,
 		nats:                    natsClient,
 		freeSwitch:              freeSwitch,
+		callConsumer:            callcontrol.NewConsumer(callsService),
 		outbox:                  outboxJob,
 		webhookConsumer:         webhooks.NewConsumer(natsClient, webhookService),
 		webhookDelivery:         webhookDeliveryJob,

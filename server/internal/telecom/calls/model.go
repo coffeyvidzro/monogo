@@ -34,6 +34,28 @@ const (
 	MediaStateHeld   MediaState = "held"
 )
 
+type LifecycleEventType string
+
+const (
+	LifecycleInitiated LifecycleEventType = "initiated"
+	LifecycleRinging   LifecycleEventType = "ringing"
+	LifecycleAnswered  LifecycleEventType = "answered"
+	LifecycleActive    LifecycleEventType = "active"
+	LifecycleHeld      LifecycleEventType = "held"
+	LifecycleResumed   LifecycleEventType = "resumed"
+	LifecycleCompleted LifecycleEventType = "completed"
+	LifecycleFailed    LifecycleEventType = "failed"
+	LifecycleCancelled LifecycleEventType = "cancelled"
+)
+
+type LifecycleEvent struct {
+	CallID       uuid.UUID
+	ChannelID    string
+	Type         LifecycleEventType
+	OccurredAt   time.Time
+	HangupReason *string
+}
+
 type CreateRequest struct {
 	ApplicationID *uuid.UUID `json:"application_id,omitempty"`
 	Direction     Direction  `json:"direction"`

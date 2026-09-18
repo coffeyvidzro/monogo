@@ -26,9 +26,9 @@ func subscribeFreeSWITCH(ctx context.Context, logger *logging.Logger, modules *m
 		freeswitch.EventFormatPlain,
 		freeSWITCHLifecycleEvents,
 		func(eventCtx context.Context, event freeswitch.Event) error {
-			// if err := modules.callConsumer.HandleFreeSWITCHEvent(eventCtx, event); err != nil {
-			// 	logger.Error(eventCtx, "handle call FreeSWITCH event", "event", event.Name, "error", err)
-			// }
+			if err := modules.callConsumer.HandleFreeSWITCHEvent(eventCtx, event); err != nil {
+				logger.Error(eventCtx, "handle call FreeSWITCH event", "event", event.Name, "error", err)
+			}
 			if err := modules.recordingConsumer.HandleFreeSWITCHEvent(eventCtx, event); err != nil {
 				logger.Error(eventCtx, "handle recording FreeSWITCH event", "event", event.Name, "error", err)
 			}

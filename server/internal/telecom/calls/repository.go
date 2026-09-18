@@ -11,6 +11,12 @@ type Repository struct {
 	queries *sqlc.Queries
 }
 
+type LifecycleSnapshot struct {
+	OrganizationID uuid.UUID
+	State          string
+	MediaState     string
+}
+
 func NewRepository(queries *sqlc.Queries) *Repository {
 	return &Repository{queries: queries}
 }
@@ -39,6 +45,25 @@ func (r *Repository) Get(
 		OrganizationID: organizationID,
 		ID:             id,
 	})
+}
+
+func (r *Repository) GetLifecycleSnapshot(
+	ctx context.Context,
+	id uuid.UUID,
+) (LifecycleSnapshot, error) {
+	row, err := r.queries.GetBackofficeCall(ctx, id)
+	if err != nil {
+		return LifecycleSnapshot{}, err
+	}
+	organizationID, err := uuid.Parse(row.OrganizationID)
+	if err != nil {
+		return LifecycleSnapshot{}, err
+	}
+	return LifecycleSnapshot{
+		OrganizationID: organizationID,
+		State:          row.State,
+		MediaState:     row.MediaState,
+	}, nil
 }
 
 func (r *Repository) List(

@@ -89,6 +89,81 @@ func (s *Service) SetRouteAttribution(
 	return call, translateMutationError(err)
 }
 
+func (s *Service) ObserveLifecycle(ctx context.Context, event LifecycleEvent) error {
+	if event.CallID == uuid.Nil {
+		return apperror.NewBadRequest("call lifecycle event requires call id")
+	}
+
+	snapshot, err := s.repo.GetLifecycleSnapshot(ctx, event.CallID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil
+	}
+	if err != nil {
+		return apperror.NewInternal("resolve lifecycle call", err)
+	}
+
+	if lifecycleAlreadyApplied(snapshot, event.Type) {
+		return nil
+	}
+
+	switch event.Type {
+	case LifecycleInitiated:
+		return nil
+	case LifecycleRinging:
+		_, err = s.MarkRinging(ctx, snapshot.OrganizationID, event.CallID)
+	case LifecycleAnswered:
+		_, err = s.MarkAnswered(ctx, snapshot.OrganizationID, event.CallID)
+	case LifecycleActive:
+		_, err = s.MarkActive(ctx, snapshot.OrganizationID, event.CallID)
+	case LifecycleHeld:
+		_, err = s.MarkHeld(ctx, snapshot.OrganizationID, event.CallID)
+	case LifecycleResumed:
+		_, err = s.MarkResumed(ctx, snapshot.OrganizationID, event.CallID)
+	case LifecycleCompleted:
+		_, err = s.MarkCompleted(ctx, snapshot.OrganizationID, event.CallID, event.HangupReason)
+	case LifecycleFailed:
+		_, err = s.MarkFailed(ctx, snapshot.OrganizationID, event.CallID, event.HangupReason)
+	case LifecycleCancelled:
+		_, err = s.MarkCancelled(ctx, snapshot.OrganizationID, event.CallID, event.HangupReason)
+	default:
+		return apperror.NewBadRequest("unsupported call lifecycle event")
+	}
+	return err
+}
+
+func lifecycleAlreadyApplied(snapshot LifecycleSnapshot, eventType LifecycleEventType) bool {
+	switch eventType {
+	case LifecycleInitiated:
+		return true
+	case LifecycleRinging:
+		return snapshot.State != string(StateInitiating)
+	case LifecycleAnswered:
+		return snapshot.State == string(StateAnswered) ||
+			snapshot.State == string(StateActive) ||
+			isTerminalState(snapshot.State)
+	case LifecycleActive:
+		return snapshot.State == string(StateActive) || isTerminalState(snapshot.State)
+	case LifecycleHeld:
+		return snapshot.MediaState == string(MediaStateHeld) || isTerminalState(snapshot.State)
+	case LifecycleResumed:
+		return snapshot.MediaState == string(MediaStateActive) || isTerminalState(snapshot.State)
+	case LifecycleCompleted:
+		return snapshot.State == string(StateCompleted)
+	case LifecycleFailed:
+		return snapshot.State == string(StateFailed)
+	case LifecycleCancelled:
+		return snapshot.State == string(StateCancelled)
+	default:
+		return false
+	}
+}
+
+func isTerminalState(state string) bool {
+	return state == string(StateCompleted) ||
+		state == string(StateFailed) ||
+		state == string(StateCancelled)
+}
+
 func (s *Service) MarkRinging(ctx context.Context, organizationID, id uuid.UUID) (sqlc.Call, error) {
 	return s.transition(ctx, organizationID, id, s.repo.MarkRinging)
 }

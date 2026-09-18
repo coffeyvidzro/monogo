@@ -6,10 +6,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
 	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
 	"github.com/coffeyvidzro/monogo/pkg/apperror"
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 )
 
 // Storage manages recording objects without exposing storage URLs in metadata.
@@ -53,16 +53,15 @@ func (s *Service) List(ctx context.Context, organizationID uuid.UUID, offset, li
 }
 
 func (s *Service) ObserveStarted(ctx context.Context, event LifecycleEvent) error {
-	channelID := strings.TrimSpace(event.ChannelID)
 	path := strings.TrimSpace(event.Path)
-	if channelID == "" || path == "" {
-		return apperror.NewBadRequest("recording lifecycle event requires channel id and path")
+	if event.CallID == uuid.Nil || path == "" {
+		return apperror.NewBadRequest("recording lifecycle event requires call id and path")
 	}
 	if event.OccurredAt.IsZero() {
 		event.OccurredAt = time.Now().UTC()
 	}
 
-	call, err := s.repo.GetCallByChannelID(ctx, channelID)
+	organizationID, err := s.repo.GetCallOrganizationID(ctx, event.CallID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil
 	}
@@ -70,7 +69,7 @@ func (s *Service) ObserveStarted(ctx context.Context, event LifecycleEvent) erro
 		return apperror.NewInternal("resolve recording call", err)
 	}
 
-	_, err = s.repo.GetByCallStorageKey(ctx, call.ID, path)
+	_, err = s.repo.GetByCallStorageKey(ctx, event.CallID, path)
 	if err == nil {
 		return nil
 	}
@@ -78,11 +77,9 @@ func (s *Service) ObserveStarted(ctx context.Context, event LifecycleEvent) erro
 		return apperror.NewInternal("get recording by media path", err)
 	}
 
-	_, err = s.repo.Start(ctx, call, path, event.OccurredAt.UTC())
+	_, err = s.repo.Start(ctx, organizationID, event.CallID, path, event.OccurredAt.UTC())
 	if err != nil {
-		// A duplicated FreeSWITCH event may race another worker event. Re-read the
-		// stable (call_id, storage_key) identity before surfacing an error.
-		if _, readErr := s.repo.GetByCallStorageKey(ctx, call.ID, path); readErr == nil {
+		if _, readErr := s.repo.GetByCallStorageKey(ctx, event.CallID, path); readErr == nil {
 			return nil
 		}
 		return apperror.NewInternal("start recording lifecycle", err)
@@ -91,26 +88,17 @@ func (s *Service) ObserveStarted(ctx context.Context, event LifecycleEvent) erro
 }
 
 func (s *Service) ObserveStopped(ctx context.Context, event LifecycleEvent) error {
-	channelID := strings.TrimSpace(event.ChannelID)
 	path := strings.TrimSpace(event.Path)
-	if channelID == "" || path == "" {
-		return apperror.NewBadRequest("recording lifecycle event requires channel id and path")
+	if event.CallID == uuid.Nil || path == "" {
+		return apperror.NewBadRequest("recording lifecycle event requires call id and path")
 	}
 
-	call, err := s.repo.GetCallByChannelID(ctx, channelID)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return nil
-	}
-	if err != nil {
-		return apperror.NewInternal("resolve recording call", err)
-	}
-
-	recording, err := s.repo.GetByCallStorageKey(ctx, call.ID, path)
+	recording, err := s.repo.GetByCallStorageKey(ctx, event.CallID, path)
 	if errors.Is(err, pgx.ErrNoRows) {
 		if startErr := s.ObserveStarted(ctx, event); startErr != nil {
 			return startErr
 		}
-		recording, err = s.repo.GetByCallStorageKey(ctx, call.ID, path)
+		recording, err = s.repo.GetByCallStorageKey(ctx, event.CallID, path)
 	}
 	if err != nil {
 		return apperror.NewInternal("get recording by media path", err)

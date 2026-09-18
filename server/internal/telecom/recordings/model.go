@@ -3,9 +3,9 @@ package recordings
 import (
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/coffeyvidzro/monogo/internal/database/pgconv"
 	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
+	"github.com/google/uuid"
 )
 
 type Status string
@@ -27,6 +27,7 @@ const (
 )
 
 type LifecycleEvent struct {
+	CallID     uuid.UUID
 	ChannelID  string
 	Path       string
 	OccurredAt time.Time
