@@ -9,12 +9,7 @@ import (
 	"github.com/google/uuid"
 )
 
-var (
-	ErrChannelUnavailable       = errors.New("active call channel unavailable")
-	ErrAdmissionCPS             = errors.New("carrier CPS limit exceeded")
-	ErrAdmissionConcurrent      = errors.New("carrier concurrent call limit exceeded")
-	ErrAdmissionDailyMinutes    = errors.New("carrier daily minute limit exceeded")
-)
+var ErrAdmissionDailyMinutes = errors.New("carrier daily minute limit exceeded")
 
 type Direction string
 
@@ -75,34 +70,6 @@ type InboundAdmissionRequest struct {
 	FromURI              string
 	ToURI                string
 	OccurredAt           time.Time
-}
-
-type OriginateRequest struct {
-	CallID              uuid.UUID
-	Destination         string
-	CallerID            string
-	CarrierConnectionID uuid.UUID
-	Host                string
-	Port                uint16
-	Transport           string
-	Privacy             bool
-	DTMFMode            string
-	MediaEncryption     string
-}
-
-type OriginateResult struct {
-	ChannelID string
-}
-
-type TransferRequest struct {
-	Destination string
-	Dialplan    string
-	Context     string
-}
-
-type RecordRequest struct {
-	Path   string
-	Action string
 }
 
 type CreateRequest struct {

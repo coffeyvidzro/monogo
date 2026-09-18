@@ -8,28 +8,31 @@ import (
 	"time"
 
 	redisintegration "github.com/coffeyvidzro/monogo/internal/integrations/redis"
-	"github.com/coffeyvidzro/monogo/internal/telecom/calls"
 	"github.com/coffeyvidzro/monogo/internal/telecom/routing"
 	"github.com/google/uuid"
 	redisv9 "github.com/redis/go-redis/v9"
 )
 
+var (
+	ErrChannelUnavailable  = errors.New("active call channel unavailable")
+	ErrAdmissionCPS        = errors.New("carrier CPS limit exceeded")
+	ErrAdmissionConcurrent = errors.New("carrier concurrent call limit exceeded")
+)
+
 const callAdmissionLeaseTTL = 26 * time.Hour
 
-type RedisChannelStore struct {
+type ChannelStore struct {
 	client *redisintegration.Client
 }
 
-var _ calls.ChannelStore = (*RedisChannelStore)(nil)
-
-func NewRedisChannelStore(client *redisintegration.Client) *RedisChannelStore {
+func NewChannelStore(client *redisintegration.Client) *ChannelStore {
 	if client == nil {
 		panic("calling: Redis client is required")
 	}
-	return &RedisChannelStore{client: client}
+	return &ChannelStore{client: client}
 }
 
-func (s *RedisChannelStore) Bind(ctx context.Context, callID uuid.UUID, channelID string) error {
+func (s *ChannelStore) Bind(ctx context.Context, callID uuid.UUID, channelID string) error {
 	channelID = strings.TrimSpace(channelID)
 	if callID == uuid.Nil || channelID == "" {
 		return fmt.Errorf("call id and channel id are required")
@@ -37,63 +40,45 @@ func (s *RedisChannelStore) Bind(ctx context.Context, callID uuid.UUID, channelI
 	return s.client.Set(ctx, channelKey(callID), channelID, 24*time.Hour)
 }
 
-func (s *RedisChannelStore) Get(ctx context.Context, callID uuid.UUID) (string, error) {
+func (s *ChannelStore) Get(ctx context.Context, callID uuid.UUID) (string, error) {
 	if callID == uuid.Nil {
 		return "", fmt.Errorf("call id is required")
 	}
+
 	channelID, err := s.client.Get(ctx, channelKey(callID))
 	if errors.Is(err, redisv9.Nil) {
-		return "", calls.ErrChannelUnavailable
+		return "", ErrChannelUnavailable
 	}
 	if err != nil {
 		return "", err
 	}
+
 	channelID = strings.TrimSpace(channelID)
 	if channelID == "" {
-		return "", calls.ErrChannelUnavailable
+		return "", ErrChannelUnavailable
 	}
 	return channelID, nil
 }
 
-func (s *RedisChannelStore) Delete(ctx context.Context, callID uuid.UUID) error {
+func (s *ChannelStore) Delete(ctx context.Context, callID uuid.UUID) error {
 	if callID == uuid.Nil {
 		return fmt.Errorf("call id is required")
 	}
 	return s.client.Delete(ctx, channelKey(callID))
 }
 
-type callLeaseStore interface {
-	AcquireCallLease(context.Context, string, string, int64, int64, time.Duration) (bool, string, error)
-	BindCallLease(context.Context, string, string, string) error
-	ReleaseCallLease(context.Context, string, string) error
-	RefreshCallLease(context.Context, string, string, time.Duration) error
+type AdmissionLimiter struct {
+	client *redisintegration.Client
 }
 
-type dailyUsageReader interface {
-	CarrierDailyUsageSeconds(context.Context, uuid.UUID) (int64, error)
-}
-
-type RedisAdmissionLimiter struct {
-	store callLeaseStore
-	usage dailyUsageReader
-}
-
-var _ calls.AdmissionLimiter = (*RedisAdmissionLimiter)(nil)
-
-func NewRedisAdmissionLimiter(
-	client *redisintegration.Client,
-	usage dailyUsageReader,
-) *RedisAdmissionLimiter {
+func NewAdmissionLimiter(client *redisintegration.Client) *AdmissionLimiter {
 	if client == nil {
 		panic("calling: Redis admission store is required")
 	}
-	if usage == nil {
-		panic("calling: daily usage reader is required")
-	}
-	return &RedisAdmissionLimiter{store: client, usage: usage}
+	return &AdmissionLimiter{client: client}
 }
 
-func (l *RedisAdmissionLimiter) Acquire(
+func (l *AdmissionLimiter) Acquire(
 	ctx context.Context,
 	carrierConnectionID uuid.UUID,
 	leaseID string,
@@ -106,17 +91,7 @@ func (l *RedisAdmissionLimiter) Acquire(
 		return fmt.Errorf("carrier admission limits must be positive")
 	}
 
-	if limits.MaxDailyMinutes != nil {
-		usedSeconds, err := l.usage.CarrierDailyUsageSeconds(ctx, carrierConnectionID)
-		if err != nil {
-			return fmt.Errorf("read carrier daily usage: %w", err)
-		}
-		if usedSeconds >= *limits.MaxDailyMinutes*60 {
-			return calls.ErrAdmissionDailyMinutes
-		}
-	}
-
-	allowed, reason, err := l.store.AcquireCallLease(
+	allowed, reason, err := l.client.AcquireCallLease(
 		ctx,
 		admissionPrefix(carrierConnectionID),
 		leaseID,
@@ -133,15 +108,15 @@ func (l *RedisAdmissionLimiter) Acquire(
 
 	switch reason {
 	case "cps":
-		return calls.ErrAdmissionCPS
+		return ErrAdmissionCPS
 	case "concurrent":
-		return calls.ErrAdmissionConcurrent
+		return ErrAdmissionConcurrent
 	default:
 		return fmt.Errorf("carrier admission rejected: %s", reason)
 	}
 }
 
-func (l *RedisAdmissionLimiter) Bind(
+func (l *AdmissionLimiter) Bind(
 	ctx context.Context,
 	carrierConnectionID uuid.UUID,
 	leaseID string,
@@ -150,7 +125,7 @@ func (l *RedisAdmissionLimiter) Bind(
 	if carrierConnectionID == uuid.Nil || leaseID == "" || callID == uuid.Nil {
 		return fmt.Errorf("carrier connection id, lease id, and call id are required")
 	}
-	return l.store.BindCallLease(
+	return l.client.BindCallLease(
 		ctx,
 		admissionPrefix(carrierConnectionID),
 		leaseID,
@@ -158,7 +133,7 @@ func (l *RedisAdmissionLimiter) Bind(
 	)
 }
 
-func (l *RedisAdmissionLimiter) Release(
+func (l *AdmissionLimiter) Release(
 	ctx context.Context,
 	carrierConnectionID uuid.UUID,
 	callOrLeaseID string,
@@ -166,21 +141,21 @@ func (l *RedisAdmissionLimiter) Release(
 	if carrierConnectionID == uuid.Nil || callOrLeaseID == "" {
 		return fmt.Errorf("carrier connection id and call or lease id are required")
 	}
-	return l.store.ReleaseCallLease(
+	return l.client.ReleaseCallLease(
 		ctx,
 		admissionPrefix(carrierConnectionID),
 		callOrLeaseID,
 	)
 }
 
-func (l *RedisAdmissionLimiter) Refresh(
+func (l *AdmissionLimiter) Refresh(
 	ctx context.Context,
 	carrierConnectionID, callID uuid.UUID,
 ) error {
 	if carrierConnectionID == uuid.Nil || callID == uuid.Nil {
 		return fmt.Errorf("carrier connection id and call id are required")
 	}
-	return l.store.RefreshCallLease(
+	return l.client.RefreshCallLease(
 		ctx,
 		admissionPrefix(carrierConnectionID),
 		callID.String(),

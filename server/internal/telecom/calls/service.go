@@ -5,53 +5,27 @@ import (
 	"errors"
 
 	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
+	"github.com/coffeyvidzro/monogo/internal/runtime/calling"
 	"github.com/coffeyvidzro/monogo/internal/telecom/routing"
 	"github.com/coffeyvidzro/monogo/pkg/apperror"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 )
 
-type Controller interface {
-	Originate(context.Context, OriginateRequest) (OriginateResult, error)
-	Answer(context.Context, string) error
-	Hangup(context.Context, string) error
-	Transfer(context.Context, string, TransferRequest) error
-	Hold(context.Context, string) error
-	Resume(context.Context, string) error
-	PlayAudio(context.Context, string, string) error
-	StopPlayback(context.Context, string) error
-	Record(context.Context, string, RecordRequest) error
-	SendDTMF(context.Context, string, string) error
-	SetCallID(context.Context, string, uuid.UUID) error
-}
-
-type ChannelStore interface {
-	Bind(context.Context, uuid.UUID, string) error
-	Get(context.Context, uuid.UUID) (string, error)
-	Delete(context.Context, uuid.UUID) error
-}
-
-type AdmissionLimiter interface {
-	Acquire(context.Context, uuid.UUID, string, routing.Limits) error
-	Bind(context.Context, uuid.UUID, string, uuid.UUID) error
-	Release(context.Context, uuid.UUID, string) error
-	Refresh(context.Context, uuid.UUID, uuid.UUID) error
-}
-
 type Service struct {
 	repo       *Repository
 	router     *routing.Service
-	controller Controller
-	channels   ChannelStore
-	admission  AdmissionLimiter
+	controller *calling.Controller
+	channels   *calling.ChannelStore
+	admission  *calling.AdmissionLimiter
 }
 
 func NewService(
 	repo *Repository,
 	router *routing.Service,
-	controller Controller,
-	channels ChannelStore,
-	admission AdmissionLimiter,
+	controller *calling.Controller,
+	channels *calling.ChannelStore,
+	admission *calling.AdmissionLimiter,
 ) *Service {
 	if repo == nil {
 		panic("calls: repository is required")
@@ -114,6 +88,12 @@ func (s *Service) Create(ctx context.Context, organizationID uuid.UUID, req Crea
 		return sqlc.Call{}, apperror.NewInternal("set call route attribution", err)
 	}
 
+	if err := s.checkDailyMinutes(ctx, decision.CarrierConnectionID, decision.Limits.MaxDailyMinutes); err != nil {
+		reason := admissionFailureReason(err)
+		_, _ = s.repo.MarkFailed(ctx, organizationID, call.ID, &reason)
+		return sqlc.Call{}, admissionError(err)
+	}
+
 	if err := s.admission.Acquire(
 		ctx,
 		decision.CarrierConnectionID,
@@ -125,7 +105,7 @@ func (s *Service) Create(ctx context.Context, organizationID uuid.UUID, req Crea
 		return sqlc.Call{}, admissionError(err)
 	}
 
-	result, err := s.controller.Originate(ctx, OriginateRequest{
+	result, err := s.controller.Originate(ctx, calling.OriginateRequest{
 		CallID:              call.ID,
 		Destination:         req.ToURI,
 		CallerID:            req.FromURI,
@@ -203,6 +183,10 @@ func (s *Service) AdmitInbound(
 	})
 	if err != nil {
 		return sqlc.Call{}, s.rejectInbound(ctx, req.ChannelID, err)
+	}
+
+	if err := s.checkDailyMinutes(ctx, decision.CarrierConnectionID, decision.Limits.MaxDailyMinutes); err != nil {
+		return sqlc.Call{}, s.rejectInbound(ctx, req.ChannelID, admissionError(err))
 	}
 
 	if err := s.admission.Acquire(
@@ -409,7 +393,7 @@ func (s *Service) Transfer(ctx context.Context, org, id uuid.UUID, req TransferA
 		return err
 	}
 	return s.control(ctx, org, id, []State{StateAnswered, StateActive}, func(channelID string) error {
-		return s.controller.Transfer(ctx, channelID, TransferRequest{Destination: req.Destination})
+		return s.controller.Transfer(ctx, channelID, calling.TransferRequest{Destination: req.Destination})
 	})
 }
 
@@ -469,7 +453,7 @@ func (s *Service) Record(ctx context.Context, org, id uuid.UUID, req RecordActio
 		return err
 	}
 	return s.control(ctx, org, id, []State{StateAnswered, StateActive}, func(channelID string) error {
-		return s.controller.Record(ctx, channelID, RecordRequest{Path: req.Path, Action: req.Action})
+		return s.controller.Record(ctx, channelID, calling.RecordRequest{Path: req.Path, Action: req.Action})
 	})
 }
 
@@ -510,7 +494,7 @@ func (s *Service) controlContext(ctx context.Context, org, id uuid.UUID) (sqlc.C
 		return sqlc.Call{}, "", err
 	}
 	channelID, err := s.channels.Get(ctx, id)
-	if errors.Is(err, ErrChannelUnavailable) {
+	if errors.Is(err, calling.ErrChannelUnavailable) {
 		return sqlc.Call{}, "", apperror.NewConflict("call has no active media channel")
 	}
 	if err != nil {
@@ -682,11 +666,29 @@ func (s *Service) transition(
 	return call, translateMutationError(err)
 }
 
+func (s *Service) checkDailyMinutes(
+	ctx context.Context,
+	carrierConnectionID uuid.UUID,
+	maxDailyMinutes *int64,
+) error {
+	if maxDailyMinutes == nil {
+		return nil
+	}
+	usedSeconds, err := s.repo.CarrierDailyUsageSeconds(ctx, carrierConnectionID)
+	if err != nil {
+		return apperror.NewServiceUnavailable("read carrier daily usage", err)
+	}
+	if usedSeconds >= *maxDailyMinutes*60 {
+		return ErrAdmissionDailyMinutes
+	}
+	return nil
+}
+
 func admissionError(err error) error {
 	switch {
-	case errors.Is(err, ErrAdmissionCPS):
+	case errors.Is(err, calling.ErrAdmissionCPS):
 		return apperror.NewTooManyRequests("carrier CPS limit exceeded")
-	case errors.Is(err, ErrAdmissionConcurrent):
+	case errors.Is(err, calling.ErrAdmissionConcurrent):
 		return apperror.NewTooManyRequests("carrier concurrent call limit exceeded")
 	case errors.Is(err, ErrAdmissionDailyMinutes):
 		return apperror.NewTooManyRequests("carrier daily minute limit exceeded")
@@ -697,9 +699,9 @@ func admissionError(err error) error {
 
 func admissionFailureReason(err error) string {
 	switch {
-	case errors.Is(err, ErrAdmissionCPS):
+	case errors.Is(err, calling.ErrAdmissionCPS):
 		return "carrier_cps_limit"
-	case errors.Is(err, ErrAdmissionConcurrent):
+	case errors.Is(err, calling.ErrAdmissionConcurrent):
 		return "carrier_concurrent_limit"
 	case errors.Is(err, ErrAdmissionDailyMinutes):
 		return "carrier_daily_minutes_limit"

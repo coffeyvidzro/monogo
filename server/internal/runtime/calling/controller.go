@@ -9,7 +9,6 @@ import (
 	"unicode"
 
 	"github.com/coffeyvidzro/monogo/internal/integrations/freeswitch"
-	"github.com/coffeyvidzro/monogo/internal/telecom/calls"
 	"github.com/google/uuid"
 )
 
@@ -24,32 +23,57 @@ const (
 	mediaEncryptionHeaderVar   = "sip_h_X-Leamout-Media-Encryption"
 )
 
-// FreeSWITCHController adapts the FreeSWITCH client to call controls.
-type FreeSWITCHController struct {
+type OriginateRequest struct {
+	CallID              uuid.UUID
+	Destination         string
+	CallerID            string
+	CarrierConnectionID uuid.UUID
+	Host                string
+	Port                uint16
+	Transport           string
+	Privacy             bool
+	DTMFMode            string
+	MediaEncryption     string
+}
+
+type OriginateResult struct {
+	ChannelID string
+}
+
+type TransferRequest struct {
+	Destination string
+	Dialplan    string
+	Context     string
+}
+
+type RecordRequest struct {
+	Path   string
+	Action string
+}
+
+type Controller struct {
 	client *freeswitch.Client
 }
 
-var _ calls.Controller = (*FreeSWITCHController)(nil)
-
-func NewFreeSWITCHController(client *freeswitch.Client) *FreeSWITCHController {
+func NewController(client *freeswitch.Client) *Controller {
 	if client == nil {
 		panic("calling: FreeSWITCH client is required")
 	}
-	return &FreeSWITCHController{client: client}
+	return &Controller{client: client}
 }
 
-func (c *FreeSWITCHController) Originate(
+func (c *Controller) Originate(
 	ctx context.Context,
-	req calls.OriginateRequest,
-) (calls.OriginateResult, error) {
+	req OriginateRequest,
+) (OriginateResult, error) {
 	endpoint, routeURI, err := freeSWITCHEgress(req)
 	if err != nil {
-		return calls.OriginateResult{}, err
+		return OriginateResult{}, err
 	}
 
 	variables, err := egressVariables(req, routeURI)
 	if err != nil {
-		return calls.OriginateResult{}, err
+		return OriginateResult{}, err
 	}
 
 	call, err := c.client.Originate(ctx, freeswitch.OriginateRequest{
@@ -59,16 +83,16 @@ func (c *FreeSWITCHController) Originate(
 		Variables:   variables,
 	})
 	if err != nil {
-		return calls.OriginateResult{}, fmt.Errorf("originate call: %w", err)
+		return OriginateResult{}, fmt.Errorf("originate call: %w", err)
 	}
 	if strings.TrimSpace(call.UUID) == "" {
-		return calls.OriginateResult{}, fmt.Errorf("FreeSWITCH returned empty channel UUID")
+		return OriginateResult{}, fmt.Errorf("FreeSWITCH returned empty channel UUID")
 	}
 
-	return calls.OriginateResult{ChannelID: call.UUID}, nil
+	return OriginateResult{ChannelID: call.UUID}, nil
 }
 
-func egressVariables(req calls.OriginateRequest, routeURI string) (map[string]string, error) {
+func egressVariables(req OriginateRequest, routeURI string) (map[string]string, error) {
 	if req.CallID == uuid.Nil {
 		return nil, fmt.Errorf("call id is required")
 	}
@@ -107,7 +131,7 @@ func egressVariables(req calls.OriginateRequest, routeURI string) (map[string]st
 	return variables, nil
 }
 
-func freeSWITCHEgress(req calls.OriginateRequest) (string, string, error) {
+func freeSWITCHEgress(req OriginateRequest) (string, string, error) {
 	host := strings.TrimSpace(req.Host)
 	if host == "" {
 		return "", "", fmt.Errorf("resolved route host is required")
@@ -161,24 +185,24 @@ func validPSTNAddress(value string) bool {
 	return value != "+"
 }
 
-func (c *FreeSWITCHController) Answer(ctx context.Context, channelID string) error {
+func (c *Controller) Answer(ctx context.Context, channelID string) error {
 	if err := c.client.Answer(ctx, channelID); err != nil {
 		return fmt.Errorf("answer call: %w", err)
 	}
 	return nil
 }
 
-func (c *FreeSWITCHController) Hangup(ctx context.Context, channelID string) error {
+func (c *Controller) Hangup(ctx context.Context, channelID string) error {
 	if err := c.client.Hangup(ctx, channelID); err != nil {
 		return fmt.Errorf("hangup call: %w", err)
 	}
 	return nil
 }
 
-func (c *FreeSWITCHController) Transfer(
+func (c *Controller) Transfer(
 	ctx context.Context,
 	channelID string,
-	req calls.TransferRequest,
+	req TransferRequest,
 ) error {
 	if err := c.client.Transfer(ctx, freeswitch.TransferRequest{
 		CallID:      channelID,
@@ -191,38 +215,38 @@ func (c *FreeSWITCHController) Transfer(
 	return nil
 }
 
-func (c *FreeSWITCHController) Hold(ctx context.Context, channelID string) error {
+func (c *Controller) Hold(ctx context.Context, channelID string) error {
 	if err := c.client.Hold(ctx, channelID); err != nil {
 		return fmt.Errorf("hold call: %w", err)
 	}
 	return nil
 }
 
-func (c *FreeSWITCHController) Resume(ctx context.Context, channelID string) error {
+func (c *Controller) Resume(ctx context.Context, channelID string) error {
 	if err := c.client.Unhold(ctx, channelID); err != nil {
 		return fmt.Errorf("resume call: %w", err)
 	}
 	return nil
 }
 
-func (c *FreeSWITCHController) PlayAudio(ctx context.Context, channelID, path string) error {
+func (c *Controller) PlayAudio(ctx context.Context, channelID, path string) error {
 	if err := c.client.PlayAudio(ctx, channelID, path); err != nil {
 		return fmt.Errorf("play audio: %w", err)
 	}
 	return nil
 }
 
-func (c *FreeSWITCHController) StopPlayback(ctx context.Context, channelID string) error {
+func (c *Controller) StopPlayback(ctx context.Context, channelID string) error {
 	if err := c.client.StopAudio(ctx, channelID); err != nil {
 		return fmt.Errorf("stop audio: %w", err)
 	}
 	return nil
 }
 
-func (c *FreeSWITCHController) Record(
+func (c *Controller) Record(
 	ctx context.Context,
 	channelID string,
-	req calls.RecordRequest,
+	req RecordRequest,
 ) error {
 	if err := c.client.Record(ctx, freeswitch.RecordRequest{
 		CallID: channelID,
@@ -234,14 +258,14 @@ func (c *FreeSWITCHController) Record(
 	return nil
 }
 
-func (c *FreeSWITCHController) SendDTMF(ctx context.Context, channelID, digits string) error {
+func (c *Controller) SendDTMF(ctx context.Context, channelID, digits string) error {
 	if err := c.client.SendDTMF(ctx, channelID, digits); err != nil {
 		return fmt.Errorf("send DTMF: %w", err)
 	}
 	return nil
 }
 
-func (c *FreeSWITCHController) SetCallID(
+func (c *Controller) SetCallID(
 	ctx context.Context,
 	channelID string,
 	callID uuid.UUID,

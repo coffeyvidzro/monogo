@@ -95,13 +95,13 @@ func newModules(ctx context.Context, cfg config.Config) (*modules, error) {
 	routingRepository := routing.NewRepository(queries)
 	routingService := routing.NewService(routingRepository, nil)
 	callsRepository := calls.NewRepository(queries)
-	callController := calling.NewFreeSWITCHController(freeSwitch)
-	admissionLimiter := calling.NewRedisAdmissionLimiter(redisClient, callsRepository)
+	callController := calling.NewController(freeSwitch)
+	admissionLimiter := calling.NewAdmissionLimiter(redisClient)
 	callsService := calls.NewService(
 		callsRepository,
 		routingService,
 		callController,
-		calling.NewRedisChannelStore(redisClient),
+		calling.NewChannelStore(redisClient),
 		admissionLimiter,
 	)
 	callConsumer := calls.NewConsumer(callsService)
