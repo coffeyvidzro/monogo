@@ -2,6 +2,7 @@ name: leamout-cloud
 
 x-app-environment: &app-environment
   APP_ENV: production
+  DOMAIN: ${DOMAIN:?DOMAIN is required}
   DATABASE_URL: postgres://leamout:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@postgres:5432/leamout?sslmode=disable
   REDIS_URL: redis://redis:6379/0
   NATS_URL: nats://nats:4222
@@ -11,7 +12,6 @@ x-app-environment: &app-environment
   TURN_AUTH_SECRET: ${TURN_AUTH_SECRET:?TURN_AUTH_SECRET is required}
   TURN_PUBLIC_URLS: "stun:turn.${DOMAIN:?DOMAIN is required}:3478,turn:turn.${DOMAIN:?DOMAIN is required}:3478?transport=udp,turn:turn.${DOMAIN:?DOMAIN is required}:3478?transport=tcp"
   CORS_ORIGINS: ${CORS_ORIGINS:?CORS_ORIGINS is required}
-  LEAMOUT_SESSION_COOKIE_DOMAIN: ${LEAMOUT_SESSION_COOKIE_DOMAIN:-}
   DIDWW_API_KEY: ${DIDWW_API_KEY:-}
   COMMPEAK_API_AUTHORIZATION: ${COMMPEAK_API_AUTHORIZATION:-}
   STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
