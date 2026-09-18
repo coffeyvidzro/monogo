@@ -4,43 +4,43 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"golang.org/x/sync/errgroup"
 
 	"github.com/coffeyvidzro/monogo/internal/integrations/freeswitch"
 	"github.com/coffeyvidzro/monogo/internal/platform/logging"
-	"github.com/coffeyvidzro/monogo/internal/telecom/calls"
+	"github.com/coffeyvidzro/monogo/internal/runtime/calling"
 )
 
-var freeSWITCHLifecycleEvents = []string{
-	"CHANNEL_CREATE",
-	"CHANNEL_ANSWER",
-	"CHANNEL_HOLD",
-	"CHANNEL_UNHOLD",
-	"CHANNEL_HANGUP_COMPLETE",
+var freeSWITCHLifecycleEvents = append(
+	calling.FreeSWITCHEvents(),
 	"RECORD_START",
 	"RECORD_STOP",
-}
+)
 
-func subscribeFreeSWITCH(ctx context.Context, logger *logging.Logger, modules *modules) error {
+func subscribeFreeSWITCH(
+	ctx context.Context,
+	logger *logging.Logger,
+	modules *modules,
+) error {
 	return modules.freeSwitch.Subscribe(
 		ctx,
 		freeswitch.EventFormatPlain,
 		freeSWITCHLifecycleEvents,
 		func(eventCtx context.Context, event freeswitch.Event) error {
-			admittedInbound := false
 			if event.Name == "CHANNEL_CREATE" &&
-				event.Header("variable_leamout_call_id") == "" {
-				admission, err := calls.TranslateInboundFreeSWITCHEvent(event)
+				strings.TrimSpace(event.Header("variable_leamout_call_id")) == "" {
+				admission, err := calling.TranslateInboundFreeSWITCHEvent(event)
 				switch {
-				case errors.Is(err, calls.ErrNotInboundAdmission):
+				case errors.Is(err, calling.ErrNotInboundAdmission):
 				case err != nil:
 					logger.Error(
 						eventCtx,
 						"translate inbound FreeSWITCH event",
 						"error", err,
 					)
-					if channelID := event.Header("Unique-ID"); channelID != "" {
+					if channelID := strings.TrimSpace(event.Header("Unique-ID")); channelID != "" {
 						if hangupErr := modules.freeSwitch.Hangup(eventCtx, channelID); hangupErr != nil {
 							logger.Error(
 								eventCtx,
@@ -51,44 +51,47 @@ func subscribeFreeSWITCH(ctx context.Context, logger *logging.Logger, modules *m
 						}
 					}
 				default:
-					if _, err := modules.callsService.AdmitInbound(eventCtx, admission); err != nil {
+					if err := modules.callConsumer.HandleInbound(eventCtx, admission); err != nil {
 						logger.Error(
 							eventCtx,
-							"admit inbound call",
+							"handle inbound call event",
 							"channel_id", admission.ChannelID,
 							"error", err,
 						)
 					}
-					admittedInbound = true
+					return nil
 				}
 			}
 
-			if !admittedInbound {
-				callEvent, err := calls.TranslateFreeSWITCHEvent(event)
-				switch {
-				case errors.Is(err, calls.ErrUnsupportedEvent),
-					errors.Is(err, calls.ErrUncorrelatedEvent):
-				case err != nil:
+			callEvent, err := calling.TranslateFreeSWITCHEvent(event)
+			switch {
+			case errors.Is(err, calling.ErrUnsupportedEvent),
+				errors.Is(err, calling.ErrUncorrelatedEvent):
+			case err != nil:
+				logger.Error(
+					eventCtx,
+					"translate call FreeSWITCH event",
+					"event", event.Name,
+					"error", err,
+				)
+			default:
+				if err := modules.callConsumer.HandleLifecycle(eventCtx, callEvent); err != nil {
 					logger.Error(
 						eventCtx,
-						"translate call FreeSWITCH event",
+						"handle call lifecycle event",
 						"event", event.Name,
 						"error", err,
 					)
-				default:
-					if err := modules.callsService.ObserveLifecycle(eventCtx, callEvent); err != nil {
-						logger.Error(
-							eventCtx,
-							"handle call FreeSWITCH event",
-							"event", event.Name,
-							"error", err,
-						)
-					}
 				}
 			}
 
 			if err := modules.recordingConsumer.HandleFreeSWITCHEvent(eventCtx, event); err != nil {
-				logger.Error(eventCtx, "handle recording FreeSWITCH event", "event", event.Name, "error", err)
+				logger.Error(
+					eventCtx,
+					"handle recording FreeSWITCH event",
+					"event", event.Name,
+					"error", err,
+				)
 			}
 			return nil
 		},

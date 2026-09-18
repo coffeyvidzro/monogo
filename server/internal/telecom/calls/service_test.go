@@ -1,195 +1,87 @@
 package calls
 
 import (
-	"context"
-	"errors"
 	"testing"
-	"time"
 
-	"github.com/coffeyvidzro/monogo/internal/telecom/routing"
+	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
+	"github.com/coffeyvidzro/monogo/internal/runtime/calling"
 	"github.com/google/uuid"
 )
 
-type fakeCallLeaseStore struct {
-	allowed       bool
-	reason        string
-	acquireErr    error
-	acquireCalls  int
-	boundLeaseID  string
-	boundCallID   string
-	releasedID    string
-	refreshedID   string
-}
-
-func (s *fakeCallLeaseStore) AcquireCallLease(
-	_ context.Context,
-	_ string,
-	_ string,
-	_, _ int64,
-	_ time.Duration,
-) (bool, string, error) {
-	s.acquireCalls++
-	return s.allowed, s.reason, s.acquireErr
-}
-
-func (s *fakeCallLeaseStore) BindCallLease(
-	_ context.Context,
-	_ string,
-	leaseID, callID string,
-) error {
-	s.boundLeaseID = leaseID
-	s.boundCallID = callID
-	return nil
-}
-
-func (s *fakeCallLeaseStore) ReleaseCallLease(
-	_ context.Context,
-	_ string,
-	id string,
-) error {
-	s.releasedID = id
-	return nil
-}
-
-func (s *fakeCallLeaseStore) RefreshCallLease(
-	_ context.Context,
-	_ string,
-	id string,
-	_ time.Duration,
-) error {
-	s.refreshedID = id
-	return nil
-}
-
-type fakeDailyUsageReader struct {
-	seconds int64
-	err     error
-}
-
-func (r fakeDailyUsageReader) CarrierDailyUsageSeconds(
-	context.Context,
-	uuid.UUID,
-) (int64, error) {
-	return r.seconds, r.err
-}
-
-func TestAdmissionLimiterRejectsDailyMinuteLimitBeforeLease(t *testing.T) {
-	store := &fakeCallLeaseStore{allowed: true}
-	limiter := &RedisAdmissionLimiter{
-		store: store,
-		usage: fakeDailyUsageReader{seconds: 60 * 100},
+func TestAdmissionFailureReason(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+		want string
+	}{
+		{name: "cps", err: calling.ErrAdmissionCPS, want: "carrier_cps_limit"},
+		{name: "concurrent", err: calling.ErrAdmissionConcurrent, want: "carrier_concurrent_limit"},
+		{name: "daily", err: ErrAdmissionDailyMinutes, want: "carrier_daily_minutes_limit"},
 	}
 
-	err := limiter.Acquire(
-		context.Background(),
-		uuid.New(),
-		"lease-1",
-		routing.Limits{
-			MaxCPS:             10,
-			MaxConcurrentCalls: 20,
-			MaxDailyMinutes:    int64Ptr(100),
-		},
-	)
-	if !errors.Is(err, ErrAdmissionDailyMinutes) {
-		t.Fatalf("error = %v, want ErrAdmissionDailyMinutes", err)
-	}
-	if store.acquireCalls != 0 {
-		t.Fatalf("acquire calls = %d, want 0", store.acquireCalls)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := admissionFailureReason(tt.err); got != tt.want {
+				t.Fatalf("admissionFailureReason() = %q, want %q", got, tt.want)
+			}
+		})
 	}
 }
 
-func TestAdmissionLimiterMapsCPSRejection(t *testing.T) {
-	store := &fakeCallLeaseStore{reason: "cps"}
-	limiter := &RedisAdmissionLimiter{
-		store: store,
-		usage: fakeDailyUsageReader{},
-	}
-
-	err := limiter.Acquire(
-		context.Background(),
-		uuid.New(),
-		"lease-1",
-		routing.Limits{MaxCPS: 1, MaxConcurrentCalls: 10},
-	)
-	if !errors.Is(err, ErrAdmissionCPS) {
-		t.Fatalf("error = %v, want ErrAdmissionCPS", err)
-	}
-}
-
-func TestAdmissionLimiterMapsConcurrentRejection(t *testing.T) {
-	store := &fakeCallLeaseStore{reason: "concurrent"}
-	limiter := &RedisAdmissionLimiter{
-		store: store,
-		usage: fakeDailyUsageReader{},
-	}
-
-	err := limiter.Acquire(
-		context.Background(),
-		uuid.New(),
-		"lease-1",
-		routing.Limits{MaxCPS: 10, MaxConcurrentCalls: 1},
-	)
-	if !errors.Is(err, ErrAdmissionConcurrent) {
-		t.Fatalf("error = %v, want ErrAdmissionConcurrent", err)
-	}
-}
-
-func TestAdmissionLimiterAllowsWithinLimits(t *testing.T) {
-	store := &fakeCallLeaseStore{allowed: true, reason: "ok"}
-	limiter := &RedisAdmissionLimiter{
-		store: store,
-		usage: fakeDailyUsageReader{seconds: 59},
-	}
-
-	err := limiter.Acquire(
-		context.Background(),
-		uuid.New(),
-		"lease-1",
-		routing.Limits{
-			MaxCPS:             10,
-			MaxConcurrentCalls: 20,
-			MaxDailyMinutes:    int64Ptr(1),
-		},
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if store.acquireCalls != 1 {
-		t.Fatalf("acquire calls = %d, want 1", store.acquireCalls)
-	}
-}
-
-func TestAdmissionLimiterLeaseLifecycle(t *testing.T) {
-	store := &fakeCallLeaseStore{allowed: true}
-	limiter := &RedisAdmissionLimiter{
-		store: store,
-		usage: fakeDailyUsageReader{},
-	}
+func TestValidateExistingInbound(t *testing.T) {
+	organizationID := uuid.New()
+	applicationID := uuid.New()
 	carrierID := uuid.New()
-	callID := uuid.New()
 
-	if err := limiter.Bind(context.Background(), carrierID, "channel-1", callID); err != nil {
-		t.Fatal(err)
-	}
-	if store.boundLeaseID != "channel-1" || store.boundCallID != callID.String() {
-		t.Fatalf("unexpected bind: lease=%q call=%q", store.boundLeaseID, store.boundCallID)
-	}
-
-	if err := limiter.Refresh(context.Background(), carrierID, callID); err != nil {
-		t.Fatal(err)
-	}
-	if store.refreshedID != callID.String() {
-		t.Fatalf("refreshed id = %q", store.refreshedID)
+	req := InboundAdmissionRequest{
+		OrganizationID:      organizationID,
+		ApplicationID:       applicationID,
+		CarrierConnectionID: carrierID,
+		ToURI:               "+14155550100",
 	}
 
-	if err := limiter.Release(context.Background(), carrierID, callID.String()); err != nil {
-		t.Fatal(err)
+	call := sqlc.Call{
+		OrganizationID:      organizationID,
+		ApplicationID:       &applicationID,
+		CarrierConnectionID: &carrierID,
+		Direction:           string(DirectionInbound),
+		State:               string(StateRinging),
+		ToUri:               req.ToURI,
 	}
-	if store.releasedID != callID.String() {
-		t.Fatalf("released id = %q", store.releasedID)
+
+	if err := validateExistingInbound(call, req); err != nil {
+		t.Fatalf("validateExistingInbound() unexpected error: %v", err)
+	}
+
+	call.State = string(StateCompleted)
+	if err := validateExistingInbound(call, req); err == nil {
+		t.Fatal("expected terminal inbound call conflict")
 	}
 }
 
-func int64Ptr(value int64) *int64 {
-	return &value
+func TestValidateExistingInboundRejectsCarrierMismatch(t *testing.T) {
+	organizationID := uuid.New()
+	applicationID := uuid.New()
+	carrierID := uuid.New()
+	otherCarrierID := uuid.New()
+
+	req := InboundAdmissionRequest{
+		OrganizationID:      organizationID,
+		ApplicationID:       applicationID,
+		CarrierConnectionID: carrierID,
+		ToURI:               "+14155550100",
+	}
+
+	call := sqlc.Call{
+		OrganizationID:      organizationID,
+		ApplicationID:       &applicationID,
+		CarrierConnectionID: &otherCarrierID,
+		Direction:           string(DirectionInbound),
+		State:               string(StateRinging),
+		ToUri:               req.ToURI,
+	}
+
+	if err := validateExistingInbound(call, req); err == nil {
+		t.Fatal("expected carrier attribution conflict")
+	}
 }

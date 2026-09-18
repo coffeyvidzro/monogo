@@ -87,8 +87,23 @@ func (r *Repository) CarrierDailyUsageSeconds(
 
 func (r *Repository) ListActiveForAdmissionReconciliation(
 	ctx context.Context,
-) ([]sqlc.ListActiveCallsForAdmissionReconciliationRow, error) {
-	return r.queries.ListActiveCallsForAdmissionReconciliation(ctx)
+) ([]ActiveAdmissionCall, error) {
+	rows, err := r.queries.ListActiveCallsForAdmissionReconciliation(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	items := make([]ActiveAdmissionCall, 0, len(rows))
+	for _, row := range rows {
+		if row.CarrierConnectionID == nil {
+			continue
+		}
+		items = append(items, ActiveAdmissionCall{
+			ID:                  row.ID,
+			CarrierConnectionID: *row.CarrierConnectionID,
+		})
+	}
+	return items, nil
 }
 
 func (r *Repository) List(

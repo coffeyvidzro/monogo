@@ -3,168 +3,29 @@ package calls
 import (
 	"context"
 	"errors"
-	"fmt"
-	"time"
 
 	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
-	redisintegration "github.com/coffeyvidzro/monogo/internal/integrations/redis"
+	"github.com/coffeyvidzro/monogo/internal/runtime/calling"
 	"github.com/coffeyvidzro/monogo/internal/telecom/routing"
 	"github.com/coffeyvidzro/monogo/pkg/apperror"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 )
 
-const callAdmissionLeaseTTL = 26 * time.Hour
-
-type AdmissionLimiter interface {
-	Acquire(context.Context, uuid.UUID, string, routing.Limits) error
-	Bind(context.Context, uuid.UUID, string, uuid.UUID) error
-	Release(context.Context, uuid.UUID, string) error
-	Refresh(context.Context, uuid.UUID, uuid.UUID) error
-}
-
-type callLeaseStore interface {
-	AcquireCallLease(context.Context, string, string, int64, int64, time.Duration) (bool, string, error)
-	BindCallLease(context.Context, string, string, string) error
-	ReleaseCallLease(context.Context, string, string) error
-	RefreshCallLease(context.Context, string, string, time.Duration) error
-}
-
-type dailyUsageReader interface {
-	CarrierDailyUsageSeconds(context.Context, uuid.UUID) (int64, error)
-}
-
-type RedisAdmissionLimiter struct {
-	store callLeaseStore
-	usage dailyUsageReader
-}
-
-func NewRedisAdmissionLimiter(
-	client *redisintegration.Client,
-	usage dailyUsageReader,
-) *RedisAdmissionLimiter {
-	if client == nil {
-		panic("calls: Redis admission store is required")
-	}
-	if usage == nil {
-		panic("calls: daily usage reader is required")
-	}
-	return &RedisAdmissionLimiter{store: client, usage: usage}
-}
-
-func (l *RedisAdmissionLimiter) Acquire(
-	ctx context.Context,
-	carrierConnectionID uuid.UUID,
-	leaseID string,
-	limits routing.Limits,
-) error {
-	if carrierConnectionID == uuid.Nil || leaseID == "" {
-		return fmt.Errorf("carrier connection id and lease id are required")
-	}
-	if limits.MaxCPS < 1 || limits.MaxConcurrentCalls < 1 {
-		return fmt.Errorf("carrier admission limits must be positive")
-	}
-
-	if limits.MaxDailyMinutes != nil {
-		usedSeconds, err := l.usage.CarrierDailyUsageSeconds(ctx, carrierConnectionID)
-		if err != nil {
-			return fmt.Errorf("read carrier daily usage: %w", err)
-		}
-		if usedSeconds >= *limits.MaxDailyMinutes*60 {
-			return ErrAdmissionDailyMinutes
-		}
-	}
-
-	allowed, reason, err := l.store.AcquireCallLease(
-		ctx,
-		admissionPrefix(carrierConnectionID),
-		leaseID,
-		int64(limits.MaxCPS),
-		int64(limits.MaxConcurrentCalls),
-		callAdmissionLeaseTTL,
-	)
-	if err != nil {
-		return fmt.Errorf("acquire carrier call lease: %w", err)
-	}
-	if allowed {
-		return nil
-	}
-
-	switch reason {
-	case "cps":
-		return ErrAdmissionCPS
-	case "concurrent":
-		return ErrAdmissionConcurrent
-	default:
-		return fmt.Errorf("carrier admission rejected: %s", reason)
-	}
-}
-
-func (l *RedisAdmissionLimiter) Bind(
-	ctx context.Context,
-	carrierConnectionID uuid.UUID,
-	leaseID string,
-	callID uuid.UUID,
-) error {
-	if carrierConnectionID == uuid.Nil || leaseID == "" || callID == uuid.Nil {
-		return fmt.Errorf("carrier connection id, lease id, and call id are required")
-	}
-	return l.store.BindCallLease(
-		ctx,
-		admissionPrefix(carrierConnectionID),
-		leaseID,
-		callID.String(),
-	)
-}
-
-func (l *RedisAdmissionLimiter) Release(
-	ctx context.Context,
-	carrierConnectionID uuid.UUID,
-	callOrLeaseID string,
-) error {
-	if carrierConnectionID == uuid.Nil || callOrLeaseID == "" {
-		return fmt.Errorf("carrier connection id and call or lease id are required")
-	}
-	return l.store.ReleaseCallLease(
-		ctx,
-		admissionPrefix(carrierConnectionID),
-		callOrLeaseID,
-	)
-}
-
-func (l *RedisAdmissionLimiter) Refresh(
-	ctx context.Context,
-	carrierConnectionID, callID uuid.UUID,
-) error {
-	if carrierConnectionID == uuid.Nil || callID == uuid.Nil {
-		return fmt.Errorf("carrier connection id and call id are required")
-	}
-	return l.store.RefreshCallLease(
-		ctx,
-		admissionPrefix(carrierConnectionID),
-		callID.String(),
-		callAdmissionLeaseTTL,
-	)
-}
-
-func admissionPrefix(carrierConnectionID uuid.UUID) string {
-	return "telecom:admission:carrier:" + carrierConnectionID.String()
-}
-
 type Service struct {
 	repo       *Repository
 	router     *routing.Service
-	controller Controller
-	channels   ChannelStore
-	admission  AdmissionLimiter
+	controller *calling.Controller
+	channels   *calling.ChannelStore
+	admission  *calling.AdmissionLimiter
 }
 
 func NewService(
 	repo *Repository,
 	router *routing.Service,
-	controller Controller,
-	channels ChannelStore,
-	admission AdmissionLimiter,
+	controller *calling.Controller,
+	channels *calling.ChannelStore,
+	admission *calling.AdmissionLimiter,
 ) *Service {
 	if repo == nil {
 		panic("calls: repository is required")
@@ -227,6 +88,12 @@ func (s *Service) Create(ctx context.Context, organizationID uuid.UUID, req Crea
 		return sqlc.Call{}, apperror.NewInternal("set call route attribution", err)
 	}
 
+	if err := s.checkDailyMinutes(ctx, decision.CarrierConnectionID, decision.Limits.MaxDailyMinutes); err != nil {
+		reason := admissionFailureReason(err)
+		_, _ = s.repo.MarkFailed(ctx, organizationID, call.ID, &reason)
+		return sqlc.Call{}, admissionError(err)
+	}
+
 	if err := s.admission.Acquire(
 		ctx,
 		decision.CarrierConnectionID,
@@ -238,7 +105,7 @@ func (s *Service) Create(ctx context.Context, organizationID uuid.UUID, req Crea
 		return sqlc.Call{}, admissionError(err)
 	}
 
-	result, err := s.controller.Originate(ctx, OriginateRequest{
+	result, err := s.controller.Originate(ctx, calling.OriginateRequest{
 		CallID:              call.ID,
 		Destination:         req.ToURI,
 		CallerID:            req.FromURI,
@@ -266,7 +133,6 @@ func (s *Service) Create(ctx context.Context, organizationID uuid.UUID, req Crea
 
 	return s.repo.Get(ctx, organizationID, call.ID)
 }
-
 
 func (s *Service) AdmitInbound(
 	ctx context.Context,
@@ -317,6 +183,10 @@ func (s *Service) AdmitInbound(
 	})
 	if err != nil {
 		return sqlc.Call{}, s.rejectInbound(ctx, req.ChannelID, err)
+	}
+
+	if err := s.checkDailyMinutes(ctx, decision.CarrierConnectionID, decision.Limits.MaxDailyMinutes); err != nil {
+		return sqlc.Call{}, s.rejectInbound(ctx, req.ChannelID, admissionError(err))
 	}
 
 	if err := s.admission.Acquire(
@@ -424,7 +294,6 @@ func validateExistingInbound(call sqlc.Call, req InboundAdmissionRequest) error 
 	return nil
 }
 
-
 func (s *Service) ensureInboundAttribution(
 	ctx context.Context,
 	call sqlc.Call,
@@ -524,7 +393,7 @@ func (s *Service) Transfer(ctx context.Context, org, id uuid.UUID, req TransferA
 		return err
 	}
 	return s.control(ctx, org, id, []State{StateAnswered, StateActive}, func(channelID string) error {
-		return s.controller.Transfer(ctx, channelID, TransferRequest{Destination: req.Destination})
+		return s.controller.Transfer(ctx, channelID, calling.TransferRequest{Destination: req.Destination})
 	})
 }
 
@@ -584,7 +453,7 @@ func (s *Service) Record(ctx context.Context, org, id uuid.UUID, req RecordActio
 		return err
 	}
 	return s.control(ctx, org, id, []State{StateAnswered, StateActive}, func(channelID string) error {
-		return s.controller.Record(ctx, channelID, RecordRequest{Path: req.Path, Action: req.Action})
+		return s.controller.Record(ctx, channelID, calling.RecordRequest{Path: req.Path, Action: req.Action})
 	})
 }
 
@@ -625,7 +494,7 @@ func (s *Service) controlContext(ctx context.Context, org, id uuid.UUID) (sqlc.C
 		return sqlc.Call{}, "", err
 	}
 	channelID, err := s.channels.Get(ctx, id)
-	if errors.Is(err, ErrChannelUnavailable) {
+	if errors.Is(err, calling.ErrChannelUnavailable) {
 		return sqlc.Call{}, "", apperror.NewConflict("call has no active media channel")
 	}
 	if err != nil {
@@ -634,11 +503,29 @@ func (s *Service) controlContext(ctx context.Context, org, id uuid.UUID) (sqlc.C
 	return call, channelID, nil
 }
 
+func (s *Service) checkDailyMinutes(
+	ctx context.Context,
+	carrierConnectionID uuid.UUID,
+	maxDailyMinutes *int64,
+) error {
+	if maxDailyMinutes == nil {
+		return nil
+	}
+	usedSeconds, err := s.repo.CarrierDailyUsageSeconds(ctx, carrierConnectionID)
+	if err != nil {
+		return apperror.NewServiceUnavailable("read carrier daily usage", err)
+	}
+	if usedSeconds >= *maxDailyMinutes*60 {
+		return ErrAdmissionDailyMinutes
+	}
+	return nil
+}
+
 func admissionError(err error) error {
 	switch {
-	case errors.Is(err, ErrAdmissionCPS):
+	case errors.Is(err, calling.ErrAdmissionCPS):
 		return apperror.NewTooManyRequests("carrier CPS limit exceeded")
-	case errors.Is(err, ErrAdmissionConcurrent):
+	case errors.Is(err, calling.ErrAdmissionConcurrent):
 		return apperror.NewTooManyRequests("carrier concurrent call limit exceeded")
 	case errors.Is(err, ErrAdmissionDailyMinutes):
 		return apperror.NewTooManyRequests("carrier daily minute limit exceeded")
@@ -649,9 +536,9 @@ func admissionError(err error) error {
 
 func admissionFailureReason(err error) string {
 	switch {
-	case errors.Is(err, ErrAdmissionCPS):
+	case errors.Is(err, calling.ErrAdmissionCPS):
 		return "carrier_cps_limit"
-	case errors.Is(err, ErrAdmissionConcurrent):
+	case errors.Is(err, calling.ErrAdmissionConcurrent):
 		return "carrier_concurrent_limit"
 	case errors.Is(err, ErrAdmissionDailyMinutes):
 		return "carrier_daily_minutes_limit"
@@ -661,13 +548,22 @@ func admissionFailureReason(err error) string {
 }
 
 func translateReadError(err error) error {
-	if err == nil { return nil }
-	if errors.Is(err, pgx.ErrNoRows) { return apperror.NewNotFound("call not found") }
+	if err == nil {
+		return nil
+	}
+	if errors.Is(err, pgx.ErrNoRows) {
+		return apperror.NewNotFound("call not found")
+	}
 	return apperror.NewInternal("get call", err)
 }
+
 func translateMutationError(err error) error {
-	if err == nil { return nil }
-	if errors.Is(err, pgx.ErrNoRows) { return apperror.NewConflict("call state transition or route attribution is not allowed") }
+	if err == nil {
+		return nil
+	}
+	if errors.Is(err, pgx.ErrNoRows) {
+		return apperror.NewConflict("call state transition or route attribution is not allowed")
+	}
 	return apperror.NewInternal("update call", err)
 }
 

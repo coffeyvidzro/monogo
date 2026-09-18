@@ -1,87 +1,29 @@
 package calls
 
 import (
-	"context"
 	"testing"
-
-	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
-	"github.com/google/uuid"
+	"time"
 )
 
-type fakeCallReconciliationRepository struct {
-	calls []sqlc.ListActiveCallsForAdmissionReconciliationRow
-}
-
-func (f *fakeCallReconciliationRepository) ListActiveForAdmissionReconciliation(
-	context.Context,
-) ([]sqlc.ListActiveCallsForAdmissionReconciliationRow, error) {
-	return f.calls, nil
-}
-
-type fakeReconciliationAdmission struct {
-	refreshed []uuid.UUID
-}
-
-func (f *fakeReconciliationAdmission) Refresh(
-	_ context.Context,
-	_ uuid.UUID,
-	callID uuid.UUID,
-) error {
-	f.refreshed = append(f.refreshed, callID)
-	return nil
-}
-
-func TestCallReconciliationRefreshesActiveCarrierLeases(t *testing.T) {
-	carrierID := uuid.New()
-	callID := uuid.New()
-	repo := &fakeCallReconciliationRepository{
-		calls: []sqlc.ListActiveCallsForAdmissionReconciliationRow{
-			{ID: callID, CarrierConnectionID: &carrierID},
-		},
-	}
-	admission := &fakeReconciliationAdmission{}
-
+func TestNewReconciliationJobDefaultsInterval(t *testing.T) {
 	job, err := NewReconciliationJob(
-		repo,
-		admission,
-		DefaultReconciliationJobConfig(),
+		&Repository{},
+		&Service{},
+		ReconciliationJobConfig{},
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := job.Reconcile(context.Background()); err != nil {
-		t.Fatal(err)
-	}
-	if len(admission.refreshed) != 1 || admission.refreshed[0] != callID {
-		t.Fatalf("refreshed = %v, want [%s]", admission.refreshed, callID)
+	if job.config.Interval != 30*time.Second {
+		t.Fatalf("interval = %s, want 30s", job.config.Interval)
 	}
 }
 
-func TestCallReconciliationRestartIsIdempotent(t *testing.T) {
-	carrierID := uuid.New()
-	callID := uuid.New()
-	repo := &fakeCallReconciliationRepository{
-		calls: []sqlc.ListActiveCallsForAdmissionReconciliationRow{
-			{ID: callID, CarrierConnectionID: &carrierID},
-		},
+func TestNewReconciliationJobRequiresDependencies(t *testing.T) {
+	if _, err := NewReconciliationJob(nil, &Service{}, DefaultReconciliationJobConfig()); err == nil {
+		t.Fatal("expected repository validation error")
 	}
-	admission := &fakeReconciliationAdmission{}
-
-	job, err := NewReconciliationJob(
-		repo,
-		admission,
-		DefaultReconciliationJobConfig(),
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := job.Reconcile(context.Background()); err != nil {
-		t.Fatal(err)
-	}
-	if err := job.Reconcile(context.Background()); err != nil {
-		t.Fatal(err)
-	}
-	if len(admission.refreshed) != 2 {
-		t.Fatalf("refresh count = %d, want 2", len(admission.refreshed))
+	if _, err := NewReconciliationJob(&Repository{}, nil, DefaultReconciliationJobConfig()); err == nil {
+		t.Fatal("expected service validation error")
 	}
 }

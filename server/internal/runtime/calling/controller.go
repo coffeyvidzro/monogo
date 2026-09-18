@@ -1,4 +1,4 @@
-package calls
+package calling
 
 import (
 	"context"
@@ -22,21 +22,6 @@ const (
 	dtmfTypeVar                 = "dtmf_type"
 	mediaEncryptionHeaderVar   = "sip_h_X-Leamout-Media-Encryption"
 )
-
-// Controller is the media-server contract used by call controls.
-type Controller interface {
-	Originate(context.Context, OriginateRequest) (OriginateResult, error)
-	Answer(context.Context, string) error
-	Hangup(context.Context, string) error
-	Transfer(context.Context, string, TransferRequest) error
-	Hold(context.Context, string) error
-	Resume(context.Context, string) error
-	PlayAudio(context.Context, string, string) error
-	StopPlayback(context.Context, string) error
-	Record(context.Context, string, RecordRequest) error
-	SendDTMF(context.Context, string, string) error
-	SetCallID(context.Context, string, uuid.UUID) error
-}
 
 type OriginateRequest struct {
 	CallID              uuid.UUID
@@ -66,21 +51,18 @@ type RecordRequest struct {
 	Action string
 }
 
-// FreeSWITCHController adapts the FreeSWITCH client to call controls.
-type FreeSWITCHController struct {
+type Controller struct {
 	client *freeswitch.Client
 }
 
-var _ Controller = (*FreeSWITCHController)(nil)
-
-func NewFreeSWITCHController(client *freeswitch.Client) *FreeSWITCHController {
+func NewController(client *freeswitch.Client) *Controller {
 	if client == nil {
-		panic("calls: FreeSWITCH client is required")
+		panic("calling: FreeSWITCH client is required")
 	}
-	return &FreeSWITCHController{client: client}
+	return &Controller{client: client}
 }
 
-func (c *FreeSWITCHController) Originate(
+func (c *Controller) Originate(
 	ctx context.Context,
 	req OriginateRequest,
 ) (OriginateResult, error) {
@@ -154,8 +136,7 @@ func freeSWITCHEgress(req OriginateRequest) (string, string, error) {
 	if host == "" {
 		return "", "", fmt.Errorf("resolved route host is required")
 	}
-	if strings.ContainsAny(host, " 	
-,{}[]") {
+	if strings.ContainsAny(host, " \t\r\n,{}[]") {
 		return "", "", fmt.Errorf("resolved route host is invalid")
 	}
 	if req.Port == 0 {
@@ -203,21 +184,21 @@ func validPSTNAddress(value string) bool {
 	return value != "+"
 }
 
-func (c *FreeSWITCHController) Answer(ctx context.Context, channelID string) error {
+func (c *Controller) Answer(ctx context.Context, channelID string) error {
 	if err := c.client.Answer(ctx, channelID); err != nil {
 		return fmt.Errorf("answer call: %w", err)
 	}
 	return nil
 }
 
-func (c *FreeSWITCHController) Hangup(ctx context.Context, channelID string) error {
+func (c *Controller) Hangup(ctx context.Context, channelID string) error {
 	if err := c.client.Hangup(ctx, channelID); err != nil {
 		return fmt.Errorf("hangup call: %w", err)
 	}
 	return nil
 }
 
-func (c *FreeSWITCHController) Transfer(
+func (c *Controller) Transfer(
 	ctx context.Context,
 	channelID string,
 	req TransferRequest,
@@ -233,35 +214,35 @@ func (c *FreeSWITCHController) Transfer(
 	return nil
 }
 
-func (c *FreeSWITCHController) Hold(ctx context.Context, channelID string) error {
+func (c *Controller) Hold(ctx context.Context, channelID string) error {
 	if err := c.client.Hold(ctx, channelID); err != nil {
 		return fmt.Errorf("hold call: %w", err)
 	}
 	return nil
 }
 
-func (c *FreeSWITCHController) Resume(ctx context.Context, channelID string) error {
+func (c *Controller) Resume(ctx context.Context, channelID string) error {
 	if err := c.client.Unhold(ctx, channelID); err != nil {
 		return fmt.Errorf("resume call: %w", err)
 	}
 	return nil
 }
 
-func (c *FreeSWITCHController) PlayAudio(ctx context.Context, channelID, path string) error {
+func (c *Controller) PlayAudio(ctx context.Context, channelID, path string) error {
 	if err := c.client.PlayAudio(ctx, channelID, path); err != nil {
 		return fmt.Errorf("play audio: %w", err)
 	}
 	return nil
 }
 
-func (c *FreeSWITCHController) StopPlayback(ctx context.Context, channelID string) error {
+func (c *Controller) StopPlayback(ctx context.Context, channelID string) error {
 	if err := c.client.StopAudio(ctx, channelID); err != nil {
 		return fmt.Errorf("stop audio: %w", err)
 	}
 	return nil
 }
 
-func (c *FreeSWITCHController) Record(
+func (c *Controller) Record(
 	ctx context.Context,
 	channelID string,
 	req RecordRequest,
@@ -276,14 +257,14 @@ func (c *FreeSWITCHController) Record(
 	return nil
 }
 
-func (c *FreeSWITCHController) SendDTMF(ctx context.Context, channelID, digits string) error {
+func (c *Controller) SendDTMF(ctx context.Context, channelID, digits string) error {
 	if err := c.client.SendDTMF(ctx, channelID, digits); err != nil {
 		return fmt.Errorf("send DTMF: %w", err)
 	}
 	return nil
 }
 
-func (c *FreeSWITCHController) SetCallID(
+func (c *Controller) SetCallID(
 	ctx context.Context,
 	channelID string,
 	callID uuid.UUID,

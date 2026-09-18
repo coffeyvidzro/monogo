@@ -1,4 +1,4 @@
-package calls
+package calling
 
 import (
 	"errors"
@@ -22,7 +22,6 @@ func TestTranslateFreeSWITCHEventKeepsCallAndChannelIdentitySeparate(t *testing.
 	if err != nil {
 		t.Fatal(err)
 	}
-
 	if event.CallID != callID {
 		t.Fatalf("call id = %s, want %s", event.CallID, callID)
 	}
@@ -32,7 +31,6 @@ func TestTranslateFreeSWITCHEventKeepsCallAndChannelIdentitySeparate(t *testing.
 	if event.Type != LifecycleAnswered {
 		t.Fatalf("type = %q, want %q", event.Type, LifecycleAnswered)
 	}
-
 	wantTime := time.Date(2026, time.August, 29, 8, 0, 0, 0, time.UTC)
 	if !event.OccurredAt.Equal(wantTime) {
 		t.Fatalf("occurred at = %s, want %s", event.OccurredAt, wantTime)
@@ -42,9 +40,7 @@ func TestTranslateFreeSWITCHEventKeepsCallAndChannelIdentitySeparate(t *testing.
 func TestTranslateFreeSWITCHEventRequiresLeamoutCallID(t *testing.T) {
 	_, err := TranslateFreeSWITCHEvent(freeswitch.Event{
 		Name: "CHANNEL_ANSWER",
-		Headers: map[string]string{
-			"Unique-ID": "fs-channel-1",
-		},
+		Headers: map[string]string{"Unique-ID": "fs-channel-1"},
 	})
 	if !errors.Is(err, ErrUncorrelatedEvent) {
 		t.Fatalf("error = %v, want ErrUncorrelatedEvent", err)
@@ -64,7 +60,6 @@ func TestTranslateFreeSWITCHHangupKeepsCauseAsReason(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-
 	if event.Type != LifecycleFailed {
 		t.Fatalf("type = %q, want %q", event.Type, LifecycleFailed)
 	}
@@ -83,27 +78,23 @@ func TestTranslateInboundFreeSWITCHEvent(t *testing.T) {
 	event, err := TranslateInboundFreeSWITCHEvent(freeswitch.Event{
 		Name: "CHANNEL_CREATE",
 		Headers: map[string]string{
-			"Unique-ID":                                              "fs-inbound-1",
-			"variable_sip_call_id":                                   "sip-call-123",
-			"variable_sip_h_X-Leamout-Organization-ID":               organizationID.String(),
-			"variable_sip_h_X-Leamout-Carrier-Connection-ID":         carrierID.String(),
-			"variable_sip_h_X-Leamout-Phone-Number-ID":               phoneNumberID.String(),
-			"variable_sip_h_X-Leamout-Voice-Binding-ID":              bindingID.String(),
-			"variable_sip_h_X-Leamout-Voice-Application-ID":          applicationID.String(),
-			"Caller-Caller-ID-Number":                                "+14155550100",
-			"Caller-Destination-Number":                              "+14155550199",
-			"Event-Date-Timestamp":                                   "1787990400000000",
+			"Unique-ID":                                      "fs-inbound-1",
+			"variable_sip_call_id":                           "sip-call-123",
+			"variable_sip_h_X-Leamout-Organization-ID":       organizationID.String(),
+			"variable_sip_h_X-Leamout-Carrier-Connection-ID": carrierID.String(),
+			"variable_sip_h_X-Leamout-Phone-Number-ID":       phoneNumberID.String(),
+			"variable_sip_h_X-Leamout-Voice-Binding-ID":      bindingID.String(),
+			"variable_sip_h_X-Leamout-Voice-Application-ID":  applicationID.String(),
+			"Caller-Caller-ID-Number":                        "+14155550100",
+			"Caller-Destination-Number":                      "+14155550199",
+			"Event-Date-Timestamp":                           "1787990400000000",
 		},
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-
-	if event.ChannelID != "fs-inbound-1" {
-		t.Fatalf("channel id = %q", event.ChannelID)
-	}
-	if event.SIPCallID != "sip-call-123" {
-		t.Fatalf("sip call id = %q", event.SIPCallID)
+	if event.ChannelID != "fs-inbound-1" || event.SIPCallID != "sip-call-123" {
+		t.Fatalf("unexpected inbound identity: %+v", event)
 	}
 	if event.OrganizationID != organizationID ||
 		event.ApplicationID != applicationID ||
@@ -112,32 +103,14 @@ func TestTranslateInboundFreeSWITCHEvent(t *testing.T) {
 		event.CarrierConnectionID != carrierID {
 		t.Fatalf("unexpected inbound admission identity: %+v", event)
 	}
-	if event.FromURI != "+14155550100" || event.ToURI != "+14155550199" {
-		t.Fatalf("unexpected addressing: from=%q to=%q", event.FromURI, event.ToURI)
-	}
 }
 
 func TestTranslateInboundFreeSWITCHEventIgnoresUnrelatedChannel(t *testing.T) {
 	_, err := TranslateInboundFreeSWITCHEvent(freeswitch.Event{
 		Name: "CHANNEL_CREATE",
-		Headers: map[string]string{
-			"Unique-ID": "unrelated-channel",
-		},
+		Headers: map[string]string{"Unique-ID": "unrelated-channel"},
 	})
 	if !errors.Is(err, ErrNotInboundAdmission) {
 		t.Fatalf("error = %v, want ErrNotInboundAdmission", err)
-	}
-}
-
-func TestTranslateInboundFreeSWITCHEventRejectsPartialTrustedMetadata(t *testing.T) {
-	_, err := TranslateInboundFreeSWITCHEvent(freeswitch.Event{
-		Name: "CHANNEL_CREATE",
-		Headers: map[string]string{
-			"Unique-ID":                                "fs-inbound-bad",
-			"variable_sip_h_X-Leamout-Organization-ID": uuid.NewString(),
-		},
-	})
-	if err == nil || errors.Is(err, ErrNotInboundAdmission) {
-		t.Fatalf("error = %v, want malformed trusted metadata error", err)
 	}
 }

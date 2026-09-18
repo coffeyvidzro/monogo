@@ -15,6 +15,7 @@ import (
 	"github.com/coffeyvidzro/monogo/internal/platform/logging"
 	"github.com/coffeyvidzro/monogo/internal/platform/outbox"
 	"github.com/coffeyvidzro/monogo/internal/platform/webhooks"
+	"github.com/coffeyvidzro/monogo/internal/runtime/calling"
 	"github.com/coffeyvidzro/monogo/internal/telecom/calls"
 	"github.com/coffeyvidzro/monogo/internal/telecom/recordings"
 	"github.com/coffeyvidzro/monogo/internal/telecom/routing"
@@ -26,6 +27,7 @@ type modules struct {
 	nats                    *natsintegration.Client
 	freeSwitch              *freeswitch.Client
 	callsService            *calls.Service
+	callConsumer            *calls.Consumer
 	callReconciliation      *calls.ReconciliationJob
 	outbox                  *outbox.PublisherJob
 	webhookConsumer         *webhooks.Consumer
@@ -93,17 +95,19 @@ func newModules(ctx context.Context, cfg config.Config) (*modules, error) {
 	routingRepository := routing.NewRepository(queries)
 	routingService := routing.NewService(routingRepository, nil)
 	callsRepository := calls.NewRepository(queries)
-	admissionLimiter := calls.NewRedisAdmissionLimiter(redisClient, callsRepository)
+	callController := calling.NewController(freeSwitch)
+	admissionLimiter := calling.NewAdmissionLimiter(redisClient)
 	callsService := calls.NewService(
 		callsRepository,
 		routingService,
-		calls.NewFreeSWITCHController(freeSwitch),
-		calls.NewRedisChannelStore(redisClient),
+		callController,
+		calling.NewChannelStore(redisClient),
 		admissionLimiter,
 	)
+	callConsumer := calls.NewConsumer(callsService)
 	callReconciliation, err := calls.NewReconciliationJob(
 		callsRepository,
-		admissionLimiter,
+		callsService,
 		calls.DefaultReconciliationJobConfig(),
 	)
 	if err != nil {
@@ -159,6 +163,7 @@ func newModules(ctx context.Context, cfg config.Config) (*modules, error) {
 		nats:                    natsClient,
 		freeSwitch:              freeSwitch,
 		callsService:            callsService,
+		callConsumer:            callConsumer,
 		callReconciliation:      callReconciliation,
 		outbox:                  outboxJob,
 		webhookConsumer:         webhooks.NewConsumer(natsClient, webhookService),
