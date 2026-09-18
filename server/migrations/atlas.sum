@@ -1,4 +1,4 @@
-h1:K9G5LMjzHDhJZoMLAyrxPnlp0Y/szaFaFVZKSIpgQK0=
+h1:RLdQtnyVLR2co86iVhBkM5nUoaVxuM3/+7yb/kz/DUk=
 001_extensions.sql h1:V12FA/dbb8clPffRf/1QJRpbB/S0eECkElwvfOVRda4=
 002_create_users.sql h1:w8z6z5sqnmtExCGa63iYl2ssG9rgXX8m3VPqvb1z4jo=
 003_create_authentication.sql h1:6R8fm0zInr9A/OW74oYTBLpPYHRf3dpVjw13qyjdd7E=
@@ -21,7 +21,6 @@ h1:K9G5LMjzHDhJZoMLAyrxPnlp0Y/szaFaFVZKSIpgQK0=
 020_create_recordings.sql h1:50cRT1MweJxiSHSAlCeqfU8wemcGqbuqiOLaz6KxbLQ=
 021_create_conferences.sql h1:R/uRGnx3TZT3HksAAwr8SVn/uDwXxmYPkBCzF/tDRMA=
 022_create_conference_participants.sql h1:36cPgU1m748lyyPExoq/w71NH5fmd005IqeSCeoy0mQ=
-023_create_deployments.sql h1:2c/P71srbYfBuO6aCXlkLfA7fyakcf69x0aMf1zULXY=
-024_create_audit_events.sql h1:5i/QG/2AJJTOI+hs6lh1jpZvSYkslxmcarc1Jwc8xzc=
-025_create_idempotency.sql h1:EXKUmY5etRpz0KGxBRcD+1Ovxzzhfkc+2J3ByxMTlXU=
-026_create_trunk_credentials.sql h1:VxLaFlkid5DUB1ln5xma8apMgU0LdbxVUd0vD6vLoIg=
+023_create_audit_events.sql h1:/khlG0XjbXcvuCHtWXntvmpJFDzCQWLXP/gnoNOCHLU=
+024_create_idempotency.sql h1:Dt6ErhkIKbVflROnBILFOIi4OPsr6p1cSXsmM8UVe9c=
+025_create_trunk_credentials.sql h1:cZk8EvOtH0uouPu0lHW4QC3GY/iPEezvlTZ/vq0nprM=

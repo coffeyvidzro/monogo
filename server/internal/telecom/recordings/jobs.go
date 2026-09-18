@@ -7,8 +7,8 @@ import (
 	"log"
 	"time"
 
-	"github.com/jackc/pgx/v5"
 	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
+	"github.com/jackc/pgx/v5"
 )
 
 type ReconciliationJobConfig struct {

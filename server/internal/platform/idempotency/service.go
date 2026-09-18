@@ -6,9 +6,9 @@ import (
 	"errors"
 	"time"
 
-	"github.com/jackc/pgx/v5"
 	"github.com/coffeyvidzro/monogo/internal/database/pgconv"
 	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
+	"github.com/jackc/pgx/v5"
 )
 
 type Service struct {

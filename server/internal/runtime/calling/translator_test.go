@@ -39,7 +39,7 @@ func TestTranslateFreeSWITCHEventKeepsCallAndChannelIdentitySeparate(t *testing.
 
 func TestTranslateFreeSWITCHEventRequiresLeamoutCallID(t *testing.T) {
 	_, err := TranslateFreeSWITCHEvent(freeswitch.Event{
-		Name: "CHANNEL_ANSWER",
+		Name:    "CHANNEL_ANSWER",
 		Headers: map[string]string{"Unique-ID": "fs-channel-1"},
 	})
 	if !errors.Is(err, ErrUncorrelatedEvent) {
@@ -78,8 +78,8 @@ func TestTranslateInboundFreeSWITCHEvent(t *testing.T) {
 	event, err := TranslateInboundFreeSWITCHEvent(freeswitch.Event{
 		Name: "CHANNEL_CREATE",
 		Headers: map[string]string{
-			"Unique-ID":                                      "fs-inbound-1",
-			"variable_sip_call_id":                           "sip-call-123",
+			"Unique-ID":            "fs-inbound-1",
+			"variable_sip_call_id": "sip-call-123",
 			"variable_sip_h_X-Leamout-Organization-ID":       organizationID.String(),
 			"variable_sip_h_X-Leamout-Carrier-Connection-ID": carrierID.String(),
 			"variable_sip_h_X-Leamout-Phone-Number-ID":       phoneNumberID.String(),
@@ -107,7 +107,7 @@ func TestTranslateInboundFreeSWITCHEvent(t *testing.T) {
 
 func TestTranslateInboundFreeSWITCHEventIgnoresUnrelatedChannel(t *testing.T) {
 	_, err := TranslateInboundFreeSWITCHEvent(freeswitch.Event{
-		Name: "CHANNEL_CREATE",
+		Name:    "CHANNEL_CREATE",
 		Headers: map[string]string{"Unique-ID": "unrelated-channel"},
 	})
 	if !errors.Is(err, ErrNotInboundAdmission) {

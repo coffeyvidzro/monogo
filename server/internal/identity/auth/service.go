@@ -5,13 +5,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/coffeyvidzro/monogo/internal/database/pgconv"
 	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
 	"github.com/coffeyvidzro/monogo/internal/security/otp"
 	"github.com/coffeyvidzro/monogo/internal/security/password"
 	"github.com/coffeyvidzro/monogo/internal/security/token"
 	"github.com/coffeyvidzro/monogo/pkg/apperror"
+	"github.com/google/uuid"
 )
 
 type Service struct {

@@ -3,9 +3,9 @@ package subscribers
 import (
 	"context"
 
-	"github.com/google/uuid"
 	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
 	"github.com/coffeyvidzro/monogo/pkg/hasher"
+	"github.com/google/uuid"
 )
 
 type Repository struct {

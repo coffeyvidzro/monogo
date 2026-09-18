@@ -52,13 +52,13 @@ func (c *Client) CreateCheckoutSession(
 	}
 
 	values := url.Values{
-		"mode":                                           {"payment"},
-		"ui_mode":                                        {"custom"},
-		"payment_method_types[0]":                        {"card"},
-		"line_items[0][quantity]":                        {"1"},
-		"line_items[0][price_data][currency]":            {strings.ToLower(request.Currency)},
-		"line_items[0][price_data][unit_amount]":         {strconv.FormatInt(request.AmountMinor, 10)},
-		"line_items[0][price_data][product_data][name]":  {"Wallet top-up"},
+		"mode":                                          {"payment"},
+		"ui_mode":                                       {"custom"},
+		"payment_method_types[0]":                       {"card"},
+		"line_items[0][quantity]":                       {"1"},
+		"line_items[0][price_data][currency]":           {strings.ToLower(request.Currency)},
+		"line_items[0][price_data][unit_amount]":        {strconv.FormatInt(request.AmountMinor, 10)},
+		"line_items[0][price_data][product_data][name]": {"Wallet top-up"},
 	}
 
 	var session CheckoutSession

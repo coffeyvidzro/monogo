@@ -3,8 +3,8 @@ package users
 import (
 	"context"
 
-	"github.com/google/uuid"
 	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
+	"github.com/google/uuid"
 )
 
 type Repository struct {

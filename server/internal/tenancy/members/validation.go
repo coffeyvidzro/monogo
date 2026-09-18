@@ -3,8 +3,8 @@ package members
 import (
 	"strings"
 
-	"github.com/google/uuid"
 	"github.com/coffeyvidzro/monogo/pkg/apperror"
+	"github.com/google/uuid"
 )
 
 const (

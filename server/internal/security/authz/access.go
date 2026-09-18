@@ -1,8 +1,8 @@
 package authz
 
 import (
-	"github.com/google/uuid"
 	"github.com/coffeyvidzro/monogo/internal/security/authn"
+	"github.com/google/uuid"
 )
 
 // Principal is the authorization view of an authenticated caller.

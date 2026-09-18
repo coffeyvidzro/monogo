@@ -3,8 +3,8 @@ package conferences
 import (
 	"strings"
 
-	"github.com/google/uuid"
 	"github.com/coffeyvidzro/monogo/pkg/apperror"
+	"github.com/google/uuid"
 )
 
 func validateOrganizationID(id uuid.UUID) error {

@@ -7,10 +7,10 @@ import (
 	"fmt"
 	"net/netip"
 
-	"github.com/google/uuid"
 	"github.com/coffeyvidzro/monogo/internal/database/pgconv"
 	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
 	"github.com/coffeyvidzro/monogo/internal/security/authn"
+	"github.com/google/uuid"
 )
 
 var ErrInvalidInput = errors.New("invalid credential input")

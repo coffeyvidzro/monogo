@@ -60,16 +60,16 @@ type LifecycleEvent struct {
 }
 
 type InboundAdmissionRequest struct {
-	ChannelID            string
-	SIPCallID            string
-	OrganizationID       uuid.UUID
-	ApplicationID        uuid.UUID
-	PhoneNumberID        uuid.UUID
-	VoiceBindingID       uuid.UUID
-	CarrierConnectionID  uuid.UUID
-	FromURI              string
-	ToURI                string
-	OccurredAt           time.Time
+	ChannelID           string
+	SIPCallID           string
+	OrganizationID      uuid.UUID
+	ApplicationID       uuid.UUID
+	PhoneNumberID       uuid.UUID
+	VoiceBindingID      uuid.UUID
+	CarrierConnectionID uuid.UUID
+	FromURI             string
+	ToURI               string
+	OccurredAt          time.Time
 }
 
 type CreateRequest struct {

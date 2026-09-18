@@ -6,9 +6,9 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/google/uuid"
 	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
 	"github.com/coffeyvidzro/monogo/pkg/apperror"
+	"github.com/google/uuid"
 )
 
 type stubServiceRepository struct {

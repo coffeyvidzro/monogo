@@ -6,8 +6,8 @@ import (
 	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
 	"github.com/coffeyvidzro/monogo/internal/platform/audit"
 	"github.com/coffeyvidzro/monogo/internal/platform/idempotency"
-	"github.com/coffeyvidzro/monogo/internal/platform/webhooks"
 	"github.com/coffeyvidzro/monogo/internal/platform/middleware"
+	"github.com/coffeyvidzro/monogo/internal/platform/webhooks"
 )
 
 type Module struct {

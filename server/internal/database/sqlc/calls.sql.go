@@ -308,7 +308,6 @@ func (q *Queries) GetCallBySIPCallIDGlobal(ctx context.Context, sipCallID *strin
 	return i, err
 }
 
-
 const getCallLifecycleSnapshot = `-- name: GetCallLifecycleSnapshot :one
 SELECT
     organization_id,
@@ -370,11 +369,11 @@ WHERE c.carrier_connection_id = $1
   AND COALESCE(c.ended_at, NOW()) > b.day_start
 `
 
-func (q *Queries) GetCarrierDailyUsageSeconds(ctx context.Context, carrierConnectionID uuid.UUID) (int64, error) {
+func (q *Queries) GetCarrierDailyUsageSeconds(ctx context.Context, carrierConnectionID *uuid.UUID) (int64, error) {
 	row := q.db.QueryRow(ctx, getCarrierDailyUsageSeconds, carrierConnectionID)
-	var usageSeconds int64
-	err := row.Scan(&usageSeconds)
-	return usageSeconds, err
+	var usage_seconds int64
+	err := row.Scan(&usage_seconds)
+	return usage_seconds, err
 }
 
 const getInboundCallContext = `-- name: GetInboundCallContext :one
@@ -447,7 +446,6 @@ func (q *Queries) GetInboundCallContext(ctx context.Context, arg GetInboundCallC
 	err := row.Scan(&i.MaxCps, &i.MaxConcurrentCalls, &i.MaxDailyMinutes)
 	return i, err
 }
-
 
 const listActiveCallsForAdmissionReconciliation = `-- name: ListActiveCallsForAdmissionReconciliation :many
 SELECT

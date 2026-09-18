@@ -43,11 +43,11 @@ func NewService(
 		panic("calls: admission limiter is required")
 	}
 	return &Service{
-		repo: repo,
-		router: router,
+		repo:       repo,
+		router:     router,
 		controller: controller,
-		channels: channels,
-		admission: admission,
+		channels:   channels,
+		admission:  admission,
 	}
 }
 
@@ -566,4 +566,3 @@ func translateMutationError(err error) error {
 	}
 	return apperror.NewInternal("update call", err)
 }
-

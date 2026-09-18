@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
+	"github.com/google/uuid"
 )
 
 var (

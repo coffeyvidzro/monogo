@@ -15,11 +15,11 @@ import (
 const (
 	openSIPSEgressHost         = "opensips"
 	openSIPSEgressPort         = 5060
-	leamoutCallIDVar            = "leamout_call_id"
-	routeURIHeaderVar           = "sip_h_X-Leamout-Route-URI"
+	leamoutCallIDVar           = "leamout_call_id"
+	routeURIHeaderVar          = "sip_h_X-Leamout-Route-URI"
 	carrierConnectionHeaderVar = "sip_h_X-Leamout-Carrier-Connection-ID"
-	privacyHeaderVar            = "sip_h_X-Leamout-Privacy"
-	dtmfTypeVar                 = "dtmf_type"
+	privacyHeaderVar           = "sip_h_X-Leamout-Privacy"
+	dtmfTypeVar                = "dtmf_type"
 	mediaEncryptionHeaderVar   = "sip_h_X-Leamout-Media-Encryption"
 )
 
@@ -101,8 +101,8 @@ func egressVariables(req OriginateRequest, routeURI string) (map[string]string, 
 	}
 
 	variables := map[string]string{
-		leamoutCallIDVar:            req.CallID.String(),
-		routeURIHeaderVar:           routeURI,
+		leamoutCallIDVar:           req.CallID.String(),
+		routeURIHeaderVar:          routeURI,
 		carrierConnectionHeaderVar: req.CarrierConnectionID.String(),
 	}
 
