@@ -1,6 +1,7 @@
 package stripe
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
@@ -73,10 +74,42 @@ type CheckoutSession struct {
 	Metadata      map[string]string `json:"metadata"`
 }
 
+type Charge struct {
+	ID            string            `json:"id"`
+	Status        string            `json:"status"`
+	Amount        int64             `json:"amount"`
+	AmountCaptured int64            `json:"amount_captured"`
+	Currency      string            `json:"currency"`
+	PaymentIntent string            `json:"payment_intent"`
+	Metadata      map[string]string `json:"metadata"`
+}
+
 type WebhookEvent struct {
 	ID   string `json:"id"`
 	Type string `json:"type"`
 	Data struct {
-		Object CheckoutSession `json:"object"`
+		Object json.RawMessage `json:"object"`
 	} `json:"data"`
+}
+
+func (e WebhookEvent) DecodeCheckoutSession() (CheckoutSession, error) {
+	var session CheckoutSession
+	if err := json.Unmarshal(e.Data.Object, &session); err != nil {
+		return CheckoutSession{}, fmt.Errorf("decode Stripe checkout session: %w", err)
+	}
+	if strings.TrimSpace(session.ID) == "" {
+		return CheckoutSession{}, fmt.Errorf("Stripe checkout session ID is required")
+	}
+	return session, nil
+}
+
+func (e WebhookEvent) DecodeCharge() (Charge, error) {
+	var charge Charge
+	if err := json.Unmarshal(e.Data.Object, &charge); err != nil {
+		return Charge{}, fmt.Errorf("decode Stripe charge: %w", err)
+	}
+	if strings.TrimSpace(charge.ID) == "" {
+		return Charge{}, fmt.Errorf("Stripe charge ID is required")
+	}
+	return charge, nil
 }
