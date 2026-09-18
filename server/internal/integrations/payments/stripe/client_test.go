@@ -38,6 +38,9 @@ func TestCreateCheckoutSession(t *testing.T) {
 		if got := values.Get("mode"); got != "payment" {
 			t.Fatalf("mode = %q", got)
 		}
+		if got := values.Get("payment_method_types[0]"); got != "card" {
+			t.Fatalf("payment_method_types[0] = %q", got)
+		}
 		if got := values.Get("line_items[0][price_data][unit_amount]"); got != "5000" {
 			t.Fatalf("unit_amount = %q", got)
 		}
