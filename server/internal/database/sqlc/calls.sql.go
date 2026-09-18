@@ -308,6 +308,75 @@ func (q *Queries) GetCallBySIPCallIDGlobal(ctx context.Context, sipCallID *strin
 	return i, err
 }
 
+
+const getCallLifecycleSnapshot = `-- name: GetCallLifecycleSnapshot :one
+SELECT
+    organization_id,
+    carrier_connection_id,
+    direction,
+    state,
+    media_state
+FROM calls
+WHERE id = $1
+LIMIT 1
+`
+
+type GetCallLifecycleSnapshotRow struct {
+	OrganizationID      uuid.UUID  `db:"organization_id" json:"organization_id"`
+	CarrierConnectionID *uuid.UUID `db:"carrier_connection_id" json:"carrier_connection_id"`
+	Direction           string     `db:"direction" json:"direction"`
+	State               string     `db:"state" json:"state"`
+	MediaState          string     `db:"media_state" json:"media_state"`
+}
+
+func (q *Queries) GetCallLifecycleSnapshot(ctx context.Context, id uuid.UUID) (GetCallLifecycleSnapshotRow, error) {
+	row := q.db.QueryRow(ctx, getCallLifecycleSnapshot, id)
+	var i GetCallLifecycleSnapshotRow
+	err := row.Scan(
+		&i.OrganizationID,
+		&i.CarrierConnectionID,
+		&i.Direction,
+		&i.State,
+		&i.MediaState,
+	)
+	return i, err
+}
+
+const getCarrierDailyUsageSeconds = `-- name: GetCarrierDailyUsageSeconds :one
+WITH bounds AS (
+    SELECT
+        date_trunc('day', NOW() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC' AS day_start,
+        (date_trunc('day', NOW() AT TIME ZONE 'UTC') + INTERVAL '1 day') AT TIME ZONE 'UTC' AS day_end
+)
+SELECT COALESCE(
+    SUM(
+        GREATEST(
+            EXTRACT(
+                EPOCH FROM (
+                    LEAST(COALESCE(c.ended_at, NOW()), b.day_end)
+                    - GREATEST(c.answered_at, b.day_start)
+                )
+            ),
+            0
+        )
+    ),
+    0
+)::BIGINT AS usage_seconds
+FROM calls AS c
+CROSS JOIN bounds AS b
+WHERE c.carrier_connection_id = $1
+  AND c.answered_at IS NOT NULL
+  AND c.answered_at < b.day_end
+  AND COALESCE(c.ended_at, NOW()) > b.day_start
+`
+
+func (q *Queries) GetCarrierDailyUsageSeconds(ctx context.Context, carrierConnectionID uuid.UUID) (int64, error) {
+	row := q.db.QueryRow(ctx, getCarrierDailyUsageSeconds, carrierConnectionID)
+	var usageSeconds int64
+	err := row.Scan(&usageSeconds)
+	return usageSeconds, err
+}
+
 const getInboundCallContext = `-- name: GetInboundCallContext :one
 SELECT
     cc.max_cps,

@@ -103,7 +103,7 @@ func New(deps Dependencies) (*Module, error) {
 	routingRepository := routing.NewRepository(deps.Queries)
 	routingService := routing.NewService(routingRepository, nil)
 
-	callsRepository := calls.NewRepository(deps.DB, deps.Queries)
+	callsRepository := calls.NewRepository(deps.Queries)
 	callsService := calls.NewService(
 		callsRepository,
 		routingService,

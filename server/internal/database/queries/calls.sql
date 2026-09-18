@@ -38,6 +38,44 @@ FROM calls
 WHERE sip_call_id = sqlc.arg(sip_call_id)
 LIMIT 1;
 
+-- name: GetCallLifecycleSnapshot :one
+SELECT
+    organization_id,
+    carrier_connection_id,
+    direction,
+    state,
+    media_state
+FROM calls
+WHERE id = sqlc.arg(id)
+LIMIT 1;
+
+-- name: GetCarrierDailyUsageSeconds :one
+WITH bounds AS (
+    SELECT
+        date_trunc('day', NOW() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC' AS day_start,
+        (date_trunc('day', NOW() AT TIME ZONE 'UTC') + INTERVAL '1 day') AT TIME ZONE 'UTC' AS day_end
+)
+SELECT COALESCE(
+    SUM(
+        GREATEST(
+            EXTRACT(
+                EPOCH FROM (
+                    LEAST(COALESCE(c.ended_at, NOW()), b.day_end)
+                    - GREATEST(c.answered_at, b.day_start)
+                )
+            ),
+            0
+        )
+    ),
+    0
+)::BIGINT AS usage_seconds
+FROM calls AS c
+CROSS JOIN bounds AS b
+WHERE c.carrier_connection_id = sqlc.arg(carrier_connection_id)
+  AND c.answered_at IS NOT NULL
+  AND c.answered_at < b.day_end
+  AND COALESCE(c.ended_at, NOW()) > b.day_start;
+
 -- name: ListCalls :many
 SELECT *
 FROM calls
