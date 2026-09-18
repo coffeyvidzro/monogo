@@ -2,23 +2,34 @@ package calls
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type Repository struct {
+	db      *pgxpool.Pool
 	queries *sqlc.Queries
 }
 
 type LifecycleSnapshot struct {
-	OrganizationID uuid.UUID
-	State          string
-	MediaState     string
+	OrganizationID      uuid.UUID
+	CarrierConnectionID *uuid.UUID
+	Direction           string
+	State               string
+	MediaState          string
 }
 
-func NewRepository(queries *sqlc.Queries) *Repository {
-	return &Repository{queries: queries}
+func NewRepository(db *pgxpool.Pool, queries *sqlc.Queries) *Repository {
+	if db == nil {
+		panic("calls: database is required")
+	}
+	if queries == nil {
+		panic("calls: queries are required")
+	}
+	return &Repository{db: db, queries: queries}
 }
 
 func (r *Repository) Create(
@@ -76,19 +87,75 @@ func (r *Repository) GetLifecycleSnapshot(
 	ctx context.Context,
 	id uuid.UUID,
 ) (LifecycleSnapshot, error) {
-	row, err := r.queries.GetBackofficeCall(ctx, id)
-	if err != nil {
+	const query = `
+SELECT
+    organization_id,
+    carrier_connection_id,
+    direction,
+    state,
+    media_state
+FROM calls
+WHERE id = $1
+LIMIT 1
+`
+
+	var snapshot LifecycleSnapshot
+	if err := r.db.QueryRow(ctx, query, id).Scan(
+		&snapshot.OrganizationID,
+		&snapshot.CarrierConnectionID,
+		&snapshot.Direction,
+		&snapshot.State,
+		&snapshot.MediaState,
+	); err != nil {
 		return LifecycleSnapshot{}, err
 	}
-	organizationID, err := uuid.Parse(row.OrganizationID)
-	if err != nil {
-		return LifecycleSnapshot{}, err
+	return snapshot, nil
+}
+
+// CarrierDailyUsageSeconds returns answered carrier usage overlapping the
+// current UTC calendar day. Active calls contribute elapsed answered time up
+// to NOW(), so new admissions see already-consumed in-flight usage.
+func (r *Repository) CarrierDailyUsageSeconds(
+	ctx context.Context,
+	carrierConnectionID uuid.UUID,
+) (int64, error) {
+	if carrierConnectionID == uuid.Nil {
+		return 0, fmt.Errorf("carrier connection id is required")
 	}
-	return LifecycleSnapshot{
-		OrganizationID: organizationID,
-		State:          row.State,
-		MediaState:     row.MediaState,
-	}, nil
+
+	const query = `
+WITH bounds AS (
+    SELECT
+        date_trunc('day', NOW() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC' AS day_start,
+        (date_trunc('day', NOW() AT TIME ZONE 'UTC') + INTERVAL '1 day') AT TIME ZONE 'UTC' AS day_end
+)
+SELECT COALESCE(
+    SUM(
+        GREATEST(
+            EXTRACT(
+                EPOCH FROM (
+                    LEAST(COALESCE(c.ended_at, NOW()), b.day_end)
+                    - GREATEST(c.answered_at, b.day_start)
+                )
+            ),
+            0
+        )
+    ),
+    0
+)::BIGINT
+FROM calls AS c
+CROSS JOIN bounds AS b
+WHERE c.carrier_connection_id = $1
+  AND c.answered_at IS NOT NULL
+  AND c.answered_at < b.day_end
+  AND COALESCE(c.ended_at, NOW()) > b.day_start
+`
+
+	var seconds int64
+	if err := r.db.QueryRow(ctx, query, carrierConnectionID).Scan(&seconds); err != nil {
+		return 0, fmt.Errorf("query carrier daily usage: %w", err)
+	}
+	return seconds, nil
 }
 
 func (r *Repository) List(

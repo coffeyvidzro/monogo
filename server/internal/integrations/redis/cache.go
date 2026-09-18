@@ -118,6 +118,12 @@ func (c *Client) AcquireCallLease(ctx context.Context, prefix, leaseID string, m
 	}
 	const script = `
 redis.call('ZREMRANGEBYSCORE', KEYS[2], '-inf', ARGV[1])
+local existing = redis.call('ZSCORE', KEYS[2], ARGV[5])
+if existing then
+  redis.call('ZADD', KEYS[2], ARGV[4], ARGV[5])
+  redis.call('PEXPIRE', KEYS[2], ARGV[6])
+  return 'ok'
+end
 local cps = redis.call('INCR', KEYS[1])
 if cps == 1 then redis.call('PEXPIRE', KEYS[1], 1000) end
 if cps > tonumber(ARGV[2]) then return 'cps' end

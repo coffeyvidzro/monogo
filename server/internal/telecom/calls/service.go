@@ -16,9 +16,16 @@ type Service struct {
 	router     *routing.Service
 	controller Controller
 	channels   ChannelStore
+	admission  AdmissionLimiter
 }
 
-func NewService(repo *Repository, router *routing.Service, controller Controller, channels ChannelStore) *Service {
+func NewService(
+	repo *Repository,
+	router *routing.Service,
+	controller Controller,
+	channels ChannelStore,
+	admission AdmissionLimiter,
+) *Service {
 	if repo == nil {
 		panic("calls: repository is required")
 	}
@@ -31,7 +38,16 @@ func NewService(repo *Repository, router *routing.Service, controller Controller
 	if channels == nil {
 		panic("calls: channel store is required")
 	}
-	return &Service{repo: repo, router: router, controller: controller, channels: channels}
+	if admission == nil {
+		panic("calls: admission limiter is required")
+	}
+	return &Service{
+		repo: repo,
+		router: router,
+		controller: controller,
+		channels: channels,
+		admission: admission,
+	}
 }
 
 func (s *Service) Create(ctx context.Context, organizationID uuid.UUID, req CreateRequest) (sqlc.Call, error) {
@@ -71,6 +87,17 @@ func (s *Service) Create(ctx context.Context, organizationID uuid.UUID, req Crea
 		return sqlc.Call{}, apperror.NewInternal("set call route attribution", err)
 	}
 
+	if err := s.admission.Acquire(
+		ctx,
+		decision.CarrierConnectionID,
+		call.ID.String(),
+		decision.Limits,
+	); err != nil {
+		reason := admissionFailureReason(err)
+		_, _ = s.repo.MarkFailed(ctx, organizationID, call.ID, &reason)
+		return sqlc.Call{}, admissionError(err)
+	}
+
 	result, err := s.controller.Originate(ctx, OriginateRequest{
 		CallID:              call.ID,
 		Destination:         req.ToURI,
@@ -84,12 +111,14 @@ func (s *Service) Create(ctx context.Context, organizationID uuid.UUID, req Crea
 		MediaEncryption:     req.MediaEncryption,
 	})
 	if err != nil {
+		_ = s.admission.Release(ctx, decision.CarrierConnectionID, call.ID.String())
 		reason := "originate_failed"
 		_, _ = s.repo.MarkFailed(ctx, organizationID, call.ID, &reason)
 		return sqlc.Call{}, apperror.NewInternal("originate call", err)
 	}
 	if err := s.channels.Bind(ctx, call.ID, result.ChannelID); err != nil {
 		_ = s.controller.Hangup(ctx, result.ChannelID)
+		_ = s.admission.Release(ctx, decision.CarrierConnectionID, call.ID.String())
 		reason := "channel_binding_failed"
 		_, _ = s.repo.MarkFailed(ctx, organizationID, call.ID, &reason)
 		return sqlc.Call{}, apperror.NewInternal("bind call channel", err)
@@ -116,6 +145,15 @@ func (s *Service) AdmitInbound(
 		if err != nil {
 			return sqlc.Call{}, s.rejectInbound(ctx, req.ChannelID, err)
 		}
+		if existing.CarrierConnectionID != nil {
+			if err := s.admission.Refresh(ctx, *existing.CarrierConnectionID, existing.ID); err != nil {
+				return sqlc.Call{}, s.rejectInbound(
+					ctx,
+					req.ChannelID,
+					apperror.NewServiceUnavailable("refresh inbound admission lease", err),
+				)
+			}
+		}
 		if err := s.bindInboundChannel(ctx, existing, req.ChannelID); err != nil {
 			return sqlc.Call{}, s.rejectInbound(ctx, req.ChannelID, err)
 		}
@@ -129,7 +167,7 @@ func (s *Service) AdmitInbound(
 		)
 	}
 
-	_, err = s.router.ResolveInbound(ctx, routing.InboundRequest{
+	decision, err := s.router.ResolveInbound(ctx, routing.InboundRequest{
 		OrganizationID:      req.OrganizationID,
 		ApplicationID:       req.ApplicationID,
 		PhoneNumberID:       req.PhoneNumberID,
@@ -141,12 +179,24 @@ func (s *Service) AdmitInbound(
 		return sqlc.Call{}, s.rejectInbound(ctx, req.ChannelID, err)
 	}
 
+	if err := s.admission.Acquire(
+		ctx,
+		decision.CarrierConnectionID,
+		req.ChannelID,
+		decision.Limits,
+	); err != nil {
+		return sqlc.Call{}, s.rejectInbound(ctx, req.ChannelID, admissionError(err))
+	}
+
 	call, err := s.repo.CreateInbound(ctx, req)
 	if err != nil {
 		// A duplicate CHANNEL_CREATE or a concurrent admission can race the
 		// unique SIP Call-ID constraint. Re-read and reuse the durable call.
 		existing, readErr := s.repo.GetBySIPCallIDGlobal(ctx, req.SIPCallID)
 		if readErr == nil {
+			if existing.ID.String() != req.ChannelID {
+				_ = s.admission.Release(ctx, decision.CarrierConnectionID, req.ChannelID)
+			}
 			if validateErr := validateExistingInbound(existing, req); validateErr != nil {
 				return sqlc.Call{}, s.rejectInbound(ctx, req.ChannelID, validateErr)
 			}
@@ -154,11 +204,21 @@ func (s *Service) AdmitInbound(
 			if attributionErr != nil {
 				return sqlc.Call{}, s.rejectInbound(ctx, req.ChannelID, attributionErr)
 			}
+			if existing.CarrierConnectionID != nil {
+				if refreshErr := s.admission.Refresh(ctx, *existing.CarrierConnectionID, existing.ID); refreshErr != nil {
+					return sqlc.Call{}, s.rejectInbound(
+						ctx,
+						req.ChannelID,
+						apperror.NewServiceUnavailable("refresh inbound admission lease", refreshErr),
+					)
+				}
+			}
 			if bindErr := s.bindInboundChannel(ctx, existing, req.ChannelID); bindErr != nil {
 				return sqlc.Call{}, s.rejectInbound(ctx, req.ChannelID, bindErr)
 			}
 			return existing, nil
 		}
+		_ = s.admission.Release(ctx, decision.CarrierConnectionID, req.ChannelID)
 		return sqlc.Call{}, s.rejectInbound(
 			ctx,
 			req.ChannelID,
@@ -171,6 +231,7 @@ func (s *Service) AdmitInbound(
 		CarrierConnectionID: &carrierID,
 	})
 	if err != nil {
+		_ = s.admission.Release(ctx, decision.CarrierConnectionID, req.ChannelID)
 		reason := "inbound_attribution_failed"
 		_, _ = s.repo.MarkFailed(ctx, req.OrganizationID, call.ID, &reason)
 		return sqlc.Call{}, s.rejectInbound(
@@ -180,7 +241,24 @@ func (s *Service) AdmitInbound(
 		)
 	}
 
+	if err := s.admission.Bind(
+		ctx,
+		decision.CarrierConnectionID,
+		req.ChannelID,
+		call.ID,
+	); err != nil {
+		reason := "inbound_admission_binding_failed"
+		_, _ = s.repo.MarkFailed(ctx, req.OrganizationID, call.ID, &reason)
+		_ = s.admission.Release(ctx, decision.CarrierConnectionID, req.ChannelID)
+		return sqlc.Call{}, s.rejectInbound(
+			ctx,
+			req.ChannelID,
+			apperror.NewInternal("bind inbound admission lease", err),
+		)
+	}
+
 	if err := s.bindInboundChannel(ctx, call, req.ChannelID); err != nil {
+		_ = s.admission.Release(ctx, decision.CarrierConnectionID, call.ID.String())
 		reason := "inbound_channel_binding_failed"
 		_, _ = s.repo.MarkFailed(ctx, req.OrganizationID, call.ID, &reason)
 		return sqlc.Call{}, s.rejectInbound(ctx, req.ChannelID, err)
@@ -297,9 +375,17 @@ func (s *Service) ObserveLifecycle(ctx context.Context, event LifecycleEvent) er
 	if err != nil {
 		return apperror.NewInternal("resolve lifecycle call", err)
 	}
+	if !isTerminalLifecycle(event.Type) && snapshot.CarrierConnectionID != nil {
+		if err := s.admission.Refresh(ctx, *snapshot.CarrierConnectionID, event.CallID); err != nil {
+			return apperror.NewServiceUnavailable("refresh carrier call lease", err)
+		}
+	}
 	if lifecycleAlreadyApplied(snapshot, event.Type) {
 		if isTerminalLifecycle(event.Type) {
 			_ = s.channels.Delete(ctx, event.CallID)
+			if snapshot.CarrierConnectionID != nil {
+				_ = s.admission.Release(ctx, *snapshot.CarrierConnectionID, event.CallID.String())
+			}
 		}
 		return nil
 	}
@@ -328,6 +414,9 @@ func (s *Service) ObserveLifecycle(ctx context.Context, event LifecycleEvent) er
 	}
 	if err == nil && isTerminalLifecycle(event.Type) {
 		_ = s.channels.Delete(ctx, event.CallID)
+		if snapshot.CarrierConnectionID != nil {
+			_ = s.admission.Release(ctx, *snapshot.CarrierConnectionID, event.CallID.String())
+		}
 	}
 	return err
 }
@@ -535,6 +624,33 @@ func (s *Service) transition(ctx context.Context, organizationID, id uuid.UUID, 
 	call, err := fn(ctx, organizationID, id)
 	return call, translateMutationError(err)
 }
+
+func admissionError(err error) error {
+	switch {
+	case errors.Is(err, ErrAdmissionCPS):
+		return apperror.NewTooManyRequests("carrier CPS limit exceeded")
+	case errors.Is(err, ErrAdmissionConcurrent):
+		return apperror.NewTooManyRequests("carrier concurrent call limit exceeded")
+	case errors.Is(err, ErrAdmissionDailyMinutes):
+		return apperror.NewTooManyRequests("carrier daily minute limit exceeded")
+	default:
+		return apperror.NewServiceUnavailable("carrier admission service unavailable", err)
+	}
+}
+
+func admissionFailureReason(err error) string {
+	switch {
+	case errors.Is(err, ErrAdmissionCPS):
+		return "carrier_cps_limit"
+	case errors.Is(err, ErrAdmissionConcurrent):
+		return "carrier_concurrent_limit"
+	case errors.Is(err, ErrAdmissionDailyMinutes):
+		return "carrier_daily_minutes_limit"
+	default:
+		return "carrier_admission_failed"
+	}
+}
+
 func translateReadError(err error) error {
 	if err == nil { return nil }
 	if errors.Is(err, pgx.ErrNoRows) { return apperror.NewNotFound("call not found") }

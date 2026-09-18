@@ -91,12 +91,13 @@ func newModules(ctx context.Context, cfg config.Config) (*modules, error) {
 
 	routingRepository := routing.NewRepository(queries)
 	routingService := routing.NewService(routingRepository, nil)
-	callsRepository := calls.NewRepository(queries)
+	callsRepository := calls.NewRepository(postgresClient.Pool(), queries)
 	callsService := calls.NewService(
 		callsRepository,
 		routingService,
 		calls.NewFreeSWITCHController(freeSwitch),
 		calls.NewRedisChannelStore(redisClient),
+		calls.NewRedisAdmissionLimiter(redisClient, callsRepository),
 	)
 
 	recordingsRepository := recordings.NewRepository(postgresClient.Pool())

@@ -103,12 +103,13 @@ func New(deps Dependencies) (*Module, error) {
 	routingRepository := routing.NewRepository(deps.Queries)
 	routingService := routing.NewService(routingRepository, nil)
 
-	callsRepository := calls.NewRepository(deps.Queries)
+	callsRepository := calls.NewRepository(deps.DB, deps.Queries)
 	callsService := calls.NewService(
 		callsRepository,
 		routingService,
 		deps.CallsController,
 		calls.NewRedisChannelStore(deps.Redis),
+		calls.NewRedisAdmissionLimiter(deps.Redis, callsRepository),
 	)
 
 	voiceRepository := voice.NewRepository(deps.Queries)
