@@ -25,7 +25,7 @@ type Client struct {
 }
 
 func New(cfg Config) (*Client, error) {
-	if cfg.BaseURL == "" {
+	if strings.TrimSpace(cfg.BaseURL) == "" {
 		cfg.BaseURL = DefaultBaseURL
 	}
 	if cfg.HTTPClient == nil {
@@ -34,9 +34,10 @@ func New(cfg Config) (*Client, error) {
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
+
 	return &Client{
-		secretKey:     cfg.SecretKey,
-		webhookSecret: cfg.WebhookSecret,
+		secretKey:     strings.TrimSpace(cfg.SecretKey),
+		webhookSecret: strings.TrimSpace(cfg.WebhookSecret),
 		baseURL:       strings.TrimRight(cfg.BaseURL, "/"),
 		httpClient:    cfg.HTTPClient,
 	}, nil
@@ -50,19 +51,21 @@ func (c *Client) CreateCheckoutSession(
 		return CheckoutSession{}, err
 	}
 
-	values := url.Values{}
-	values.Set("mode", "payment")
-	values.Set("ui_mode", "custom")
-	values.Set("payment_method_types[0]", "card")
-	values.Set("line_items[0][quantity]", "1")
-	values.Set("line_items[0][price_data][currency]", strings.ToLower(request.Currency))
-	values.Set("line_items[0][price_data][unit_amount]", strconv.FormatInt(request.Amount, 10))
-	values.Set("line_items[0][price_data][product_data][name]", "Leamout")
+	values := url.Values{
+		"mode":                                           {"payment"},
+		"ui_mode":                                        {"custom"},
+		"payment_method_types[0]":                        {"card"},
+		"line_items[0][quantity]":                        {"1"},
+		"line_items[0][price_data][currency]":            {strings.ToLower(request.Currency)},
+		"line_items[0][price_data][unit_amount]":         {strconv.FormatInt(request.AmountMinor, 10)},
+		"line_items[0][price_data][product_data][name]":  {"Wallet top-up"},
+	}
 
 	var session CheckoutSession
 	if err := c.doForm(ctx, http.MethodPost, "/checkout/sessions", values, &session); err != nil {
 		return CheckoutSession{}, err
 	}
+
 	return session, nil
 }
 
@@ -82,13 +85,15 @@ func (c *Client) RetrieveCheckoutSession(ctx context.Context, id string) (Checko
 	); err != nil {
 		return CheckoutSession{}, err
 	}
+
 	return session, nil
 }
 
-func (c *Client) ParseWebhook(payload []byte, signatureHeader string, now time.Time) (WebhookEvent, error) {
-	if strings.TrimSpace(c.webhookSecret) == "" {
-		return WebhookEvent{}, fmt.Errorf("Stripe webhook secret is required")
-	}
+func (c *Client) ParseWebhook(
+	payload []byte,
+	signatureHeader string,
+	now time.Time,
+) (WebhookEvent, error) {
 	timestamp, signatures, err := parseSignatureHeader(signatureHeader)
 	if err != nil {
 		return WebhookEvent{}, err
@@ -96,6 +101,7 @@ func (c *Client) ParseWebhook(payload []byte, signatureHeader string, now time.T
 	if now.IsZero() {
 		now = time.Now()
 	}
+
 	eventTime := time.Unix(timestamp, 0)
 	if now.Sub(eventTime) > webhookTolerance || eventTime.Sub(now) > webhookTolerance {
 		return WebhookEvent{}, fmt.Errorf("Stripe webhook timestamp is outside tolerance")
@@ -128,6 +134,7 @@ func (c *Client) ParseWebhook(payload []byte, signatureHeader string, now time.T
 	if strings.TrimSpace(event.Type) == "" {
 		return WebhookEvent{}, fmt.Errorf("Stripe webhook event type is required")
 	}
+
 	return event, nil
 }
 
@@ -145,6 +152,7 @@ func (c *Client) doForm(
 	if values != nil {
 		body = strings.NewReader(values.Encode())
 	}
+
 	req, err := http.NewRequestWithContext(ctx, method, c.baseURL+path, body)
 	if err != nil {
 		return fmt.Errorf("create Stripe request: %w", err)
@@ -167,22 +175,29 @@ func (c *Client) doForm(
 		return fmt.Errorf("read Stripe response: %w", err)
 	}
 	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
-		return fmt.Errorf("Stripe request failed with status %d: %s", resp.StatusCode, strings.TrimSpace(string(payload)))
+		return fmt.Errorf(
+			"Stripe request failed with status %d: %s",
+			resp.StatusCode,
+			strings.TrimSpace(string(payload)),
+		)
 	}
 	if err := json.Unmarshal(payload, target); err != nil {
 		return fmt.Errorf("decode Stripe response: %w", err)
 	}
+
 	return nil
 }
 
 func parseSignatureHeader(header string) (int64, []string, error) {
 	var timestamp int64
 	var signatures []string
+
 	for _, part := range strings.Split(header, ",") {
 		key, value, ok := strings.Cut(strings.TrimSpace(part), "=")
 		if !ok {
 			continue
 		}
+
 		switch key {
 		case "t":
 			parsed, err := strconv.ParseInt(value, 10, 64)
@@ -194,11 +209,13 @@ func parseSignatureHeader(header string) (int64, []string, error) {
 			signatures = append(signatures, value)
 		}
 	}
+
 	if timestamp == 0 {
 		return 0, nil, fmt.Errorf("Stripe webhook timestamp is required")
 	}
 	if len(signatures) == 0 {
 		return 0, nil, fmt.Errorf("Stripe webhook signature is required")
 	}
+
 	return timestamp, signatures, nil
 }
