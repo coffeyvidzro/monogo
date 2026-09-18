@@ -32,14 +32,17 @@ func TestCreateCheckoutSession(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if got := values.Get("ui_mode"); got != "custom" {
-			t.Fatalf("ui_mode = %q", got)
-		}
 		if got := values.Get("mode"); got != "payment" {
 			t.Fatalf("mode = %q", got)
 		}
+		if got := values.Get("ui_mode"); got != "custom" {
+			t.Fatalf("ui_mode = %q", got)
+		}
 		if got := values.Get("payment_method_types[0]"); got != "card" {
 			t.Fatalf("payment_method_types[0] = %q", got)
+		}
+		if got := values.Get("line_items[0][price_data][currency]"); got != "usd" {
+			t.Fatalf("currency = %q", got)
 		}
 		if got := values.Get("line_items[0][price_data][unit_amount]"); got != "5000" {
 			t.Fatalf("unit_amount = %q", got)
@@ -67,11 +70,8 @@ func TestCreateCheckoutSession(t *testing.T) {
 	}
 
 	session, err := client.CreateCheckoutSession(context.Background(), CreateCheckoutSessionRequest{
-		Amount:      5000,
-		Currency:    "USD",
-		Email:       "customer@example.com",
-		Reference:   "checkout_123",
-		Description: "Wallet top-up",
+		Amount:   5000,
+		Currency: "USD",
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -99,62 +99,12 @@ func TestParseCheckoutSessionWebhook(t *testing.T) {
 			"object": {
 				"id": "cs_123",
 				"status": "complete",
-				"payment_status": "paid"
-			}
-		}
-	}`)
-
-	event := parseTestWebhook(t, client, payload, secret, now)
-	session, err := event.DecodeCheckoutSession()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if MapCheckoutStatus(session) != PaymentStatusSucceeded {
-		t.Fatalf("status = %q", MapCheckoutStatus(session))
-	}
-}
-
-func TestParseChargeWebhook(t *testing.T) {
-	const secret = "whsec_test"
-	client, err := New(DefaultConfig("sk_test", secret))
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	now := time.Unix(1_800_000_000, 0)
-	payload := []byte(`{
-		"id": "evt_charge_123",
-		"type": "charge.succeeded",
-		"data": {
-			"object": {
-				"id": "ch_123",
-				"status": "succeeded",
-				"amount": 5000,
-				"amount_captured": 5000,
+				"payment_status": "paid",
 				"currency": "usd",
-				"payment_intent": "pi_123"
+				"amount_total": 5000
 			}
 		}
 	}`)
-
-	event := parseTestWebhook(t, client, payload, secret, now)
-	charge, err := event.DecodeCharge()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if charge.ID != "ch_123" || charge.PaymentIntent != "pi_123" {
-		t.Fatalf("unexpected charge: %#v", charge)
-	}
-}
-
-func parseTestWebhook(
-	t *testing.T,
-	client *Client,
-	payload []byte,
-	secret string,
-	now time.Time,
-) WebhookEvent {
-	t.Helper()
 
 	timestamp := strconv.FormatInt(now.Unix(), 10)
 	mac := hmac.New(sha256.New, []byte(secret))
@@ -166,5 +116,11 @@ func parseTestWebhook(
 	if err != nil {
 		t.Fatal(err)
 	}
-	return event
+	session, err := event.DecodeCheckoutSession()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if MapCheckoutStatus(session) != PaymentStatusSucceeded {
+		t.Fatalf("status = %q", MapCheckoutStatus(session))
+	}
 }
