@@ -10,6 +10,7 @@ import (
 	natsintegration "github.com/coffeyvidzro/monogo/internal/integrations/nats"
 	"github.com/coffeyvidzro/monogo/internal/integrations/postgres"
 	redisintegration "github.com/coffeyvidzro/monogo/internal/integrations/redis"
+	"github.com/coffeyvidzro/monogo/internal/integrations/s3"
 	"github.com/coffeyvidzro/monogo/internal/platform/config"
 	"github.com/coffeyvidzro/monogo/internal/platform/idempotency"
 	"github.com/coffeyvidzro/monogo/internal/platform/logging"
@@ -35,6 +36,7 @@ type modules struct {
 	webhookDelivery         *webhooks.DeliveryJob
 	recordingConsumer       *recordings.Consumer
 	recordingReconciliation *recordings.ReconciliationJob
+	recordingIngestion      *recordings.IngestionJob
 	idempotencyCleanup      *idempotency.CleanupJob
 	trunkHealth             *trunks.HealthCheckJob
 }
@@ -114,7 +116,26 @@ func newModules(ctx context.Context, cfg config.Config) (*modules, error) {
 	}
 
 	recordingsRepository := recordings.NewRepository(postgresClient.Pool())
-	recordingsService := recordings.NewService(recordingsRepository, nil)
+	objectClient, err := s3.New(ctx, s3.Config{
+		Endpoint: cfg.S3.Endpoint, PublicEndpoint: cfg.S3.PublicEndpoint, Region: cfg.S3.Region, Bucket: cfg.S3.Bucket,
+		AccessKey: cfg.S3.AccessKey, SecretKey: cfg.S3.SecretKey,
+		UsePathStyle: cfg.S3.UsePathStyle, PlaybackTTL: cfg.S3.PlaybackTTL,
+	})
+	if err != nil {
+		closeDependencies()
+		return nil, fmt.Errorf("initialize recording object storage: %w", err)
+	}
+	recordingStorage := recordings.NewObjectStorage(objectClient)
+	recordingsService := recordings.NewService(recordingsRepository, recordingStorage)
+	recordingIngestion, err := recordings.NewIngestionJob(
+		recordingsRepository,
+		recordingStorage,
+		recordings.DefaultIngestionConfig(cfg.S3.StagingPath),
+	)
+	if err != nil {
+		closeDependencies()
+		return nil, fmt.Errorf("initialize recording ingestion: %w", err)
+	}
 	recordingReconciliation, err := recordings.NewReconciliationJob(
 		recordingsRepository,
 		recordings.DefaultReconciliationJobConfig(),
@@ -178,6 +199,7 @@ func newModules(ctx context.Context, cfg config.Config) (*modules, error) {
 		webhookDelivery:         webhookDeliveryJob,
 		recordingConsumer:       recordings.NewConsumer(recordingsService),
 		recordingReconciliation: recordingReconciliation,
+		recordingIngestion:      recordingIngestion,
 		idempotencyCleanup:      idempotencyCleanup,
 		trunkHealth:             trunkHealth,
 	}, nil

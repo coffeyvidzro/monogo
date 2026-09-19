@@ -7,6 +7,8 @@ focus is **Cloud + BYOC** (customers connect their own SIP carrier) and
 The first supported production path is Cloud + BYOC. See the
 [Cloud + BYOC operations guide](docs/cloud-byoc.md) for provisioning, network,
 authentication, health-check, and acceptance-test procedures.
+Recording deployment, retries, playback, deletion, and recovery are covered in
+the [recording storage guide](docs/recording-storage.md).
 
 ## Services
 

@@ -23,12 +23,14 @@ SET
     file_size_bytes = COALESCE($5, file_size_bytes),
     format = COALESCE($6, format),
     duration_seconds = COALESCE($7, duration_seconds),
+    upload_error = NULL,
+    next_upload_at = NULL,
     completed_at = COALESCE(completed_at, NOW()),
     updated_at = NOW()
 WHERE organization_id = $8
   AND id = $9
-  AND status = 'recording'
-RETURNING id, organization_id, call_id, status, storage_key, storage_provider, storage_bucket, storage_url, file_size_bytes, format, duration_seconds, started_at, completed_at, created_at, updated_at
+  AND status IN ('recording', 'uploading')
+RETURNING id, organization_id, call_id, status, storage_key, storage_provider, storage_bucket, storage_url, file_size_bytes, format, duration_seconds, started_at, completed_at, created_at, updated_at, source_path, stopped_at, upload_attempts, next_upload_at, upload_error
 `
 
 type CompleteRecordingParams struct {
@@ -72,6 +74,11 @@ func (q *Queries) CompleteRecording(ctx context.Context, arg CompleteRecordingPa
 		&i.CompletedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.SourcePath,
+		&i.StoppedAt,
+		&i.UploadAttempts,
+		&i.NextUploadAt,
+		&i.UploadError,
 	)
 	return i, err
 }
@@ -85,6 +92,7 @@ INSERT INTO recordings (
     storage_provider,
     storage_bucket,
     storage_url,
+	source_path,
     file_size_bytes,
     format,
     started_at
@@ -96,11 +104,12 @@ INSERT INTO recordings (
     $5,
     $6,
     $7,
-    $8,
+	$8,
     $9,
-    COALESCE($10, NOW())
+    $10,
+    COALESCE($11, NOW())
 )
-RETURNING id, organization_id, call_id, status, storage_key, storage_provider, storage_bucket, storage_url, file_size_bytes, format, duration_seconds, started_at, completed_at, created_at, updated_at
+RETURNING id, organization_id, call_id, status, storage_key, storage_provider, storage_bucket, storage_url, file_size_bytes, format, duration_seconds, started_at, completed_at, created_at, updated_at, source_path, stopped_at, upload_attempts, next_upload_at, upload_error
 `
 
 type CreateRecordingParams struct {
@@ -111,6 +120,7 @@ type CreateRecordingParams struct {
 	StorageProvider *string     `db:"storage_provider" json:"storage_provider"`
 	StorageBucket   *string     `db:"storage_bucket" json:"storage_bucket"`
 	StorageUrl      *string     `db:"storage_url" json:"storage_url"`
+	SourcePath      *string     `db:"source_path" json:"source_path"`
 	FileSizeBytes   *int64      `db:"file_size_bytes" json:"file_size_bytes"`
 	Format          *string     `db:"format" json:"format"`
 	StartedAt       interface{} `db:"started_at" json:"started_at"`
@@ -125,6 +135,7 @@ func (q *Queries) CreateRecording(ctx context.Context, arg CreateRecordingParams
 		arg.StorageProvider,
 		arg.StorageBucket,
 		arg.StorageUrl,
+		arg.SourcePath,
 		arg.FileSizeBytes,
 		arg.Format,
 		arg.StartedAt,
@@ -146,6 +157,11 @@ func (q *Queries) CreateRecording(ctx context.Context, arg CreateRecordingParams
 		&i.CompletedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.SourcePath,
+		&i.StoppedAt,
+		&i.UploadAttempts,
+		&i.NextUploadAt,
+		&i.UploadError,
 	)
 	return i, err
 }
@@ -159,7 +175,7 @@ SET
 WHERE organization_id = $1
   AND id = $2
   AND status <> 'deleted'
-RETURNING id, organization_id, call_id, status, storage_key, storage_provider, storage_bucket, storage_url, file_size_bytes, format, duration_seconds, started_at, completed_at, created_at, updated_at
+RETURNING id, organization_id, call_id, status, storage_key, storage_provider, storage_bucket, storage_url, file_size_bytes, format, duration_seconds, started_at, completed_at, created_at, updated_at, source_path, stopped_at, upload_attempts, next_upload_at, upload_error
 `
 
 type DeleteRecordingParams struct {
@@ -186,6 +202,11 @@ func (q *Queries) DeleteRecording(ctx context.Context, arg DeleteRecordingParams
 		&i.CompletedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.SourcePath,
+		&i.StoppedAt,
+		&i.UploadAttempts,
+		&i.NextUploadAt,
+		&i.UploadError,
 	)
 	return i, err
 }
@@ -198,8 +219,8 @@ SET
     updated_at = NOW()
 WHERE organization_id = $1
   AND id = $2
-  AND status = 'recording'
-RETURNING id, organization_id, call_id, status, storage_key, storage_provider, storage_bucket, storage_url, file_size_bytes, format, duration_seconds, started_at, completed_at, created_at, updated_at
+  AND status IN ('recording', 'uploading')
+RETURNING id, organization_id, call_id, status, storage_key, storage_provider, storage_bucket, storage_url, file_size_bytes, format, duration_seconds, started_at, completed_at, created_at, updated_at, source_path, stopped_at, upload_attempts, next_upload_at, upload_error
 `
 
 type FailRecordingParams struct {
@@ -226,6 +247,11 @@ func (q *Queries) FailRecording(ctx context.Context, arg FailRecordingParams) (R
 		&i.CompletedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.SourcePath,
+		&i.StoppedAt,
+		&i.UploadAttempts,
+		&i.NextUploadAt,
+		&i.UploadError,
 	)
 	return i, err
 }
@@ -288,7 +314,7 @@ func (q *Queries) GetBackofficeRecording(ctx context.Context, id uuid.UUID) (Get
 }
 
 const getRecording = `-- name: GetRecording :one
-SELECT id, organization_id, call_id, status, storage_key, storage_provider, storage_bucket, storage_url, file_size_bytes, format, duration_seconds, started_at, completed_at, created_at, updated_at
+SELECT id, organization_id, call_id, status, storage_key, storage_provider, storage_bucket, storage_url, file_size_bytes, format, duration_seconds, started_at, completed_at, created_at, updated_at, source_path, stopped_at, upload_attempts, next_upload_at, upload_error
 FROM recordings
 WHERE organization_id = $1
   AND id = $2
@@ -320,25 +346,30 @@ func (q *Queries) GetRecording(ctx context.Context, arg GetRecordingParams) (Rec
 		&i.CompletedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.SourcePath,
+		&i.StoppedAt,
+		&i.UploadAttempts,
+		&i.NextUploadAt,
+		&i.UploadError,
 	)
 	return i, err
 }
 
 const getRecordingByCallStorageKey = `-- name: GetRecordingByCallStorageKey :one
-SELECT id, organization_id, call_id, status, storage_key, storage_provider, storage_bucket, storage_url, file_size_bytes, format, duration_seconds, started_at, completed_at, created_at, updated_at
+SELECT id, organization_id, call_id, status, storage_key, storage_provider, storage_bucket, storage_url, file_size_bytes, format, duration_seconds, started_at, completed_at, created_at, updated_at, source_path, stopped_at, upload_attempts, next_upload_at, upload_error
 FROM recordings
 WHERE call_id = $1
-  AND storage_key = $2
+  AND source_path = $2
 LIMIT 1
 `
 
 type GetRecordingByCallStorageKeyParams struct {
 	CallID     uuid.UUID `db:"call_id" json:"call_id"`
-	StorageKey *string   `db:"storage_key" json:"storage_key"`
+	SourcePath *string   `db:"source_path" json:"source_path"`
 }
 
 func (q *Queries) GetRecordingByCallStorageKey(ctx context.Context, arg GetRecordingByCallStorageKeyParams) (Recording, error) {
-	row := q.db.QueryRow(ctx, getRecordingByCallStorageKey, arg.CallID, arg.StorageKey)
+	row := q.db.QueryRow(ctx, getRecordingByCallStorageKey, arg.CallID, arg.SourcePath)
 	var i Recording
 	err := row.Scan(
 		&i.ID,
@@ -356,12 +387,17 @@ func (q *Queries) GetRecordingByCallStorageKey(ctx context.Context, arg GetRecor
 		&i.CompletedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.SourcePath,
+		&i.StoppedAt,
+		&i.UploadAttempts,
+		&i.NextUploadAt,
+		&i.UploadError,
 	)
 	return i, err
 }
 
 const getRecordingIncludingDeleted = `-- name: GetRecordingIncludingDeleted :one
-SELECT id, organization_id, call_id, status, storage_key, storage_provider, storage_bucket, storage_url, file_size_bytes, format, duration_seconds, started_at, completed_at, created_at, updated_at
+SELECT id, organization_id, call_id, status, storage_key, storage_provider, storage_bucket, storage_url, file_size_bytes, format, duration_seconds, started_at, completed_at, created_at, updated_at, source_path, stopped_at, upload_attempts, next_upload_at, upload_error
 FROM recordings
 WHERE organization_id = $1
   AND id = $2
@@ -392,6 +428,11 @@ func (q *Queries) GetRecordingIncludingDeleted(ctx context.Context, arg GetRecor
 		&i.CompletedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.SourcePath,
+		&i.StoppedAt,
+		&i.UploadAttempts,
+		&i.NextUploadAt,
+		&i.UploadError,
 	)
 	return i, err
 }
@@ -449,7 +490,7 @@ func (q *Queries) ListBackofficeRecordings(ctx context.Context) ([]ListBackoffic
 }
 
 const listCallRecordings = `-- name: ListCallRecordings :many
-SELECT id, organization_id, call_id, status, storage_key, storage_provider, storage_bucket, storage_url, file_size_bytes, format, duration_seconds, started_at, completed_at, created_at, updated_at
+SELECT id, organization_id, call_id, status, storage_key, storage_provider, storage_bucket, storage_url, file_size_bytes, format, duration_seconds, started_at, completed_at, created_at, updated_at, source_path, stopped_at, upload_attempts, next_upload_at, upload_error
 FROM recordings
 WHERE organization_id = $1
   AND call_id = $2
@@ -487,6 +528,11 @@ func (q *Queries) ListCallRecordings(ctx context.Context, arg ListCallRecordings
 			&i.CompletedAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.SourcePath,
+			&i.StoppedAt,
+			&i.UploadAttempts,
+			&i.NextUploadAt,
+			&i.UploadError,
 		); err != nil {
 			return nil, err
 		}
@@ -499,7 +545,7 @@ func (q *Queries) ListCallRecordings(ctx context.Context, arg ListCallRecordings
 }
 
 const listRecordings = `-- name: ListRecordings :many
-SELECT id, organization_id, call_id, status, storage_key, storage_provider, storage_bucket, storage_url, file_size_bytes, format, duration_seconds, started_at, completed_at, created_at, updated_at
+SELECT id, organization_id, call_id, status, storage_key, storage_provider, storage_bucket, storage_url, file_size_bytes, format, duration_seconds, started_at, completed_at, created_at, updated_at, source_path, stopped_at, upload_attempts, next_upload_at, upload_error
 FROM recordings
 WHERE organization_id = $1
   AND status <> 'deleted'
@@ -539,6 +585,11 @@ func (q *Queries) ListRecordings(ctx context.Context, arg ListRecordingsParams) 
 			&i.CompletedAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.SourcePath,
+			&i.StoppedAt,
+			&i.UploadAttempts,
+			&i.NextUploadAt,
+			&i.UploadError,
 		); err != nil {
 			return nil, err
 		}
@@ -551,7 +602,7 @@ func (q *Queries) ListRecordings(ctx context.Context, arg ListRecordingsParams) 
 }
 
 const listRecordingsForReconciliation = `-- name: ListRecordingsForReconciliation :many
-SELECT r.id, r.organization_id, r.call_id, r.status, r.storage_key, r.storage_provider, r.storage_bucket, r.storage_url, r.file_size_bytes, r.format, r.duration_seconds, r.started_at, r.completed_at, r.created_at, r.updated_at
+SELECT r.id, r.organization_id, r.call_id, r.status, r.storage_key, r.storage_provider, r.storage_bucket, r.storage_url, r.file_size_bytes, r.format, r.duration_seconds, r.started_at, r.completed_at, r.created_at, r.updated_at, r.source_path, r.stopped_at, r.upload_attempts, r.next_upload_at, r.upload_error
 FROM recordings r
 JOIN calls c ON c.id = r.call_id
 WHERE r.status = 'recording'
@@ -591,6 +642,11 @@ func (q *Queries) ListRecordingsForReconciliation(ctx context.Context, arg ListR
 			&i.CompletedAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.SourcePath,
+			&i.StoppedAt,
+			&i.UploadAttempts,
+			&i.NextUploadAt,
+			&i.UploadError,
 		); err != nil {
 			return nil, err
 		}
@@ -600,4 +656,162 @@ func (q *Queries) ListRecordingsForReconciliation(ctx context.Context, arg ListR
 		return nil, err
 	}
 	return items, nil
+}
+
+const listRecordingsForUpload = `-- name: ListRecordingsForUpload :many
+WITH due AS (
+    SELECT id
+    FROM recordings
+    WHERE status = 'uploading'
+      AND source_path IS NOT NULL
+      AND COALESCE(recordings.next_upload_at, NOW()) <= $2
+    ORDER BY COALESCE(recordings.next_upload_at, recordings.updated_at), recordings.updated_at
+    LIMIT $3
+    FOR UPDATE SKIP LOCKED
+)
+UPDATE recordings AS r
+SET next_upload_at = $1,
+    updated_at = NOW()
+FROM due
+WHERE r.id = due.id
+RETURNING r.id, r.organization_id, r.call_id, r.status, r.storage_key, r.storage_provider, r.storage_bucket, r.storage_url, r.file_size_bytes, r.format, r.duration_seconds, r.started_at, r.completed_at, r.created_at, r.updated_at, r.source_path, r.stopped_at, r.upload_attempts, r.next_upload_at, r.upload_error
+`
+
+type ListRecordingsForUploadParams struct {
+	UploadLeaseUntil pgtype.Timestamptz `db:"upload_lease_until" json:"upload_lease_until"`
+	ClaimedAt        pgtype.Timestamptz `db:"claimed_at" json:"claimed_at"`
+	BatchSize        int32              `db:"batch_size" json:"batch_size"`
+}
+
+func (q *Queries) ListRecordingsForUpload(ctx context.Context, arg ListRecordingsForUploadParams) ([]Recording, error) {
+	rows, err := q.db.Query(ctx, listRecordingsForUpload, arg.UploadLeaseUntil, arg.ClaimedAt, arg.BatchSize)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Recording{}
+	for rows.Next() {
+		var i Recording
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrganizationID,
+			&i.CallID,
+			&i.Status,
+			&i.StorageKey,
+			&i.StorageProvider,
+			&i.StorageBucket,
+			&i.StorageUrl,
+			&i.FileSizeBytes,
+			&i.Format,
+			&i.DurationSeconds,
+			&i.StartedAt,
+			&i.CompletedAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.SourcePath,
+			&i.StoppedAt,
+			&i.UploadAttempts,
+			&i.NextUploadAt,
+			&i.UploadError,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const markRecordingReadyForUpload = `-- name: MarkRecordingReadyForUpload :one
+UPDATE recordings
+SET status = 'uploading',
+    stopped_at = COALESCE(stopped_at, $1),
+    next_upload_at = NOW(),
+    upload_error = NULL,
+    updated_at = NOW()
+WHERE organization_id = $2
+  AND id = $3
+  AND status = 'recording'
+RETURNING id, organization_id, call_id, status, storage_key, storage_provider, storage_bucket, storage_url, file_size_bytes, format, duration_seconds, started_at, completed_at, created_at, updated_at, source_path, stopped_at, upload_attempts, next_upload_at, upload_error
+`
+
+type MarkRecordingReadyForUploadParams struct {
+	StoppedAt      pgtype.Timestamptz `db:"stopped_at" json:"stopped_at"`
+	OrganizationID uuid.UUID          `db:"organization_id" json:"organization_id"`
+	ID             uuid.UUID          `db:"id" json:"id"`
+}
+
+func (q *Queries) MarkRecordingReadyForUpload(ctx context.Context, arg MarkRecordingReadyForUploadParams) (Recording, error) {
+	row := q.db.QueryRow(ctx, markRecordingReadyForUpload, arg.StoppedAt, arg.OrganizationID, arg.ID)
+	var i Recording
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.CallID,
+		&i.Status,
+		&i.StorageKey,
+		&i.StorageProvider,
+		&i.StorageBucket,
+		&i.StorageUrl,
+		&i.FileSizeBytes,
+		&i.Format,
+		&i.DurationSeconds,
+		&i.StartedAt,
+		&i.CompletedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.SourcePath,
+		&i.StoppedAt,
+		&i.UploadAttempts,
+		&i.NextUploadAt,
+		&i.UploadError,
+	)
+	return i, err
+}
+
+const retryRecordingUpload = `-- name: RetryRecordingUpload :one
+UPDATE recordings
+SET upload_attempts = upload_attempts + 1,
+    upload_error = $1,
+    next_upload_at = $2,
+    updated_at = NOW()
+WHERE id = $3
+  AND status = 'uploading'
+RETURNING id, organization_id, call_id, status, storage_key, storage_provider, storage_bucket, storage_url, file_size_bytes, format, duration_seconds, started_at, completed_at, created_at, updated_at, source_path, stopped_at, upload_attempts, next_upload_at, upload_error
+`
+
+type RetryRecordingUploadParams struct {
+	UploadError  *string            `db:"upload_error" json:"upload_error"`
+	NextUploadAt pgtype.Timestamptz `db:"next_upload_at" json:"next_upload_at"`
+	ID           uuid.UUID          `db:"id" json:"id"`
+}
+
+func (q *Queries) RetryRecordingUpload(ctx context.Context, arg RetryRecordingUploadParams) (Recording, error) {
+	row := q.db.QueryRow(ctx, retryRecordingUpload, arg.UploadError, arg.NextUploadAt, arg.ID)
+	var i Recording
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.CallID,
+		&i.Status,
+		&i.StorageKey,
+		&i.StorageProvider,
+		&i.StorageBucket,
+		&i.StorageUrl,
+		&i.FileSizeBytes,
+		&i.Format,
+		&i.DurationSeconds,
+		&i.StartedAt,
+		&i.CompletedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.SourcePath,
+		&i.StoppedAt,
+		&i.UploadAttempts,
+		&i.NextUploadAt,
+		&i.UploadError,
+	)
+	return i, err
 }

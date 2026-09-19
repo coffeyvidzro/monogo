@@ -318,6 +318,11 @@ type Recording struct {
 	CompletedAt     pgtype.Timestamptz `db:"completed_at" json:"completed_at"`
 	CreatedAt       pgtype.Timestamptz `db:"created_at" json:"created_at"`
 	UpdatedAt       pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+	SourcePath      *string            `db:"source_path" json:"source_path"`
+	StoppedAt       pgtype.Timestamptz `db:"stopped_at" json:"stopped_at"`
+	UploadAttempts  int32              `db:"upload_attempts" json:"upload_attempts"`
+	NextUploadAt    pgtype.Timestamptz `db:"next_upload_at" json:"next_upload_at"`
+	UploadError     *string            `db:"upload_error" json:"upload_error"`
 }
 
 type Session struct {

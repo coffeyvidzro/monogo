@@ -18,12 +18,23 @@ type Storage interface {
 	Delete(context.Context, sqlc.Recording) error
 }
 
+type recordingRepository interface {
+	Get(context.Context, uuid.UUID, uuid.UUID) (sqlc.Recording, error)
+	GetIncludingDeleted(context.Context, uuid.UUID, uuid.UUID) (sqlc.Recording, error)
+	GetByCallStorageKey(context.Context, uuid.UUID, string) (sqlc.Recording, error)
+	GetCallOrganizationID(context.Context, uuid.UUID) (uuid.UUID, error)
+	List(context.Context, uuid.UUID, int32, int32) ([]sqlc.Recording, error)
+	Start(context.Context, uuid.UUID, uuid.UUID, string, time.Time) (sqlc.Recording, error)
+	MarkReadyForUpload(context.Context, sqlc.Recording, time.Time) (sqlc.Recording, error)
+	Delete(context.Context, sqlc.Recording) (sqlc.Recording, error)
+}
+
 type Service struct {
-	repo    *Repository
+	repo    recordingRepository
 	storage Storage
 }
 
-func NewService(repo *Repository, storage Storage) *Service {
+func NewService(repo recordingRepository, storage Storage) *Service {
 	if repo == nil {
 		panic("recordings: repository is required")
 	}
@@ -103,11 +114,15 @@ func (s *Service) ObserveStopped(ctx context.Context, event LifecycleEvent) erro
 	if err != nil {
 		return apperror.NewInternal("get recording by media path", err)
 	}
-	if recording.Status == string(StatusCompleted) || recording.Status == string(StatusFailed) || recording.Status == string(StatusDeleted) {
+	if recording.Status == string(StatusUploading) || recording.Status == string(StatusCompleted) || recording.Status == string(StatusFailed) || recording.Status == string(StatusDeleted) {
 		return nil
 	}
 
-	_, err = s.repo.Complete(ctx, recording)
+	stoppedAt := event.OccurredAt
+	if stoppedAt.IsZero() {
+		stoppedAt = time.Now().UTC()
+	}
+	_, err = s.repo.MarkReadyForUpload(ctx, recording, stoppedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil
 	}
@@ -153,8 +168,8 @@ func (s *Service) Delete(ctx context.Context, organizationID, id uuid.UUID) erro
 	if recording.Status == string(StatusDeleted) {
 		return nil
 	}
-	if recording.Status == string(StatusRecording) {
-		return apperror.NewConflict("recording cannot be deleted while recording")
+	if recording.Status == string(StatusRecording) || recording.Status == string(StatusUploading) {
+		return apperror.NewConflict("recording cannot be deleted before upload completes")
 	}
 	if s.storage == nil {
 		return apperror.NewServiceUnavailable("recording storage is unavailable", nil)

@@ -70,8 +70,28 @@ func (r *Repository) GetByCallStorageKey(
 ) (sqlc.Recording, error) {
 	return r.queries.GetRecordingByCallStorageKey(ctx, sqlc.GetRecordingByCallStorageKeyParams{
 		CallID:     callID,
-		StorageKey: &storageKey,
+		SourcePath: &storageKey,
 	})
+}
+
+func (r *Repository) MarkReadyForUpload(ctx context.Context, recording sqlc.Recording, stoppedAt time.Time) (sqlc.Recording, error) {
+	return r.queries.MarkRecordingReadyForUpload(ctx, sqlc.MarkRecordingReadyForUploadParams{
+		StoppedAt: pgtype.Timestamptz{Time: stoppedAt.UTC(), Valid: true}, OrganizationID: recording.OrganizationID, ID: recording.ID,
+	})
+}
+
+func (r *Repository) ListForUpload(ctx context.Context, claimedAt, leaseUntil time.Time, batchSize int32) ([]sqlc.Recording, error) {
+	return r.queries.ListRecordingsForUpload(ctx, sqlc.ListRecordingsForUploadParams{
+		ClaimedAt: pgtype.Timestamptz{Time: claimedAt.UTC(), Valid: true}, BatchSize: batchSize,
+		UploadLeaseUntil: pgtype.Timestamptz{Time: leaseUntil.UTC(), Valid: true},
+	})
+}
+
+func (r *Repository) RetryUpload(ctx context.Context, recording sqlc.Recording, next time.Time, message string) error {
+	_, err := r.queries.RetryRecordingUpload(ctx, sqlc.RetryRecordingUploadParams{
+		UploadError: &message, NextUploadAt: pgtype.Timestamptz{Time: next.UTC(), Valid: true}, ID: recording.ID,
+	})
+	return err
 }
 
 func (r *Repository) GetCallOrganizationID(
@@ -122,13 +142,11 @@ func (r *Repository) Start(
 		ctx,
 		EventRecordingStarted,
 		func(repo *Repository) (sqlc.Recording, error) {
-			provider := "freeswitch-local"
 			return repo.queries.CreateRecording(ctx, sqlc.CreateRecordingParams{
-				OrganizationID:  organizationID,
-				CallID:          callID,
-				Status:          string(StatusRecording),
-				StorageKey:      &path,
-				StorageProvider: &provider,
+				OrganizationID: organizationID,
+				CallID:         callID,
+				Status:         string(StatusRecording),
+				SourcePath:     &path,
 				StartedAt: pgtype.Timestamptz{
 					Time:  occurredAt,
 					Valid: true,
@@ -152,6 +170,15 @@ func (r *Repository) Complete(
 			})
 		},
 	)
+}
+
+func (r *Repository) CompleteUpload(ctx context.Context, recording sqlc.Recording, key, provider, bucket, format string, size int64) (sqlc.Recording, error) {
+	return r.mutate(ctx, EventRecordingCompleted, func(repo *Repository) (sqlc.Recording, error) {
+		return repo.queries.CompleteRecording(ctx, sqlc.CompleteRecordingParams{
+			StorageKey: &key, StorageProvider: &provider, StorageBucket: &bucket,
+			FileSizeBytes: &size, Format: &format, OrganizationID: recording.OrganizationID, ID: recording.ID,
+		})
+	})
 }
 
 func (r *Repository) Fail(

@@ -12,6 +12,7 @@ type Status string
 
 const (
 	StatusRecording Status = "recording"
+	StatusUploading Status = "uploading"
 	StatusCompleted Status = "completed"
 	StatusFailed    Status = "failed"
 	StatusDeleted   Status = "deleted"
