@@ -37,7 +37,6 @@ func (q TerminationCDRQuery) validate() error {
 	return nil
 }
 
-
 // SIPEndpoint is a provisioned carrier destination or Leamout ingress.
 // It contains transport configuration only; it does not select a call route.
 type SIPEndpoint struct {

@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 	"net/http"
-	"net/netip"
 	"net/http/httptest"
+	"net/netip"
 	"strings"
 	"testing"
 	"time"
@@ -75,7 +75,6 @@ func TestCommPeakValidationAndErrors(t *testing.T) {
 	}
 }
 
-
 func TestCommPeakTransportProtection(t *testing.T) {
 	if _, err := New(Config{Authorization: "secret", BaseURL: "http://example.com"}); err == nil {
 		t.Fatal("expected non-local HTTP rejection")
@@ -109,7 +108,7 @@ func TestCommPeakTransportProtection(t *testing.T) {
 
 func TestTerminationEndpointValidation(t *testing.T) {
 	valid := TerminationConfig{
-		Endpoint: SIPEndpoint{Host: "sip.provider.example", Port: 5061, Transport: "tls"},
+		Endpoint:    SIPEndpoint{Host: "sip.provider.example", Port: 5061, Transport: "tls"},
 		Credentials: &SIPCredentials{Username: "trunk", Password: "secret"},
 	}
 	target, err := valid.SIPDestination()
