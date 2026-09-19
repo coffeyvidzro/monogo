@@ -8,11 +8,15 @@ INSERT INTO carrier_connections (
     status,
     outbound_auth_method,
     auth_username,
-    auth_secret_ciphertext,
+	    auth_secret_ciphertext,
+	auth_realm,
+	auth_ha1_md5,
     inbound_enabled,
     inbound_auth_method,
     inbound_username,
-    inbound_secret_ciphertext,
+	    inbound_secret_ciphertext,
+	inbound_realm,
+	inbound_ha1_md5,
     max_cps,
     max_concurrent_calls,
     max_daily_minutes,
@@ -30,10 +34,14 @@ SELECT
     COALESCE(sqlc.narg(outbound_auth_method), 'none') AS outbound_auth_method,
     sqlc.narg(auth_username) AS auth_username,
     sqlc.narg(auth_secret_ciphertext) AS auth_secret_ciphertext,
+	sqlc.narg(auth_realm) AS auth_realm,
+	sqlc.narg(auth_ha1_md5) AS auth_ha1_md5,
     COALESCE(sqlc.narg(inbound_enabled), false) AS inbound_enabled,
     COALESCE(sqlc.narg(inbound_auth_method), 'ip') AS inbound_auth_method,
     sqlc.narg(inbound_username) AS inbound_username,
     sqlc.narg(inbound_secret_ciphertext) AS inbound_secret_ciphertext,
+	sqlc.narg(inbound_realm) AS inbound_realm,
+	sqlc.narg(inbound_ha1_md5) AS inbound_ha1_md5,
     COALESCE(sqlc.narg(max_cps), 10) AS max_cps,
     COALESCE(sqlc.narg(max_concurrent_calls), 100) AS max_concurrent_calls,
     sqlc.narg(max_daily_minutes) AS max_daily_minutes,
@@ -58,10 +66,12 @@ INSERT INTO carrier_connections (
     status,
     outbound_auth_method,
     auth_username,
+	auth_realm,
     auth_secret_ciphertext,
     inbound_enabled,
     inbound_auth_method,
     inbound_username,
+	inbound_realm,
     inbound_secret_ciphertext,
     max_cps,
     max_concurrent_calls,
@@ -104,10 +114,12 @@ SELECT
     status,
     outbound_auth_method,
     auth_username,
+	 auth_realm,
     auth_secret_ciphertext IS NOT NULL AS has_outbound_credentials,
     inbound_enabled,
     inbound_auth_method,
     inbound_username,
+	 inbound_realm,
     inbound_secret_ciphertext IS NOT NULL AS has_inbound_credentials,
     max_cps,
     max_concurrent_calls,
@@ -141,10 +153,12 @@ SELECT
     status,
     outbound_auth_method,
     auth_username,
+	 auth_realm,
     auth_secret_ciphertext IS NOT NULL AS has_outbound_credentials,
     inbound_enabled,
     inbound_auth_method,
     inbound_username,
+	 inbound_realm,
     inbound_secret_ciphertext IS NOT NULL AS has_inbound_credentials,
     max_cps,
     max_concurrent_calls,
@@ -292,6 +306,8 @@ SET
     outbound_auth_method = 'digest',
     auth_username = sqlc.arg(auth_username),
     auth_secret_ciphertext = sqlc.arg(auth_secret_ciphertext),
+	auth_realm = sqlc.arg(auth_realm),
+	auth_ha1_md5 = sqlc.arg(auth_ha1_md5),
     updated_at = NOW()
 WHERE id = sqlc.arg(id)
   AND scope = 'organization'
@@ -303,6 +319,8 @@ SET
     outbound_auth_method = 'none',
     auth_username = NULL,
     auth_secret_ciphertext = NULL,
+	auth_realm = NULL,
+	auth_ha1_md5 = NULL,
     updated_at = NOW()
 WHERE id = sqlc.arg(id)
   AND scope = 'organization'
@@ -314,6 +332,8 @@ SET
     inbound_auth_method = 'digest',
     inbound_username = sqlc.arg(inbound_username),
     inbound_secret_ciphertext = sqlc.arg(inbound_secret_ciphertext),
+	inbound_realm = sqlc.arg(inbound_realm),
+	inbound_ha1_md5 = sqlc.arg(inbound_ha1_md5),
     updated_at = NOW()
 WHERE id = sqlc.arg(id)
   AND scope = 'organization'
@@ -325,6 +345,8 @@ SET
     inbound_auth_method = 'ip',
     inbound_username = NULL,
     inbound_secret_ciphertext = NULL,
+	inbound_realm = NULL,
+	inbound_ha1_md5 = NULL,
     updated_at = NOW()
 WHERE id = sqlc.arg(id)
   AND scope = 'organization'
@@ -336,6 +358,8 @@ SET
     inbound_auth_method = 'none',
     inbound_username = NULL,
     inbound_secret_ciphertext = NULL,
+	inbound_realm = NULL,
+	inbound_ha1_md5 = NULL,
     updated_at = NOW()
 WHERE id = sqlc.arg(id)
   AND scope = 'organization'

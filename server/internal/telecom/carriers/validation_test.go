@@ -35,10 +35,25 @@ func TestNormalizeCreateNormalizesAndDeduplicatesCodecs(t *testing.T) {
 }
 
 func TestNormalizeAuthRejectsCredentialsForIPAuth(t *testing.T) {
-	username, secret := "carrier", "secret"
-	req := AuthRequest{Method: "ip", Username: &username, Secret: &secret}
+	username, realm, secret := "carrier", "sip.carrier.example", "secret"
+	req := AuthRequest{Method: "ip", Username: &username, Realm: &realm, Secret: &secret}
 	if err := normalizeAuth(&req, true); err == nil {
 		t.Fatal("expected credentials with IP authentication to be rejected")
+	}
+}
+
+func TestNormalizeAuthRequiresAndNormalizesDigestRealm(t *testing.T) {
+	username, realm, secret := " carrier ", " sip.carrier.example ", "secret"
+	req := AuthRequest{Method: "digest", Username: &username, Realm: &realm, Secret: &secret}
+	if err := normalizeAuth(&req, false); err != nil {
+		t.Fatalf("normalizeAuth() error = %v", err)
+	}
+	if *req.Username != "carrier" || *req.Realm != "sip.carrier.example" {
+		t.Fatalf("normalized digest identity = %q, %q", *req.Username, *req.Realm)
+	}
+	req.Realm = nil
+	if err := normalizeAuth(&req, false); err == nil {
+		t.Fatal("expected a missing digest realm to be rejected")
 	}
 }
 

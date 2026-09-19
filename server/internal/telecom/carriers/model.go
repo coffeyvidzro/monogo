@@ -9,6 +9,7 @@ import (
 
 type DigestCredential struct {
 	Username string `json:"username"`
+	Realm    string `json:"realm"`
 	Secret   string `json:"secret"`
 }
 
@@ -43,6 +44,7 @@ type UpdateRequest struct {
 type AuthRequest struct {
 	Method   string  `json:"method"`
 	Username *string `json:"username,omitempty"`
+	Realm    *string `json:"realm,omitempty"`
 	Secret   *string `json:"secret,omitempty"`
 }
 
@@ -58,10 +60,12 @@ type Response struct {
 	Status                 string    `json:"status"`
 	OutboundAuthMethod     string    `json:"outbound_auth_method"`
 	OutboundUsername       *string   `json:"outbound_username,omitempty"`
+	OutboundRealm          *string   `json:"outbound_realm,omitempty"`
 	HasOutboundCredentials bool      `json:"has_outbound_credentials"`
 	InboundEnabled         bool      `json:"inbound_enabled"`
 	InboundAuthMethod      string    `json:"inbound_auth_method"`
 	InboundUsername        *string   `json:"inbound_username,omitempty"`
+	InboundRealm           *string   `json:"inbound_realm,omitempty"`
 	HasInboundCredentials  bool      `json:"has_inbound_credentials"`
 	MaxCPS                 int32     `json:"max_cps"`
 	MaxConcurrentCalls     int32     `json:"max_concurrent_calls"`

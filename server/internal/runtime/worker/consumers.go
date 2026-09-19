@@ -117,6 +117,7 @@ func runWorkloads(ctx context.Context, logger *logging.Logger, modules *modules)
 	run("call reconciliation", modules.callReconciliation.Run)
 	run("recording reconciliation", modules.recordingReconciliation.Run)
 	run("idempotency cleanup", modules.idempotencyCleanup.Run)
+	run("trunk endpoint health checks", modules.trunkHealth.Run)
 
 	return group.Wait()
 }

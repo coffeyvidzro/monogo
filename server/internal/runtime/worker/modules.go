@@ -19,6 +19,7 @@ import (
 	"github.com/coffeyvidzro/monogo/internal/telecom/calls"
 	"github.com/coffeyvidzro/monogo/internal/telecom/recordings"
 	"github.com/coffeyvidzro/monogo/internal/telecom/routing"
+	"github.com/coffeyvidzro/monogo/internal/telecom/trunks"
 )
 
 type modules struct {
@@ -35,6 +36,7 @@ type modules struct {
 	recordingConsumer       *recordings.Consumer
 	recordingReconciliation *recordings.ReconciliationJob
 	idempotencyCleanup      *idempotency.CleanupJob
+	trunkHealth             *trunks.HealthCheckJob
 }
 
 func newModules(ctx context.Context, cfg config.Config) (*modules, error) {
@@ -131,6 +133,16 @@ func newModules(ctx context.Context, cfg config.Config) (*modules, error) {
 		return nil, fmt.Errorf("initialize idempotency cleanup: %w", err)
 	}
 
+	trunkHealth, err := trunks.NewHealthCheckJob(
+		trunks.NewRepository(queries),
+		trunks.SIPOptionsProber{},
+		trunks.DefaultHealthCheckConfig(),
+	)
+	if err != nil {
+		closeDependencies()
+		return nil, fmt.Errorf("initialize trunk health checks: %w", err)
+	}
+
 	outboxJob, err := outbox.NewPublisherJob(
 		outbox.NewRepository(queries),
 		outbox.NewPublisher(natsClient),
@@ -167,6 +179,7 @@ func newModules(ctx context.Context, cfg config.Config) (*modules, error) {
 		recordingConsumer:       recordings.NewConsumer(recordingsService),
 		recordingReconciliation: recordingReconciliation,
 		idempotencyCleanup:      idempotencyCleanup,
+		trunkHealth:             trunkHealth,
 	}, nil
 }
 
