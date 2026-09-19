@@ -168,8 +168,10 @@ SELECT
     $3 AS cidr
 FROM carrier_connections AS cc
 WHERE cc.id = $2
-  AND cc.scope = 'organization'
-  AND cc.organization_id = $1
+  AND (
+    (cc.scope = 'organization' AND cc.organization_id = $1)
+    OR (cc.scope = 'platform' AND cc.organization_id IS NULL AND $1::UUID IS NULL)
+  )
 RETURNING id, organization_id, carrier_connection_id, cidr, created_at
 `
 
