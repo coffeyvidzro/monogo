@@ -33,9 +33,13 @@ func New(cfg Config) (*Client, error) {
 		cfg.BaseURL = DefaultBaseURL
 	}
 	base, err := url.Parse(strings.TrimRight(strings.TrimSpace(cfg.BaseURL), "/"))
-	if err != nil || base == nil || base.Host == "" || base.User != nil ||
-		base.RawQuery != "" || base.Fragment != "" ||
-		(base.Scheme != "https" && !(base.Scheme == "http" && (base.Hostname() == "localhost" || base.Hostname() == "127.0.0.1" || base.Hostname() == "::1"))) {
+	if err != nil || base == nil {
+		return nil, fmt.Errorf("didww base URL must be HTTPS (HTTP permitted for localhost tests)")
+	}
+	localHTTP := base.Scheme == "http" &&
+		(base.Hostname() == "localhost" || base.Hostname() == "127.0.0.1" || base.Hostname() == "::1")
+	allowedScheme := base.Scheme == "https" || localHTTP
+	if base.Host == "" || base.User != nil || base.RawQuery != "" || base.Fragment != "" || !allowedScheme {
 		return nil, fmt.Errorf("didww base URL must be HTTPS (HTTP permitted for localhost tests)")
 	}
 	if !strings.HasSuffix(base.Path, "/v3") {

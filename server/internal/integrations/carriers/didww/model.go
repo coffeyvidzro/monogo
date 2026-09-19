@@ -35,12 +35,6 @@ type Links struct {
 	Prev  string `json:"prev,omitempty"`
 }
 
-type collection[T any] struct {
-	Data  []T   `json:"data"`
-	Meta  Meta  `json:"meta"`
-	Links Links `json:"links,omitempty"`
-}
-
 type single[T any] struct {
 	Data T    `json:"data"`
 	Meta Meta `json:"meta"`
