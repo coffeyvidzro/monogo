@@ -9,6 +9,7 @@ import (
 	"github.com/coffeyvidzro/monogo/internal/telecom/calls"
 	"github.com/coffeyvidzro/monogo/internal/telecom/carriers"
 	"github.com/coffeyvidzro/monogo/internal/telecom/conferences"
+	"github.com/coffeyvidzro/monogo/internal/telecom/numbers"
 	"github.com/coffeyvidzro/monogo/internal/telecom/realtime"
 	"github.com/coffeyvidzro/monogo/internal/telecom/recordings"
 	"github.com/coffeyvidzro/monogo/internal/telecom/routing"
@@ -33,6 +34,7 @@ type Module struct {
 	Calls       CallsModule
 	Carriers    CarriersModule
 	Conferences ConferencesModule
+	Numbers     NumbersModule
 	Realtime    RealtimeModule
 	Recordings  RecordingsModule
 	Routing     RoutingModule
@@ -58,6 +60,12 @@ type ConferencesModule struct {
 	Repository *conferences.Repository
 	Service    *conferences.Service
 	Handler    *conferences.Handler
+}
+
+type NumbersModule struct {
+	Repository *numbers.Repository
+	Service    *numbers.Service
+	Handler    *numbers.Handler
 }
 
 type RealtimeModule struct {
@@ -113,6 +121,9 @@ func New(deps Dependencies) (*Module, error) {
 		deps.CallsAdmission,
 	)
 
+	numbersRepository := numbers.NewRepository(deps.Queries)
+	numbersService := numbers.NewService(numbersRepository)
+
 	voiceRepository := voice.NewRepository(deps.Queries)
 	voiceService := voice.NewService(voiceRepository)
 
@@ -141,6 +152,11 @@ func New(deps Dependencies) (*Module, error) {
 			Repository: callsRepository,
 			Service:    callsService,
 			Handler:    calls.NewHandler(callsService),
+		},
+		Numbers: NumbersModule{
+			Repository: numbersRepository,
+			Service:    numbersService,
+			Handler:    numbers.NewHandler(numbersService),
 		},
 		Routing: RoutingModule{
 			Repository: routingRepository,
