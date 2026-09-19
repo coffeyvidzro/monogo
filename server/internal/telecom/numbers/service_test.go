@@ -12,7 +12,7 @@ import (
 
 func TestNormalizeBYOC(t *testing.T) {
 	request := CreateBYOCRequest{
-		Number: " +233201234567 ",
+		Number:      " +233201234567 ",
 		CountryCode: " gh ",
 	}
 	if err := normalizeBYOC(&request); err != nil {
