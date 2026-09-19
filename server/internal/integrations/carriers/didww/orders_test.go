@@ -19,8 +19,8 @@ func TestPurchaseDIDAndLookupByReference(t *testing.T) {
 				Data struct {
 					Attributes struct {
 						ExternalReferenceID string `json:"external_reference_id"`
-						AllowBackOrdering  bool   `json:"allow_back_ordering"`
-						Items              []struct {
+						AllowBackOrdering   bool   `json:"allow_back_ordering"`
+						Items               []struct {
 							Type       string `json:"type"`
 							Attributes struct {
 								SKUID            string `json:"sku_id"`

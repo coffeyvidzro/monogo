@@ -18,15 +18,15 @@ func TestCreateTrunkAndAssignDID(t *testing.T) {
 			}
 			var doc struct {
 				Data struct {
-					Type string `json:"type"`
+					Type       string `json:"type"`
 					Attributes struct {
-						Name string `json:"name"`
+						Name          string `json:"name"`
 						Configuration struct {
-							Type string `json:"type"`
+							Type       string `json:"type"`
 							Attributes struct {
-								Host string `json:"host"`
-								Port int `json:"port"`
-								CodecIDs []int `json:"codec_ids"`
+								Host     string `json:"host"`
+								Port     int    `json:"port"`
+								CodecIDs []int  `json:"codec_ids"`
 							} `json:"attributes"`
 						} `json:"configuration"`
 					} `json:"attributes"`

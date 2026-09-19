@@ -73,7 +73,7 @@ func (c *Client) CreateSIPVoiceInTrunk(ctx context.Context, request SIPTrunkRequ
 		"type": "voice_in_trunks", "attributes": map[string]any{
 			"name":                  request.Name,
 			"external_reference_id": request.ExternalReferenceID,
-			"configuration":         map[string]any{
+			"configuration": map[string]any{
 				"type":       "sip_configurations",
 				"attributes": map[string]any{"host": request.Host, "port": request.Port, "codec_ids": request.CodecIDs},
 			},
