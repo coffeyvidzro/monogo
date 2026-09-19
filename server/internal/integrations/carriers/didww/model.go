@@ -29,7 +29,7 @@ type DIDGroup struct {
 }
 
 type DIDGroupList struct {
-	Data []DIDGroup `json:"data"`
+	Data  []DIDGroup `json:"data"`
 	Links struct {
 		Next string `json:"next"`
 	} `json:"links"`
@@ -48,7 +48,7 @@ type DID struct {
 }
 
 type DIDList struct {
-	Data []DID `json:"data"`
+	Data  []DID `json:"data"`
 	Links struct {
 		Next string `json:"next"`
 	} `json:"links"`
