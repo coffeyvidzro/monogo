@@ -41,16 +41,16 @@ type Response struct {
 
 func response(row sqlc.PhoneNumber) Response {
 	return Response{
-		ID: row.ID,
-		OrganizationID: row.OrganizationID,
-		Number: row.Number,
-		CountryCode: row.CountryCode,
-		ProvisioningMode: row.ProvisioningMode,
+		ID:                  row.ID,
+		OrganizationID:      row.OrganizationID,
+		Number:              row.Number,
+		CountryCode:         row.CountryCode,
+		ProvisioningMode:    row.ProvisioningMode,
 		CarrierConnectionID: row.CarrierConnectionID,
-		VoiceEnabled: row.VoiceEnabled,
-		SmsEnabled: row.SmsEnabled,
-		Status: row.Status,
-		CreatedAt: pgconv.TimestamptzToTime(row.CreatedAt),
-		UpdatedAt: pgconv.TimestamptzToTime(row.UpdatedAt),
+		VoiceEnabled:        row.VoiceEnabled,
+		SmsEnabled:          row.SmsEnabled,
+		Status:              row.Status,
+		CreatedAt:           pgconv.TimestamptzToTime(row.CreatedAt),
+		UpdatedAt:           pgconv.TimestamptzToTime(row.UpdatedAt),
 	}
 }

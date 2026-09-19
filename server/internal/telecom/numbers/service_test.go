@@ -58,7 +58,7 @@ func TestValidateIDsRejectsMissingIdentifiers(t *testing.T) {
 
 func TestNumberErrors(t *testing.T) {
 	for _, tc := range []struct {
-		err error
+		err  error
 		code string
 	}{
 		{pgx.ErrNoRows, "NOT_FOUND"},

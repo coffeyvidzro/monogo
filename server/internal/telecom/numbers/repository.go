@@ -17,12 +17,12 @@ func NewRepository(queries *sqlc.Queries) *Repository {
 
 func (r *Repository) CreateBYOC(ctx context.Context, organizationID uuid.UUID, req CreateBYOCRequest) (sqlc.PhoneNumber, error) {
 	return r.queries.CreateBYOCPhoneNumber(ctx, sqlc.CreateBYOCPhoneNumberParams{
-		OrganizationID: organizationID,
-		Number: req.Number,
-		CountryCode: req.CountryCode,
+		OrganizationID:      organizationID,
+		Number:              req.Number,
+		CountryCode:         req.CountryCode,
 		CarrierConnectionID: req.CarrierConnectionID,
-		VoiceEnabled: req.VoiceEnabled,
-		SmsEnabled: req.SmsEnabled,
+		VoiceEnabled:        req.VoiceEnabled,
+		SmsEnabled:          req.SmsEnabled,
 	})
 }
 
@@ -32,31 +32,31 @@ func (r *Repository) List(ctx context.Context, organizationID uuid.UUID) ([]sqlc
 
 func (r *Repository) Get(ctx context.Context, organizationID, id uuid.UUID) (sqlc.PhoneNumber, error) {
 	return r.queries.GetPhoneNumberByID(ctx, sqlc.GetPhoneNumberByIDParams{
-		ID: id,
+		ID:             id,
 		OrganizationID: organizationID,
 	})
 }
 
 func (r *Repository) Update(ctx context.Context, organizationID, id uuid.UUID, req UpdateRequest) (sqlc.PhoneNumber, error) {
 	return r.queries.UpdatePhoneNumber(ctx, sqlc.UpdatePhoneNumberParams{
-		ID: id,
+		ID:             id,
 		OrganizationID: organizationID,
-		VoiceEnabled: req.VoiceEnabled,
-		SmsEnabled: req.SmsEnabled,
+		VoiceEnabled:   req.VoiceEnabled,
+		SmsEnabled:     req.SmsEnabled,
 	})
 }
 
 func (r *Repository) SetBYOCConnection(ctx context.Context, organizationID, id, connectionID uuid.UUID) (sqlc.PhoneNumber, error) {
 	return r.queries.SetBYOCPhoneNumberCarrierConnection(ctx, sqlc.SetBYOCPhoneNumberCarrierConnectionParams{
-		ID: id,
-		OrganizationID: organizationID,
+		ID:                  id,
+		OrganizationID:      organizationID,
 		CarrierConnectionID: &connectionID,
 	})
 }
 
 func (r *Repository) ReleaseBYOC(ctx context.Context, organizationID, id uuid.UUID) (sqlc.PhoneNumber, error) {
 	return r.queries.ReleaseBYOCPhoneNumber(ctx, sqlc.ReleaseBYOCPhoneNumberParams{
-		ID: id,
+		ID:             id,
 		OrganizationID: organizationID,
 	})
 }

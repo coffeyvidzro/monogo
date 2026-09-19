@@ -155,8 +155,8 @@ func New(deps Dependencies) (*Module, error) {
 		},
 		Numbers: NumbersModule{
 			Repository: numbersRepository,
-			Service: numbersService,
-			Handler: numbers.NewHandler(numbersService),
+			Service:    numbersService,
+			Handler:    numbers.NewHandler(numbersService),
 		},
 		Routing: RoutingModule{
 			Repository: routingRepository,
