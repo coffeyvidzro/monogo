@@ -40,28 +40,6 @@ type single[T any] struct {
 	Meta Meta `json:"meta"`
 }
 
-type DIDGroup struct {
-	ID         string `json:"id"`
-	Type       string `json:"type"`
-	Attributes struct {
-		Prefix   string   `json:"prefix"`
-		AreaName string   `json:"area_name"`
-		Features []string `json:"features"`
-	} `json:"attributes"`
-	Meta struct {
-		IsAvailable          bool `json:"is_available"`
-		AvailableDIDsEnabled bool `json:"available_dids_enabled"`
-		NeedsRegistration    bool `json:"needs_registration"`
-		TotalCount           int  `json:"total_count"`
-	} `json:"meta"`
-}
-
-type DIDGroupList struct {
-	Data  []DIDGroup `json:"data"`
-	Meta  Meta       `json:"meta"`
-	Links Links      `json:"links"`
-}
-
 type AvailableDID struct {
 	ID         string `json:"id"`
 	Type       string `json:"type"`
