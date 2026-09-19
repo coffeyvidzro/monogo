@@ -40,17 +40,27 @@ func New(cfg Config) (*Client, error) {
 		cfg.BaseURL = DefaultBaseURL
 	}
 	base, err := url.Parse(strings.TrimRight(strings.TrimSpace(cfg.BaseURL), "/"))
-	if err != nil || base == nil || (base.Scheme != "https" && base.Scheme != "http") ||
+	localHTTP := base != nil && base.Scheme == "http" &&
+		(base.Hostname() == "localhost" || base.Hostname() == "127.0.0.1" || base.Hostname() == "::1")
+	if err != nil || base == nil || (base.Scheme != "https" && !localHTTP) ||
 		base.Host == "" || base.User != nil || base.RawQuery != "" || base.Fragment != "" {
 		return nil, fmt.Errorf("commpeak base URL is invalid")
 	}
 	if cfg.HTTPClient == nil {
 		cfg.HTTPClient = &http.Client{Timeout: 15 * time.Second}
 	}
+	transport := *cfg.HTTPClient
+	if transport.Timeout <= 0 {
+		transport.Timeout = 15 * time.Second
+	}
+	// Never forward Leamout's managed-carrier credentials to a redirect target.
+	transport.CheckRedirect = func(*http.Request, []*http.Request) error {
+		return http.ErrUseLastResponse
+	}
 	return &Client{
 		authorization: cfg.Authorization,
 		baseURL:       base.String(),
-		httpClient:    cfg.HTTPClient,
+		httpClient:    &transport,
 	}, nil
 }
 
