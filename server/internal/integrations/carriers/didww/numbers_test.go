@@ -51,7 +51,7 @@ func TestAvailableInventoryAndTermination(t *testing.T) {
 		t.Fatal(err)
 	}
 	stock, err := client.SearchAvailableDIDs(context.Background(), AvailableDIDFilter{Feature: "voice_in"})
-	if err != nil || len(stock.Data) != 1 || stock.Meta.TotalRecords != 19 {
+	if err != nil || len(stock.Data) != 1 || stock.Meta.TotalCount != 19 {
 		t.Fatalf("inventory = %+v, error = %v", stock, err)
 	}
 	did, err := client.TerminateDID(context.Background(), "did-1")

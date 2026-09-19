@@ -79,7 +79,10 @@ type AvailableDID struct {
 
 type AvailableDIDList struct {
 	Data []AvailableDID `json:"data"`
-	Meta Meta           `json:"meta"`
+	Meta struct {
+		APIVersion string `json:"api_version"`
+		TotalCount int    `json:"total_count"`
+	} `json:"meta"`
 }
 
 type DID struct {
