@@ -19,11 +19,11 @@ func TestPurchaseDIDAndLookupByReference(t *testing.T) {
 				Data struct {
 					Attributes struct {
 						ExternalReferenceID string `json:"external_reference_id"`
-						AllowBackOrdering bool `json:"allow_back_ordering"`
-						Items []struct {
-							Type string `json:"type"`
+						AllowBackOrdering  bool   `json:"allow_back_ordering"`
+						Items              []struct {
+							Type       string `json:"type"`
 							Attributes struct {
-								SKUID string `json:"sku_id"`
+								SKUID            string `json:"sku_id"`
 								DidReservationID string `json:"did_reservation_id"`
 							} `json:"attributes"`
 						} `json:"items"`
@@ -67,9 +67,13 @@ func TestPurchaseDIDAndLookupByReference(t *testing.T) {
 
 func TestPurchaseRequiresOneInventoryReference(t *testing.T) {
 	client, err := New(Config{APIKey: "key"})
-	if err != nil { t.Fatal(err) }
+	if err != nil {
+		t.Fatal(err)
+	}
 	_, err = client.OrderDID(context.Background(), OrderDIDRequest{
 		SKUID: "sku-1", AvailableDIDID: "stock-1", ReservationID: "hold-1", ExternalReferenceID: "operation-1",
 	})
-	if err == nil { t.Fatal("expected mutually exclusive inventory reference error") }
+	if err == nil {
+		t.Fatal("expected mutually exclusive inventory reference error")
+	}
 }

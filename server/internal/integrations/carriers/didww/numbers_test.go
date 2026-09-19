@@ -27,9 +27,11 @@ func TestAvailableInventoryAndTermination(t *testing.T) {
 			}
 			var document struct {
 				Data struct {
-					Type string `json:"type"`
-					ID string `json:"id"`
-					Attributes struct { Terminated bool `json:"terminated"` } `json:"attributes"`
+					Type       string `json:"type"`
+					ID         string `json:"id"`
+					Attributes struct {
+						Terminated bool `json:"terminated"`
+					} `json:"attributes"`
 				} `json:"data"`
 			}
 			if err := json.NewDecoder(r.Body).Decode(&document); err != nil {

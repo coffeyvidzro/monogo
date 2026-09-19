@@ -68,7 +68,7 @@ func (c *Client) OrderDID(ctx context.Context, request OrderDIDRequest) (Order, 
 	orderAttributes := map[string]any{
 		"allow_back_ordering":   false,
 		"external_reference_id": request.ExternalReferenceID,
-		"items":                []any{map[string]any{"type": "did_order_items", "attributes": attributes}},
+		"items":                 []any{map[string]any{"type": "did_order_items", "attributes": attributes}},
 	}
 	if request.CallbackURL != "" {
 		u, err := url.Parse(request.CallbackURL)

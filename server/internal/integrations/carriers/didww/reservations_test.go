@@ -17,7 +17,7 @@ func TestReserveAndReleaseDID(t *testing.T) {
 			}
 			var payload struct {
 				Data struct {
-					Type string `json:"type"`
+					Type          string `json:"type"`
 					Relationships map[string]struct {
 						Data ResourceIdentifier `json:"data"`
 					} `json:"relationships"`
