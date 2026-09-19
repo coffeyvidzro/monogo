@@ -125,3 +125,17 @@ func (c *Client) do(ctx context.Context, method, path string, params url.Values,
 	}
 	return nil
 }
+
+func setFilter(query url.Values, name, value string) {
+	if value = strings.TrimSpace(value); value != "" {
+		query.Set("filter["+name+"]", value)
+	}
+}
+
+func resourcePath(prefix, id string) (string, error) {
+	id = strings.TrimSpace(id)
+	if id == "" || strings.ContainsAny(id, "/?#\\\r\n") || id == "." || id == ".." {
+		return "", fmt.Errorf("didww resource ID is invalid")
+	}
+	return prefix + "/" + url.PathEscape(id), nil
+}

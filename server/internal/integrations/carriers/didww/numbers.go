@@ -18,31 +18,6 @@ type AvailableDIDFilter struct {
 	Feature        string
 }
 
-// ListDIDGroups lists geographic number groups. Groups are paginated.
-func (c *Client) ListDIDGroups(ctx context.Context, page int) (DIDGroupList, error) {
-	if page < 1 {
-		return DIDGroupList{}, fmt.Errorf("didww page must be positive")
-	}
-	var result DIDGroupList
-	err := c.get(ctx, "/did_groups", url.Values{"page[number]": {strconv.Itoa(page)}}, &result)
-	if err != nil {
-		return DIDGroupList{}, err
-	}
-	return result, nil
-}
-
-func (c *Client) GetDIDGroup(ctx context.Context, id string) (DIDGroup, error) {
-	path, err := resourcePath("/did_groups", id)
-	if err != nil {
-		return DIDGroup{}, err
-	}
-	var result single[DIDGroup]
-	if err := c.get(ctx, path, nil, &result); err != nil {
-		return DIDGroup{}, err
-	}
-	return result.Data, nil
-}
-
 // SearchAvailableDIDs is intentionally non-paginated: DIDWW caps the result and
 // supplies meta.total_count for the full matching inventory.
 func (c *Client) SearchAvailableDIDs(ctx context.Context, filter AvailableDIDFilter) (AvailableDIDList, error) {
@@ -129,18 +104,4 @@ func (c *Client) TerminateDID(ctx context.Context, id string) (DID, error) {
 		return DID{}, err
 	}
 	return result.Data, nil
-}
-
-func setFilter(query url.Values, name, value string) {
-	if value = strings.TrimSpace(value); value != "" {
-		query.Set("filter["+name+"]", value)
-	}
-}
-
-func resourcePath(prefix, id string) (string, error) {
-	id = strings.TrimSpace(id)
-	if id == "" || strings.ContainsAny(id, "/?#\\\r\n") || id == "." || id == ".." {
-		return "", fmt.Errorf("didww resource ID is invalid")
-	}
-	return prefix + "/" + url.PathEscape(id), nil
 }
