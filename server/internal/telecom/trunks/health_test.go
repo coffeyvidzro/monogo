@@ -13,11 +13,17 @@ import (
 )
 
 func TestSIPOptionsProberAcceptsAuthenticationChallenge(t *testing.T) {
-	listener, err := net.ListenPacket("udp", "127.0.0.1:0")
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	listener, err := (&net.ListenConfig{}).ListenPacket(ctx, "udp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer listener.Close()
+	t.Cleanup(func() {
+		if err := listener.Close(); err != nil {
+			t.Errorf("close UDP listener: %v", err)
+		}
+	})
 	done := make(chan error, 1)
 	go func() {
 		buffer := make([]byte, 4096)
@@ -34,8 +40,6 @@ func TestSIPOptionsProberAcceptsAuthenticationChallenge(t *testing.T) {
 		done <- err
 	}()
 	address := listener.LocalAddr().(*net.UDPAddr)
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-	defer cancel()
 	code, err := (SIPOptionsProber{}).Probe(ctx, sqlc.TrunkEndpoint{Host: "127.0.0.1", Port: int32(address.Port), Transport: "udp"})
 	if err != nil {
 		t.Fatalf("Probe() error = %v", err)

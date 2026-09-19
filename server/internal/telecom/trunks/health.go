@@ -137,11 +137,10 @@ func (p SIPOptionsProber) Probe(ctx context.Context, endpoint sqlc.TrunkEndpoint
 	if err != nil {
 		return 0, err
 	}
-	if endpoint.Transport == "udp" {
+	switch endpoint.Transport {
+	case "udp":
 		return p.probeUDP(ctx, dialer, address, payload)
-	}
-	var conn net.Conn
-	if endpoint.Transport == "tls" {
+	case "tls":
 		cfg := p.TLSConfig
 		if cfg == nil {
 			cfg = &tls.Config{MinVersion: tls.VersionTLS12}
@@ -154,16 +153,20 @@ func (p SIPOptionsProber) Probe(ctx context.Context, endpoint sqlc.TrunkEndpoint
 		if err != nil {
 			return 0, fmt.Errorf("dial SIP TLS endpoint: %w", err)
 		}
-		conn = tls.Client(raw, clone)
-	} else if endpoint.Transport == "tcp" {
-		conn, err = dialer.DialContext(ctx, "tcp", address)
-	} else {
+		return probeStream(ctx, tls.Client(raw, clone), payload)
+	case "tcp":
+		conn, err := dialer.DialContext(ctx, "tcp", address)
+		if err != nil {
+			return 0, fmt.Errorf("dial SIP endpoint: %w", err)
+		}
+		return probeStream(ctx, conn, payload)
+	default:
 		return 0, fmt.Errorf("unsupported SIP transport %q", endpoint.Transport)
 	}
-	if err != nil {
-		return 0, fmt.Errorf("dial SIP endpoint: %w", err)
-	}
-	defer conn.Close()
+}
+
+func probeStream(ctx context.Context, conn net.Conn, payload []byte) (int32, error) {
+	defer func() { _ = conn.Close() }()
 	if deadline, ok := ctx.Deadline(); ok {
 		_ = conn.SetDeadline(deadline)
 	}
@@ -178,7 +181,7 @@ func (p SIPOptionsProber) probeUDP(ctx context.Context, dialer *net.Dialer, addr
 	if err != nil {
 		return 0, fmt.Errorf("dial SIP UDP endpoint: %w", err)
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 	if deadline, ok := ctx.Deadline(); ok {
 		_ = conn.SetDeadline(deadline)
 	}
