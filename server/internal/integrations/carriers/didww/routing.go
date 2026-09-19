@@ -70,11 +70,10 @@ func (c *Client) CreateSIPVoiceInTrunk(ctx context.Context, request SIPTrunkRequ
 		return VoiceInTrunk{}, err
 	}
 	payload := map[string]any{"data": map[string]any{
-		"type": "voice_in_trunks",
-		"attributes": map[string]any{
-			"name": request.Name,
+		"type": "voice_in_trunks", "attributes": map[string]any{
+			"name":                  request.Name,
 			"external_reference_id": request.ExternalReferenceID,
-			"configuration": map[string]any{
+			"configuration":         map[string]any{
 				"type": "sip_configurations",
 				"attributes": map[string]any{"host": request.Host, "port": request.Port, "codec_ids": request.CodecIDs},
 			},
@@ -117,9 +116,8 @@ func (c *Client) AssignDIDVoiceInTrunk(ctx context.Context, didID, trunkID strin
 		return DID{}, err
 	}
 	payload := map[string]any{"data": map[string]any{
-		"id": didID, "type": "dids",
-		"relationships": map[string]any{
-			"voice_in_trunk": map[string]any{"data": ResourceIdentifier{Type: "voice_in_trunks", ID: trunkID}},
+		"id": didID, "type": "dids", "relationships": map[string]any{
+			"voice_in_trunk":       map[string]any{"data": ResourceIdentifier{Type: "voice_in_trunks", ID: trunkID}},
 			"voice_in_trunk_group": map[string]any{"data": nil},
 		},
 	}}

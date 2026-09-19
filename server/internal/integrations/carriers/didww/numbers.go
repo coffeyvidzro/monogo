@@ -104,7 +104,7 @@ func (c *Client) FindDIDByNumber(ctx context.Context, number string) (DID, error
 	var result DIDList
 	if err := c.get(ctx, "/dids", url.Values{
 		"filter[number]": {number},
-		"include": {"voice_in_trunk"},
+		"include":        {"voice_in_trunk"},
 	}, &result); err != nil {
 		return DID{}, err
 	}
@@ -122,8 +122,7 @@ func (c *Client) TerminateDID(ctx context.Context, id string) (DID, error) {
 		return DID{}, err
 	}
 	payload := map[string]any{"data": map[string]any{
-		"type": "dids", "id": id,
-		"attributes": map[string]any{"terminated": true},
+		"type": "dids", "id": id, "attributes": map[string]any{"terminated": true},
 	}}
 	var result single[DID]
 	if err := c.do(ctx, http.MethodPatch, path, nil, payload, &result); err != nil {
