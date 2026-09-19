@@ -1,17 +1,51 @@
 package didww
 
 import (
+	"encoding/json"
 	"net/http"
+	"time"
 )
 
-// Config contains platform-managed DIDWW credentials.
+// Config contains Leamout-managed credentials. The transport is not used for SIP calls.
 type Config struct {
 	APIKey     string
 	BaseURL    string
+	APIVersion string
 	HTTPClient *http.Client
 }
 
-// DIDGroup identifies DIDWW coverage. Availability does not reserve a number.
+type ResourceIdentifier struct {
+	Type string `json:"type"`
+	ID   string `json:"id"`
+}
+
+type Relationship struct {
+	Data *ResourceIdentifier `json:"data"`
+}
+
+type Meta struct {
+	APIVersion   string `json:"api_version"`
+	TotalRecords int    `json:"total_records,omitempty"`
+}
+
+type Links struct {
+	First string `json:"first,omitempty"`
+	Last  string `json:"last,omitempty"`
+	Next  string `json:"next,omitempty"`
+	Prev  string `json:"prev,omitempty"`
+}
+
+type collection[T any] struct {
+	Data  []T   `json:"data"`
+	Meta  Meta  `json:"meta"`
+	Links Links `json:"links,omitempty"`
+}
+
+type single[T any] struct {
+	Data T    `json:"data"`
+	Meta Meta `json:"meta"`
+}
+
 type DIDGroup struct {
 	ID         string `json:"id"`
 	Type       string `json:"type"`
@@ -30,26 +64,42 @@ type DIDGroup struct {
 
 type DIDGroupList struct {
 	Data  []DIDGroup `json:"data"`
-	Links struct {
-		Next string `json:"next"`
-	} `json:"links"`
+	Meta  Meta       `json:"meta"`
+	Links Links      `json:"links"`
 }
 
-// DID identifies a provider-owned resource, not a Leamout phone-number record.
+type AvailableDID struct {
+	ID         string `json:"id"`
+	Type       string `json:"type"`
+	Attributes struct {
+		Number string `json:"number"`
+	} `json:"attributes"`
+	Relationships map[string]json.RawMessage `json:"relationships,omitempty"`
+}
+
+type AvailableDIDList struct {
+	Data []AvailableDID `json:"data"`
+	Meta Meta           `json:"meta"`
+}
+
 type DID struct {
 	ID         string `json:"id"`
 	Type       string `json:"type"`
 	Attributes struct {
-		Number               string `json:"number"`
-		Blocked              bool   `json:"blocked"`
-		Terminated           bool   `json:"terminated"`
-		AwaitingRegistration bool   `json:"awaiting_registration"`
+		Number                 string     `json:"number"`
+		Blocked                bool       `json:"blocked"`
+		Terminated             bool       `json:"terminated"`
+		AwaitingRegistration   bool       `json:"awaiting_registration"`
+		BillingCyclesCount     *int       `json:"billing_cycles_count"`
+		ExpiresAt              *time.Time `json:"expires_at"`
+		ChannelsIncludedCount  int        `json:"channels_included_count"`
+		DedicatedChannelsCount int        `json:"dedicated_channels_count"`
 	} `json:"attributes"`
+	Relationships map[string]Relationship `json:"relationships,omitempty"`
 }
 
 type DIDList struct {
 	Data  []DID `json:"data"`
-	Links struct {
-		Next string `json:"next"`
-	} `json:"links"`
+	Meta  Meta  `json:"meta"`
+	Links Links `json:"links"`
 }
