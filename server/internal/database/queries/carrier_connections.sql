@@ -373,10 +373,8 @@ SELECT
     sqlc.arg(cidr) AS cidr
 FROM carrier_connections AS cc
 WHERE cc.id = sqlc.arg(carrier_connection_id)
-  AND (
-    (cc.scope = 'organization' AND cc.organization_id = sqlc.arg(organization_id))
-    OR (cc.scope = 'platform' AND cc.organization_id IS NULL AND sqlc.narg(organization_id)::UUID IS NULL)
-  )
+  AND cc.scope = 'organization'
+  AND cc.organization_id = sqlc.arg(organization_id)
 RETURNING *;
 
 -- name: ListCarrierConnectionSourceIPs :many
