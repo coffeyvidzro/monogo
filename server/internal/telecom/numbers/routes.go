@@ -16,9 +16,9 @@ func RegisterRoutes(
 		r.Use(auth)
 		r.With(idempotency).Post("/byoc", handler.CreateBYOC)
 		r.Get("/", handler.List)
-		r.Get("/{id}", handler.Get)
-		r.Patch("/{id}", handler.Update)
-		r.Patch("/{id}/carrier-connection", handler.SetBYOCConnection)
-		r.With(idempotency).Delete("/{id}/byoc", handler.ReleaseBYOC)
+		r.Get("/{number_id}", handler.Get)
+		r.Patch("/{number_id}", handler.Update)
+		r.Patch("/{number_id}/carrier-connection", handler.SetBYOCConnection)
+		r.Delete("/{number_id}", handler.Delete)
 	})
 }

@@ -71,11 +71,15 @@ func (s *Service) SetBYOCConnection(ctx context.Context, organizationID, id uuid
 	return row, writeError(err)
 }
 
-func (s *Service) ReleaseBYOC(ctx context.Context, organizationID, id uuid.UUID) error {
-	if err := validateIDs(organizationID, id); err != nil {
+func (s *Service) Delete(ctx context.Context, organizationID, id uuid.UUID) error {
+	number, err := s.Get(ctx, organizationID, id)
+	if err != nil {
 		return err
 	}
-	_, err := s.repo.ReleaseBYOC(ctx, organizationID, id)
+	if number.ProvisioningMode != "byoc" {
+		return apperror.NewConflict("managed number release requires provider deprovisioning")
+	}
+	_, err = s.repo.ReleaseBYOC(ctx, organizationID, id)
 	return writeError(err)
 }
 

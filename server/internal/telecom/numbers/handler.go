@@ -108,13 +108,13 @@ func (h *Handler) SetBYOCConnection(w http.ResponseWriter, r *http.Request) {
 	httputil.OK(w, response(number))
 }
 
-func (h *Handler) ReleaseBYOC(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 	organizationID, numberID, err := requestIDs(r)
 	if err != nil {
 		httputil.Error(w, err)
 		return
 	}
-	if err := h.service.ReleaseBYOC(r.Context(), organizationID, numberID); err != nil {
+	if err := h.service.Delete(r.Context(), organizationID, numberID); err != nil {
 		httputil.Error(w, err)
 		return
 	}
@@ -134,7 +134,7 @@ func requestIDs(r *http.Request) (uuid.UUID, uuid.UUID, error) {
 	if err != nil {
 		return uuid.Nil, uuid.Nil, err
 	}
-	id, err := uuid.Parse(chi.URLParam(r, "id"))
+	id, err := uuid.Parse(chi.URLParam(r, "number_id"))
 	if err != nil || id == uuid.Nil {
 		return uuid.Nil, uuid.Nil, apperror.NewBadRequest("invalid number id")
 	}
