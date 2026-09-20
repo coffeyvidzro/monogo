@@ -1,4 +1,4 @@
-package s3
+package minio
 
 import (
 	"context"
@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/minio/minio-go/v7"
+	miniosdk "github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
 )
 
@@ -23,9 +23,24 @@ type Config struct {
 	PlaybackTTL    time.Duration
 }
 
+// DefaultConfig selects the fixed settings for the self-hosted MinIO deployment.
+// Only the application credentials and deployment domain come from the environment.
+func DefaultConfig(domain, accessKey, secretKey string) Config {
+	return Config{
+		Endpoint:       "http://minio:9000",
+		PublicEndpoint: "https://recordings." + strings.TrimSpace(domain),
+		Region:         "us-east-1",
+		Bucket:         "recordings",
+		AccessKey:      accessKey,
+		SecretKey:      secretKey,
+		UsePathStyle:   true,
+		PlaybackTTL:    15 * time.Minute,
+	}
+}
+
 type Client struct {
-	client      *minio.Client
-	presigner   *minio.Client
+	client      *miniosdk.Client
+	presigner   *miniosdk.Client
 	bucket      string
 	playbackTTL time.Duration
 }
@@ -45,7 +60,7 @@ func New(ctx context.Context, cfg Config) (*Client, error) {
 	if cfg.PlaybackTTL <= 0 {
 		cfg.PlaybackTTL = 15 * time.Minute
 	}
-	client, err := minio.New(endpoint, &minio.Options{
+	client, err := miniosdk.New(endpoint, &miniosdk.Options{
 		Creds: credentials.NewStaticV4(cfg.AccessKey, cfg.SecretKey, ""), Secure: secure, Region: strings.TrimSpace(cfg.Region), BucketLookup: bucketLookup(cfg.UsePathStyle),
 	})
 	if err != nil {
@@ -55,7 +70,7 @@ func New(ctx context.Context, cfg Config) (*Client, error) {
 	if err != nil {
 		return nil, fmt.Errorf("invalid public S3 endpoint: %w", err)
 	}
-	presigner, err := minio.New(publicEndpoint, &minio.Options{
+	presigner, err := miniosdk.New(publicEndpoint, &miniosdk.Options{
 		Creds: credentials.NewStaticV4(cfg.AccessKey, cfg.SecretKey, ""), Secure: publicSecure,
 		Region: strings.TrimSpace(cfg.Region), BucketLookup: bucketLookup(cfg.UsePathStyle),
 	})
@@ -76,7 +91,7 @@ func (c *Client) Put(ctx context.Context, key, contentType string, reader io.Rea
 	if err := validateKey(key); err != nil {
 		return err
 	}
-	_, err := c.client.PutObject(ctx, c.bucket, key, reader, size, minio.PutObjectOptions{ContentType: contentType})
+	_, err := c.client.PutObject(ctx, c.bucket, key, reader, size, miniosdk.PutObjectOptions{ContentType: contentType})
 	if err != nil {
 		return fmt.Errorf("upload S3 object: %w", err)
 	}
@@ -99,7 +114,7 @@ func (c *Client) Delete(ctx context.Context, key string) error {
 	if err := validateKey(key); err != nil {
 		return err
 	}
-	if err := c.client.RemoveObject(ctx, c.bucket, key, minio.RemoveObjectOptions{}); err != nil {
+	if err := c.client.RemoveObject(ctx, c.bucket, key, miniosdk.RemoveObjectOptions{}); err != nil {
 		return fmt.Errorf("delete S3 object: %w", err)
 	}
 	return nil
@@ -115,11 +130,11 @@ func parseEndpoint(value string) (string, bool, error) {
 	return parsed.Host, parsed.Scheme == "https", nil
 }
 
-func bucketLookup(pathStyle bool) minio.BucketLookupType {
+func bucketLookup(pathStyle bool) miniosdk.BucketLookupType {
 	if pathStyle {
-		return minio.BucketLookupPath
+		return miniosdk.BucketLookupPath
 	}
-	return minio.BucketLookupAuto
+	return miniosdk.BucketLookupAuto
 }
 
 func validateKey(key string) error {

@@ -34,7 +34,7 @@ API hostname needed by signed playback URLs.
 
 The FreeSWITCH and worker containers share `recordings-data`. Do not mount this
 volume into the API container. The worker validates that every source file and
-resolved symlink remains beneath `S3_STAGING_PATH` before opening it.
+resolved symlink remains beneath the shared `/var/lib/freeswitch/recordings` staging directory before opening it.
 
 ## Retry and recovery
 
@@ -57,7 +57,7 @@ FreeSWITCH `RECORD_STOP` event. Operators should alert on:
 ## Playback and deletion
 
 Playback is available only for `completed` recordings whose provider, bucket,
-and key match the configured S3 store. Signed URLs expire after 15 minutes by
+and key match the configured MinIO bucket. Signed URLs expire after 15 minutes by
 default.
 
 Deletion removes the object before marking the row deleted. If object deletion

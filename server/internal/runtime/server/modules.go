@@ -9,7 +9,7 @@ import (
 	"github.com/coffeyvidzro/monogo/internal/integrations/freeswitch"
 	"github.com/coffeyvidzro/monogo/internal/integrations/postgres"
 	redisintegration "github.com/coffeyvidzro/monogo/internal/integrations/redis"
-	"github.com/coffeyvidzro/monogo/internal/integrations/s3"
+	"github.com/coffeyvidzro/monogo/internal/integrations/minio"
 	"github.com/coffeyvidzro/monogo/internal/platform"
 	"github.com/coffeyvidzro/monogo/internal/platform/config"
 	"github.com/coffeyvidzro/monogo/internal/platform/logging"
@@ -90,11 +90,9 @@ func newModules(ctx context.Context, cfg config.Config) (*modules, error) {
 		return nil, fmt.Errorf("initialize TURN credentials: %w", err)
 	}
 
-	objectClient, err := s3.New(ctx, s3.Config{
-		Endpoint: cfg.S3.Endpoint, PublicEndpoint: cfg.S3.PublicEndpoint, Region: cfg.S3.Region, Bucket: cfg.S3.Bucket,
-		AccessKey: cfg.S3.AccessKey, SecretKey: cfg.S3.SecretKey,
-		UsePathStyle: cfg.S3.UsePathStyle, PlaybackTTL: cfg.S3.PlaybackTTL,
-	})
+	objectClient, err := minio.New(ctx, minio.DefaultConfig(
+		cfg.Domain, cfg.MinIO.AccessKey, cfg.MinIO.SecretKey,
+	))
 	if err != nil {
 		closeDependencies()
 		return nil, fmt.Errorf("initialize recording object storage: %w", err)

@@ -15,6 +15,9 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
+// DefaultStagingPath is the shared FreeSWITCH/worker recording volume.
+const DefaultStagingPath = "/var/lib/freeswitch/recordings"
+
 type IngestionConfig struct {
 	Interval    time.Duration
 	Lease       time.Duration

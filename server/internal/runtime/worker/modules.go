@@ -10,7 +10,7 @@ import (
 	natsintegration "github.com/coffeyvidzro/monogo/internal/integrations/nats"
 	"github.com/coffeyvidzro/monogo/internal/integrations/postgres"
 	redisintegration "github.com/coffeyvidzro/monogo/internal/integrations/redis"
-	"github.com/coffeyvidzro/monogo/internal/integrations/s3"
+	"github.com/coffeyvidzro/monogo/internal/integrations/minio"
 	"github.com/coffeyvidzro/monogo/internal/platform/config"
 	"github.com/coffeyvidzro/monogo/internal/platform/idempotency"
 	"github.com/coffeyvidzro/monogo/internal/platform/logging"
@@ -116,11 +116,9 @@ func newModules(ctx context.Context, cfg config.Config) (*modules, error) {
 	}
 
 	recordingsRepository := recordings.NewRepository(postgresClient.Pool())
-	objectClient, err := s3.New(ctx, s3.Config{
-		Endpoint: cfg.S3.Endpoint, PublicEndpoint: cfg.S3.PublicEndpoint, Region: cfg.S3.Region, Bucket: cfg.S3.Bucket,
-		AccessKey: cfg.S3.AccessKey, SecretKey: cfg.S3.SecretKey,
-		UsePathStyle: cfg.S3.UsePathStyle, PlaybackTTL: cfg.S3.PlaybackTTL,
-	})
+	objectClient, err := minio.New(ctx, minio.DefaultConfig(
+		cfg.Domain, cfg.MinIO.AccessKey, cfg.MinIO.SecretKey,
+	))
 	if err != nil {
 		closeDependencies()
 		return nil, fmt.Errorf("initialize recording object storage: %w", err)
@@ -130,7 +128,7 @@ func newModules(ctx context.Context, cfg config.Config) (*modules, error) {
 	recordingIngestion, err := recordings.NewIngestionJob(
 		recordingsRepository,
 		recordingStorage,
-		recordings.DefaultIngestionConfig(cfg.S3.StagingPath),
+		recordings.DefaultIngestionConfig(recordings.DefaultStagingPath),
 	)
 	if err != nil {
 		closeDependencies()
