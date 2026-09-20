@@ -14,17 +14,21 @@ import (
 )
 
 const clearCarrierConnectionOutboundAuth = `-- name: ClearCarrierConnectionOutboundAuth :exec
-UPDATE carrier_connections
-SET
-    outbound_auth_method = 'none',
-    auth_username = NULL,
-    auth_secret_ciphertext = NULL,
-	auth_realm = NULL,
-	auth_ha1_md5 = NULL,
-    updated_at = NOW()
-WHERE id = $1
-  AND scope = 'organization'
-  AND organization_id = $2
+WITH updated AS (
+    UPDATE carrier_connections
+    SET outbound_auth_method = 'none',
+        auth_username = NULL,
+        auth_secret_ciphertext = NULL,
+        updated_at = NOW()
+    WHERE carrier_connections.id = $1
+      AND carrier_connections.scope = 'organization'
+      AND carrier_connections.organization_id = $2
+    RETURNING id
+)
+DELETE FROM carrier_digest_credentials AS d
+USING updated
+WHERE d.carrier_connection_id = updated.id
+  AND d.direction = 'outbound'
 `
 
 type ClearCarrierConnectionOutboundAuthParams struct {
@@ -47,15 +51,11 @@ INSERT INTO carrier_connections (
     status,
     outbound_auth_method,
     auth_username,
-	    auth_secret_ciphertext,
-	auth_realm,
-	auth_ha1_md5,
+    auth_secret_ciphertext,
     inbound_enabled,
     inbound_auth_method,
     inbound_username,
-	    inbound_secret_ciphertext,
-	inbound_realm,
-	inbound_ha1_md5,
+    inbound_secret_ciphertext,
     max_cps,
     max_concurrent_calls,
     max_daily_minutes,
@@ -73,20 +73,16 @@ SELECT
     COALESCE($6, 'none') AS outbound_auth_method,
     $7 AS auth_username,
     $8 AS auth_secret_ciphertext,
-	$9 AS auth_realm,
-	$10 AS auth_ha1_md5,
-    COALESCE($11, false) AS inbound_enabled,
-    COALESCE($12, 'ip') AS inbound_auth_method,
-    $13 AS inbound_username,
-    $14 AS inbound_secret_ciphertext,
-	$15 AS inbound_realm,
-	$16 AS inbound_ha1_md5,
-    COALESCE($17, 10) AS max_cps,
-    COALESCE($18, 100) AS max_concurrent_calls,
-    $19 AS max_daily_minutes,
-    COALESCE($20, ARRAY['PCMU','PCMA']::TEXT[]) AS codecs,
-    COALESCE($21, false) AS supports_video,
-    COALESCE($22, false) AS supports_fax
+    COALESCE($9, false) AS inbound_enabled,
+    COALESCE($10, 'ip') AS inbound_auth_method,
+    $11 AS inbound_username,
+    $12 AS inbound_secret_ciphertext,
+    COALESCE($13, 10) AS max_cps,
+    COALESCE($14, 100) AS max_concurrent_calls,
+    $15 AS max_daily_minutes,
+    COALESCE($16, ARRAY['PCMU','PCMA']::TEXT[]) AS codecs,
+    COALESCE($17, false) AS supports_video,
+    COALESCE($18, false) AS supports_fax
 FROM organizations AS o
 JOIN carrier_providers AS cp ON cp.id = $3
 WHERE o.id = $2
@@ -94,7 +90,7 @@ WHERE o.id = $2
   AND o.deleted_at IS NULL
   AND cp.status = 'active'
   AND cp.slug <> 'leamout'
-RETURNING id, organization_id, provider_id, scope, name, status, outbound_auth_method, auth_username, auth_secret_ciphertext, inbound_enabled, inbound_auth_method, inbound_username, inbound_secret_ciphertext, max_cps, max_concurrent_calls, max_daily_minutes, codecs, supports_video, supports_fax, created_at, updated_at, auth_realm, auth_ha1_md5, inbound_realm, inbound_ha1_md5
+RETURNING id, organization_id, provider_id, scope, name, status, outbound_auth_method, auth_username, auth_secret_ciphertext, inbound_enabled, inbound_auth_method, inbound_username, inbound_secret_ciphertext, max_cps, max_concurrent_calls, max_daily_minutes, codecs, supports_video, supports_fax, created_at, updated_at
 `
 
 type CreateCarrierConnectionParams struct {
@@ -106,14 +102,10 @@ type CreateCarrierConnectionParams struct {
 	OutboundAuthMethod      *string    `db:"outbound_auth_method" json:"outbound_auth_method"`
 	AuthUsername            *string    `db:"auth_username" json:"auth_username"`
 	AuthSecretCiphertext    *string    `db:"auth_secret_ciphertext" json:"auth_secret_ciphertext"`
-	AuthRealm               *string    `db:"auth_realm" json:"auth_realm"`
-	AuthHa1Md5              *string    `db:"auth_ha1_md5" json:"auth_ha1_md5"`
 	InboundEnabled          *bool      `db:"inbound_enabled" json:"inbound_enabled"`
 	InboundAuthMethod       *string    `db:"inbound_auth_method" json:"inbound_auth_method"`
 	InboundUsername         *string    `db:"inbound_username" json:"inbound_username"`
 	InboundSecretCiphertext *string    `db:"inbound_secret_ciphertext" json:"inbound_secret_ciphertext"`
-	InboundRealm            *string    `db:"inbound_realm" json:"inbound_realm"`
-	InboundHa1Md5           *string    `db:"inbound_ha1_md5" json:"inbound_ha1_md5"`
 	MaxCps                  *int32     `db:"max_cps" json:"max_cps"`
 	MaxConcurrentCalls      *int32     `db:"max_concurrent_calls" json:"max_concurrent_calls"`
 	MaxDailyMinutes         *int64     `db:"max_daily_minutes" json:"max_daily_minutes"`
@@ -132,14 +124,10 @@ func (q *Queries) CreateCarrierConnection(ctx context.Context, arg CreateCarrier
 		arg.OutboundAuthMethod,
 		arg.AuthUsername,
 		arg.AuthSecretCiphertext,
-		arg.AuthRealm,
-		arg.AuthHa1Md5,
 		arg.InboundEnabled,
 		arg.InboundAuthMethod,
 		arg.InboundUsername,
 		arg.InboundSecretCiphertext,
-		arg.InboundRealm,
-		arg.InboundHa1Md5,
 		arg.MaxCps,
 		arg.MaxConcurrentCalls,
 		arg.MaxDailyMinutes,
@@ -170,10 +158,6 @@ func (q *Queries) CreateCarrierConnection(ctx context.Context, arg CreateCarrier
 		&i.SupportsFax,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-		&i.AuthRealm,
-		&i.AuthHa1Md5,
-		&i.InboundRealm,
-		&i.InboundHa1Md5,
 	)
 	return i, err
 }
@@ -223,12 +207,10 @@ INSERT INTO carrier_connections (
     status,
     outbound_auth_method,
     auth_username,
-	auth_realm,
     auth_secret_ciphertext,
     inbound_enabled,
     inbound_auth_method,
     inbound_username,
-	inbound_realm,
     inbound_secret_ciphertext,
     max_cps,
     max_concurrent_calls,
@@ -259,7 +241,7 @@ SELECT
 FROM carrier_providers AS cp
 WHERE cp.id = $1
   AND cp.status = 'active'
-RETURNING id, organization_id, provider_id, scope, name, status, outbound_auth_method, auth_username, auth_secret_ciphertext, inbound_enabled, inbound_auth_method, inbound_username, inbound_secret_ciphertext, max_cps, max_concurrent_calls, max_daily_minutes, codecs, supports_video, supports_fax, created_at, updated_at, auth_realm, auth_ha1_md5, inbound_realm, inbound_ha1_md5
+RETURNING id, organization_id, provider_id, scope, name, status, outbound_auth_method, auth_username, auth_secret_ciphertext, inbound_enabled, inbound_auth_method, inbound_username, inbound_secret_ciphertext, max_cps, max_concurrent_calls, max_daily_minutes, codecs, supports_video, supports_fax, created_at, updated_at
 `
 
 type CreatePlatformCarrierConnectionParams struct {
@@ -275,7 +257,7 @@ type CreatePlatformCarrierConnectionParams struct {
 	InboundSecretCiphertext *string   `db:"inbound_secret_ciphertext" json:"inbound_secret_ciphertext"`
 	MaxCps                  *int32    `db:"max_cps" json:"max_cps"`
 	MaxConcurrentCalls      *int32    `db:"max_concurrent_calls" json:"max_concurrent_calls"`
-	MaxDailyMinutes         *int32    `db:"max_daily_minutes" json:"max_daily_minutes"`
+	MaxDailyMinutes         *int64    `db:"max_daily_minutes" json:"max_daily_minutes"`
 	Codecs                  []string  `db:"codecs" json:"codecs"`
 	SupportsVideo           *bool     `db:"supports_video" json:"supports_video"`
 	SupportsFax             *bool     `db:"supports_fax" json:"supports_fax"`
@@ -323,10 +305,6 @@ func (q *Queries) CreatePlatformCarrierConnection(ctx context.Context, arg Creat
 		&i.SupportsFax,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-		&i.AuthRealm,
-		&i.AuthHa1Md5,
-		&i.InboundRealm,
-		&i.InboundHa1Md5,
 	)
 	return i, err
 }
@@ -483,33 +461,39 @@ func (q *Queries) GetBackofficeCarrierConnection(ctx context.Context, id uuid.UU
 
 const getCarrierConnectionByID = `-- name: GetCarrierConnectionByID :one
 SELECT
-    id,
-    organization_id,
-    provider_id,
-    scope,
-    name,
-    status,
-    outbound_auth_method,
-    auth_username,
-	 auth_realm,
-    auth_secret_ciphertext IS NOT NULL AS has_outbound_credentials,
-    inbound_enabled,
-    inbound_auth_method,
-    inbound_username,
-	 inbound_realm,
-    inbound_secret_ciphertext IS NOT NULL AS has_inbound_credentials,
-    max_cps,
-    max_concurrent_calls,
-    max_daily_minutes,
-    codecs,
-    supports_video,
-    supports_fax,
-    created_at,
-    updated_at
-FROM carrier_connections
-WHERE id = $1
-  AND scope = 'organization'
-  AND organization_id = $2
+    cc.id,
+    cc.organization_id,
+    cc.provider_id,
+    cc.scope,
+    cc.name,
+    cc.status,
+    cc.outbound_auth_method,
+    cc.auth_username,
+    outbound_digest.realm AS auth_realm,
+    cc.auth_secret_ciphertext IS NOT NULL AS has_outbound_credentials,
+    cc.inbound_enabled,
+    cc.inbound_auth_method,
+    cc.inbound_username,
+    inbound_digest.realm AS inbound_realm,
+    cc.inbound_secret_ciphertext IS NOT NULL AS has_inbound_credentials,
+    cc.max_cps,
+    cc.max_concurrent_calls,
+    cc.max_daily_minutes,
+    cc.codecs,
+    cc.supports_video,
+    cc.supports_fax,
+    cc.created_at,
+    cc.updated_at
+FROM carrier_connections AS cc
+LEFT JOIN carrier_digest_credentials AS outbound_digest
+  ON outbound_digest.carrier_connection_id = cc.id
+ AND outbound_digest.direction = 'outbound'
+LEFT JOIN carrier_digest_credentials AS inbound_digest
+  ON inbound_digest.carrier_connection_id = cc.id
+ AND inbound_digest.direction = 'inbound'
+WHERE cc.id = $1
+  AND cc.scope = 'organization'
+  AND cc.organization_id = $2
 LIMIT 1
 `
 
@@ -620,7 +604,7 @@ func (q *Queries) GetCarrierConnectionCredentials(ctx context.Context, arg GetCa
 }
 
 const getPlatformCarrierConnectionByID = `-- name: GetPlatformCarrierConnectionByID :one
-SELECT id, organization_id, provider_id, scope, name, status, outbound_auth_method, auth_username, auth_secret_ciphertext, inbound_enabled, inbound_auth_method, inbound_username, inbound_secret_ciphertext, max_cps, max_concurrent_calls, max_daily_minutes, codecs, supports_video, supports_fax, created_at, updated_at, auth_realm, auth_ha1_md5, inbound_realm, inbound_ha1_md5
+SELECT id, organization_id, provider_id, scope, name, status, outbound_auth_method, auth_username, auth_secret_ciphertext, inbound_enabled, inbound_auth_method, inbound_username, inbound_secret_ciphertext, max_cps, max_concurrent_calls, max_daily_minutes, codecs, supports_video, supports_fax, created_at, updated_at
 FROM carrier_connections
 WHERE id = $1
   AND scope = 'platform'
@@ -653,10 +637,6 @@ func (q *Queries) GetPlatformCarrierConnectionByID(ctx context.Context, id uuid.
 		&i.SupportsFax,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-		&i.AuthRealm,
-		&i.AuthHa1Md5,
-		&i.InboundRealm,
-		&i.InboundHa1Md5,
 	)
 	return i, err
 }
@@ -698,6 +678,44 @@ func (q *Queries) GetPlatformCarrierConnectionCredentials(ctx context.Context, i
 		&i.InboundSecretCiphertext,
 	)
 	return i, err
+}
+
+const insertCarrierDigestCredential = `-- name: InsertCarrierDigestCredential :exec
+INSERT INTO carrier_digest_credentials (
+    carrier_connection_id,
+    organization_id,
+    direction,
+    username,
+    realm,
+    ha1_md5
+)
+SELECT cc.id, cc.organization_id, $1::TEXT,
+       $2::TEXT, $3::TEXT, $4::TEXT
+FROM carrier_connections AS cc
+WHERE cc.id = $5
+  AND cc.organization_id = $6
+  AND cc.scope = 'organization'
+`
+
+type InsertCarrierDigestCredentialParams struct {
+	Direction           string     `db:"direction" json:"direction"`
+	Username            string     `db:"username" json:"username"`
+	Realm               string     `db:"realm" json:"realm"`
+	Ha1Md5              string     `db:"ha1_md5" json:"ha1_md5"`
+	CarrierConnectionID uuid.UUID  `db:"carrier_connection_id" json:"carrier_connection_id"`
+	OrganizationID      *uuid.UUID `db:"organization_id" json:"organization_id"`
+}
+
+func (q *Queries) InsertCarrierDigestCredential(ctx context.Context, arg InsertCarrierDigestCredentialParams) error {
+	_, err := q.db.Exec(ctx, insertCarrierDigestCredential,
+		arg.Direction,
+		arg.Username,
+		arg.Realm,
+		arg.Ha1Md5,
+		arg.CarrierConnectionID,
+		arg.OrganizationID,
+	)
+	return err
 }
 
 const listActiveCarrierConnectionsByOrganizationID = `-- name: ListActiveCarrierConnectionsByOrganizationID :many
@@ -797,7 +815,7 @@ func (q *Queries) ListActiveCarrierConnectionsByOrganizationID(ctx context.Conte
 }
 
 const listActivePlatformCarrierConnections = `-- name: ListActivePlatformCarrierConnections :many
-SELECT id, organization_id, provider_id, scope, name, status, outbound_auth_method, auth_username, auth_secret_ciphertext, inbound_enabled, inbound_auth_method, inbound_username, inbound_secret_ciphertext, max_cps, max_concurrent_calls, max_daily_minutes, codecs, supports_video, supports_fax, created_at, updated_at, auth_realm, auth_ha1_md5, inbound_realm, inbound_ha1_md5
+SELECT id, organization_id, provider_id, scope, name, status, outbound_auth_method, auth_username, auth_secret_ciphertext, inbound_enabled, inbound_auth_method, inbound_username, inbound_secret_ciphertext, max_cps, max_concurrent_calls, max_daily_minutes, codecs, supports_video, supports_fax, created_at, updated_at
 FROM carrier_connections
 WHERE scope = 'platform'
   AND organization_id IS NULL
@@ -836,10 +854,6 @@ func (q *Queries) ListActivePlatformCarrierConnections(ctx context.Context) ([]C
 			&i.SupportsFax,
 			&i.CreatedAt,
 			&i.UpdatedAt,
-			&i.AuthRealm,
-			&i.AuthHa1Md5,
-			&i.InboundRealm,
-			&i.InboundHa1Md5,
 		); err != nil {
 			return nil, err
 		}
@@ -1049,33 +1063,39 @@ func (q *Queries) ListCarrierConnectionSourceIPs(ctx context.Context, arg ListCa
 
 const listCarrierConnectionsByOrganizationID = `-- name: ListCarrierConnectionsByOrganizationID :many
 SELECT
-    id,
-    organization_id,
-    provider_id,
-    scope,
-    name,
-    status,
-    outbound_auth_method,
-    auth_username,
-	 auth_realm,
-    auth_secret_ciphertext IS NOT NULL AS has_outbound_credentials,
-    inbound_enabled,
-    inbound_auth_method,
-    inbound_username,
-	 inbound_realm,
-    inbound_secret_ciphertext IS NOT NULL AS has_inbound_credentials,
-    max_cps,
-    max_concurrent_calls,
-    max_daily_minutes,
-    codecs,
-    supports_video,
-    supports_fax,
-    created_at,
-    updated_at
-FROM carrier_connections
-WHERE scope = 'organization'
-  AND organization_id = $1
-ORDER BY created_at DESC
+    cc.id,
+    cc.organization_id,
+    cc.provider_id,
+    cc.scope,
+    cc.name,
+    cc.status,
+    cc.outbound_auth_method,
+    cc.auth_username,
+    outbound_digest.realm AS auth_realm,
+    cc.auth_secret_ciphertext IS NOT NULL AS has_outbound_credentials,
+    cc.inbound_enabled,
+    cc.inbound_auth_method,
+    cc.inbound_username,
+    inbound_digest.realm AS inbound_realm,
+    cc.inbound_secret_ciphertext IS NOT NULL AS has_inbound_credentials,
+    cc.max_cps,
+    cc.max_concurrent_calls,
+    cc.max_daily_minutes,
+    cc.codecs,
+    cc.supports_video,
+    cc.supports_fax,
+    cc.created_at,
+    cc.updated_at
+FROM carrier_connections AS cc
+LEFT JOIN carrier_digest_credentials AS outbound_digest
+  ON outbound_digest.carrier_connection_id = cc.id
+ AND outbound_digest.direction = 'outbound'
+LEFT JOIN carrier_digest_credentials AS inbound_digest
+  ON inbound_digest.carrier_connection_id = cc.id
+ AND inbound_digest.direction = 'inbound'
+WHERE cc.scope = 'organization'
+  AND cc.organization_id = $1
+ORDER BY cc.created_at DESC
 `
 
 type ListCarrierConnectionsByOrganizationIDRow struct {
@@ -1149,7 +1169,7 @@ func (q *Queries) ListCarrierConnectionsByOrganizationID(ctx context.Context, or
 }
 
 const listPlatformCarrierConnections = `-- name: ListPlatformCarrierConnections :many
-SELECT id, organization_id, provider_id, scope, name, status, outbound_auth_method, auth_username, auth_secret_ciphertext, inbound_enabled, inbound_auth_method, inbound_username, inbound_secret_ciphertext, max_cps, max_concurrent_calls, max_daily_minutes, codecs, supports_video, supports_fax, created_at, updated_at, auth_realm, auth_ha1_md5, inbound_realm, inbound_ha1_md5
+SELECT id, organization_id, provider_id, scope, name, status, outbound_auth_method, auth_username, auth_secret_ciphertext, inbound_enabled, inbound_auth_method, inbound_username, inbound_secret_ciphertext, max_cps, max_concurrent_calls, max_daily_minutes, codecs, supports_video, supports_fax, created_at, updated_at
 FROM carrier_connections
 WHERE scope = 'platform'
   AND organization_id IS NULL
@@ -1187,10 +1207,6 @@ func (q *Queries) ListPlatformCarrierConnections(ctx context.Context) ([]Carrier
 			&i.SupportsFax,
 			&i.CreatedAt,
 			&i.UpdatedAt,
-			&i.AuthRealm,
-			&i.AuthHa1Md5,
-			&i.InboundRealm,
-			&i.InboundHa1Md5,
 		); err != nil {
 			return nil, err
 		}
@@ -1246,7 +1262,7 @@ func (q *Queries) ListProviderRoutingTargets(ctx context.Context, providerID uui
 }
 
 const resolveCarrierConnectionBySourceIP = `-- name: ResolveCarrierConnectionBySourceIP :one
-SELECT cc.id, cc.organization_id, cc.provider_id, cc.scope, cc.name, cc.status, cc.outbound_auth_method, cc.auth_username, cc.auth_secret_ciphertext, cc.inbound_enabled, cc.inbound_auth_method, cc.inbound_username, cc.inbound_secret_ciphertext, cc.max_cps, cc.max_concurrent_calls, cc.max_daily_minutes, cc.codecs, cc.supports_video, cc.supports_fax, cc.created_at, cc.updated_at, cc.auth_realm, cc.auth_ha1_md5, cc.inbound_realm, cc.inbound_ha1_md5
+SELECT cc.id, cc.organization_id, cc.provider_id, cc.scope, cc.name, cc.status, cc.outbound_auth_method, cc.auth_username, cc.auth_secret_ciphertext, cc.inbound_enabled, cc.inbound_auth_method, cc.inbound_username, cc.inbound_secret_ciphertext, cc.max_cps, cc.max_concurrent_calls, cc.max_daily_minutes, cc.codecs, cc.supports_video, cc.supports_fax, cc.created_at, cc.updated_at
 FROM carrier_connection_source_ips AS src
 JOIN carrier_connections AS cc
   ON cc.id = src.carrier_connection_id
@@ -1285,33 +1301,40 @@ func (q *Queries) ResolveCarrierConnectionBySourceIP(ctx context.Context, source
 		&i.SupportsFax,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-		&i.AuthRealm,
-		&i.AuthHa1Md5,
-		&i.InboundRealm,
-		&i.InboundHa1Md5,
 	)
 	return i, err
 }
 
 const setCarrierConnectionInboundDigestAuth = `-- name: SetCarrierConnectionInboundDigestAuth :exec
-UPDATE carrier_connections
-SET
-    inbound_auth_method = 'digest',
-    inbound_username = $1,
-    inbound_secret_ciphertext = $2,
-	inbound_realm = $3,
-	inbound_ha1_md5 = $4,
-    updated_at = NOW()
-WHERE id = $5
-  AND scope = 'organization'
-  AND organization_id = $6
+WITH updated AS (
+    UPDATE carrier_connections
+    SET inbound_auth_method = 'digest',
+        inbound_username = $1,
+        inbound_secret_ciphertext = $4,
+        updated_at = NOW()
+    WHERE carrier_connections.id = $5
+      AND carrier_connections.scope = 'organization'
+      AND carrier_connections.organization_id = $6
+    RETURNING id, organization_id
+)
+INSERT INTO carrier_digest_credentials (
+    carrier_connection_id, organization_id, direction, username, realm, ha1_md5
+)
+SELECT updated.id, updated.organization_id, 'inbound',
+       $1, $2, $3
+FROM updated
+ON CONFLICT (carrier_connection_id, direction)
+DO UPDATE SET username = EXCLUDED.username,
+              realm = EXCLUDED.realm,
+              ha1_md5 = EXCLUDED.ha1_md5,
+              updated_at = NOW()
 `
 
 type SetCarrierConnectionInboundDigestAuthParams struct {
 	InboundUsername         *string    `db:"inbound_username" json:"inbound_username"`
-	InboundSecretCiphertext *string    `db:"inbound_secret_ciphertext" json:"inbound_secret_ciphertext"`
 	InboundRealm            *string    `db:"inbound_realm" json:"inbound_realm"`
 	InboundHa1Md5           *string    `db:"inbound_ha1_md5" json:"inbound_ha1_md5"`
+	InboundSecretCiphertext *string    `db:"inbound_secret_ciphertext" json:"inbound_secret_ciphertext"`
 	ID                      uuid.UUID  `db:"id" json:"id"`
 	OrganizationID          *uuid.UUID `db:"organization_id" json:"organization_id"`
 }
@@ -1319,9 +1342,9 @@ type SetCarrierConnectionInboundDigestAuthParams struct {
 func (q *Queries) SetCarrierConnectionInboundDigestAuth(ctx context.Context, arg SetCarrierConnectionInboundDigestAuthParams) error {
 	_, err := q.db.Exec(ctx, setCarrierConnectionInboundDigestAuth,
 		arg.InboundUsername,
-		arg.InboundSecretCiphertext,
 		arg.InboundRealm,
 		arg.InboundHa1Md5,
+		arg.InboundSecretCiphertext,
 		arg.ID,
 		arg.OrganizationID,
 	)
@@ -1329,17 +1352,21 @@ func (q *Queries) SetCarrierConnectionInboundDigestAuth(ctx context.Context, arg
 }
 
 const setCarrierConnectionInboundIPAuth = `-- name: SetCarrierConnectionInboundIPAuth :exec
-UPDATE carrier_connections
-SET
-    inbound_auth_method = 'ip',
-    inbound_username = NULL,
-    inbound_secret_ciphertext = NULL,
-	inbound_realm = NULL,
-	inbound_ha1_md5 = NULL,
-    updated_at = NOW()
-WHERE id = $1
-  AND scope = 'organization'
-  AND organization_id = $2
+WITH updated AS (
+    UPDATE carrier_connections
+    SET inbound_auth_method = 'ip',
+        inbound_username = NULL,
+        inbound_secret_ciphertext = NULL,
+        updated_at = NOW()
+    WHERE carrier_connections.id = $1
+      AND carrier_connections.scope = 'organization'
+      AND carrier_connections.organization_id = $2
+    RETURNING id
+)
+DELETE FROM carrier_digest_credentials AS d
+USING updated
+WHERE d.carrier_connection_id = updated.id
+  AND d.direction = 'inbound'
 `
 
 type SetCarrierConnectionInboundIPAuthParams struct {
@@ -1353,17 +1380,21 @@ func (q *Queries) SetCarrierConnectionInboundIPAuth(ctx context.Context, arg Set
 }
 
 const setCarrierConnectionInboundNoAuth = `-- name: SetCarrierConnectionInboundNoAuth :exec
-UPDATE carrier_connections
-SET
-    inbound_auth_method = 'none',
-    inbound_username = NULL,
-    inbound_secret_ciphertext = NULL,
-	inbound_realm = NULL,
-	inbound_ha1_md5 = NULL,
-    updated_at = NOW()
-WHERE id = $1
-  AND scope = 'organization'
-  AND organization_id = $2
+WITH updated AS (
+    UPDATE carrier_connections
+    SET inbound_auth_method = 'none',
+        inbound_username = NULL,
+        inbound_secret_ciphertext = NULL,
+        updated_at = NOW()
+    WHERE carrier_connections.id = $1
+      AND carrier_connections.scope = 'organization'
+      AND carrier_connections.organization_id = $2
+    RETURNING id
+)
+DELETE FROM carrier_digest_credentials AS d
+USING updated
+WHERE d.carrier_connection_id = updated.id
+  AND d.direction = 'inbound'
 `
 
 type SetCarrierConnectionInboundNoAuthParams struct {
@@ -1377,24 +1408,35 @@ func (q *Queries) SetCarrierConnectionInboundNoAuth(ctx context.Context, arg Set
 }
 
 const setCarrierConnectionOutboundDigestAuth = `-- name: SetCarrierConnectionOutboundDigestAuth :exec
-UPDATE carrier_connections
-SET
-    outbound_auth_method = 'digest',
-    auth_username = $1,
-    auth_secret_ciphertext = $2,
-	auth_realm = $3,
-	auth_ha1_md5 = $4,
-    updated_at = NOW()
-WHERE id = $5
-  AND scope = 'organization'
-  AND organization_id = $6
+WITH updated AS (
+    UPDATE carrier_connections
+    SET outbound_auth_method = 'digest',
+        auth_username = $1,
+        auth_secret_ciphertext = $4,
+        updated_at = NOW()
+    WHERE carrier_connections.id = $5
+      AND carrier_connections.scope = 'organization'
+      AND carrier_connections.organization_id = $6
+    RETURNING id, organization_id
+)
+INSERT INTO carrier_digest_credentials (
+    carrier_connection_id, organization_id, direction, username, realm, ha1_md5
+)
+SELECT updated.id, updated.organization_id, 'outbound',
+       $1, $2, $3
+FROM updated
+ON CONFLICT (carrier_connection_id, direction)
+DO UPDATE SET username = EXCLUDED.username,
+              realm = EXCLUDED.realm,
+              ha1_md5 = EXCLUDED.ha1_md5,
+              updated_at = NOW()
 `
 
 type SetCarrierConnectionOutboundDigestAuthParams struct {
 	AuthUsername         *string    `db:"auth_username" json:"auth_username"`
-	AuthSecretCiphertext *string    `db:"auth_secret_ciphertext" json:"auth_secret_ciphertext"`
 	AuthRealm            *string    `db:"auth_realm" json:"auth_realm"`
 	AuthHa1Md5           *string    `db:"auth_ha1_md5" json:"auth_ha1_md5"`
+	AuthSecretCiphertext *string    `db:"auth_secret_ciphertext" json:"auth_secret_ciphertext"`
 	ID                   uuid.UUID  `db:"id" json:"id"`
 	OrganizationID       *uuid.UUID `db:"organization_id" json:"organization_id"`
 }
@@ -1402,9 +1444,9 @@ type SetCarrierConnectionOutboundDigestAuthParams struct {
 func (q *Queries) SetCarrierConnectionOutboundDigestAuth(ctx context.Context, arg SetCarrierConnectionOutboundDigestAuthParams) error {
 	_, err := q.db.Exec(ctx, setCarrierConnectionOutboundDigestAuth,
 		arg.AuthUsername,
-		arg.AuthSecretCiphertext,
 		arg.AuthRealm,
 		arg.AuthHa1Md5,
+		arg.AuthSecretCiphertext,
 		arg.ID,
 		arg.OrganizationID,
 	)
@@ -1427,7 +1469,7 @@ SET
 WHERE id = $10
   AND scope = 'organization'
   AND organization_id = $11
-RETURNING id, organization_id, provider_id, scope, name, status, outbound_auth_method, auth_username, auth_secret_ciphertext, inbound_enabled, inbound_auth_method, inbound_username, inbound_secret_ciphertext, max_cps, max_concurrent_calls, max_daily_minutes, codecs, supports_video, supports_fax, created_at, updated_at, auth_realm, auth_ha1_md5, inbound_realm, inbound_ha1_md5
+RETURNING id, organization_id, provider_id, scope, name, status, outbound_auth_method, auth_username, auth_secret_ciphertext, inbound_enabled, inbound_auth_method, inbound_username, inbound_secret_ciphertext, max_cps, max_concurrent_calls, max_daily_minutes, codecs, supports_video, supports_fax, created_at, updated_at
 `
 
 type UpdateCarrierConnectionParams struct {
@@ -1481,10 +1523,6 @@ func (q *Queries) UpdateCarrierConnection(ctx context.Context, arg UpdateCarrier
 		&i.SupportsFax,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-		&i.AuthRealm,
-		&i.AuthHa1Md5,
-		&i.InboundRealm,
-		&i.InboundHa1Md5,
 	)
 	return i, err
 }
@@ -1505,7 +1543,7 @@ SET
 WHERE id = $10
   AND scope = 'platform'
   AND organization_id IS NULL
-RETURNING id, organization_id, provider_id, scope, name, status, outbound_auth_method, auth_username, auth_secret_ciphertext, inbound_enabled, inbound_auth_method, inbound_username, inbound_secret_ciphertext, max_cps, max_concurrent_calls, max_daily_minutes, codecs, supports_video, supports_fax, created_at, updated_at, auth_realm, auth_ha1_md5, inbound_realm, inbound_ha1_md5
+RETURNING id, organization_id, provider_id, scope, name, status, outbound_auth_method, auth_username, auth_secret_ciphertext, inbound_enabled, inbound_auth_method, inbound_username, inbound_secret_ciphertext, max_cps, max_concurrent_calls, max_daily_minutes, codecs, supports_video, supports_fax, created_at, updated_at
 `
 
 type UpdatePlatformCarrierConnectionParams struct {
@@ -1557,10 +1595,6 @@ func (q *Queries) UpdatePlatformCarrierConnection(ctx context.Context, arg Updat
 		&i.SupportsFax,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-		&i.AuthRealm,
-		&i.AuthHa1Md5,
-		&i.InboundRealm,
-		&i.InboundHa1Md5,
 	)
 	return i, err
 }

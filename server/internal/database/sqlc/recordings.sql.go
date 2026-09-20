@@ -30,7 +30,7 @@ SET
 WHERE organization_id = $8
   AND id = $9
   AND status IN ('recording', 'uploading')
-RETURNING id, organization_id, call_id, status, storage_key, storage_provider, storage_bucket, storage_url, file_size_bytes, format, duration_seconds, started_at, completed_at, created_at, updated_at, source_path, stopped_at, upload_attempts, next_upload_at, upload_error
+RETURNING id, organization_id, call_id, status, storage_key, storage_provider, storage_bucket, storage_url, source_path, stopped_at, upload_attempts, next_upload_at, upload_error, file_size_bytes, format, duration_seconds, started_at, completed_at, created_at, updated_at
 `
 
 type CompleteRecordingParams struct {
@@ -67,6 +67,11 @@ func (q *Queries) CompleteRecording(ctx context.Context, arg CompleteRecordingPa
 		&i.StorageProvider,
 		&i.StorageBucket,
 		&i.StorageUrl,
+		&i.SourcePath,
+		&i.StoppedAt,
+		&i.UploadAttempts,
+		&i.NextUploadAt,
+		&i.UploadError,
 		&i.FileSizeBytes,
 		&i.Format,
 		&i.DurationSeconds,
@@ -74,11 +79,6 @@ func (q *Queries) CompleteRecording(ctx context.Context, arg CompleteRecordingPa
 		&i.CompletedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-		&i.SourcePath,
-		&i.StoppedAt,
-		&i.UploadAttempts,
-		&i.NextUploadAt,
-		&i.UploadError,
 	)
 	return i, err
 }
@@ -109,7 +109,7 @@ INSERT INTO recordings (
     $10,
     COALESCE($11, NOW())
 )
-RETURNING id, organization_id, call_id, status, storage_key, storage_provider, storage_bucket, storage_url, file_size_bytes, format, duration_seconds, started_at, completed_at, created_at, updated_at, source_path, stopped_at, upload_attempts, next_upload_at, upload_error
+RETURNING id, organization_id, call_id, status, storage_key, storage_provider, storage_bucket, storage_url, source_path, stopped_at, upload_attempts, next_upload_at, upload_error, file_size_bytes, format, duration_seconds, started_at, completed_at, created_at, updated_at
 `
 
 type CreateRecordingParams struct {
@@ -150,6 +150,11 @@ func (q *Queries) CreateRecording(ctx context.Context, arg CreateRecordingParams
 		&i.StorageProvider,
 		&i.StorageBucket,
 		&i.StorageUrl,
+		&i.SourcePath,
+		&i.StoppedAt,
+		&i.UploadAttempts,
+		&i.NextUploadAt,
+		&i.UploadError,
 		&i.FileSizeBytes,
 		&i.Format,
 		&i.DurationSeconds,
@@ -157,11 +162,6 @@ func (q *Queries) CreateRecording(ctx context.Context, arg CreateRecordingParams
 		&i.CompletedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-		&i.SourcePath,
-		&i.StoppedAt,
-		&i.UploadAttempts,
-		&i.NextUploadAt,
-		&i.UploadError,
 	)
 	return i, err
 }
@@ -175,7 +175,7 @@ SET
 WHERE organization_id = $1
   AND id = $2
   AND status <> 'deleted'
-RETURNING id, organization_id, call_id, status, storage_key, storage_provider, storage_bucket, storage_url, file_size_bytes, format, duration_seconds, started_at, completed_at, created_at, updated_at, source_path, stopped_at, upload_attempts, next_upload_at, upload_error
+RETURNING id, organization_id, call_id, status, storage_key, storage_provider, storage_bucket, storage_url, source_path, stopped_at, upload_attempts, next_upload_at, upload_error, file_size_bytes, format, duration_seconds, started_at, completed_at, created_at, updated_at
 `
 
 type DeleteRecordingParams struct {
@@ -195,6 +195,11 @@ func (q *Queries) DeleteRecording(ctx context.Context, arg DeleteRecordingParams
 		&i.StorageProvider,
 		&i.StorageBucket,
 		&i.StorageUrl,
+		&i.SourcePath,
+		&i.StoppedAt,
+		&i.UploadAttempts,
+		&i.NextUploadAt,
+		&i.UploadError,
 		&i.FileSizeBytes,
 		&i.Format,
 		&i.DurationSeconds,
@@ -202,11 +207,6 @@ func (q *Queries) DeleteRecording(ctx context.Context, arg DeleteRecordingParams
 		&i.CompletedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-		&i.SourcePath,
-		&i.StoppedAt,
-		&i.UploadAttempts,
-		&i.NextUploadAt,
-		&i.UploadError,
 	)
 	return i, err
 }
@@ -220,7 +220,7 @@ SET
 WHERE organization_id = $1
   AND id = $2
   AND status IN ('recording', 'uploading')
-RETURNING id, organization_id, call_id, status, storage_key, storage_provider, storage_bucket, storage_url, file_size_bytes, format, duration_seconds, started_at, completed_at, created_at, updated_at, source_path, stopped_at, upload_attempts, next_upload_at, upload_error
+RETURNING id, organization_id, call_id, status, storage_key, storage_provider, storage_bucket, storage_url, source_path, stopped_at, upload_attempts, next_upload_at, upload_error, file_size_bytes, format, duration_seconds, started_at, completed_at, created_at, updated_at
 `
 
 type FailRecordingParams struct {
@@ -240,6 +240,11 @@ func (q *Queries) FailRecording(ctx context.Context, arg FailRecordingParams) (R
 		&i.StorageProvider,
 		&i.StorageBucket,
 		&i.StorageUrl,
+		&i.SourcePath,
+		&i.StoppedAt,
+		&i.UploadAttempts,
+		&i.NextUploadAt,
+		&i.UploadError,
 		&i.FileSizeBytes,
 		&i.Format,
 		&i.DurationSeconds,
@@ -247,11 +252,6 @@ func (q *Queries) FailRecording(ctx context.Context, arg FailRecordingParams) (R
 		&i.CompletedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-		&i.SourcePath,
-		&i.StoppedAt,
-		&i.UploadAttempts,
-		&i.NextUploadAt,
-		&i.UploadError,
 	)
 	return i, err
 }
@@ -314,7 +314,7 @@ func (q *Queries) GetBackofficeRecording(ctx context.Context, id uuid.UUID) (Get
 }
 
 const getRecording = `-- name: GetRecording :one
-SELECT id, organization_id, call_id, status, storage_key, storage_provider, storage_bucket, storage_url, file_size_bytes, format, duration_seconds, started_at, completed_at, created_at, updated_at, source_path, stopped_at, upload_attempts, next_upload_at, upload_error
+SELECT id, organization_id, call_id, status, storage_key, storage_provider, storage_bucket, storage_url, source_path, stopped_at, upload_attempts, next_upload_at, upload_error, file_size_bytes, format, duration_seconds, started_at, completed_at, created_at, updated_at
 FROM recordings
 WHERE organization_id = $1
   AND id = $2
@@ -339,6 +339,11 @@ func (q *Queries) GetRecording(ctx context.Context, arg GetRecordingParams) (Rec
 		&i.StorageProvider,
 		&i.StorageBucket,
 		&i.StorageUrl,
+		&i.SourcePath,
+		&i.StoppedAt,
+		&i.UploadAttempts,
+		&i.NextUploadAt,
+		&i.UploadError,
 		&i.FileSizeBytes,
 		&i.Format,
 		&i.DurationSeconds,
@@ -346,17 +351,12 @@ func (q *Queries) GetRecording(ctx context.Context, arg GetRecordingParams) (Rec
 		&i.CompletedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-		&i.SourcePath,
-		&i.StoppedAt,
-		&i.UploadAttempts,
-		&i.NextUploadAt,
-		&i.UploadError,
 	)
 	return i, err
 }
 
 const getRecordingByCallStorageKey = `-- name: GetRecordingByCallStorageKey :one
-SELECT id, organization_id, call_id, status, storage_key, storage_provider, storage_bucket, storage_url, file_size_bytes, format, duration_seconds, started_at, completed_at, created_at, updated_at, source_path, stopped_at, upload_attempts, next_upload_at, upload_error
+SELECT id, organization_id, call_id, status, storage_key, storage_provider, storage_bucket, storage_url, source_path, stopped_at, upload_attempts, next_upload_at, upload_error, file_size_bytes, format, duration_seconds, started_at, completed_at, created_at, updated_at
 FROM recordings
 WHERE call_id = $1
   AND source_path = $2
@@ -380,6 +380,11 @@ func (q *Queries) GetRecordingByCallStorageKey(ctx context.Context, arg GetRecor
 		&i.StorageProvider,
 		&i.StorageBucket,
 		&i.StorageUrl,
+		&i.SourcePath,
+		&i.StoppedAt,
+		&i.UploadAttempts,
+		&i.NextUploadAt,
+		&i.UploadError,
 		&i.FileSizeBytes,
 		&i.Format,
 		&i.DurationSeconds,
@@ -387,17 +392,12 @@ func (q *Queries) GetRecordingByCallStorageKey(ctx context.Context, arg GetRecor
 		&i.CompletedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-		&i.SourcePath,
-		&i.StoppedAt,
-		&i.UploadAttempts,
-		&i.NextUploadAt,
-		&i.UploadError,
 	)
 	return i, err
 }
 
 const getRecordingIncludingDeleted = `-- name: GetRecordingIncludingDeleted :one
-SELECT id, organization_id, call_id, status, storage_key, storage_provider, storage_bucket, storage_url, file_size_bytes, format, duration_seconds, started_at, completed_at, created_at, updated_at, source_path, stopped_at, upload_attempts, next_upload_at, upload_error
+SELECT id, organization_id, call_id, status, storage_key, storage_provider, storage_bucket, storage_url, source_path, stopped_at, upload_attempts, next_upload_at, upload_error, file_size_bytes, format, duration_seconds, started_at, completed_at, created_at, updated_at
 FROM recordings
 WHERE organization_id = $1
   AND id = $2
@@ -421,6 +421,11 @@ func (q *Queries) GetRecordingIncludingDeleted(ctx context.Context, arg GetRecor
 		&i.StorageProvider,
 		&i.StorageBucket,
 		&i.StorageUrl,
+		&i.SourcePath,
+		&i.StoppedAt,
+		&i.UploadAttempts,
+		&i.NextUploadAt,
+		&i.UploadError,
 		&i.FileSizeBytes,
 		&i.Format,
 		&i.DurationSeconds,
@@ -428,11 +433,6 @@ func (q *Queries) GetRecordingIncludingDeleted(ctx context.Context, arg GetRecor
 		&i.CompletedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-		&i.SourcePath,
-		&i.StoppedAt,
-		&i.UploadAttempts,
-		&i.NextUploadAt,
-		&i.UploadError,
 	)
 	return i, err
 }
@@ -490,7 +490,7 @@ func (q *Queries) ListBackofficeRecordings(ctx context.Context) ([]ListBackoffic
 }
 
 const listCallRecordings = `-- name: ListCallRecordings :many
-SELECT id, organization_id, call_id, status, storage_key, storage_provider, storage_bucket, storage_url, file_size_bytes, format, duration_seconds, started_at, completed_at, created_at, updated_at, source_path, stopped_at, upload_attempts, next_upload_at, upload_error
+SELECT id, organization_id, call_id, status, storage_key, storage_provider, storage_bucket, storage_url, source_path, stopped_at, upload_attempts, next_upload_at, upload_error, file_size_bytes, format, duration_seconds, started_at, completed_at, created_at, updated_at
 FROM recordings
 WHERE organization_id = $1
   AND call_id = $2
@@ -521,6 +521,11 @@ func (q *Queries) ListCallRecordings(ctx context.Context, arg ListCallRecordings
 			&i.StorageProvider,
 			&i.StorageBucket,
 			&i.StorageUrl,
+			&i.SourcePath,
+			&i.StoppedAt,
+			&i.UploadAttempts,
+			&i.NextUploadAt,
+			&i.UploadError,
 			&i.FileSizeBytes,
 			&i.Format,
 			&i.DurationSeconds,
@@ -528,11 +533,6 @@ func (q *Queries) ListCallRecordings(ctx context.Context, arg ListCallRecordings
 			&i.CompletedAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
-			&i.SourcePath,
-			&i.StoppedAt,
-			&i.UploadAttempts,
-			&i.NextUploadAt,
-			&i.UploadError,
 		); err != nil {
 			return nil, err
 		}
@@ -545,7 +545,7 @@ func (q *Queries) ListCallRecordings(ctx context.Context, arg ListCallRecordings
 }
 
 const listRecordings = `-- name: ListRecordings :many
-SELECT id, organization_id, call_id, status, storage_key, storage_provider, storage_bucket, storage_url, file_size_bytes, format, duration_seconds, started_at, completed_at, created_at, updated_at, source_path, stopped_at, upload_attempts, next_upload_at, upload_error
+SELECT id, organization_id, call_id, status, storage_key, storage_provider, storage_bucket, storage_url, source_path, stopped_at, upload_attempts, next_upload_at, upload_error, file_size_bytes, format, duration_seconds, started_at, completed_at, created_at, updated_at
 FROM recordings
 WHERE organization_id = $1
   AND status <> 'deleted'
@@ -578,6 +578,11 @@ func (q *Queries) ListRecordings(ctx context.Context, arg ListRecordingsParams) 
 			&i.StorageProvider,
 			&i.StorageBucket,
 			&i.StorageUrl,
+			&i.SourcePath,
+			&i.StoppedAt,
+			&i.UploadAttempts,
+			&i.NextUploadAt,
+			&i.UploadError,
 			&i.FileSizeBytes,
 			&i.Format,
 			&i.DurationSeconds,
@@ -585,11 +590,6 @@ func (q *Queries) ListRecordings(ctx context.Context, arg ListRecordingsParams) 
 			&i.CompletedAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
-			&i.SourcePath,
-			&i.StoppedAt,
-			&i.UploadAttempts,
-			&i.NextUploadAt,
-			&i.UploadError,
 		); err != nil {
 			return nil, err
 		}
@@ -602,7 +602,7 @@ func (q *Queries) ListRecordings(ctx context.Context, arg ListRecordingsParams) 
 }
 
 const listRecordingsForReconciliation = `-- name: ListRecordingsForReconciliation :many
-SELECT r.id, r.organization_id, r.call_id, r.status, r.storage_key, r.storage_provider, r.storage_bucket, r.storage_url, r.file_size_bytes, r.format, r.duration_seconds, r.started_at, r.completed_at, r.created_at, r.updated_at, r.source_path, r.stopped_at, r.upload_attempts, r.next_upload_at, r.upload_error
+SELECT r.id, r.organization_id, r.call_id, r.status, r.storage_key, r.storage_provider, r.storage_bucket, r.storage_url, r.source_path, r.stopped_at, r.upload_attempts, r.next_upload_at, r.upload_error, r.file_size_bytes, r.format, r.duration_seconds, r.started_at, r.completed_at, r.created_at, r.updated_at
 FROM recordings r
 JOIN calls c ON c.id = r.call_id
 WHERE r.status = 'recording'
@@ -635,6 +635,11 @@ func (q *Queries) ListRecordingsForReconciliation(ctx context.Context, arg ListR
 			&i.StorageProvider,
 			&i.StorageBucket,
 			&i.StorageUrl,
+			&i.SourcePath,
+			&i.StoppedAt,
+			&i.UploadAttempts,
+			&i.NextUploadAt,
+			&i.UploadError,
 			&i.FileSizeBytes,
 			&i.Format,
 			&i.DurationSeconds,
@@ -642,11 +647,6 @@ func (q *Queries) ListRecordingsForReconciliation(ctx context.Context, arg ListR
 			&i.CompletedAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
-			&i.SourcePath,
-			&i.StoppedAt,
-			&i.UploadAttempts,
-			&i.NextUploadAt,
-			&i.UploadError,
 		); err != nil {
 			return nil, err
 		}
@@ -674,7 +674,7 @@ SET next_upload_at = $1,
     updated_at = NOW()
 FROM due
 WHERE r.id = due.id
-RETURNING r.id, r.organization_id, r.call_id, r.status, r.storage_key, r.storage_provider, r.storage_bucket, r.storage_url, r.file_size_bytes, r.format, r.duration_seconds, r.started_at, r.completed_at, r.created_at, r.updated_at, r.source_path, r.stopped_at, r.upload_attempts, r.next_upload_at, r.upload_error
+RETURNING r.id, r.organization_id, r.call_id, r.status, r.storage_key, r.storage_provider, r.storage_bucket, r.storage_url, r.source_path, r.stopped_at, r.upload_attempts, r.next_upload_at, r.upload_error, r.file_size_bytes, r.format, r.duration_seconds, r.started_at, r.completed_at, r.created_at, r.updated_at
 `
 
 type ListRecordingsForUploadParams struct {
@@ -701,6 +701,11 @@ func (q *Queries) ListRecordingsForUpload(ctx context.Context, arg ListRecording
 			&i.StorageProvider,
 			&i.StorageBucket,
 			&i.StorageUrl,
+			&i.SourcePath,
+			&i.StoppedAt,
+			&i.UploadAttempts,
+			&i.NextUploadAt,
+			&i.UploadError,
 			&i.FileSizeBytes,
 			&i.Format,
 			&i.DurationSeconds,
@@ -708,11 +713,6 @@ func (q *Queries) ListRecordingsForUpload(ctx context.Context, arg ListRecording
 			&i.CompletedAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
-			&i.SourcePath,
-			&i.StoppedAt,
-			&i.UploadAttempts,
-			&i.NextUploadAt,
-			&i.UploadError,
 		); err != nil {
 			return nil, err
 		}
@@ -734,7 +734,7 @@ SET status = 'uploading',
 WHERE organization_id = $2
   AND id = $3
   AND status = 'recording'
-RETURNING id, organization_id, call_id, status, storage_key, storage_provider, storage_bucket, storage_url, file_size_bytes, format, duration_seconds, started_at, completed_at, created_at, updated_at, source_path, stopped_at, upload_attempts, next_upload_at, upload_error
+RETURNING id, organization_id, call_id, status, storage_key, storage_provider, storage_bucket, storage_url, source_path, stopped_at, upload_attempts, next_upload_at, upload_error, file_size_bytes, format, duration_seconds, started_at, completed_at, created_at, updated_at
 `
 
 type MarkRecordingReadyForUploadParams struct {
@@ -755,6 +755,11 @@ func (q *Queries) MarkRecordingReadyForUpload(ctx context.Context, arg MarkRecor
 		&i.StorageProvider,
 		&i.StorageBucket,
 		&i.StorageUrl,
+		&i.SourcePath,
+		&i.StoppedAt,
+		&i.UploadAttempts,
+		&i.NextUploadAt,
+		&i.UploadError,
 		&i.FileSizeBytes,
 		&i.Format,
 		&i.DurationSeconds,
@@ -762,11 +767,6 @@ func (q *Queries) MarkRecordingReadyForUpload(ctx context.Context, arg MarkRecor
 		&i.CompletedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-		&i.SourcePath,
-		&i.StoppedAt,
-		&i.UploadAttempts,
-		&i.NextUploadAt,
-		&i.UploadError,
 	)
 	return i, err
 }
@@ -779,7 +779,7 @@ SET upload_attempts = upload_attempts + 1,
     updated_at = NOW()
 WHERE id = $3
   AND status = 'uploading'
-RETURNING id, organization_id, call_id, status, storage_key, storage_provider, storage_bucket, storage_url, file_size_bytes, format, duration_seconds, started_at, completed_at, created_at, updated_at, source_path, stopped_at, upload_attempts, next_upload_at, upload_error
+RETURNING id, organization_id, call_id, status, storage_key, storage_provider, storage_bucket, storage_url, source_path, stopped_at, upload_attempts, next_upload_at, upload_error, file_size_bytes, format, duration_seconds, started_at, completed_at, created_at, updated_at
 `
 
 type RetryRecordingUploadParams struct {
@@ -800,6 +800,11 @@ func (q *Queries) RetryRecordingUpload(ctx context.Context, arg RetryRecordingUp
 		&i.StorageProvider,
 		&i.StorageBucket,
 		&i.StorageUrl,
+		&i.SourcePath,
+		&i.StoppedAt,
+		&i.UploadAttempts,
+		&i.NextUploadAt,
+		&i.UploadError,
 		&i.FileSizeBytes,
 		&i.Format,
 		&i.DurationSeconds,
@@ -807,11 +812,6 @@ func (q *Queries) RetryRecordingUpload(ctx context.Context, arg RetryRecordingUp
 		&i.CompletedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-		&i.SourcePath,
-		&i.StoppedAt,
-		&i.UploadAttempts,
-		&i.NextUploadAt,
-		&i.UploadError,
 	)
 	return i, err
 }

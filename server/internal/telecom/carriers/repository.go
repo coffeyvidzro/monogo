@@ -61,11 +61,11 @@ func (r *Repository) Disable(ctx context.Context, org, id uuid.UUID) error {
 func (r *Repository) InsertDigest(ctx context.Context, org, id uuid.UUID, direction, username, realm, ha1 string) error {
 	return r.queries.InsertCarrierDigestCredential(ctx, sqlc.InsertCarrierDigestCredentialParams{
 		CarrierConnectionID: id,
-		OrganizationID:     &org,
-		Direction:          direction,
-		Username:           username,
-		Realm:              realm,
-		Ha1Md5:             ha1,
+		OrganizationID:      &org,
+		Direction:           direction,
+		Username:            username,
+		Realm:               realm,
+		Ha1Md5:              ha1,
 	})
 }
 

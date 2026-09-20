@@ -108,10 +108,6 @@ type CarrierConnection struct {
 	SupportsFax             bool               `db:"supports_fax" json:"supports_fax"`
 	CreatedAt               pgtype.Timestamptz `db:"created_at" json:"created_at"`
 	UpdatedAt               pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
-	AuthRealm               *string            `db:"auth_realm" json:"auth_realm"`
-	AuthHa1Md5              *string            `db:"auth_ha1_md5" json:"auth_ha1_md5"`
-	InboundRealm            *string            `db:"inbound_realm" json:"inbound_realm"`
-	InboundHa1Md5           *string            `db:"inbound_ha1_md5" json:"inbound_ha1_md5"`
 }
 
 type CarrierConnectionProviderResource struct {
@@ -129,6 +125,17 @@ type CarrierConnectionSourceIp struct {
 	CarrierConnectionID uuid.UUID          `db:"carrier_connection_id" json:"carrier_connection_id"`
 	Cidr                netip.Prefix       `db:"cidr" json:"cidr"`
 	CreatedAt           pgtype.Timestamptz `db:"created_at" json:"created_at"`
+}
+
+type CarrierDigestCredential struct {
+	CarrierConnectionID uuid.UUID          `db:"carrier_connection_id" json:"carrier_connection_id"`
+	OrganizationID      uuid.UUID          `db:"organization_id" json:"organization_id"`
+	Direction           string             `db:"direction" json:"direction"`
+	Username            string             `db:"username" json:"username"`
+	Realm               string             `db:"realm" json:"realm"`
+	Ha1Md5              string             `db:"ha1_md5" json:"ha1_md5"`
+	CreatedAt           pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	UpdatedAt           pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 }
 
 type CarrierProvider struct {
@@ -187,11 +194,21 @@ type Idempotency struct {
 	UpdatedAt           pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 }
 
+type OpensipsCarrierDigestCredential struct {
+	CarrierConnectionID uuid.UUID   `db:"carrier_connection_id" json:"carrier_connection_id"`
+	OrganizationID      uuid.UUID   `db:"organization_id" json:"organization_id"`
+	Direction           string      `db:"direction" json:"direction"`
+	Username            string      `db:"username" json:"username"`
+	Realm               string      `db:"realm" json:"realm"`
+	Password            interface{} `db:"password" json:"password"`
+}
+
 type OpensipsInboundCarrierCredential struct {
 	CarrierConnectionID uuid.UUID `db:"carrier_connection_id" json:"carrier_connection_id"`
-	Username            *string   `db:"username" json:"username"`
-	Domain              *string   `db:"domain" json:"domain"`
-	Ha1Md5              *string   `db:"ha1_md5" json:"ha1_md5"`
+	OrganizationID      uuid.UUID `db:"organization_id" json:"organization_id"`
+	Username            string    `db:"username" json:"username"`
+	Domain              string    `db:"domain" json:"domain"`
+	Ha1Md5              string    `db:"ha1_md5" json:"ha1_md5"`
 }
 
 type OpensipsManagedTrunkCredential struct {
@@ -204,8 +221,9 @@ type OpensipsManagedTrunkCredential struct {
 
 type OpensipsOutboundCarrierCredential struct {
 	CarrierConnectionID uuid.UUID   `db:"carrier_connection_id" json:"carrier_connection_id"`
-	Username            *string     `db:"username" json:"username"`
-	Realm               *string     `db:"realm" json:"realm"`
+	OrganizationID      uuid.UUID   `db:"organization_id" json:"organization_id"`
+	Username            string      `db:"username" json:"username"`
+	Realm               string      `db:"realm" json:"realm"`
 	Password            interface{} `db:"password" json:"password"`
 }
 
@@ -311,6 +329,11 @@ type Recording struct {
 	StorageProvider *string            `db:"storage_provider" json:"storage_provider"`
 	StorageBucket   *string            `db:"storage_bucket" json:"storage_bucket"`
 	StorageUrl      *string            `db:"storage_url" json:"storage_url"`
+	SourcePath      *string            `db:"source_path" json:"source_path"`
+	StoppedAt       pgtype.Timestamptz `db:"stopped_at" json:"stopped_at"`
+	UploadAttempts  int32              `db:"upload_attempts" json:"upload_attempts"`
+	NextUploadAt    pgtype.Timestamptz `db:"next_upload_at" json:"next_upload_at"`
+	UploadError     *string            `db:"upload_error" json:"upload_error"`
 	FileSizeBytes   *int64             `db:"file_size_bytes" json:"file_size_bytes"`
 	Format          *string            `db:"format" json:"format"`
 	DurationSeconds *int32             `db:"duration_seconds" json:"duration_seconds"`
@@ -318,11 +341,6 @@ type Recording struct {
 	CompletedAt     pgtype.Timestamptz `db:"completed_at" json:"completed_at"`
 	CreatedAt       pgtype.Timestamptz `db:"created_at" json:"created_at"`
 	UpdatedAt       pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
-	SourcePath      *string            `db:"source_path" json:"source_path"`
-	StoppedAt       pgtype.Timestamptz `db:"stopped_at" json:"stopped_at"`
-	UploadAttempts  int32              `db:"upload_attempts" json:"upload_attempts"`
-	NextUploadAt    pgtype.Timestamptz `db:"next_upload_at" json:"next_upload_at"`
-	UploadError     *string            `db:"upload_error" json:"upload_error"`
 }
 
 type Session struct {
