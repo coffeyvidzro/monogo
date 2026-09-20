@@ -11,9 +11,9 @@ func TestOpenSIPSBYOCAuthenticationContracts(t *testing.T) {
 	config := readContractFile(t, "../../../../containers/opensips/opensips.cfg")
 
 	assertContains(t, migration, "CREATE VIEW opensips_outbound_carrier_credentials")
-	assertContains(t, migration, "'0x' || auth_ha1_md5 AS password")
+	assertContains(t, migration, "'0x' || d.ha1_md5 AS password")
 	assertContains(t, migration, "CREATE VIEW opensips_inbound_carrier_credentials")
-	assertContains(t, migration, "inbound_ha1_md5 AS ha1_md5")
+	assertContains(t, migration, "d.ha1_md5")
 	assertContains(t, config, `proxy_authorize("", "opensips_inbound_carrier_credentials")`)
 	assertContains(t, config, "FROM opensips_outbound_carrier_credentials")
 	assertContains(t, config, "uac_auth()")
