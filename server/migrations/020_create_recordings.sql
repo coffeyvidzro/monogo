@@ -7,6 +7,11 @@ CREATE TABLE IF NOT EXISTS recordings (
     storage_provider TEXT,
     storage_bucket TEXT,
     storage_url TEXT,
+    source_path TEXT,
+    stopped_at TIMESTAMPTZ,
+    upload_attempts INTEGER NOT NULL DEFAULT 0,
+    next_upload_at TIMESTAMPTZ,
+    upload_error TEXT,
     file_size_bytes BIGINT,
     format TEXT,
     duration_seconds INTEGER,
@@ -16,7 +21,13 @@ CREATE TABLE IF NOT EXISTS recordings (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
 
     CONSTRAINT chk_recordings_status CHECK (
-        status IN ('recording', 'completed', 'failed', 'deleted')
+        status IN ('recording', 'uploading', 'completed', 'failed', 'deleted')
+    ),
+    CONSTRAINT chk_recordings_upload_attempts CHECK (
+        upload_attempts >= 0
+    ),
+    CONSTRAINT chk_recordings_source_path CHECK (
+        source_path IS NULL OR (source_path LIKE '/%' AND source_path !~ '(^|/)[.][.](/|$)')
     ),
     CONSTRAINT chk_recordings_duration CHECK (
         duration_seconds IS NULL OR duration_seconds >= 0
@@ -41,6 +52,14 @@ CREATE INDEX IF NOT EXISTS idx_recordings_status
 CREATE UNIQUE INDEX IF NOT EXISTS uq_recordings_call_storage_key
     ON recordings (call_id, storage_key)
     WHERE storage_key IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_recordings_upload_queue
+    ON recordings (next_upload_at, updated_at)
+    WHERE status = 'uploading';
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_recordings_call_source_path
+    ON recordings (call_id, source_path)
+    WHERE source_path IS NOT NULL;
 
 CREATE TRIGGER set_recordings_updated_at
 BEFORE UPDATE ON recordings
