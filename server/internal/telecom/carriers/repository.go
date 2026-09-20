@@ -58,6 +58,17 @@ func (r *Repository) Disable(ctx context.Context, org, id uuid.UUID) error {
 	return r.queries.DisableCarrierConnection(ctx, sqlc.DisableCarrierConnectionParams{ID: id, OrganizationID: &org})
 }
 
+func (r *Repository) InsertDigest(ctx context.Context, org, id uuid.UUID, direction, username, realm, ha1 string) error {
+	return r.queries.InsertCarrierDigestCredential(ctx, sqlc.InsertCarrierDigestCredentialParams{
+		CarrierConnectionID: id,
+		OrganizationID:     &org,
+		Direction:          direction,
+		Username:           username,
+		Realm:              realm,
+		Ha1Md5:             ha1,
+	})
+}
+
 func (r *Repository) SetOutboundDigest(ctx context.Context, org, id uuid.UUID, username, realm, ciphertext, ha1 string) error {
 	return r.queries.SetCarrierConnectionOutboundDigestAuth(ctx, sqlc.SetCarrierConnectionOutboundDigestAuthParams{
 		AuthUsername:         &username,
