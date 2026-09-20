@@ -77,14 +77,10 @@ func (s *Service) Create(ctx context.Context, org uuid.UUID, req CreateRequest) 
 		OutboundAuthMethod:      &outMethod,
 		AuthUsername:            outUser,
 		AuthSecretCiphertext:    outCipher,
-		AuthRealm:               outRealm,
-		AuthHa1Md5:              outHA1,
 		InboundEnabled:          req.InboundEnabled,
 		InboundAuthMethod:       req.InboundAuthMethod,
 		InboundUsername:         inUser,
 		InboundSecretCiphertext: inCipher,
-		InboundRealm:            inRealm,
-		InboundHa1Md5:           inHA1,
 		MaxCps:                  req.MaxCPS,
 		MaxConcurrentCalls:      req.MaxConcurrentCalls,
 		MaxDailyMinutes:         req.MaxDailyMinutes,
@@ -95,10 +91,25 @@ func (s *Service) Create(ctx context.Context, org uuid.UUID, req CreateRequest) 
 	if err != nil {
 		return Response{}, writeError(err, "carrier connection could not be created")
 	}
+	// Keep the control-plane ciphertext and the OpenSIPS-readable HA1 rows
+	// in the same transaction. Missing/invalid credentials roll back creation.
+	if outRealm != nil {
+		if err := s.repo.WithTx(tx).InsertDigest(ctx, org, id, "outbound", *outUser, *outRealm, *outHA1); err != nil {
+			return Response{}, writeError(err, "outbound carrier credentials could not be created")
+		}
+	}
+	if inRealm != nil {
+		if err := s.repo.WithTx(tx).InsertDigest(ctx, org, id, "inbound", *inUser, *inRealm, *inHA1); err != nil {
+			return Response{}, writeError(err, "inbound carrier credentials could not be created")
+		}
+	}
 	if err = tx.Commit(ctx); err != nil {
 		return Response{}, apperror.NewInternal("commit carrier connection creation", err)
 	}
-	return responseFromRow(row), nil
+	response := responseFromRow(row)
+	response.OutboundRealm = outRealm
+	response.InboundRealm = inRealm
+	return response, nil
 }
 
 func (s *Service) Get(ctx context.Context, org, id uuid.UUID) (Response, error) {
@@ -214,7 +225,12 @@ func (s *Service) Update(ctx context.Context, org, id uuid.UUID, req UpdateReque
 	if err != nil {
 		return Response{}, writeError(err, "carrier connection not found")
 	}
-	return responseFromRow(row), nil
+	current, err := s.repo.Get(ctx, org, id)
+	if err != nil {
+		return Response{}, readError(err)
+	}
+	_ = row
+	return responseFromGet(current), nil
 }
 
 // Delete is an idempotent soft delete. Connections remain available for call
@@ -399,12 +415,10 @@ func responseFromRow(r sqlc.CarrierConnection) Response {
 		Status:                 r.Status,
 		OutboundAuthMethod:     r.OutboundAuthMethod,
 		OutboundUsername:       r.AuthUsername,
-		OutboundRealm:          r.AuthRealm,
 		HasOutboundCredentials: r.AuthSecretCiphertext != nil,
 		InboundEnabled:         r.InboundEnabled,
 		InboundAuthMethod:      r.InboundAuthMethod,
 		InboundUsername:        r.InboundUsername,
-		InboundRealm:           r.InboundRealm,
 		HasInboundCredentials:  r.InboundSecretCiphertext != nil,
 		MaxCPS:                 r.MaxCps,
 		MaxConcurrentCalls:     r.MaxConcurrentCalls,
