@@ -49,6 +49,22 @@ WHERE o.id = sqlc.arg(organization_id)
   AND cp.slug <> 'leamout'
 RETURNING *;
 
+-- name: InsertCarrierDigestCredential :exec
+INSERT INTO carrier_digest_credentials (
+    carrier_connection_id,
+    organization_id,
+    direction,
+    username,
+    realm,
+    ha1_md5
+)
+SELECT cc.id, cc.organization_id, sqlc.arg(direction)::TEXT,
+       sqlc.arg(username)::TEXT, sqlc.arg(realm)::TEXT, sqlc.arg(ha1_md5)::TEXT
+FROM carrier_connections AS cc
+WHERE cc.id = sqlc.arg(carrier_connection_id)
+  AND cc.organization_id = sqlc.arg(organization_id)
+  AND cc.scope = 'organization';
+
 -- name: CreatePlatformCarrierConnection :one
 INSERT INTO carrier_connections (
     organization_id,
