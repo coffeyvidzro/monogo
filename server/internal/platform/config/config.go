@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"strings"
-	"time"
 
 	"github.com/caarlos0/env/v11"
 	"github.com/joho/godotenv"
@@ -32,16 +31,9 @@ type PaystackConfig struct {
 	APIBaseURL string `env:"API_BASE_URL" envDefault:"https://api.paystack.co"`
 }
 
-type S3Config struct {
-	Endpoint       string        `env:"ENDPOINT,required"`
-	PublicEndpoint string        `env:"PUBLIC_ENDPOINT,required"`
-	Region         string        `env:"REGION" envDefault:"us-east-1"`
-	Bucket         string        `env:"BUCKET,required"`
-	AccessKey      string        `env:"ACCESS_KEY,required"`
-	SecretKey      string        `env:"SECRET_KEY,required"`
-	UsePathStyle   bool          `env:"USE_PATH_STYLE" envDefault:"true"`
-	PlaybackTTL    time.Duration `env:"PLAYBACK_TTL" envDefault:"15m"`
-	StagingPath    string        `env:"STAGING_PATH" envDefault:"/var/lib/freeswitch/recordings"`
+type MinIOConfig struct {
+	AccessKey string `env:"APP_ACCESS_KEY,required"`
+	SecretKey string `env:"APP_SECRET_KEY,required"`
 }
 
 type Config struct {
@@ -57,7 +49,7 @@ type Config struct {
 	CommPeak              CommPeakConfig `envPrefix:"COMMPEAK_"`
 	Stripe                StripeConfig   `envPrefix:"STRIPE_"`
 	Paystack              PaystackConfig `envPrefix:"PAYSTACK_"`
-	S3                    S3Config       `envPrefix:"S3_"`
+	MinIO                 MinIOConfig    `envPrefix:"MINIO_"`
 	TURNAuthSecret        string         `env:"TURN_AUTH_SECRET,required"`
 	TURNPublicURLs        []string       `env:"TURN_PUBLIC_URLS" envSeparator:"," envDefault:"stun:localhost:3478,turn:localhost:3478?transport=udp,turn:localhost:3478?transport=tcp"`
 	CORSOrigins           []string       `env:"CORS_ORIGINS" envSeparator:"," envDefault:"http://localhost:3000,http://127.0.0.1:3000"`
@@ -100,13 +92,8 @@ func (c *Config) normalize() {
 	c.Stripe.APIBaseURL = strings.TrimRight(strings.TrimSpace(c.Stripe.APIBaseURL), "/")
 	c.Paystack.SecretKey = strings.TrimSpace(c.Paystack.SecretKey)
 	c.Paystack.APIBaseURL = strings.TrimRight(strings.TrimSpace(c.Paystack.APIBaseURL), "/")
-	c.S3.Endpoint = strings.TrimRight(strings.TrimSpace(c.S3.Endpoint), "/")
-	c.S3.PublicEndpoint = strings.TrimRight(strings.TrimSpace(c.S3.PublicEndpoint), "/")
-	c.S3.Region = strings.TrimSpace(c.S3.Region)
-	c.S3.Bucket = strings.TrimSpace(c.S3.Bucket)
-	c.S3.AccessKey = strings.TrimSpace(c.S3.AccessKey)
-	c.S3.SecretKey = strings.TrimSpace(c.S3.SecretKey)
-	c.S3.StagingPath = strings.TrimRight(strings.TrimSpace(c.S3.StagingPath), "/")
+	c.MinIO.AccessKey = strings.TrimSpace(c.MinIO.AccessKey)
+	c.MinIO.SecretKey = strings.TrimSpace(c.MinIO.SecretKey)
 	c.TURNAuthSecret = strings.TrimSpace(c.TURNAuthSecret)
 	c.TURNPublicURLs = normalizeStrings(c.TURNPublicURLs)
 	c.CORSOrigins = normalizeStrings(c.CORSOrigins)

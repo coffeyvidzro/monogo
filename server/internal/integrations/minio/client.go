@@ -23,6 +23,21 @@ type Config struct {
 	PlaybackTTL    time.Duration
 }
 
+// DefaultConfig selects the fixed settings for the self-hosted MinIO deployment.
+// Only the application credentials and deployment domain come from the environment.
+func DefaultConfig(domain, accessKey, secretKey string) Config {
+	return Config{
+		Endpoint:       "http://minio:9000",
+		PublicEndpoint: "https://recordings." + strings.TrimSpace(domain),
+		Region:         "us-east-1",
+		Bucket:         "recordings",
+		AccessKey:      accessKey,
+		SecretKey:      secretKey,
+		UsePathStyle:   true,
+		PlaybackTTL:    15 * time.Minute,
+	}
+}
+
 type Client struct {
 	client      *miniosdk.Client
 	presigner   *miniosdk.Client
