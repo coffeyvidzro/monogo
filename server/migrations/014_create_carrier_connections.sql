@@ -10,15 +10,11 @@ CREATE TABLE IF NOT EXISTS carrier_connections (
     outbound_auth_method TEXT NOT NULL DEFAULT 'none',
     auth_username TEXT,
     auth_secret_ciphertext TEXT,
-    auth_realm TEXT,
-    auth_ha1_md5 TEXT,
 
     inbound_enabled BOOLEAN NOT NULL DEFAULT false,
     inbound_auth_method TEXT NOT NULL DEFAULT 'ip',
     inbound_username TEXT,
     inbound_secret_ciphertext TEXT,
-    inbound_realm TEXT,
-    inbound_ha1_md5 TEXT,
 
     max_cps INTEGER NOT NULL DEFAULT 10,
     max_concurrent_calls INTEGER NOT NULL DEFAULT 100,
@@ -55,18 +51,12 @@ CREATE TABLE IF NOT EXISTS carrier_connections (
             outbound_auth_method = 'none'
             AND auth_username IS NULL
             AND auth_secret_ciphertext IS NULL
-            AND auth_realm IS NULL
-            AND auth_ha1_md5 IS NULL
         ) OR (
             outbound_auth_method = 'digest'
             AND auth_username IS NOT NULL
             AND length(btrim(auth_username)) > 0
             AND auth_secret_ciphertext IS NOT NULL
             AND length(auth_secret_ciphertext) > 0
-            AND auth_realm IS NOT NULL
-            AND length(btrim(auth_realm)) > 0
-            AND auth_ha1_md5 IS NOT NULL
-            AND auth_ha1_md5 ~ '^[0-9a-f]{32}$'
         )
     ),
     CONSTRAINT chk_carrier_connections_cps CHECK (
@@ -86,18 +76,12 @@ CREATE TABLE IF NOT EXISTS carrier_connections (
             inbound_auth_method IN ('ip', 'none')
             AND inbound_username IS NULL
             AND inbound_secret_ciphertext IS NULL
-            AND inbound_realm IS NULL
-            AND inbound_ha1_md5 IS NULL
         ) OR (
             inbound_auth_method = 'digest'
             AND inbound_username IS NOT NULL
             AND length(btrim(inbound_username)) > 0
             AND inbound_secret_ciphertext IS NOT NULL
             AND length(inbound_secret_ciphertext) > 0
-            AND inbound_realm IS NOT NULL
-            AND length(btrim(inbound_realm)) > 0
-            AND inbound_ha1_md5 IS NOT NULL
-            AND inbound_ha1_md5 ~ '^[0-9a-f]{32}$'
         )
     )
 );
