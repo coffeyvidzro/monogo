@@ -221,7 +221,7 @@ func (s *Service) Update(ctx context.Context, org, id uuid.UUID, req UpdateReque
 	if err := normalizeUpdate(&req); err != nil {
 		return Response{}, apperror.NewBadRequest(err.Error())
 	}
-	row, err := s.repo.Update(ctx, org, id, req)
+	_, err := s.repo.Update(ctx, org, id, req)
 	if err != nil {
 		return Response{}, writeError(err, "carrier connection not found")
 	}
@@ -229,7 +229,6 @@ func (s *Service) Update(ctx context.Context, org, id uuid.UUID, req UpdateReque
 	if err != nil {
 		return Response{}, readError(err)
 	}
-	_ = row
 	return responseFromGet(current), nil
 }
 
