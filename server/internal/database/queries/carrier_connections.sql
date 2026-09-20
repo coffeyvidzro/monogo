@@ -325,9 +325,9 @@ WITH updated AS (
         auth_username = sqlc.narg(auth_username),
         auth_secret_ciphertext = sqlc.narg(auth_secret_ciphertext),
         updated_at = NOW()
-    WHERE id = sqlc.arg(id)
-      AND scope = 'organization'
-      AND organization_id = sqlc.arg(organization_id)
+    WHERE carrier_connections.id = sqlc.arg(id)
+      AND carrier_connections.scope = 'organization'
+      AND carrier_connections.organization_id = sqlc.arg(organization_id)
     RETURNING id, organization_id
 )
 INSERT INTO carrier_digest_credentials (
@@ -349,9 +349,9 @@ WITH updated AS (
         auth_username = NULL,
         auth_secret_ciphertext = NULL,
         updated_at = NOW()
-    WHERE id = sqlc.arg(id)
-      AND scope = 'organization'
-      AND organization_id = sqlc.arg(organization_id)
+    WHERE carrier_connections.id = sqlc.arg(id)
+      AND carrier_connections.scope = 'organization'
+      AND carrier_connections.organization_id = sqlc.arg(organization_id)
     RETURNING id
 )
 DELETE FROM carrier_digest_credentials AS d
@@ -366,9 +366,9 @@ WITH updated AS (
         inbound_username = sqlc.narg(inbound_username),
         inbound_secret_ciphertext = sqlc.narg(inbound_secret_ciphertext),
         updated_at = NOW()
-    WHERE id = sqlc.arg(id)
-      AND scope = 'organization'
-      AND organization_id = sqlc.arg(organization_id)
+    WHERE carrier_connections.id = sqlc.arg(id)
+      AND carrier_connections.scope = 'organization'
+      AND carrier_connections.organization_id = sqlc.arg(organization_id)
     RETURNING id, organization_id
 )
 INSERT INTO carrier_digest_credentials (
@@ -390,9 +390,9 @@ WITH updated AS (
         inbound_username = NULL,
         inbound_secret_ciphertext = NULL,
         updated_at = NOW()
-    WHERE id = sqlc.arg(id)
-      AND scope = 'organization'
-      AND organization_id = sqlc.arg(organization_id)
+    WHERE carrier_connections.id = sqlc.arg(id)
+      AND carrier_connections.scope = 'organization'
+      AND carrier_connections.organization_id = sqlc.arg(organization_id)
     RETURNING id
 )
 DELETE FROM carrier_digest_credentials AS d
@@ -407,9 +407,9 @@ WITH updated AS (
         inbound_username = NULL,
         inbound_secret_ciphertext = NULL,
         updated_at = NOW()
-    WHERE id = sqlc.arg(id)
-      AND scope = 'organization'
-      AND organization_id = sqlc.arg(organization_id)
+    WHERE carrier_connections.id = sqlc.arg(id)
+      AND carrier_connections.scope = 'organization'
+      AND carrier_connections.organization_id = sqlc.arg(organization_id)
     RETURNING id
 )
 DELETE FROM carrier_digest_credentials AS d
