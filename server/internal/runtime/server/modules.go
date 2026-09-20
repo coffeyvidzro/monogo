@@ -90,11 +90,9 @@ func newModules(ctx context.Context, cfg config.Config) (*modules, error) {
 		return nil, fmt.Errorf("initialize TURN credentials: %w", err)
 	}
 
-	objectClient, err := minio.New(ctx, minio.Config{
-		Endpoint: cfg.S3.Endpoint, PublicEndpoint: cfg.S3.PublicEndpoint, Region: cfg.S3.Region, Bucket: cfg.S3.Bucket,
-		AccessKey: cfg.S3.AccessKey, SecretKey: cfg.S3.SecretKey,
-		UsePathStyle: cfg.S3.UsePathStyle, PlaybackTTL: cfg.S3.PlaybackTTL,
-	})
+	objectClient, err := minio.New(ctx, minio.DefaultConfig(
+		cfg.Domain, cfg.MinIO.AccessKey, cfg.MinIO.SecretKey,
+	))
 	if err != nil {
 		closeDependencies()
 		return nil, fmt.Errorf("initialize recording object storage: %w", err)
