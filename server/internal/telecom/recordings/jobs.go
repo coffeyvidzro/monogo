@@ -27,7 +27,7 @@ func DefaultReconciliationJobConfig() ReconciliationJobConfig {
 
 type reconciliationRepository interface {
 	ListForReconciliation(context.Context, time.Time, int32) ([]sqlc.Recording, error)
-	Complete(context.Context, sqlc.Recording) (sqlc.Recording, error)
+	MarkReadyForUpload(context.Context, sqlc.Recording, time.Time) (sqlc.Recording, error)
 }
 
 type ReconciliationJob struct {
@@ -94,7 +94,7 @@ func (j *ReconciliationJob) Reconcile(ctx context.Context) error {
 	}
 
 	for _, recording := range stale {
-		_, err := j.repo.Complete(ctx, recording)
+		_, err := j.repo.MarkReadyForUpload(ctx, recording, j.now().UTC())
 		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 			return fmt.Errorf("reconcile recording %s: %w", recording.ID, err)
 		}

@@ -9,6 +9,7 @@ import (
 	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
 	"github.com/coffeyvidzro/monogo/internal/security/encryption"
 	"github.com/coffeyvidzro/monogo/pkg/apperror"
+	"github.com/coffeyvidzro/monogo/pkg/hasher"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -37,7 +38,7 @@ func (s *Service) Create(ctx context.Context, org uuid.UUID, req CreateRequest) 
 	}
 	id := uuid.New()
 	outMethod := "none"
-	var outUser, outCipher *string
+	var outUser, outCipher, outRealm, outHA1 *string
 	if req.OutboundCredential != nil {
 		outMethod = "digest"
 		value, err := s.cipher.EncryptForScope(credentialScope(org, id, "outbound"), req.OutboundCredential.Secret)
@@ -46,8 +47,11 @@ func (s *Service) Create(ctx context.Context, org uuid.UUID, req CreateRequest) 
 		}
 		outUser = &req.OutboundCredential.Username
 		outCipher = &value
+		outRealm = &req.OutboundCredential.Realm
+		ha1 := hasher.ComputeHA1MD5(req.OutboundCredential.Username, req.OutboundCredential.Realm, req.OutboundCredential.Secret)
+		outHA1 = &ha1
 	}
-	var inUser, inCipher *string
+	var inUser, inCipher, inRealm, inHA1 *string
 	if req.InboundCredential != nil {
 		value, err := s.cipher.EncryptForScope(credentialScope(org, id, "inbound"), req.InboundCredential.Secret)
 		if err != nil {
@@ -55,6 +59,9 @@ func (s *Service) Create(ctx context.Context, org uuid.UUID, req CreateRequest) 
 		}
 		inUser = &req.InboundCredential.Username
 		inCipher = &value
+		inRealm = &req.InboundCredential.Realm
+		ha1 := hasher.ComputeHA1MD5(req.InboundCredential.Username, req.InboundCredential.Realm, req.InboundCredential.Secret)
+		inHA1 = &ha1
 	}
 	tx, err := s.db.Begin(ctx)
 	if err != nil {
@@ -84,10 +91,25 @@ func (s *Service) Create(ctx context.Context, org uuid.UUID, req CreateRequest) 
 	if err != nil {
 		return Response{}, writeError(err, "carrier connection could not be created")
 	}
+	// Keep the control-plane ciphertext and the OpenSIPS-readable HA1 rows
+	// in the same transaction. Missing/invalid credentials roll back creation.
+	if outRealm != nil {
+		if err := s.repo.WithTx(tx).InsertDigest(ctx, org, id, "outbound", *outUser, *outRealm, *outHA1); err != nil {
+			return Response{}, writeError(err, "outbound carrier credentials could not be created")
+		}
+	}
+	if inRealm != nil {
+		if err := s.repo.WithTx(tx).InsertDigest(ctx, org, id, "inbound", *inUser, *inRealm, *inHA1); err != nil {
+			return Response{}, writeError(err, "inbound carrier credentials could not be created")
+		}
+	}
 	if err = tx.Commit(ctx); err != nil {
 		return Response{}, apperror.NewInternal("commit carrier connection creation", err)
 	}
-	return responseFromRow(row), nil
+	response := responseFromRow(row)
+	response.OutboundRealm = outRealm
+	response.InboundRealm = inRealm
+	return response, nil
 }
 
 func (s *Service) Get(ctx context.Context, org, id uuid.UUID) (Response, error) {
@@ -111,14 +133,14 @@ func (s *Service) Validate(ctx context.Context, org, id uuid.UUID) (ValidationRe
 	}
 
 	result := ValidationResponse{Errors: []string{}, Warnings: []string{}}
-	if connection.OutboundAuthMethod == "digest" && !connection.HasOutboundCredentials {
-		result.Errors = append(result.Errors, "outbound digest credentials are missing")
+	if connection.OutboundAuthMethod == "digest" && (!connection.HasOutboundCredentials || connection.OutboundRealm == nil) {
+		result.Errors = append(result.Errors, "outbound digest credentials and realm are missing")
 	}
 	if connection.InboundEnabled {
 		switch connection.InboundAuthMethod {
 		case "digest":
-			if !connection.HasInboundCredentials {
-				result.Errors = append(result.Errors, "inbound digest credentials are missing")
+			if !connection.HasInboundCredentials || connection.InboundRealm == nil {
+				result.Errors = append(result.Errors, "inbound digest credentials and realm are missing")
 			}
 		case "ip":
 			sourceIPs, err := s.ListSourceIPs(ctx, org, id)
@@ -136,6 +158,42 @@ func (s *Service) Validate(ctx context.Context, org, id uuid.UUID) (ValidationRe
 	}
 	if connection.Status != "active" {
 		result.Warnings = append(result.Warnings, "carrier connection is disabled")
+	}
+	trunks, err := s.repo.ListTrunks(ctx, org, id)
+	if err != nil {
+		return ValidationResponse{}, apperror.NewInternal("list carrier connection trunks", err)
+	}
+	activeTrunks := 0
+	for _, trunk := range trunks {
+		if trunk.Status != "active" {
+			continue
+		}
+		activeTrunks++
+		if trunk.Direction != "outbound" && trunk.Direction != "bidirectional" {
+			continue
+		}
+		endpoints, err := s.repo.ListTrunkEndpoints(ctx, org, trunk.ID)
+		if err != nil {
+			return ValidationResponse{}, apperror.NewInternal("list carrier trunk endpoints", err)
+		}
+		enabled, routable := 0, 0
+		for _, endpoint := range endpoints {
+			if !endpoint.Enabled || (endpoint.Direction != "outbound" && endpoint.Direction != "bidirectional") {
+				continue
+			}
+			enabled++
+			if endpoint.HealthStatus != "unhealthy" {
+				routable++
+			}
+		}
+		if enabled == 0 {
+			result.Errors = append(result.Errors, fmt.Sprintf("outbound trunk %q has no enabled outbound endpoint", trunk.Name))
+		} else if routable == 0 {
+			result.Errors = append(result.Errors, fmt.Sprintf("outbound trunk %q has no healthy endpoint", trunk.Name))
+		}
+	}
+	if activeTrunks == 0 {
+		result.Warnings = append(result.Warnings, "carrier connection has no active BYOC trunk")
 	}
 	result.Valid = len(result.Errors) == 0
 	return result, nil
@@ -163,11 +221,15 @@ func (s *Service) Update(ctx context.Context, org, id uuid.UUID, req UpdateReque
 	if err := normalizeUpdate(&req); err != nil {
 		return Response{}, apperror.NewBadRequest(err.Error())
 	}
-	row, err := s.repo.Update(ctx, org, id, req)
+	_, err := s.repo.Update(ctx, org, id, req)
 	if err != nil {
 		return Response{}, writeError(err, "carrier connection not found")
 	}
-	return responseFromRow(row), nil
+	current, err := s.repo.Get(ctx, org, id)
+	if err != nil {
+		return Response{}, readError(err)
+	}
+	return responseFromGet(current), nil
 }
 
 // Delete is an idempotent soft delete. Connections remain available for call
@@ -207,7 +269,7 @@ func (s *Service) SetOutboundAuth(ctx context.Context, org, id uuid.UUID, req Au
 	if err != nil {
 		return apperror.NewInternal("encrypt outbound carrier credential", err)
 	}
-	return s.repo.SetOutboundDigest(ctx, org, id, *req.Username, encrypted)
+	return s.repo.SetOutboundDigest(ctx, org, id, *req.Username, *req.Realm, encrypted, hasher.ComputeHA1MD5(*req.Username, *req.Realm, *req.Secret))
 }
 
 func (s *Service) ClearOutboundAuth(ctx context.Context, org, id uuid.UUID) error {
@@ -246,7 +308,7 @@ func (s *Service) SetInboundAuth(ctx context.Context, org, id uuid.UUID, req Aut
 	if err != nil {
 		return apperror.NewInternal("encrypt inbound carrier credential", err)
 	}
-	return s.repo.SetInboundDigest(ctx, org, id, *req.Username, encrypted)
+	return s.repo.SetInboundDigest(ctx, org, id, *req.Username, *req.Realm, encrypted, hasher.ComputeHA1MD5(*req.Username, *req.Realm, *req.Secret))
 }
 
 func (s *Service) ClearInboundAuth(ctx context.Context, org, id uuid.UUID) error {
@@ -381,10 +443,12 @@ func responseFromGet(r sqlc.GetCarrierConnectionByIDRow) Response {
 		Status:                 r.Status,
 		OutboundAuthMethod:     r.OutboundAuthMethod,
 		OutboundUsername:       r.AuthUsername,
+		OutboundRealm:          r.AuthRealm,
 		HasOutboundCredentials: boolValue(r.HasOutboundCredentials),
 		InboundEnabled:         r.InboundEnabled,
 		InboundAuthMethod:      r.InboundAuthMethod,
 		InboundUsername:        r.InboundUsername,
+		InboundRealm:           r.InboundRealm,
 		HasInboundCredentials:  boolValue(r.HasInboundCredentials),
 		MaxCPS:                 r.MaxCps,
 		MaxConcurrentCalls:     r.MaxConcurrentCalls,
@@ -406,10 +470,12 @@ func responseFromList(r sqlc.ListCarrierConnectionsByOrganizationIDRow) Response
 		Status:                 r.Status,
 		OutboundAuthMethod:     r.OutboundAuthMethod,
 		OutboundUsername:       r.AuthUsername,
+		OutboundRealm:          r.AuthRealm,
 		HasOutboundCredentials: boolValue(r.HasOutboundCredentials),
 		InboundEnabled:         r.InboundEnabled,
 		InboundAuthMethod:      r.InboundAuthMethod,
 		InboundUsername:        r.InboundUsername,
+		InboundRealm:           r.InboundRealm,
 		HasInboundCredentials:  boolValue(r.HasInboundCredentials),
 		MaxCPS:                 r.MaxCps,
 		MaxConcurrentCalls:     r.MaxConcurrentCalls,

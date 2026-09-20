@@ -28,6 +28,7 @@ type Dependencies struct {
 	ConferenceController conferences.Controller
 	CredentialCipher     *encryption.Cipher
 	RealtimeService      *realtime.Service
+	RecordingStorage     recordings.Storage
 }
 
 type Module struct {
@@ -128,7 +129,7 @@ func New(deps Dependencies) (*Module, error) {
 	voiceService := voice.NewService(voiceRepository)
 
 	recordingsRepository := recordings.NewRepository(deps.DB)
-	recordingsService := recordings.NewService(recordingsRepository, nil)
+	recordingsService := recordings.NewService(recordingsRepository, deps.RecordingStorage)
 
 	conferencesRepository := conferences.NewRepository(deps.DB)
 	conferencesService := conferences.NewService(

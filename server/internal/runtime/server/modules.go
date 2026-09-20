@@ -7,6 +7,7 @@ import (
 	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
 	"github.com/coffeyvidzro/monogo/internal/identity"
 	"github.com/coffeyvidzro/monogo/internal/integrations/freeswitch"
+	"github.com/coffeyvidzro/monogo/internal/integrations/minio"
 	"github.com/coffeyvidzro/monogo/internal/integrations/postgres"
 	redisintegration "github.com/coffeyvidzro/monogo/internal/integrations/redis"
 	"github.com/coffeyvidzro/monogo/internal/platform"
@@ -20,6 +21,7 @@ import (
 	"github.com/coffeyvidzro/monogo/internal/telecom"
 	"github.com/coffeyvidzro/monogo/internal/telecom/conferences"
 	"github.com/coffeyvidzro/monogo/internal/telecom/realtime"
+	"github.com/coffeyvidzro/monogo/internal/telecom/recordings"
 	"github.com/coffeyvidzro/monogo/internal/tenancy"
 )
 
@@ -88,6 +90,15 @@ func newModules(ctx context.Context, cfg config.Config) (*modules, error) {
 		return nil, fmt.Errorf("initialize TURN credentials: %w", err)
 	}
 
+	objectClient, err := minio.New(ctx, minio.DefaultConfig(
+		cfg.Domain, cfg.MinIO.AccessKey, cfg.MinIO.SecretKey,
+	))
+	if err != nil {
+		closeDependencies()
+		return nil, fmt.Errorf("initialize recording object storage: %w", err)
+	}
+	recordingStorage := recordings.NewObjectStorage(objectClient)
+
 	queries := sqlc.New(postgresClient.Pool())
 	identityModule := identity.New(
 		queries,
@@ -105,6 +116,7 @@ func newModules(ctx context.Context, cfg config.Config) (*modules, error) {
 		ConferenceController: conferences.NewFreeSWITCHController(freeSwitch),
 		CredentialCipher:     credentialCipher,
 		RealtimeService:      turnService,
+		RecordingStorage:     recordingStorage,
 	})
 	if err != nil {
 		closeDependencies()

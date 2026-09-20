@@ -49,6 +49,22 @@ WHERE o.id = sqlc.arg(organization_id)
   AND cp.slug <> 'leamout'
 RETURNING *;
 
+-- name: InsertCarrierDigestCredential :exec
+INSERT INTO carrier_digest_credentials (
+    carrier_connection_id,
+    organization_id,
+    direction,
+    username,
+    realm,
+    ha1_md5
+)
+SELECT cc.id, cc.organization_id, sqlc.arg(direction)::TEXT,
+       sqlc.arg(username)::TEXT, sqlc.arg(realm)::TEXT, sqlc.arg(ha1_md5)::TEXT
+FROM carrier_connections AS cc
+WHERE cc.id = sqlc.arg(carrier_connection_id)
+  AND cc.organization_id = sqlc.arg(organization_id)
+  AND cc.scope = 'organization';
+
 -- name: CreatePlatformCarrierConnection :one
 INSERT INTO carrier_connections (
     organization_id,
@@ -96,31 +112,39 @@ RETURNING *;
 
 -- name: GetCarrierConnectionByID :one
 SELECT
-    id,
-    organization_id,
-    provider_id,
-    scope,
-    name,
-    status,
-    outbound_auth_method,
-    auth_username,
-    auth_secret_ciphertext IS NOT NULL AS has_outbound_credentials,
-    inbound_enabled,
-    inbound_auth_method,
-    inbound_username,
-    inbound_secret_ciphertext IS NOT NULL AS has_inbound_credentials,
-    max_cps,
-    max_concurrent_calls,
-    max_daily_minutes,
-    codecs,
-    supports_video,
-    supports_fax,
-    created_at,
-    updated_at
-FROM carrier_connections
-WHERE id = sqlc.arg(id)
-  AND scope = 'organization'
-  AND organization_id = sqlc.arg(organization_id)
+    cc.id,
+    cc.organization_id,
+    cc.provider_id,
+    cc.scope,
+    cc.name,
+    cc.status,
+    cc.outbound_auth_method,
+    cc.auth_username,
+    outbound_digest.realm AS auth_realm,
+    cc.auth_secret_ciphertext IS NOT NULL AS has_outbound_credentials,
+    cc.inbound_enabled,
+    cc.inbound_auth_method,
+    cc.inbound_username,
+    inbound_digest.realm AS inbound_realm,
+    cc.inbound_secret_ciphertext IS NOT NULL AS has_inbound_credentials,
+    cc.max_cps,
+    cc.max_concurrent_calls,
+    cc.max_daily_minutes,
+    cc.codecs,
+    cc.supports_video,
+    cc.supports_fax,
+    cc.created_at,
+    cc.updated_at
+FROM carrier_connections AS cc
+LEFT JOIN carrier_digest_credentials AS outbound_digest
+  ON outbound_digest.carrier_connection_id = cc.id
+ AND outbound_digest.direction = 'outbound'
+LEFT JOIN carrier_digest_credentials AS inbound_digest
+  ON inbound_digest.carrier_connection_id = cc.id
+ AND inbound_digest.direction = 'inbound'
+WHERE cc.id = sqlc.arg(id)
+  AND cc.scope = 'organization'
+  AND cc.organization_id = sqlc.arg(organization_id)
 LIMIT 1;
 
 -- name: GetPlatformCarrierConnectionByID :one
@@ -133,31 +157,39 @@ LIMIT 1;
 
 -- name: ListCarrierConnectionsByOrganizationID :many
 SELECT
-    id,
-    organization_id,
-    provider_id,
-    scope,
-    name,
-    status,
-    outbound_auth_method,
-    auth_username,
-    auth_secret_ciphertext IS NOT NULL AS has_outbound_credentials,
-    inbound_enabled,
-    inbound_auth_method,
-    inbound_username,
-    inbound_secret_ciphertext IS NOT NULL AS has_inbound_credentials,
-    max_cps,
-    max_concurrent_calls,
-    max_daily_minutes,
-    codecs,
-    supports_video,
-    supports_fax,
-    created_at,
-    updated_at
-FROM carrier_connections
-WHERE scope = 'organization'
-  AND organization_id = sqlc.arg(organization_id)
-ORDER BY created_at DESC;
+    cc.id,
+    cc.organization_id,
+    cc.provider_id,
+    cc.scope,
+    cc.name,
+    cc.status,
+    cc.outbound_auth_method,
+    cc.auth_username,
+    outbound_digest.realm AS auth_realm,
+    cc.auth_secret_ciphertext IS NOT NULL AS has_outbound_credentials,
+    cc.inbound_enabled,
+    cc.inbound_auth_method,
+    cc.inbound_username,
+    inbound_digest.realm AS inbound_realm,
+    cc.inbound_secret_ciphertext IS NOT NULL AS has_inbound_credentials,
+    cc.max_cps,
+    cc.max_concurrent_calls,
+    cc.max_daily_minutes,
+    cc.codecs,
+    cc.supports_video,
+    cc.supports_fax,
+    cc.created_at,
+    cc.updated_at
+FROM carrier_connections AS cc
+LEFT JOIN carrier_digest_credentials AS outbound_digest
+  ON outbound_digest.carrier_connection_id = cc.id
+ AND outbound_digest.direction = 'outbound'
+LEFT JOIN carrier_digest_credentials AS inbound_digest
+  ON inbound_digest.carrier_connection_id = cc.id
+ AND inbound_digest.direction = 'inbound'
+WHERE cc.scope = 'organization'
+  AND cc.organization_id = sqlc.arg(organization_id)
+ORDER BY cc.created_at DESC;
 
 -- name: ListActiveCarrierConnectionsByOrganizationID :many
 SELECT
@@ -287,59 +319,103 @@ WHERE id = sqlc.arg(id)
 RETURNING *;
 
 -- name: SetCarrierConnectionOutboundDigestAuth :exec
-UPDATE carrier_connections
-SET
-    outbound_auth_method = 'digest',
-    auth_username = sqlc.arg(auth_username),
-    auth_secret_ciphertext = sqlc.arg(auth_secret_ciphertext),
-    updated_at = NOW()
-WHERE id = sqlc.arg(id)
-  AND scope = 'organization'
-  AND organization_id = sqlc.arg(organization_id);
+WITH updated AS (
+    UPDATE carrier_connections
+    SET outbound_auth_method = 'digest',
+        auth_username = sqlc.narg(auth_username),
+        auth_secret_ciphertext = sqlc.narg(auth_secret_ciphertext),
+        updated_at = NOW()
+    WHERE carrier_connections.id = sqlc.arg(id)
+      AND carrier_connections.scope = 'organization'
+      AND carrier_connections.organization_id = sqlc.arg(organization_id)
+    RETURNING id, organization_id
+)
+INSERT INTO carrier_digest_credentials (
+    carrier_connection_id, organization_id, direction, username, realm, ha1_md5
+)
+SELECT updated.id, updated.organization_id, 'outbound',
+       sqlc.narg(auth_username), sqlc.narg(auth_realm), sqlc.narg(auth_ha1_md5)
+FROM updated
+ON CONFLICT (carrier_connection_id, direction)
+DO UPDATE SET username = EXCLUDED.username,
+              realm = EXCLUDED.realm,
+              ha1_md5 = EXCLUDED.ha1_md5,
+              updated_at = NOW();
 
 -- name: ClearCarrierConnectionOutboundAuth :exec
-UPDATE carrier_connections
-SET
-    outbound_auth_method = 'none',
-    auth_username = NULL,
-    auth_secret_ciphertext = NULL,
-    updated_at = NOW()
-WHERE id = sqlc.arg(id)
-  AND scope = 'organization'
-  AND organization_id = sqlc.arg(organization_id);
+WITH updated AS (
+    UPDATE carrier_connections
+    SET outbound_auth_method = 'none',
+        auth_username = NULL,
+        auth_secret_ciphertext = NULL,
+        updated_at = NOW()
+    WHERE carrier_connections.id = sqlc.arg(id)
+      AND carrier_connections.scope = 'organization'
+      AND carrier_connections.organization_id = sqlc.arg(organization_id)
+    RETURNING id
+)
+DELETE FROM carrier_digest_credentials AS d
+USING updated
+WHERE d.carrier_connection_id = updated.id
+  AND d.direction = 'outbound';
 
 -- name: SetCarrierConnectionInboundDigestAuth :exec
-UPDATE carrier_connections
-SET
-    inbound_auth_method = 'digest',
-    inbound_username = sqlc.arg(inbound_username),
-    inbound_secret_ciphertext = sqlc.arg(inbound_secret_ciphertext),
-    updated_at = NOW()
-WHERE id = sqlc.arg(id)
-  AND scope = 'organization'
-  AND organization_id = sqlc.arg(organization_id);
+WITH updated AS (
+    UPDATE carrier_connections
+    SET inbound_auth_method = 'digest',
+        inbound_username = sqlc.narg(inbound_username),
+        inbound_secret_ciphertext = sqlc.narg(inbound_secret_ciphertext),
+        updated_at = NOW()
+    WHERE carrier_connections.id = sqlc.arg(id)
+      AND carrier_connections.scope = 'organization'
+      AND carrier_connections.organization_id = sqlc.arg(organization_id)
+    RETURNING id, organization_id
+)
+INSERT INTO carrier_digest_credentials (
+    carrier_connection_id, organization_id, direction, username, realm, ha1_md5
+)
+SELECT updated.id, updated.organization_id, 'inbound',
+       sqlc.narg(inbound_username), sqlc.narg(inbound_realm), sqlc.narg(inbound_ha1_md5)
+FROM updated
+ON CONFLICT (carrier_connection_id, direction)
+DO UPDATE SET username = EXCLUDED.username,
+              realm = EXCLUDED.realm,
+              ha1_md5 = EXCLUDED.ha1_md5,
+              updated_at = NOW();
 
 -- name: SetCarrierConnectionInboundIPAuth :exec
-UPDATE carrier_connections
-SET
-    inbound_auth_method = 'ip',
-    inbound_username = NULL,
-    inbound_secret_ciphertext = NULL,
-    updated_at = NOW()
-WHERE id = sqlc.arg(id)
-  AND scope = 'organization'
-  AND organization_id = sqlc.arg(organization_id);
+WITH updated AS (
+    UPDATE carrier_connections
+    SET inbound_auth_method = 'ip',
+        inbound_username = NULL,
+        inbound_secret_ciphertext = NULL,
+        updated_at = NOW()
+    WHERE carrier_connections.id = sqlc.arg(id)
+      AND carrier_connections.scope = 'organization'
+      AND carrier_connections.organization_id = sqlc.arg(organization_id)
+    RETURNING id
+)
+DELETE FROM carrier_digest_credentials AS d
+USING updated
+WHERE d.carrier_connection_id = updated.id
+  AND d.direction = 'inbound';
 
 -- name: SetCarrierConnectionInboundNoAuth :exec
-UPDATE carrier_connections
-SET
-    inbound_auth_method = 'none',
-    inbound_username = NULL,
-    inbound_secret_ciphertext = NULL,
-    updated_at = NOW()
-WHERE id = sqlc.arg(id)
-  AND scope = 'organization'
-  AND organization_id = sqlc.arg(organization_id);
+WITH updated AS (
+    UPDATE carrier_connections
+    SET inbound_auth_method = 'none',
+        inbound_username = NULL,
+        inbound_secret_ciphertext = NULL,
+        updated_at = NOW()
+    WHERE carrier_connections.id = sqlc.arg(id)
+      AND carrier_connections.scope = 'organization'
+      AND carrier_connections.organization_id = sqlc.arg(organization_id)
+    RETURNING id
+)
+DELETE FROM carrier_digest_credentials AS d
+USING updated
+WHERE d.carrier_connection_id = updated.id
+  AND d.direction = 'inbound';
 
 -- name: DisableCarrierConnection :exec
 UPDATE carrier_connections

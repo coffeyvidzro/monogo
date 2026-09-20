@@ -11,7 +11,7 @@ import (
 
 type fakeRecordingReconciliationRepository struct {
 	recordings []sqlc.Recording
-	completed  int
+	queued     int
 }
 
 func (f *fakeRecordingReconciliationRepository) ListForReconciliation(
@@ -29,14 +29,15 @@ func (f *fakeRecordingReconciliationRepository) ListForReconciliation(
 	return result, nil
 }
 
-func (f *fakeRecordingReconciliationRepository) Complete(
+func (f *fakeRecordingReconciliationRepository) MarkReadyForUpload(
 	_ context.Context,
 	recording sqlc.Recording,
+	_ time.Time,
 ) (sqlc.Recording, error) {
-	f.completed++
+	f.queued++
 	for i := range f.recordings {
 		if f.recordings[i].ID == recording.ID {
-			f.recordings[i].Status = string(StatusCompleted)
+			f.recordings[i].Status = "uploading"
 			return f.recordings[i], nil
 		}
 	}
@@ -68,7 +69,7 @@ func TestRecordingReconciliationRestartIsIdempotent(t *testing.T) {
 		t.Fatalf("restart Reconcile() error = %v", err)
 	}
 
-	if repo.completed != 1 {
-		t.Fatalf("completed mutations = %d, want 1", repo.completed)
+	if repo.queued != 1 {
+		t.Fatalf("queued mutations = %d, want 1", repo.queued)
 	}
 }

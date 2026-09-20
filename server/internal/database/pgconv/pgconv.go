@@ -119,6 +119,11 @@ func NullableTimestamptz(value *time.Time) pgtype.Timestamptz {
 	}
 }
 
+// TimeToTimestamptz converts a required time to a PostgreSQL timestamptz.
+func TimeToTimestamptz(value time.Time) pgtype.Timestamptz {
+	return pgtype.Timestamptz{Time: value.UTC(), Valid: true}
+}
+
 // TimestamptzToTimePtr converts PostgreSQL timestamptz to *time.Time.
 // It returns nil if the value is invalid.
 func TimestamptzToTimePtr(value pgtype.Timestamptz) *time.Time {

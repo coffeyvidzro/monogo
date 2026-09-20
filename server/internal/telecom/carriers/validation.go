@@ -120,19 +120,19 @@ func normalizeAuth(req *AuthRequest, inbound bool) error {
 		return fmt.Errorf("invalid authentication method")
 	}
 	if req.Method != "digest" {
-		if req.Username != nil || req.Secret != nil {
-			return fmt.Errorf("username and secret are only accepted for digest authentication")
+		if req.Username != nil || req.Realm != nil || req.Secret != nil {
+			return fmt.Errorf("username, realm, and secret are only accepted for digest authentication")
 		}
 		return nil
 	}
-	if req.Username == nil || req.Secret == nil {
-		return fmt.Errorf("username and secret are required for digest authentication")
+	if req.Username == nil || req.Realm == nil || req.Secret == nil {
+		return fmt.Errorf("username, realm, and secret are required for digest authentication")
 	}
-	c := &DigestCredential{Username: *req.Username, Secret: *req.Secret}
+	c := &DigestCredential{Username: *req.Username, Realm: *req.Realm, Secret: *req.Secret}
 	if err := normalizeCredential(c); err != nil {
 		return err
 	}
-	req.Username, req.Secret = &c.Username, &c.Secret
+	req.Username, req.Realm, req.Secret = &c.Username, &c.Realm, &c.Secret
 	return nil
 }
 
@@ -146,11 +146,15 @@ func normalizeName(v string) (string, error) {
 
 func normalizeCredential(c *DigestCredential) error {
 	c.Username = strings.TrimSpace(c.Username)
+	c.Realm = strings.TrimSpace(c.Realm)
 	if c.Username == "" || len(c.Username) > 255 {
 		return fmt.Errorf("username must be between 1 and 255 characters")
 	}
 	if c.Secret == "" || len(c.Secret) > 4096 {
 		return fmt.Errorf("secret must be between 1 and 4096 characters")
+	}
+	if c.Realm == "" || len(c.Realm) > 255 || strings.ContainsAny(c.Realm, "\r\n") {
+		return fmt.Errorf("realm must be between 1 and 255 characters")
 	}
 	return nil
 }

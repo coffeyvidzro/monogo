@@ -31,6 +31,11 @@ type PaystackConfig struct {
 	APIBaseURL string `env:"API_BASE_URL" envDefault:"https://api.paystack.co"`
 }
 
+type MinIOConfig struct {
+	AccessKey string `env:"APP_ACCESS_KEY,required"`
+	SecretKey string `env:"APP_SECRET_KEY,required"`
+}
+
 type Config struct {
 	AppEnv                string         `env:"APP_ENV" envDefault:"development"`
 	Domain                string         `env:"DOMAIN"`
@@ -44,6 +49,7 @@ type Config struct {
 	CommPeak              CommPeakConfig `envPrefix:"COMMPEAK_"`
 	Stripe                StripeConfig   `envPrefix:"STRIPE_"`
 	Paystack              PaystackConfig `envPrefix:"PAYSTACK_"`
+	MinIO                 MinIOConfig    `envPrefix:"MINIO_"`
 	TURNAuthSecret        string         `env:"TURN_AUTH_SECRET,required"`
 	TURNPublicURLs        []string       `env:"TURN_PUBLIC_URLS" envSeparator:"," envDefault:"stun:localhost:3478,turn:localhost:3478?transport=udp,turn:localhost:3478?transport=tcp"`
 	CORSOrigins           []string       `env:"CORS_ORIGINS" envSeparator:"," envDefault:"http://localhost:3000,http://127.0.0.1:3000"`
@@ -86,6 +92,8 @@ func (c *Config) normalize() {
 	c.Stripe.APIBaseURL = strings.TrimRight(strings.TrimSpace(c.Stripe.APIBaseURL), "/")
 	c.Paystack.SecretKey = strings.TrimSpace(c.Paystack.SecretKey)
 	c.Paystack.APIBaseURL = strings.TrimRight(strings.TrimSpace(c.Paystack.APIBaseURL), "/")
+	c.MinIO.AccessKey = strings.TrimSpace(c.MinIO.AccessKey)
+	c.MinIO.SecretKey = strings.TrimSpace(c.MinIO.SecretKey)
 	c.TURNAuthSecret = strings.TrimSpace(c.TURNAuthSecret)
 	c.TURNPublicURLs = normalizeStrings(c.TURNPublicURLs)
 	c.CORSOrigins = normalizeStrings(c.CORSOrigins)

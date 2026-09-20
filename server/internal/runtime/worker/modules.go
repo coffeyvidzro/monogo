@@ -7,6 +7,7 @@ import (
 
 	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
 	"github.com/coffeyvidzro/monogo/internal/integrations/freeswitch"
+	"github.com/coffeyvidzro/monogo/internal/integrations/minio"
 	natsintegration "github.com/coffeyvidzro/monogo/internal/integrations/nats"
 	"github.com/coffeyvidzro/monogo/internal/integrations/postgres"
 	redisintegration "github.com/coffeyvidzro/monogo/internal/integrations/redis"
@@ -19,6 +20,7 @@ import (
 	"github.com/coffeyvidzro/monogo/internal/telecom/calls"
 	"github.com/coffeyvidzro/monogo/internal/telecom/recordings"
 	"github.com/coffeyvidzro/monogo/internal/telecom/routing"
+	"github.com/coffeyvidzro/monogo/internal/telecom/trunks"
 )
 
 type modules struct {
@@ -34,7 +36,9 @@ type modules struct {
 	webhookDelivery         *webhooks.DeliveryJob
 	recordingConsumer       *recordings.Consumer
 	recordingReconciliation *recordings.ReconciliationJob
+	recordingIngestion      *recordings.IngestionJob
 	idempotencyCleanup      *idempotency.CleanupJob
+	trunkHealth             *trunks.HealthCheckJob
 }
 
 func newModules(ctx context.Context, cfg config.Config) (*modules, error) {
@@ -112,7 +116,24 @@ func newModules(ctx context.Context, cfg config.Config) (*modules, error) {
 	}
 
 	recordingsRepository := recordings.NewRepository(postgresClient.Pool())
-	recordingsService := recordings.NewService(recordingsRepository, nil)
+	objectClient, err := minio.New(ctx, minio.DefaultConfig(
+		cfg.Domain, cfg.MinIO.AccessKey, cfg.MinIO.SecretKey,
+	))
+	if err != nil {
+		closeDependencies()
+		return nil, fmt.Errorf("initialize recording object storage: %w", err)
+	}
+	recordingStorage := recordings.NewObjectStorage(objectClient)
+	recordingsService := recordings.NewService(recordingsRepository, recordingStorage)
+	recordingIngestion, err := recordings.NewIngestionJob(
+		recordingsRepository,
+		recordingStorage,
+		recordings.DefaultIngestionConfig(recordings.DefaultStagingPath),
+	)
+	if err != nil {
+		closeDependencies()
+		return nil, fmt.Errorf("initialize recording ingestion: %w", err)
+	}
 	recordingReconciliation, err := recordings.NewReconciliationJob(
 		recordingsRepository,
 		recordings.DefaultReconciliationJobConfig(),
@@ -129,6 +150,16 @@ func newModules(ctx context.Context, cfg config.Config) (*modules, error) {
 	if err != nil {
 		closeDependencies()
 		return nil, fmt.Errorf("initialize idempotency cleanup: %w", err)
+	}
+
+	trunkHealth, err := trunks.NewHealthCheckJob(
+		trunks.NewRepository(queries),
+		trunks.SIPOptionsProber{},
+		trunks.DefaultHealthCheckConfig(),
+	)
+	if err != nil {
+		closeDependencies()
+		return nil, fmt.Errorf("initialize trunk health checks: %w", err)
 	}
 
 	outboxJob, err := outbox.NewPublisherJob(
@@ -166,7 +197,9 @@ func newModules(ctx context.Context, cfg config.Config) (*modules, error) {
 		webhookDelivery:         webhookDeliveryJob,
 		recordingConsumer:       recordings.NewConsumer(recordingsService),
 		recordingReconciliation: recordingReconciliation,
+		recordingIngestion:      recordingIngestion,
 		idempotencyCleanup:      idempotencyCleanup,
+		trunkHealth:             trunkHealth,
 	}, nil
 }
 

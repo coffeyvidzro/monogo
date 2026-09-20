@@ -58,10 +58,23 @@ func (r *Repository) Disable(ctx context.Context, org, id uuid.UUID) error {
 	return r.queries.DisableCarrierConnection(ctx, sqlc.DisableCarrierConnectionParams{ID: id, OrganizationID: &org})
 }
 
-func (r *Repository) SetOutboundDigest(ctx context.Context, org, id uuid.UUID, username, ciphertext string) error {
+func (r *Repository) InsertDigest(ctx context.Context, org, id uuid.UUID, direction, username, realm, ha1 string) error {
+	return r.queries.InsertCarrierDigestCredential(ctx, sqlc.InsertCarrierDigestCredentialParams{
+		CarrierConnectionID: id,
+		OrganizationID:      &org,
+		Direction:           direction,
+		Username:            username,
+		Realm:               realm,
+		Ha1Md5:              ha1,
+	})
+}
+
+func (r *Repository) SetOutboundDigest(ctx context.Context, org, id uuid.UUID, username, realm, ciphertext, ha1 string) error {
 	return r.queries.SetCarrierConnectionOutboundDigestAuth(ctx, sqlc.SetCarrierConnectionOutboundDigestAuthParams{
 		AuthUsername:         &username,
 		AuthSecretCiphertext: &ciphertext,
+		AuthRealm:            &realm,
+		AuthHa1Md5:           &ha1,
 		ID:                   id,
 		OrganizationID:       &org,
 	})
@@ -74,10 +87,12 @@ func (r *Repository) ClearOutbound(ctx context.Context, org, id uuid.UUID) error
 	})
 }
 
-func (r *Repository) SetInboundDigest(ctx context.Context, org, id uuid.UUID, username, ciphertext string) error {
+func (r *Repository) SetInboundDigest(ctx context.Context, org, id uuid.UUID, username, realm, ciphertext, ha1 string) error {
 	return r.queries.SetCarrierConnectionInboundDigestAuth(ctx, sqlc.SetCarrierConnectionInboundDigestAuthParams{
 		InboundUsername:         &username,
 		InboundSecretCiphertext: &ciphertext,
+		InboundRealm:            &realm,
+		InboundHa1Md5:           &ha1,
 		ID:                      id,
 		OrganizationID:          &org,
 	})
@@ -122,4 +137,14 @@ func (r *Repository) DeleteSourceIP(ctx context.Context, org, id, sourceID uuid.
 		CarrierConnectionID: id,
 		OrganizationID:      &org,
 	})
+}
+
+func (r *Repository) ListTrunks(ctx context.Context, org, id uuid.UUID) ([]sqlc.Trunk, error) {
+	return r.queries.ListTrunksByCarrierConnectionID(ctx, sqlc.ListTrunksByCarrierConnectionIDParams{
+		CarrierConnectionID: &id, OrganizationID: &org,
+	})
+}
+
+func (r *Repository) ListTrunkEndpoints(ctx context.Context, org, trunkID uuid.UUID) ([]sqlc.TrunkEndpoint, error) {
+	return r.queries.ListTrunkEndpoints(ctx, sqlc.ListTrunkEndpointsParams{TrunkID: trunkID, OrganizationID: &org})
 }
