@@ -27,7 +27,7 @@ CREATE TABLE IF NOT EXISTS recordings (
         upload_attempts >= 0
     ),
     CONSTRAINT chk_recordings_source_path CHECK (
-        source_path IS NULL OR (source_path LIKE '/%' AND source_path !~ '(^|/)\\.\\.(/|$)')
+        source_path IS NULL OR (source_path LIKE '/%' AND source_path !~ '(^|/)[.][.](/|$)')
     ),
     CONSTRAINT chk_recordings_duration CHECK (
         duration_seconds IS NULL OR duration_seconds >= 0
