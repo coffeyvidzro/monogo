@@ -40,9 +40,9 @@ services:
       - "5060/tcp"
       - "8021/tcp"
     networks:
-      public-signaling:
+      signaling:
         ipv4_address: 172.30.0.50
-      public-media:
+      media:
         ipv4_address: 172.31.0.50
 
   voice-v1-webhook:
@@ -64,4 +64,11 @@ services:
     ports:
       - "18443:8443"
     networks:
-      - private-control
+      - control
+
+# Acceptance carriers bind to fixed addresses on the signaling network.
+networks:
+  signaling:
+    ipam:
+      config:
+        - subnet: 172.30.0.0/24

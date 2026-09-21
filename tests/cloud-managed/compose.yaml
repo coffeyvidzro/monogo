@@ -15,6 +15,11 @@ services:
       # Without an advertised address OpenSIPS emits sip:0.0.0.0, so the
       # answered outbound dialog cannot deliver its ACK through the proxy.
       OPENSIPS_ADVERTISED_ADDRESS: opensips
+    # Managed wholesale sends public SIP to this fixed test-only address.
+    networks:
+      control:
+      signaling:
+        ipv4_address: 172.30.0.10
     volumes:
       - ${CLOUD_MANAGED_CERT_DIR:?required}/fullchain.pem:/etc/opensips/tls/fullchain.pem:ro
       - ${CLOUD_MANAGED_CERT_DIR:?required}/privkey.pem:/etc/opensips/tls/privkey.pem:ro
@@ -32,7 +37,7 @@ services:
     ports:
       - "18090:8089"
     networks:
-      - private-control
+      - control
 
   cloud-managed-wholesale:
     image: python:3.13-alpine
@@ -43,7 +48,14 @@ services:
     ports:
       - "18091:8088"
     networks:
-      private-control:
+      control:
         ipv4_address: 172.32.0.60
-      public-signaling:
+      signaling:
         ipv4_address: 172.30.0.60
+
+# Acceptance carriers bind to fixed addresses on the signaling network.
+networks:
+  signaling:
+    ipam:
+      config:
+        - subnet: 172.30.0.0/24
