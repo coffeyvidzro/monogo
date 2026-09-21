@@ -1,44 +1,36 @@
 name: Graceful drain acceptance
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - ".github/workflows/graceful-drain-acceptance.yml"
-      - ".env.example"
-      - "containers/**"
-      - "deploy/**"
-      - "server/**"
-      - "tests/graceful-drain/**"
-  pull_request:
-    branches:
-      - main
-    paths:
-      - ".github/workflows/graceful-drain-acceptance.yml"
-      - ".env.example"
-      - "containers/**"
-      - "deploy/**"
-      - "server/**"
-      - "tests/graceful-drain/**"
   workflow_dispatch:
+  pull_request:
+    paths:
+      - "deploy/**"
+      - "containers/**"
+      - "server/**"
+      - "tests/graceful-drain/**"
+      - ".github/workflows/graceful-drain-acceptance.yml"
 
 permissions:
   contents: read
 
 concurrency:
-  group: graceful-drain-acceptance-${{ github.ref }}
+  group: graceful-drain-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
-  acceptance:
-    name: Graceful drain acceptance
+  call-path:
+    name: Establish SIP/media call
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 40
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v7.0.1
+        uses: actions/checkout@v7
 
-      - name: Run graceful drain acceptance
+      - name: Validate acceptance scripts
+        run: |
+          sh -n tests/graceful-drain/run.sh
+          python3 -m py_compile tests/graceful-drain/acceptance.py
+
+      - name: Establish OpenSIPS to FreeSWITCH to RTPengine call
         run: sh tests/graceful-drain/run.sh

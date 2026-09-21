@@ -1,44 +1,38 @@
 name: Cloud + Managed acceptance
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - ".github/workflows/cloud-managed-acceptance.yml"
-      - ".env.example"
-      - "containers/**"
-      - "deploy/**"
-      - "server/**"
-      - "tests/cloud-managed/**"
-  pull_request:
-    branches:
-      - main
-    paths:
-      - ".github/workflows/cloud-managed-acceptance.yml"
-      - ".env.example"
-      - "containers/**"
-      - "deploy/**"
-      - "server/**"
-      - "tests/cloud-managed/**"
   workflow_dispatch:
+  pull_request:
+    paths:
+      - "server/**"
+      - "deploy/**"
+      - "containers/**"
+      - "tests/cloud-managed/**"
+      - ".github/workflows/cloud-managed-acceptance.yml"
 
 permissions:
   contents: read
 
 concurrency:
-  group: cloud-managed-acceptance-${{ github.ref }}
+  group: cloud-managed-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
-  acceptance:
-    name: Cloud + Managed acceptance
+  managed-call-path:
+    name: Managed number and call paths
     runs-on: ubuntu-latest
     timeout-minutes: 45
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v7.0.1
+        uses: actions/checkout@v7
 
-      - name: Run cloud + managed acceptance
+      - name: Validate Cloud + Managed acceptance scripts
+        run: |
+          sh -n tests/cloud-managed/run.sh
+          python3 -m py_compile tests/cloud-managed/acceptance.py
+          python3 -m py_compile tests/cloud-managed/fake_provider.py
+          python3 -m py_compile tests/cloud-managed/wholesale.py
+
+      - name: Run Cloud + Managed acceptance suite
         run: sh tests/cloud-managed/run.sh
