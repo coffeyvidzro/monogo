@@ -101,17 +101,33 @@ window.runLeamoutWebRTCAcceptance = async (config) => {
                 ),
         );
 
-        await new Promise((resolve) => setTimeout(resolve, 2_000));
-        const stats = await peerConnection.getStats();
-        const selectedPairs = [...stats.values()].filter(
+        // SIP establishment is not proof of ICE connectivity. Wait for ICE
+        // nomination and report the actual ICE state when media cannot connect.
+        let stats = await peerConnection.getStats();
+        let selectedPairs = [...stats.values()].filter(
             (report) =>
                 report.type === "candidate-pair" &&
                 report.state === "succeeded" &&
                 report.nominated,
         );
+        const deadline = Date.now() + 20_000;
+        while (selectedPairs.length !== 1 && Date.now() < deadline) {
+            if (peerConnection.iceConnectionState === "failed" ||
+                peerConnection.connectionState === "failed") break;
+            await new Promise((resolve) => setTimeout(resolve, 250));
+            stats = await peerConnection.getStats();
+            selectedPairs = [...stats.values()].filter(
+                (report) =>
+                    report.type === "candidate-pair" &&
+                    report.state === "succeeded" &&
+                    report.nominated,
+            );
+        }
         if (selectedPairs.length !== 1)
             throw new Error(
-                `expected one selected ICE pair, got ${selectedPairs.length}`,
+                `expected one selected ICE pair, got ${selectedPairs.length}; ` +
+                `iceConnectionState=${peerConnection.iceConnectionState}; ` +
+                `connectionState=${peerConnection.connectionState}`,
             );
 
         const localCandidates = [...stats.values()].filter(
