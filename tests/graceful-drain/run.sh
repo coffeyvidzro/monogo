@@ -195,7 +195,7 @@ for _ in $(seq 1 90); do
 import urllib.request
 try:
     with urllib.request.urlopen('http://127.0.0.1:8080/readyz', timeout=2) as response:
-        raise SystemExit(0 if response.status == 204 else 1)
+        raise SystemExit(0 if response.status == 200 else 1)
 except Exception:
     raise SystemExit(1)
 PY
