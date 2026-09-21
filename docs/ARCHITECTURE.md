@@ -115,9 +115,12 @@ telecom usage.
 ### Managed Carrier
 
 Leamout selects and provisions connectivity, is the commercial counterparty,
-and includes telecom usage in prepaid PAYG charging. DIDWW, CommPeak, and future
-provider credentials stay inside Leamout Cloud and are never distributed to
-customers.
+and includes telecom usage in prepaid PAYG charging. CommPeak is the initial
+managed provider for SIP termination and origination. DIDWW is the initial
+managed provider for DID inventory, acquisition, and inbound PSTN routing.
+Their responsibilities remain separate even when one customer call uses both
+providers. Provider credentials stay inside Leamout Cloud and are never
+distributed to customers.
 
 ## Deployment boundaries
 

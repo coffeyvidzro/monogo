@@ -345,14 +345,16 @@ def main():
         "JOIN carrier_providers ccp ON ccp.id=cc.provider_id "
         "WHERE pn.id='" + active["id"] + "'::uuid"
     ).split(",")
-    if provider_state != ["didww", "generic-sip"]:
+    if provider_state != ["didww", "commpeak"]:
         raise Failure(
             f"adapter identity leaked into SIP carrier identity: {provider_state}"
         )
     wire_call_id = fs_cli(f"uuid_getvar {outbound['sip_call_id']} sip_call_id")
     if wholesale["last_call_id"] != wire_call_id:
         raise Failure("wholesale SIP Call-ID does not match the persisted managed call")
-    print("PASS provider adapters remain independent from generic SIP termination")
+    print(
+        "PASS DIDWW number ownership remains independent from CommPeak SIP termination"
+    )
 
     cdr = {
         "provider": "commpeak",
@@ -396,9 +398,7 @@ def main():
     )
     if counts != "1,1":
         raise Failure(f"CDR replay duplicated immutable cost records: {counts}")
-    print(
-        "PASS generic provider CDR matched the call and derived carrier state idempotently"
-    )
+    print("PASS CommPeak CDR matched the call and derived carrier state idempotently")
 
     rejected_api("GET", f"/v1/numbers/{active['id']}", token=TOKEN_B)
     rejected_api("GET", f"/v1/calls/{outbound['id']}", token=TOKEN_B)
