@@ -106,7 +106,7 @@ services:
       nats:
         condition: service_started
       freeswitch:
-        condition: service_started
+        condition: service_healthy
       minio:
         condition: service_healthy
     networks: [edge, control]
@@ -127,7 +127,7 @@ services:
       nats:
         condition: service_started
       freeswitch:
-        condition: service_started
+        condition: service_healthy
       minio:
         condition: service_healthy
     volumes:
@@ -161,6 +161,12 @@ services:
     stop_grace_period: 60s
     environment:
       FREESWITCH_ESL_PASSWORD: ${FREESWITCH_ESL_PASSWORD:?FREESWITCH_ESL_PASSWORD is required}
+    healthcheck:
+      test: ["CMD-SHELL", "fs_cli -H 127.0.0.1 -P 8021 -p \"$FREESWITCH_ESL_PASSWORD\" -x status | grep -q '^UP '"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+      start_period: 15s
     volumes:
       - recordings-data:/var/lib/freeswitch/recordings
     networks:
@@ -201,7 +207,7 @@ services:
       rtpengine:
         condition: service_started
       freeswitch:
-        condition: service_started
+        condition: service_healthy
       server:
         condition: service_started
     ports:
