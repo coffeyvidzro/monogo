@@ -1,0 +1,30 @@
+services:
+  rtpengine:
+    ports: !reset []
+
+  coturn:
+    command:
+      - -c
+      - /etc/coturn/turnserver.conf
+      - --realm=${TURN_REALM:?TURN_REALM is required}
+      - --static-auth-secret=${TURN_AUTH_SECRET:?TURN_AUTH_SECRET is required}
+      - --external-ip=${TURN_EXTERNAL_IP:?TURN_EXTERNAL_IP is required}
+      - --cert=/etc/coturn/tls/fullchain.pem
+      - --pkey=/etc/coturn/tls/privkey.pem
+      - --min-port=${WEBRTC_V1_TURN_MIN_PORT:?WEBRTC_V1_TURN_MIN_PORT is required}
+      - --max-port=${WEBRTC_V1_TURN_MAX_PORT:?WEBRTC_V1_TURN_MAX_PORT is required}
+    volumes:
+      - ${WEBRTC_V1_CERT_DIR:?WEBRTC_V1_CERT_DIR is required}/opensips-fullchain.pem:/etc/coturn/tls/fullchain.pem:ro
+      - ${WEBRTC_V1_CERT_DIR:?WEBRTC_V1_CERT_DIR is required}/opensips-privkey.pem:/etc/coturn/tls/privkey.pem:ro
+    ports: !override
+      - "3478:3478/udp"
+      - "3478:3478/tcp"
+      - "${WEBRTC_V1_TURN_MIN_PORT:?WEBRTC_V1_TURN_MIN_PORT is required}-${WEBRTC_V1_TURN_MAX_PORT:?WEBRTC_V1_TURN_MAX_PORT is required}:${WEBRTC_V1_TURN_MIN_PORT:?WEBRTC_V1_TURN_MIN_PORT is required}-${WEBRTC_V1_TURN_MAX_PORT:?WEBRTC_V1_TURN_MAX_PORT is required}/udp"
+
+  opensips:
+    environment:
+      OPENSIPS_ADVERTISED_ADDRESS: 127.0.0.1
+    volumes:
+      - ${WEBRTC_V1_CERT_DIR:?WEBRTC_V1_CERT_DIR is required}/opensips-fullchain.pem:/etc/opensips/tls/fullchain.pem:ro
+      - ${WEBRTC_V1_CERT_DIR:?WEBRTC_V1_CERT_DIR is required}/opensips-privkey.pem:/etc/opensips/tls/privkey.pem:ro
+      - ${WEBRTC_V1_CERT_DIR:?WEBRTC_V1_CERT_DIR is required}/opensips-carrier-ca.pem:/etc/opensips/tls/carrier-ca.pem:ro

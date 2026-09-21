@@ -1,0 +1,29 @@
+services:
+  opensips:
+    environment:
+      OPENSIPS_ADVERTISED_ADDRESS: opensips
+    volumes:
+      - ${BYOC_V1_CERT_DIR:?BYOC_V1_CERT_DIR is required}/fullchain.pem:/etc/opensips/tls/fullchain.pem:ro
+      - ${BYOC_V1_CERT_DIR:?BYOC_V1_CERT_DIR is required}/privkey.pem:/etc/opensips/tls/privkey.pem:ro
+      - ${BYOC_V1_CERT_DIR:?BYOC_V1_CERT_DIR is required}/carrier-ca.pem:/etc/opensips/tls/carrier-ca.pem:ro
+
+  rtpengine:
+    ports: !reset []
+
+  byoc-v1-carrier:
+    image: leamout/byoc-v1-carrier:dev
+    build:
+      context: ../../containers/freeswitch
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      FREESWITCH_ESL_PASSWORD: ${FREESWITCH_ESL_PASSWORD:?FREESWITCH_ESL_PASSWORD is required}
+    volumes:
+      - ${BYOC_V1_SUITE_DIR:?BYOC_V1_SUITE_DIR is required}/carrier-dialplan.xml:/leamout-config/dialplan/leamout.xml:ro
+      - ${BYOC_V1_SUITE_DIR:?BYOC_V1_SUITE_DIR is required}/carrier-sip-profile.xml:/leamout-config/sip_profiles/internal.xml:ro
+      - ${BYOC_V1_SUITE_DIR:?BYOC_V1_SUITE_DIR is required}/carrier-directory.xml:/etc/freeswitch/directory/default.xml:ro
+    networks:
+      public-signaling:
+        ipv4_address: 172.30.0.50
+      public-media:
+        ipv4_address: 172.31.0.50

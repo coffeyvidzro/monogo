@@ -1,0 +1,15 @@
+{
+  "name": "@leamout/webrtc-v1-acceptance",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "playwright test"
+  },
+  "dependencies": {
+    "sip.js": "0.21.2"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.55.0",
+    "vite": "7.3.5"
+  }
+}

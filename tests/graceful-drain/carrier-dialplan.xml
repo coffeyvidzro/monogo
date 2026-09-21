@@ -1,0 +1,10 @@
+<include>
+  <context name="leamout">
+    <extension name="graceful-drain-carrier">
+      <condition field="destination_number" expression="^.+$">
+        <action application="answer"/>
+        <action application="park"/>
+      </condition>
+    </extension>
+  </context>
+</include>

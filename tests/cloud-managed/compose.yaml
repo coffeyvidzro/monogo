@@ -1,0 +1,49 @@
+services:
+  server:
+    environment:
+      DIDWW_API_KEY: cloud-managed-test-key
+      DIDWW_API_BASE_URL: http://cloud-managed-provider:8089
+
+  worker:
+    environment:
+      DIDWW_API_KEY: cloud-managed-test-key
+      DIDWW_API_BASE_URL: http://cloud-managed-provider:8089
+
+  opensips:
+    environment:
+      # Keep Record-Route reachable from FreeSWITCH and the wholesale carrier.
+      # Without an advertised address OpenSIPS emits sip:0.0.0.0, so the
+      # answered outbound dialog cannot deliver its ACK through the proxy.
+      OPENSIPS_ADVERTISED_ADDRESS: opensips
+    volumes:
+      - ${CLOUD_MANAGED_CERT_DIR:?required}/fullchain.pem:/etc/opensips/tls/fullchain.pem:ro
+      - ${CLOUD_MANAGED_CERT_DIR:?required}/privkey.pem:/etc/opensips/tls/privkey.pem:ro
+      - ${CLOUD_MANAGED_CERT_DIR:?required}/carrier-ca.pem:/etc/opensips/tls/carrier-ca.pem:ro
+
+  rtpengine:
+    ports: !reset []
+
+  cloud-managed-provider:
+    image: python:3.13-alpine
+    command: ["python3", "/suite/fake_provider.py"]
+    restart: unless-stopped
+    volumes:
+      - ${CLOUD_MANAGED_SUITE_DIR:?required}:/suite:ro
+    ports:
+      - "18090:8089"
+    networks:
+      - private-control
+
+  cloud-managed-wholesale:
+    image: python:3.13-alpine
+    command: ["python3", "/suite/wholesale.py"]
+    restart: unless-stopped
+    volumes:
+      - ${CLOUD_MANAGED_SUITE_DIR:?required}:/suite:ro
+    ports:
+      - "18091:8088"
+    networks:
+      private-control:
+        ipv4_address: 172.32.0.60
+      public-signaling:
+        ipv4_address: 172.30.0.60
