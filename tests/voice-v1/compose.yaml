@@ -1,5 +1,7 @@
 services:
   server:
+    ports:
+      - "127.0.0.1:8080:8080"
     environment:
       SSL_CERT_FILE: /voice-v1-certs/ca.crt
     volumes:
