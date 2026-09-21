@@ -20,7 +20,8 @@ export FREESWITCH_ESL_PASSWORD="${FREESWITCH_ESL_PASSWORD:-webrtc-v1-esl-secret}
 export ENCRYPTION_KEY="${ENCRYPTION_KEY:-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA}"
 export TURN_REALM="${TURN_REALM:-webrtc-v1.local}"
 export TURN_AUTH_SECRET="${TURN_AUTH_SECRET:-webrtc-v1-turn-secret-0123456789abcdef}"
-export TURN_EXTERNAL_IP="${TURN_EXTERNAL_IP:-127.0.0.1}"
+# The Linux runner and RTPengine can both route to this test media-network IP.
+export TURN_EXTERNAL_IP="${TURN_EXTERNAL_IP:-172.31.0.30}"
 export TURN_PUBLIC_URLS="${TURN_PUBLIC_URLS:-turn:127.0.0.1:3478?transport=udp}"
 export RTPENGINE_PUBLIC_IP="${RTPENGINE_PUBLIC_IP:-172.31.0.10}"
 export LEAMOUT_API_URL="${LEAMOUT_API_URL:-http://127.0.0.1:8080}"
@@ -64,7 +65,7 @@ if [ -z "${WEBRTC_V1_TURN_MIN_PORT:-}" ] || [ -z "${WEBRTC_V1_TURN_MAX_PORT:-}" 
 import random
 import socket
 
-width = 8
+width = 64
 for _ in range(256):
     start = random.randint(61000, 64999 - width)
     sockets = []
