@@ -1,5 +1,7 @@
 services:
   server:
+    ports:
+      - "127.0.0.1:8080:8080"
     environment:
       DIDWW_API_KEY: cloud-managed-test-key
       DIDWW_API_BASE_URL: http://cloud-managed-provider:8089
