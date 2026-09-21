@@ -99,7 +99,11 @@ func (c *Client) Ping(ctx context.Context) error {
 		return fmt.Errorf("NATS connection is unavailable")
 	}
 
-	return c.connection.FlushWithContext(ctx)
+	// FlushWithContext requires a deadline, but worker startup passes its
+	// lifecycle context without one. Bound each readiness check explicitly.
+	pingCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+	return c.connection.FlushWithContext(pingCtx)
 }
 
 func (c *Client) Close() error {
