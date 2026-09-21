@@ -1,0 +1,37 @@
+<profile name="internal">
+  <gateways>
+  </gateways>
+
+  <domains>
+    <domain name="all" alias="true" parse="false"/>
+  </domains>
+
+  <settings>
+    <param name="debug" value="0"/>
+    <param name="sip-trace" value="no"/>
+    <param name="sip-capture" value="no"/>
+
+    <param name="context" value="leamout"/>
+    <param name="dialplan" value="XML"/>
+
+    <param name="sip-port" value="5060"/>
+    <param name="sip-ip" value="172.30.0.50"/>
+    <param name="rtp-ip" value="172.31.0.50"/>
+
+    <param name="inbound-codec-prefs" value="OPUS,G722,PCMU,PCMA"/>
+    <param name="outbound-codec-prefs" value="OPUS,G722,PCMU,PCMA"/>
+    <param name="inbound-codec-negotiation" value="generous"/>
+    <param name="inbound-late-negotiation" value="true"/>
+
+    <param name="auth-calls" value="false"/>
+    <param name="disable-register" value="true"/>
+    <param name="auth-subscriptions" value="false"/>
+    <param name="manage-presence" value="false"/>
+
+    <param name="rtp-timer-name" value="soft"/>
+    <param name="rfc2833-pt" value="101"/>
+    <param name="dtmf-duration" value="2000"/>
+
+    <param name="tls" value="false"/>
+  </settings>
+</profile>
