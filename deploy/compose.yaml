@@ -90,30 +90,6 @@ services:
       retries: 12
     networks: [edge, control]
 
-  minio-init:
-    image: minio/mc:RELEASE.2025-04-16T18-13-26Z
-    restart: "no"
-    entrypoint: ["/bin/sh", "-ec"]
-    command:
-      - |
-        mc alias set storage http://minio:9000 "$$MINIO_ROOT_USER" "$$MINIO_ROOT_PASSWORD"
-        mc mb --ignore-existing storage/recordings
-        mc anonymous set none storage/recordings
-        mc admin user add storage "$$MINIO_APP_ACCESS_KEY" "$$MINIO_APP_SECRET_KEY" || mc admin user enable storage "$$MINIO_APP_ACCESS_KEY"
-        mc admin policy create storage recordings-rw /config/recordings-policy.json
-        mc admin policy attach storage recordings-rw --user "$$MINIO_APP_ACCESS_KEY"
-    environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?MINIO_ROOT_USER is required}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?MINIO_ROOT_PASSWORD is required}
-      MINIO_APP_ACCESS_KEY: ${MINIO_APP_ACCESS_KEY:?MINIO_APP_ACCESS_KEY is required}
-      MINIO_APP_SECRET_KEY: ${MINIO_APP_SECRET_KEY:?MINIO_APP_SECRET_KEY is required}
-    volumes:
-      - ./minio-recordings-policy.json:/config/recordings-policy.json:ro
-    depends_on:
-      minio:
-        condition: service_healthy
-    networks: [control]
-
   server:
     build:
       context: ../server
@@ -131,8 +107,8 @@ services:
         condition: service_started
       freeswitch:
         condition: service_started
-      minio-init:
-        condition: service_completed_successfully
+      minio:
+        condition: service_healthy
     networks: [edge, control]
 
   worker:
@@ -152,8 +128,8 @@ services:
         condition: service_started
       freeswitch:
         condition: service_started
-      minio-init:
-        condition: service_completed_successfully
+      minio:
+        condition: service_healthy
     volumes:
       - recordings-data:/var/lib/freeswitch/recordings
     networks: [control]
