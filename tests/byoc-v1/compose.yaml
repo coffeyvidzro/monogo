@@ -13,7 +13,7 @@ services:
   byoc-v1-carrier:
     image: leamout/byoc-v1-carrier:dev
     build:
-      context: ../../containers/freeswitch
+      context: ../containers/freeswitch
       dockerfile: Dockerfile
     restart: unless-stopped
     environment:
