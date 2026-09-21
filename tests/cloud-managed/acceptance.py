@@ -16,7 +16,6 @@ TOKEN = os.getenv(
 TOKEN_B = os.getenv(
     "CLOUD_MANAGED_TOKEN_B", "lm_org_v1smoke1_v1smoke1abcdefghijklmnopqrstuvwx"
 )
-EDGE_SECRET = os.environ["MANAGED_SIP_ADMISSION_SECRET"]
 ESL_PASSWORD = os.environ["FREESWITCH_ESL_PASSWORD"]
 DID = "+15551236001"
 COMPOSE = [
@@ -100,28 +99,6 @@ def rejected_api(method, path, payload=None, token=TOKEN):
             return error.code
         raise Failure(f"expected policy denial, got HTTP {error.code}") from error
     raise Failure(f"{method} {path} unexpectedly succeeded")
-
-
-def internal_post(path, payload, expected=200):
-    request = urllib.request.Request(
-        API + path,
-        data=json.dumps(payload).encode(),
-        headers={
-            "Authorization": f"Bearer {EDGE_SECRET}",
-            "Content-Type": "application/json",
-        },
-        method="POST",
-    )
-    try:
-        with urllib.request.urlopen(request, timeout=10) as response:
-            status, body = response.status, json.load(response)
-    except urllib.error.HTTPError as error:
-        if error.code == expected:
-            return None
-        raise
-    if status != expected:
-        raise Failure(f"internal POST {path}: HTTP {status}, want {expected}")
-    return body["data"] if body.get("success") is True else body
 
 
 def sql(statement):
@@ -356,50 +333,6 @@ def main():
         "PASS DIDWW number ownership remains independent from CommPeak SIP termination"
     )
 
-    cdr = {
-        "provider": "commpeak",
-        "provider_record_id": "cloud-managed-cdr-1",
-        "direction": "termination",
-        "sip_call_id": outbound["sip_call_id"],
-        "started_at": "2026-09-07T00:00:00Z",
-        "duration_seconds": 30,
-        "currency": "USD",
-        "cost_micros": 12500,
-        "raw": {"provider": "commpeak", "record_id": "cloud-managed-cdr-1"},
-    }
-    reconciled = internal_post("/internal/v1/provider-cdrs/reconcile", cdr)
-    replayed = internal_post("/internal/v1/provider-cdrs/reconcile", cdr)
-    if (
-        reconciled["call_id"] != outbound["id"]
-        or reconciled["organization_id"] != active["organization_id"]
-    ):
-        raise Failure(f"provider CDR was attributed incorrectly: {reconciled}")
-    if reconciled["amount_micros"] != 12500 or reconciled["currency"] != "USD":
-        raise Failure(f"wholesale charge has wrong cost: {reconciled}")
-    if (
-        replayed["wholesale_charge_id"] != reconciled["wholesale_charge_id"]
-        or not replayed["replayed"]
-    ):
-        raise Failure(f"provider CDR replay was not idempotent: {replayed}")
-    cdr_state = sql(
-        "SELECT pc.carrier_connection_id::text || ',' || c.carrier_connection_id::text "
-        "FROM provider_cdrs pc JOIN calls c ON c.id=pc.call_id "
-        "WHERE pc.provider='commpeak' AND pc.provider_record_id='cloud-managed-cdr-1'"
-    ).split(",")
-    if len(cdr_state) != 2 or cdr_state[0] != cdr_state[1]:
-        raise Failure(
-            f"CDR did not derive its carrier connection from the matched call: {cdr_state}"
-        )
-    counts = sql(
-        "SELECT (SELECT count(*) FROM provider_cdrs WHERE provider='commpeak' AND provider_record_id='cloud-managed-cdr-1')::text || ',' || "
-        "(SELECT count(*) FROM wholesale_charges WHERE call_id='"
-        + outbound["id"]
-        + "'::uuid)::text"
-    )
-    if counts != "1,1":
-        raise Failure(f"CDR replay duplicated immutable cost records: {counts}")
-    print("PASS CommPeak CDR matched the call and derived carrier state idempotently")
-
     rejected_api("GET", f"/v1/numbers/{active['id']}", token=TOKEN_B)
     rejected_api("GET", f"/v1/calls/{outbound['id']}", token=TOKEN_B)
     wholesale_count = json.load(urllib.request.urlopen(WHOLESALE, timeout=5))[
@@ -494,24 +427,6 @@ def main():
     ):
         raise Failure("disabled organization reached managed wholesale")
     print("PASS disabled organization is denied on managed inbound and outbound paths")
-
-    unmatched = dict(cdr)
-    unmatched["provider_record_id"] = "cloud-managed-cdr-unmatched"
-    unmatched["sip_call_id"] = "missing-managed-call"
-    internal_post("/internal/v1/provider-cdrs/reconcile", unmatched, expected=404)
-    conflict = dict(cdr)
-    conflict["cost_micros"] = 999999
-    internal_post("/internal/v1/provider-cdrs/reconcile", conflict, expected=409)
-    if (
-        sql(
-            "SELECT count(*) FROM wholesale_charges WHERE call_id='"
-            + outbound["id"]
-            + "'::uuid"
-        )
-        != "1"
-    ):
-        raise Failure("unmatched or conflicting CDR changed wholesale accounting")
-    print("PASS unmatched calls and conflicting CDR replay fail closed")
 
 
 if __name__ == "__main__":

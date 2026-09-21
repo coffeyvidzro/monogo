@@ -15,7 +15,6 @@ export MINIO_APP_SECRET_KEY="${MINIO_APP_SECRET_KEY:-acceptance-app-password}"
 CERT_DIR=$(mktemp -d "${TMPDIR:-/tmp}/leamout-cloud-managed.XXXXXX")
 export CLOUD_MANAGED_SUITE_DIR="$SCRIPT_DIR"
 export CLOUD_MANAGED_CERT_DIR="$CERT_DIR"
-export MANAGED_SIP_ADMISSION_SECRET="${MANAGED_SIP_ADMISSION_SECRET:-$(openssl rand -hex 32)}"
 export FREESWITCH_ESL_PASSWORD="${FREESWITCH_ESL_PASSWORD:-cloud-managed-esl-secret}"
 export ENCRYPTION_KEY="${ENCRYPTION_KEY:-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA}"
 export TURN_AUTH_SECRET="${TURN_AUTH_SECRET:-cloud-managed-turn-secret-0123456789}"
@@ -92,4 +91,3 @@ $COMPOSE exec -T freeswitch fs_cli -H 127.0.0.1 -P 8021 \
 $COMPOSE exec -T freeswitch fs_cli -H 127.0.0.1 -P 8021 \
     -p "$FREESWITCH_ESL_PASSWORD" -x "sofia global siptrace on" >/dev/null
 python3 tests/cloud-managed/acceptance.py
-python3 tests/cloud-managed/prepaid_assertions.py

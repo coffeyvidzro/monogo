@@ -1,0 +1,44 @@
+name: Cloud + Managed acceptance
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/cloud-managed-acceptance.yml"
+      - ".env.example"
+      - "containers/**"
+      - "deploy/**"
+      - "server/**"
+      - "tests/cloud-managed/**"
+  pull_request:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/cloud-managed-acceptance.yml"
+      - ".env.example"
+      - "containers/**"
+      - "deploy/**"
+      - "server/**"
+      - "tests/cloud-managed/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cloud-managed-acceptance-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  acceptance:
+    name: Cloud + Managed acceptance
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7.0.1
+
+      - name: Run cloud + managed acceptance
+        run: sh tests/cloud-managed/run.sh

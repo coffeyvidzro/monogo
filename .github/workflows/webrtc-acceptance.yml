@@ -1,0 +1,56 @@
+name: WebRTC acceptance
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/webrtc-acceptance.yml"
+      - ".env.example"
+      - "containers/**"
+      - "deploy/**"
+      - "server/**"
+      - "tests/webrtc-v1/**"
+  pull_request:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/webrtc-acceptance.yml"
+      - ".env.example"
+      - "containers/**"
+      - "deploy/**"
+      - "server/**"
+      - "tests/webrtc-v1/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: webrtc-acceptance-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  acceptance:
+    name: WebRTC acceptance
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7.0.1
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6.3.0
+        with:
+          node-version: 20
+
+      - name: Install browser test dependencies
+        run: npm install --prefix tests/webrtc-v1
+
+      - name: Install Chromium
+        working-directory: tests/webrtc-v1
+        run: npx playwright install --with-deps chromium
+
+      - name: Run WebRTC acceptance
+        run: sh tests/webrtc-v1/run.sh

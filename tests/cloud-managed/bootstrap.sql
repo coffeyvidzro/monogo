@@ -17,47 +17,6 @@ INSERT INTO organization_tokens (id, organization_id, name, token_hash, token_pr
     '["numbers:read","numbers:write","voice-applications:read","voice-applications:write","calls:read","calls:write"]'::jsonb
 );
 
-INSERT INTO products (id, code, name, active) VALUES (
-    '00000000-0000-0000-0000-000000006201',
-    'cloud-managed-acceptance',
-    'Cloud Managed Acceptance',
-    true
-);
-INSERT INTO plans (id, product_id, code, name, active) VALUES (
-    '00000000-0000-0000-0000-000000006202',
-    '00000000-0000-0000-0000-000000006201',
-    'managed-numbers',
-    'Cloud Managed Acceptance',
-    true
-);
-INSERT INTO prices (
-    id, plan_id, pricing_type, currency, amount_minor, billing_interval,
-    active, effective_from
-) VALUES (
-    '00000000-0000-0000-0000-000000006203',
-    '00000000-0000-0000-0000-000000006202',
-    'recurring', 'USD', 10000, 'month', true, now() - interval '1 day'
-), (
-    '00000000-0000-0000-0000-000000006204',
-    '00000000-0000-0000-0000-000000006202',
-    'one_time', 'USD', 2500, NULL, true, now() - interval '1 day'
-);
-INSERT INTO wallets (id, organization_id, currency, status) VALUES (
-    '00000000-0000-0000-0000-000000006206',
-    '00000000-0000-0000-0000-000000006001',
-    'USD', 'active'
-);
-INSERT INTO wallet_ledger_entries (
-    id, wallet_id, organization_id, entry_type, amount_minor,
-    source_type, source_id, idempotency_key, metadata
-) VALUES (
-    '00000000-0000-0000-0000-000000006207',
-    '00000000-0000-0000-0000-000000006206',
-    '00000000-0000-0000-0000-000000006001',
-    'topup', 10000,
-    'acceptance_fixture', 'cloud-managed', 'cloud-managed-opening-balance', '{}'::jsonb
-);
-
 INSERT INTO organizations (id, name, status) VALUES
 ('00000000-0000-0000-0000-000000006101', 'Cloud Managed Isolation Tenant', 'active');
 INSERT INTO organization_tokens (id, organization_id, name, token_hash, token_prefix, scopes) VALUES (

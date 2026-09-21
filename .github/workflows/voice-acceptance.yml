@@ -1,0 +1,44 @@
+name: Voice acceptance
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/voice-acceptance.yml"
+      - ".env.example"
+      - "containers/**"
+      - "deploy/**"
+      - "server/**"
+      - "tests/voice-v1/**"
+  pull_request:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/voice-acceptance.yml"
+      - ".env.example"
+      - "containers/**"
+      - "deploy/**"
+      - "server/**"
+      - "tests/voice-v1/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: voice-acceptance-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  acceptance:
+    name: Voice acceptance
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7.0.1
+
+      - name: Run voice acceptance
+        run: sh tests/voice-v1/run.sh

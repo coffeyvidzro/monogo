@@ -1,0 +1,44 @@
+name: Graceful drain acceptance
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/graceful-drain-acceptance.yml"
+      - ".env.example"
+      - "containers/**"
+      - "deploy/**"
+      - "server/**"
+      - "tests/graceful-drain/**"
+  pull_request:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/graceful-drain-acceptance.yml"
+      - ".env.example"
+      - "containers/**"
+      - "deploy/**"
+      - "server/**"
+      - "tests/graceful-drain/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: graceful-drain-acceptance-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  acceptance:
+    name: Graceful drain acceptance
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7.0.1
+
+      - name: Run graceful drain acceptance
+        run: sh tests/graceful-drain/run.sh

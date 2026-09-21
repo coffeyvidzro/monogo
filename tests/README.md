@@ -6,8 +6,7 @@ Core voice architecture.
 ## Product-model suites
 
 - `byoc-v1`: customer-owned carrier onboarding and SIP routing.
-- `cloud-managed`: Leamout-managed number purchasing, routing, calling, and
-  billing.
+- `cloud-managed`: Leamout-managed number purchasing, routing, and calling.
 
 ## Leamout Core architecture suites
 
