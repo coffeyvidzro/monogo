@@ -1,3 +1,10 @@
+-- Provider identities are platform-internal test fixtures. Customer-facing
+-- managed-number and calling APIs never return these records or adapter names.
+INSERT INTO carrier_providers (slug, name, adapter, status) VALUES
+('didww', 'DIDWW', 'didww', 'active'),
+('commpeak', 'CommPeak', 'commpeak', 'active')
+ON CONFLICT (slug) DO NOTHING;
+
 INSERT INTO organizations (id, name, status) VALUES
 ('00000000-0000-0000-0000-000000006001', 'Cloud Managed Acceptance', 'active');
 

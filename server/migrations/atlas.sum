@@ -1,4 +1,4 @@
-h1:zpSdmXwQi/6TTx6RN5ScG8749qTij7Y0ID4YKSUqVbI=
+h1:liqXSzsMzq9XIeqUHsVmdqOhTKdsJmxiwVpyGa1Tl4g=
 001_extensions.sql h1:V12FA/dbb8clPffRf/1QJRpbB/S0eECkElwvfOVRda4=
 002_create_users.sql h1:w8z6z5sqnmtExCGa63iYl2ssG9rgXX8m3VPqvb1z4jo=
 003_create_authentication.sql h1:6R8fm0zInr9A/OW74oYTBLpPYHRf3dpVjw13qyjdd7E=
@@ -25,4 +25,3 @@ h1:zpSdmXwQi/6TTx6RN5ScG8749qTij7Y0ID4YKSUqVbI=
 024_create_idempotency.sql h1:X1a92K0+jxC+asC3y2lmu6W29wCpk6Rv7pgd+PvlTXQ=
 025_create_trunk_credentials.sql h1:7ES89eeIyFvkTP1xhFZkcSkI2ndHZt+YBRyr8di9jOY=
 026_create_carrier_digest_credentials.sql h1:CcpaiOj9zZ7yQ4Tv2/upzOErKKlm8S1WAcyR8Scm6Mk=
-027_seed_managed_carrier_providers.sql h1:qKk+fFAm9YN/wCRxQ5n5oTesAYQz28h3cPnXf0Kg6Yk=

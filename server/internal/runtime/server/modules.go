@@ -6,7 +6,6 @@ import (
 
 	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
 	"github.com/coffeyvidzro/monogo/internal/identity"
-	managedcarriers "github.com/coffeyvidzro/monogo/internal/integrations/carriers/managed"
 	"github.com/coffeyvidzro/monogo/internal/integrations/freeswitch"
 	"github.com/coffeyvidzro/monogo/internal/integrations/minio"
 	"github.com/coffeyvidzro/monogo/internal/integrations/postgres"
@@ -38,20 +37,9 @@ type modules struct {
 	organizationsContext *middleware.OrganizationMiddleware
 	rateLimit            *middleware.RateLimitMiddleware
 	metrics              *metrics.Registry
-	managedCarriers      *managedcarriers.Providers
 }
 
 func newModules(ctx context.Context, cfg config.Config) (*modules, error) {
-	managedProviders, err := managedcarriers.New(managedcarriers.Config{
-		DIDWWAPIKey:           cfg.DIDWW.APIKey,
-		DIDWWBaseURL:          cfg.DIDWW.APIBaseURL,
-		CommPeakAuthorization: cfg.CommPeak.Authorization,
-		CommPeakBaseURL:       cfg.CommPeak.APIBaseURL,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("initialize managed carriers: %w", err)
-	}
-
 	postgresClient, err := postgres.New(ctx, postgres.DefaultConfig(cfg.DatabaseURL))
 	if err != nil {
 		return nil, fmt.Errorf("initialize PostgreSQL: %w", err)
@@ -162,7 +150,6 @@ func newModules(ctx context.Context, cfg config.Config) (*modules, error) {
 		organizationsContext: organizationMiddleware,
 		rateLimit:            rateLimitMiddleware,
 		metrics:              metrics.New(redisClient),
-		managedCarriers:      managedProviders,
 	}, nil
 }
 

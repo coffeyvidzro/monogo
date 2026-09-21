@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
-	managedcarriers "github.com/coffeyvidzro/monogo/internal/integrations/carriers/managed"
 	"github.com/coffeyvidzro/monogo/internal/integrations/freeswitch"
 	"github.com/coffeyvidzro/monogo/internal/integrations/minio"
 	natsintegration "github.com/coffeyvidzro/monogo/internal/integrations/nats"
@@ -40,20 +39,9 @@ type modules struct {
 	recordingIngestion      *recordings.IngestionJob
 	idempotencyCleanup      *idempotency.CleanupJob
 	trunkHealth             *trunks.HealthCheckJob
-	managedCarriers         *managedcarriers.Providers
 }
 
 func newModules(ctx context.Context, cfg config.Config) (*modules, error) {
-	managedProviders, err := managedcarriers.New(managedcarriers.Config{
-		DIDWWAPIKey:           cfg.DIDWW.APIKey,
-		DIDWWBaseURL:          cfg.DIDWW.APIBaseURL,
-		CommPeakAuthorization: cfg.CommPeak.Authorization,
-		CommPeakBaseURL:       cfg.CommPeak.APIBaseURL,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("initialize managed carriers: %w", err)
-	}
-
 	postgresClient, err := postgres.New(ctx, postgres.DefaultConfig(cfg.DatabaseURL))
 	if err != nil {
 		return nil, fmt.Errorf("initialize PostgreSQL: %w", err)
@@ -212,7 +200,6 @@ func newModules(ctx context.Context, cfg config.Config) (*modules, error) {
 		recordingIngestion:      recordingIngestion,
 		idempotencyCleanup:      idempotencyCleanup,
 		trunkHealth:             trunkHealth,
-		managedCarriers:         managedProviders,
 	}, nil
 }
 
