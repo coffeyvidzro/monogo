@@ -1,0 +1,46 @@
+name: WebRTC v1 acceptance
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "server/**"
+      - "deploy/**"
+      - "containers/**"
+      - "tests/webrtc-v1/**"
+      - ".github/workflows/webrtc-acceptance.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: webrtc-v1-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  forced-turn-relay:
+    name: WSS and forced TURN relay
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - name: Validate acceptance runner
+        run: sh -n tests/webrtc-v1/run.sh
+
+      - name: Install browser acceptance dependencies
+        run: npm install --prefix tests/webrtc-v1
+
+      - name: Install Chromium
+        working-directory: tests/webrtc-v1
+        run: npx playwright install --with-deps chromium
+
+      - name: Run forced TURN browser call
+        run: sh tests/webrtc-v1/run.sh

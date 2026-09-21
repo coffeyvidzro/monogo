@@ -68,16 +68,18 @@ class Handler(BaseHTTPRequestHandler):
             self._json(400, {"error": "invalid json"})
             return
 
-        STORE.append({
-            "headers": {
-                "X-Leamout-Event": self.headers.get("X-Leamout-Event", ""),
-                "X-Leamout-Event-ID": self.headers.get("X-Leamout-Event-ID", ""),
-                "X-Leamout-Timestamp": self.headers.get("X-Leamout-Timestamp", ""),
-                "X-Leamout-Signature": self.headers.get("X-Leamout-Signature", ""),
-            },
-            "body": body.decode("utf-8"),
-            "envelope": envelope,
-        })
+        STORE.append(
+            {
+                "headers": {
+                    "X-Leamout-Event": self.headers.get("X-Leamout-Event", ""),
+                    "X-Leamout-Event-ID": self.headers.get("X-Leamout-Event-ID", ""),
+                    "X-Leamout-Timestamp": self.headers.get("X-Leamout-Timestamp", ""),
+                    "X-Leamout-Signature": self.headers.get("X-Leamout-Signature", ""),
+                },
+                "body": body.decode("utf-8"),
+                "envelope": envelope,
+            }
+        )
         self._json(204, {})
 
 

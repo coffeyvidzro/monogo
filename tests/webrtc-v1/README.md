@@ -1,6 +1,6 @@
 # WebRTC v1 forced-TURN acceptance
 
-This gate proves the self-hosted browser voice path against the real Compose stack.
+This gate proves the Leamout Core browser voice path against the real Compose stack.
 It provisions a SIP domain and subscriber through the public API, requests short-lived
 ICE credentials from `/v1/realtime/ice-credentials`, registers Chromium to OpenSIPS
 over WSS, and calls the FreeSWITCH `9196` echo service through RTPengine.
@@ -14,14 +14,14 @@ Host and server-reflexive fallback therefore cannot make the test pass.
 Install the browser dependencies once:
 
 ```sh
-npm install --prefix tests/acceptance/webrtc-v1
-cd tests/acceptance/webrtc-v1 && npx playwright install chromium && cd ../../..
+npm install --prefix tests/webrtc-v1
+cd tests/webrtc-v1 && npx playwright install chromium && cd ../..
 ```
 
 Then run:
 
 ```sh
-sh tests/acceptance/webrtc-v1/run.sh
+sh tests/webrtc-v1/run.sh
 ```
 
 The runner creates disposable TLS material, selects a small collision-free UDP relay

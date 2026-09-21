@@ -1,6 +1,6 @@
 # Voice v1 acceptance suite
 
-This suite is the release gate for roadmap milestone **1. Self-hosted programmable voice**.
+This suite is a Leamout Core release gate for programmable voice.
 
 It runs against the real Docker Compose telecom stack and uses a synthetic SIP carrier plus a local HTTPS webhook receiver. It does not replace call/media behavior with mocks. A `2xx` response is not enough when an observable media-side assertion is available.
 
@@ -59,13 +59,13 @@ Requirements:
 From the repository root:
 
 ```sh
-sh tests/acceptance/voice-v1/run.sh
+sh tests/voice-v1/run.sh
 ```
 
 Set `VOICE_V1_KEEP_STACK=1` to retain the stack after the run for debugging:
 
 ```sh
-VOICE_V1_KEEP_STACK=1 sh tests/acceptance/voice-v1/run.sh
+VOICE_V1_KEEP_STACK=1 sh tests/voice-v1/run.sh
 ```
 
 The default fixture numbers are non-routable test identities used only inside the synthetic stack. Override `VOICE_V1_DID` and `VOICE_V1_CALLER` if needed.

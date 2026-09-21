@@ -21,9 +21,12 @@ DID = os.getenv("VOICE_V1_DID", "+15551234567")
 CALLER = os.getenv("VOICE_V1_CALLER", "+15557654321")
 ORG_ID = "00000000-0000-0000-0000-000000001001"
 COMPOSE = [
-    "docker", "compose",
-    "-f", "deploy/self-hosted/compose.yaml",
-    "-f", "tests/acceptance/voice-v1/compose.yaml",
+    "docker",
+    "compose",
+    "-f",
+    "deploy/compose.yaml",
+    "-f",
+    "tests/voice-v1/compose.yaml",
 ]
 
 STATE = {}
@@ -55,20 +58,35 @@ def compose(*args, check=True):
 
 def fs_cli(service, command):
     return compose(
-        "exec", "-T", service,
+        "exec",
+        "-T",
+        service,
         "fs_cli",
-        "-H", "127.0.0.1",
-        "-P", "8021",
-        "-p", ESL_PASSWORD,
-        "-x", command,
+        "-H",
+        "127.0.0.1",
+        "-P",
+        "8021",
+        "-p",
+        ESL_PASSWORD,
+        "-x",
+        command,
     )
 
 
 def psql(sql):
     return compose(
-        "exec", "-T", "postgres",
-        "psql", "-v", "ON_ERROR_STOP=1",
-        "-U", "leamout", "-d", "leamout", "-Atc", sql,
+        "exec",
+        "-T",
+        "postgres",
+        "psql",
+        "-v",
+        "ON_ERROR_STOP=1",
+        "-U",
+        "leamout",
+        "-d",
+        "leamout",
+        "-Atc",
+        sql,
     )
 
 
@@ -180,11 +198,14 @@ def verify_signature(event):
     secret_bytes = base64.urlsafe_b64decode(secret + "=" * (-len(secret) % 4))
     timestamp = event["headers"]["X-Leamout-Timestamp"]
     body = event["body"]
-    expected = "v1=" + hmac.new(
-        secret_bytes,
-        f"{timestamp}.{body}".encode(),
-        hashlib.sha256,
-    ).hexdigest()
+    expected = (
+        "v1="
+        + hmac.new(
+            secret_bytes,
+            f"{timestamp}.{body}".encode(),
+            hashlib.sha256,
+        ).hexdigest()
+    )
     actual = event["headers"]["X-Leamout-Signature"]
     if not hmac.compare_digest(actual, expected):
         raise AcceptanceError("webhook signature did not verify")
@@ -206,8 +227,16 @@ def deploy():
     wait_api_ready()
     running = set(compose("ps", "--status", "running", "--services").splitlines())
     required = {
-        "postgres", "redis", "nats", "server", "worker", "opensips",
-        "rtpengine", "freeswitch", "voice-v1-carrier", "voice-v1-webhook",
+        "postgres",
+        "redis",
+        "nats",
+        "server",
+        "worker",
+        "opensips",
+        "rtpengine",
+        "freeswitch",
+        "voice-v1-carrier",
+        "voice-v1-webhook",
     }
     missing = sorted(required - running)
     if missing:
@@ -218,14 +247,19 @@ def deploy():
 def configure_provider():
     _, providers = api("GET", "/v1/carrier-providers/", expected={200})
     provider = next(
-        (item for item in providers["carrier_providers"] if item["slug"] == "generic-sip"),
+        (
+            item
+            for item in providers["carrier_providers"]
+            if item["slug"] == "generic-sip"
+        ),
         None,
     )
     if not provider:
         raise AcceptanceError("built-in generic SIP provider is not visible")
 
     _, connection = api(
-        "POST", "/v1/carrier-connections/",
+        "POST",
+        "/v1/carrier-connections/",
         {
             "provider_id": provider["id"],
             "name": "voice-v1-carrier",
@@ -243,7 +277,8 @@ def configure_provider():
     )
 
     _, trunk = api(
-        "POST", "/v1/trunks/",
+        "POST",
+        "/v1/trunks/",
         {
             "type": "byoc",
             "carrier_connection_id": connection["id"],
@@ -276,7 +311,8 @@ def configure_provider():
 
 def create_voice_application():
     _, number = api(
-        "POST", "/v1/numbers/",
+        "POST",
+        "/v1/numbers/",
         {
             "type": "byoc",
             "number": DID,
@@ -295,7 +331,8 @@ def create_voice_application():
     # Current outbound routing requires the caller identity itself to be an
     # owned, voice-enabled number on the same carrier connection as the trunk.
     _, caller_number = api(
-        "POST", "/v1/numbers/",
+        "POST",
+        "/v1/numbers/",
         {
             "type": "byoc",
             "number": CALLER,
@@ -309,10 +346,13 @@ def create_voice_application():
     if caller_number.get("type") != "byoc":
         raise AcceptanceError("caller identity was not created as a BYOC number")
     if caller_number.get("carrier_connection_id") != STATE["connection_id"]:
-        raise AcceptanceError("caller identity was not created on the carrier connection")
+        raise AcceptanceError(
+            "caller identity was not created on the carrier connection"
+        )
 
     _, application = api(
-        "POST", "/v1/voice-applications/",
+        "POST",
+        "/v1/voice-applications/",
         {"name": "voice-v1-acceptance", "caller_id": CALLER},
         expected={201},
     )
@@ -330,13 +370,19 @@ def create_voice_application():
 
 def configure_webhook():
     _, created = api(
-        "POST", "/v1/webhooks/",
+        "POST",
+        "/v1/webhooks/",
         {
             "url": "https://voice-v1-webhook:8443/events",
             "subscribed_events": [
-                "call.initiated", "call.ringing", "call.answered",
-                "call.held", "call.resumed", "call.completed",
-                "recording.started", "recording.completed",
+                "call.initiated",
+                "call.ringing",
+                "call.answered",
+                "call.held",
+                "call.resumed",
+                "call.completed",
+                "recording.started",
+                "recording.completed",
             ],
         },
         expected={201},
@@ -367,7 +413,8 @@ def inbound_call():
     def probe():
         return next(
             (
-                item for item in list_calls()
+                item
+                for item in list_calls()
                 if item["id"] not in existing
                 and item["direction"] == "inbound"
                 and item["to"] == DID
@@ -402,7 +449,8 @@ def answer_inbound():
 
 def outbound_call():
     _, call = api(
-        "POST", "/v1/calls/",
+        "POST",
+        "/v1/calls/",
         {
             "application_id": STATE["application_id"],
             "trunk_id": STATE["trunk_id"],
@@ -425,7 +473,9 @@ def hold_resume():
     api("POST", f"/v1/calls/{call_id}/hold", expected={200})
     wait_call(call_id, lambda call: call["media_state"] == "held", "held media state")
     api("POST", f"/v1/calls/{call_id}/unhold", expected={200})
-    wait_call(call_id, lambda call: call["media_state"] == "active", "active media state")
+    wait_call(
+        call_id, lambda call: call["media_state"] == "active", "active media state"
+    )
     return "media_state changed active -> held -> active"
 
 
@@ -433,15 +483,22 @@ def play_audio():
     call_id = STATE["call_id"]
     path = "tone_stream://%(30000,0,440)"
     api(
-        "POST", f"/v1/calls/{call_id}/play",
+        "POST",
+        f"/v1/calls/{call_id}/play",
         {"path": path},
         expected={200},
     )
     time.sleep(0.2)
-    if "true" not in fs_cli("freeswitch", f"uuid_exists {STATE['sip_call_id']}").lower():
+    if (
+        "true"
+        not in fs_cli("freeswitch", f"uuid_exists {STATE['sip_call_id']}").lower()
+    ):
         raise AcceptanceError("media channel disappeared while playback was active")
     api("POST", f"/v1/calls/{call_id}/stop", expected={200})
-    if "true" not in fs_cli("freeswitch", f"uuid_exists {STATE['sip_call_id']}").lower():
+    if (
+        "true"
+        not in fs_cli("freeswitch", f"uuid_exists {STATE['sip_call_id']}").lower()
+    ):
         raise AcceptanceError("media channel disappeared during playback")
     return "playback and stop executed on a live FreeSWITCH channel"
 
@@ -450,7 +507,8 @@ def record_audio():
     call_id = STATE["call_id"]
     path = "/var/lib/freeswitch/recordings/voice-v1-acceptance.wav"
     api(
-        "POST", f"/v1/calls/{call_id}/record",
+        "POST",
+        f"/v1/calls/{call_id}/record",
         {"action": "start", "path": path},
         expected={200},
     )
@@ -458,7 +516,8 @@ def record_audio():
     def started():
         return next(
             (
-                item for item in list_recordings()
+                item
+                for item in list_recordings()
                 if item["call_id"] == call_id and item["status"] == "recording"
             ),
             False,
@@ -466,7 +525,8 @@ def record_audio():
 
     recording = wait_for("recording.started persistence", started)
     api(
-        "POST", f"/v1/calls/{call_id}/record",
+        "POST",
+        f"/v1/calls/{call_id}/record",
         {"action": "stop", "path": path},
         expected={200},
     )
@@ -474,7 +534,8 @@ def record_audio():
     def completed():
         return next(
             (
-                item for item in list_recordings()
+                item
+                for item in list_recordings()
                 if item["id"] == recording["id"] and item["status"] == "completed"
             ),
             False,
@@ -487,12 +548,16 @@ def record_audio():
 def transfer():
     call_id = STATE["call_id"]
     api(
-        "POST", f"/v1/calls/{call_id}/transfer",
+        "POST",
+        f"/v1/calls/{call_id}/transfer",
         {"destination": "9196", "dialplan": "XML", "context": "leamout"},
         expected={200},
     )
     time.sleep(0.25)
-    if "true" not in fs_cli("freeswitch", f"uuid_exists {STATE['sip_call_id']}").lower():
+    if (
+        "true"
+        not in fs_cli("freeswitch", f"uuid_exists {STATE['sip_call_id']}").lower()
+    ):
         raise AcceptanceError("transferred channel is no longer live")
     return "live call transferred to the local 9196 dialplan"
 
@@ -509,7 +574,8 @@ def hangup_outbound():
 def conference():
     name = "voice-v1-" + uuid.uuid4().hex[:8]
     _, item = api(
-        "POST", "/v1/conferences/",
+        "POST",
+        "/v1/conferences/",
         {"application_id": STATE["application_id"], "name": name},
         expected={201},
     )
@@ -551,8 +617,11 @@ def conference():
 
 def normalized_events():
     required = {
-        "call.initiated", "call.answered", "call.held",
-        "call.resumed", "call.completed",
+        "call.initiated",
+        "call.answered",
+        "call.held",
+        "call.resumed",
+        "call.completed",
     }
 
     def probe():
@@ -575,7 +644,8 @@ def query_call_state():
 def webhooks():
     events = wait_for("webhook deliveries", lambda: sink_events() or False, timeout=20)
     call_events = [
-        event for event in events
+        event
+        for event in events
         if event["envelope"].get("type", "").startswith("call.")
     ]
     if not call_events:
@@ -613,7 +683,9 @@ def restart_safety():
     compose("restart", "worker")
     wait_for(
         "worker restart",
-        lambda: "worker" in compose("ps", "--status", "running", "--services").splitlines(),
+        lambda: (
+            "worker" in compose("ps", "--status", "running", "--services").splitlines()
+        ),
         timeout=30,
     )
 
@@ -685,7 +757,11 @@ def main():
         except Exception as error:
             print(f"FAIL outbound cleanup: {error}")
             if RESULTS.get(6, ("FAIL",))[0] == "PASS":
-                RESULTS[6] = ("FAIL", "Answer/hang up", f"outbound hangup failed: {error}")
+                RESULTS[6] = (
+                    "FAIL",
+                    "Answer/hang up",
+                    f"outbound hangup failed: {error}",
+                )
 
     record(11, "Create/manage conferences", conference)
     record(12, "Receive normalized call events", normalized_events)
@@ -697,7 +773,9 @@ def main():
 
     failed = print_summary()
     if failed:
-        print(f"\nVoice v1 acceptance FAILED: {failed} capability check(s) did not pass.")
+        print(
+            f"\nVoice v1 acceptance FAILED: {failed} capability check(s) did not pass."
+        )
         return 1
     print("\nVoice v1 acceptance PASSED: all 16 capabilities are complete.")
     return 0

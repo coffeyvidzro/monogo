@@ -15,16 +15,15 @@ suppression of provider/platform identifiers from customer responses. It then
 binds the DID to a cloud voice application, receives a managed call through
 local Cloud OpenSIPS and FreeSWITCH, and places a trunkless managed call through
 the platform default route to a synthetic wholesale carrier. The outbound leg
-uses the DIDWW-provisioned DID as caller ID on a CommPeak-attributed route, then
-reconciles a provider CDR idempotently to one call and one wholesale charge.
+uses the managed DID as caller ID on the platform-managed route.
 
 The same gate also proves tenant B cannot read or use tenant A resources,
 explicit trunk failure never falls back to managed routing, a missing managed
-route cannot consume a tenant route, inactive numbers and organizations reject
-inbound delivery, and mismatched/conflicting CDRs cannot alter wholesale cost.
+route cannot consume a tenant route, and inactive numbers and organizations reject
+inbound delivery.
 
 Run it with:
 
 ```sh
-sh tests/acceptance/cloud-managed/run.sh
+sh tests/cloud-managed/run.sh
 ```

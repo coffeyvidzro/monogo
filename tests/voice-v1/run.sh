@@ -2,20 +2,29 @@
 set -eu
 
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
-REPO_ROOT=$(CDPATH= cd -- "$SCRIPT_DIR/../../.." && pwd)
+REPO_ROOT=$(CDPATH= cd -- "$SCRIPT_DIR/../.." && pwd)
+
+export DOMAIN="${DOMAIN:-localhost}"
+export PUBLIC_IP="${PUBLIC_IP:-127.0.0.1}"
+export CORS_ORIGINS="${CORS_ORIGINS:-http://localhost}"
+export POSTGRES_PASSWORD="${POSTGRES_PASSWORD:-acceptance-postgres-password}"
+export MINIO_ROOT_USER="${MINIO_ROOT_USER:-acceptance-root}"
+export MINIO_ROOT_PASSWORD="${MINIO_ROOT_PASSWORD:-acceptance-root-password}"
+export MINIO_APP_ACCESS_KEY="${MINIO_APP_ACCESS_KEY:-acceptance-app}"
+export MINIO_APP_SECRET_KEY="${MINIO_APP_SECRET_KEY:-acceptance-app-password}"
 CERT_DIR=$(mktemp -d "${TMPDIR:-/tmp}/leamout-voice-v1.XXXXXX")
 
 export VOICE_V1_SUITE_DIR="$SCRIPT_DIR"
 export VOICE_V1_CERT_DIR="$CERT_DIR"
 export FREESWITCH_ESL_PASSWORD="${FREESWITCH_ESL_PASSWORD:-voice-v1-esl-secret}"
-export CARRIER_CREDENTIAL_ENCRYPTION_KEY="${CARRIER_CREDENTIAL_ENCRYPTION_KEY:-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA}"
+export ENCRYPTION_KEY="${ENCRYPTION_KEY:-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA}"
 export TURN_REALM="${TURN_REALM:-voice-v1.local}"
 export TURN_AUTH_SECRET="${TURN_AUTH_SECRET:-voice-v1-turn-secret-0123456789abcdef}"
 export TURN_EXTERNAL_IP="${TURN_EXTERNAL_IP:-127.0.0.1}"
 export TURN_PUBLIC_URLS="${TURN_PUBLIC_URLS:-turn:127.0.0.1:3478}"
 export RTPENGINE_PUBLIC_IP="${RTPENGINE_PUBLIC_IP:-172.31.0.10}"
 
-COMPOSE="docker compose -f deploy/self-hosted/compose.yaml -f tests/acceptance/voice-v1/compose.yaml"
+COMPOSE="docker compose -f deploy/compose.yaml -f tests/voice-v1/compose.yaml"
 
 cleanup() {
     status=$?
@@ -104,7 +113,7 @@ printf '%s\n' "Applying migrations..."
 $COMPOSE up --build migrate
 $COMPOSE exec -T postgres \
     psql -v ON_ERROR_STOP=1 -U leamout -d leamout \
-    <tests/acceptance/voice-v1/bootstrap.sql >/dev/null
+    <tests/voice-v1/bootstrap.sql >/dev/null
 
 printf '%s\n' "Starting OpenSIPS after database bootstrap..."
 $COMPOSE up -d --build opensips
@@ -149,4 +158,4 @@ PY
 done
 [ "$ready" -eq 1 ] || { echo "API did not become ready within 90 seconds" >&2; exit 1; }
 
-python3 tests/acceptance/voice-v1/acceptance.py
+python3 tests/voice-v1/acceptance.py

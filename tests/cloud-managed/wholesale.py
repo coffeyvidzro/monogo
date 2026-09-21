@@ -39,7 +39,9 @@ def header_values(message, name):
     ]
 
 
-def response(status, reason, request_headers, vias, record_routes, body="", contact=False):
+def response(
+    status, reason, request_headers, vias, record_routes, body="", contact=False
+):
     content_headers = ""
     # A UAS must copy every Via from the request. OpenSIPS removes its own top
     # Via before forwarding the response; dropping FreeSWITCH's lower Via here
@@ -84,7 +86,9 @@ def sip_server():
             state["outbound_invites"] += 1
             state["last_destination"] = message.split()[1]
             state["last_call_id"] = request_headers.get("call-id", "")
-            state["internal_route_header_seen"] |= "\nX-Leamout-Route-URI:" in "\n" + message
+            state["internal_route_header_seen"] |= (
+                "\nX-Leamout-Route-URI:" in "\n" + message
+            )
             answer = (
                 "v=0\r\n"
                 f"o=- 2 2 IN IP4 {SIGNALING_IP}\r\n"
