@@ -129,7 +129,9 @@ until $COMPOSE exec -T postgres pg_isready -U leamout -d leamout >/dev/null 2>&1
 done
 
 printf '%s\n' "Applying migrations and WebRTC fixture..."
-$COMPOSE up --build migrate
+# Only the migration service is managed by this invocation: PostgreSQL is
+# already healthy, and the migration exit status must stop the suite on failure.
+$COMPOSE up --build --no-deps --exit-code-from migrate migrate
 $COMPOSE exec -T postgres \
     psql -v ON_ERROR_STOP=1 -U leamout -d leamout \
     <tests/webrtc-v1/bootstrap.sql >/dev/null

@@ -33,7 +33,7 @@ cleanup() {
     trap - EXIT INT TERM
     if [ "$status" -ne 0 ]; then
         (cd "$REPO_ROOT" && $COMPOSE ps -a) || true
-        (cd "$REPO_ROOT" && $COMPOSE logs --no-color --tail=300 server worker opensips freeswitch rtpengine byoc-v1-carrier postgres) || true
+        (cd "$REPO_ROOT" && $COMPOSE logs --no-color --tail=300 server worker opensips freeswitch rtpengine byoc-v1-carrier postgres migrate) || true
     fi
     if [ "${BYOC_V1_KEEP_STACK:-0}" != "1" ]; then
         (cd "$REPO_ROOT" && $COMPOSE down -v --remove-orphans) >/dev/null 2>&1 || true
@@ -63,7 +63,9 @@ cd "$REPO_ROOT"
 $COMPOSE config --quiet
 $COMPOSE up -d --build postgres redis nats rtpengine freeswitch byoc-v1-carrier
 until $COMPOSE exec -T postgres pg_isready -U leamout -d leamout >/dev/null 2>&1; do sleep 1; done
-$COMPOSE up --build migrate
+# Only the migration service is managed by this invocation: PostgreSQL is
+# already healthy, and the migration exit status must stop the suite on failure.
+$COMPOSE up --build --no-deps --exit-code-from migrate migrate
 $COMPOSE exec -T postgres psql -v ON_ERROR_STOP=1 -U leamout -d leamout <tests/byoc-v1/bootstrap.sql >/dev/null
 $COMPOSE up -d --build opensips server worker
 

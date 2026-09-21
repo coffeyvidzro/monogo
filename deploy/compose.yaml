@@ -43,7 +43,11 @@ services:
       dockerfile: Dockerfile
       target: migrate
     restart: "no"
-    command: ["migrate", "apply", "--dir", "file:///migrations", "--url", "$$DATABASE_URL"]
+    # Expand DATABASE_URL inside the container. Atlas is the image entrypoint,
+    # so an escaped Compose variable passed as a JSON-array argument remains literal.
+    entrypoint: ["/bin/sh", "-ec"]
+    command:
+      - 'exec /atlas migrate apply --dir file:///migrations --url "$DATABASE_URL"'
     environment:
       DATABASE_URL: postgres://leamout:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@postgres:5432/leamout?sslmode=disable&search_path=public
     depends_on:

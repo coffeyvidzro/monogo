@@ -55,7 +55,7 @@ cleanup() {
             "netstat -anu 2>/dev/null | awk 'NR > 2 { n=split(\$4,a,\":\"); p=a[n]+0; if (p >= 23000 && p <= 32768) print \$0 }'") >&2 || true
         (cd "$REPO_ROOT" && $COMPOSE exec -T graceful-drain-carrier fs_cli -H 127.0.0.1 -P 8021 -p "$FREESWITCH_ESL_PASSWORD" -x 'sofia status profile internal') || true
         (cd "$REPO_ROOT" && $COMPOSE exec -T freeswitch fs_cli -H 127.0.0.1 -P 8021 -p "$FREESWITCH_ESL_PASSWORD" -x 'sofia status profile internal') || true
-        (cd "$REPO_ROOT" && $COMPOSE logs --no-color --tail=400 server worker opensips freeswitch rtpengine graceful-drain-carrier postgres) || true
+        (cd "$REPO_ROOT" && $COMPOSE logs --no-color --tail=400 server worker opensips freeswitch rtpengine graceful-drain-carrier postgres migrate) || true
     fi
     if [ "${GRACEFUL_DRAIN_KEEP_STACK:-0}" != "1" ]; then
         (cd "$REPO_ROOT" && $COMPOSE down -v --remove-orphans) >/dev/null 2>&1 || true
@@ -148,7 +148,9 @@ until $COMPOSE exec -T postgres pg_isready -U leamout -d leamout >/dev/null 2>&1
     sleep 1
 done
 
-$COMPOSE up --build migrate
+# Only the migration service is managed by this invocation: PostgreSQL is
+# already healthy, and the migration exit status must stop the suite on failure.
+$COMPOSE up --build --no-deps --exit-code-from migrate migrate
 $COMPOSE exec -T postgres \
     psql -v ON_ERROR_STOP=1 -U leamout -d leamout \
     < tests/graceful-drain/bootstrap.sql \
