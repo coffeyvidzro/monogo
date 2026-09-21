@@ -13,7 +13,7 @@ services:
   graceful-drain-carrier:
     image: leamout/graceful-drain-carrier:dev
     build:
-      context: ../../containers/freeswitch
+      context: ../containers/freeswitch
       dockerfile: Dockerfile
     restart: unless-stopped
     environment:
