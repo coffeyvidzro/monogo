@@ -38,18 +38,15 @@ services:
     networks: [control]
 
   migrate:
-    build:
-      context: ../server
-      dockerfile: Dockerfile
-      target: migrate
+    image: arigaio/atlas:1.3.0-alpine
     restart: "no"
-    # Expand DATABASE_URL inside the container. Atlas is the image entrypoint,
-    # so an escaped Compose variable passed as a JSON-array argument remains literal.
     entrypoint: ["/bin/sh", "-ec"]
     command:
-      - 'exec /atlas migrate apply --dir file:///migrations --url "$DATABASE_URL"'
+      - 'exec /atlas migrate apply --dir file:///migrations --url "$$DATABASE_URL"'
     environment:
       DATABASE_URL: postgres://leamout:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@postgres:5432/leamout?sslmode=disable&search_path=public
+    volumes:
+      - ../server/migrations:/migrations:ro
     depends_on:
       postgres:
         condition: service_healthy
