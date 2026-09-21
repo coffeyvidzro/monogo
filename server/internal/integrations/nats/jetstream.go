@@ -26,7 +26,7 @@ func DefaultStreamLimits() StreamLimits {
 		JobsMaxAge:     7 * 24 * time.Hour,
 		EventsMaxAge:   30 * 24 * time.Hour,
 		DLQMaxAge:      90 * 24 * time.Hour,
-		Replicas:       3,
+		Replicas:       1,
 	}
 }
 
