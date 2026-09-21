@@ -2,19 +2,28 @@
 set -eu
 
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
-REPO_ROOT=$(CDPATH= cd -- "$SCRIPT_DIR/../../.." && pwd)
+REPO_ROOT=$(CDPATH= cd -- "$SCRIPT_DIR/../.." && pwd)
+
+export DOMAIN="${DOMAIN:-localhost}"
+export PUBLIC_IP="${PUBLIC_IP:-127.0.0.1}"
+export CORS_ORIGINS="${CORS_ORIGINS:-http://localhost}"
+export POSTGRES_PASSWORD="${POSTGRES_PASSWORD:-acceptance-postgres-password}"
+export MINIO_ROOT_USER="${MINIO_ROOT_USER:-acceptance-root}"
+export MINIO_ROOT_PASSWORD="${MINIO_ROOT_PASSWORD:-acceptance-root-password}"
+export MINIO_APP_ACCESS_KEY="${MINIO_APP_ACCESS_KEY:-acceptance-app}"
+export MINIO_APP_SECRET_KEY="${MINIO_APP_SECRET_KEY:-acceptance-app-password}"
 CERT_DIR=$(mktemp -d "${TMPDIR:-/tmp}/leamout-cloud-managed.XXXXXX")
 export CLOUD_MANAGED_SUITE_DIR="$SCRIPT_DIR"
 export CLOUD_MANAGED_CERT_DIR="$CERT_DIR"
 export MANAGED_SIP_ADMISSION_SECRET="${MANAGED_SIP_ADMISSION_SECRET:-$(openssl rand -hex 32)}"
 export FREESWITCH_ESL_PASSWORD="${FREESWITCH_ESL_PASSWORD:-cloud-managed-esl-secret}"
-export CARRIER_CREDENTIAL_ENCRYPTION_KEY="${CARRIER_CREDENTIAL_ENCRYPTION_KEY:-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA}"
+export ENCRYPTION_KEY="${ENCRYPTION_KEY:-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA}"
 export TURN_AUTH_SECRET="${TURN_AUTH_SECRET:-cloud-managed-turn-secret-0123456789}"
 export TURN_PUBLIC_URLS="${TURN_PUBLIC_URLS:-turn:127.0.0.1:3478}"
 export TURN_REALM="${TURN_REALM:-cloud-managed.local}"
 export TURN_EXTERNAL_IP="${TURN_EXTERNAL_IP:-127.0.0.1}"
 export RTPENGINE_PUBLIC_IP="${RTPENGINE_PUBLIC_IP:-172.31.0.10}"
-COMPOSE="docker compose -f deploy/cloud/compose.yaml -f tests/acceptance/cloud-managed/compose.yaml"
+COMPOSE="docker compose -f deploy/compose.yaml -f tests/cloud-managed/compose.yaml"
 
 freeswitch_sip_ready() {
     $COMPOSE exec -T freeswitch sh -c '
@@ -59,7 +68,7 @@ $COMPOSE config --quiet
 $COMPOSE up -d --build postgres redis nats rtpengine freeswitch cloud-managed-provider cloud-managed-wholesale
 until $COMPOSE exec -T postgres pg_isready -U leamout -d leamout >/dev/null 2>&1; do sleep 1; done
 $COMPOSE up --build migrate
-$COMPOSE exec -T postgres psql -v ON_ERROR_STOP=1 -U leamout -d leamout <tests/acceptance/cloud-managed/bootstrap.sql >/dev/null
+$COMPOSE exec -T postgres psql -v ON_ERROR_STOP=1 -U leamout -d leamout <tests/cloud-managed/bootstrap.sql >/dev/null
 $COMPOSE up -d --build server worker opensips
 
 ready=0
@@ -82,5 +91,5 @@ $COMPOSE exec -T freeswitch fs_cli -H 127.0.0.1 -P 8021 \
     -p "$FREESWITCH_ESL_PASSWORD" -x "console loglevel debug" >/dev/null
 $COMPOSE exec -T freeswitch fs_cli -H 127.0.0.1 -P 8021 \
     -p "$FREESWITCH_ESL_PASSWORD" -x "sofia global siptrace on" >/dev/null
-python3 tests/acceptance/cloud-managed/acceptance.py
-python3 tests/acceptance/cloud-managed/prepaid_assertions.py
+python3 tests/cloud-managed/acceptance.py
+python3 tests/cloud-managed/prepaid_assertions.py

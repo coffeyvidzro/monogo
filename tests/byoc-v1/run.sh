@@ -2,22 +2,31 @@
 set -eu
 
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
-REPO_ROOT=$(CDPATH= cd -- "$SCRIPT_DIR/../../.." && pwd)
+REPO_ROOT=$(CDPATH= cd -- "$SCRIPT_DIR/../.." && pwd)
+
+export DOMAIN="${DOMAIN:-localhost}"
+export PUBLIC_IP="${PUBLIC_IP:-127.0.0.1}"
+export CORS_ORIGINS="${CORS_ORIGINS:-http://localhost}"
+export POSTGRES_PASSWORD="${POSTGRES_PASSWORD:-acceptance-postgres-password}"
+export MINIO_ROOT_USER="${MINIO_ROOT_USER:-acceptance-root}"
+export MINIO_ROOT_PASSWORD="${MINIO_ROOT_PASSWORD:-acceptance-root-password}"
+export MINIO_APP_ACCESS_KEY="${MINIO_APP_ACCESS_KEY:-acceptance-app}"
+export MINIO_APP_SECRET_KEY="${MINIO_APP_SECRET_KEY:-acceptance-app-password}"
 CERT_DIR=$(mktemp -d "${TMPDIR:-/tmp}/leamout-byoc-v1.XXXXXX")
 
 export FREESWITCH_ESL_PASSWORD="${FREESWITCH_ESL_PASSWORD:-byoc-v1-esl-secret}"
 # The acceptance test rotates the synthetic carrier credential at runtime.
 # Stage all mounted carrier fixtures in the disposable directory so a local run
-# never rewrites tracked files in tests/acceptance/byoc-v1.
+# never rewrites tracked files in tests/byoc-v1.
 export BYOC_V1_SUITE_DIR="$CERT_DIR"
 export BYOC_V1_CERT_DIR="$CERT_DIR"
-export CARRIER_CREDENTIAL_ENCRYPTION_KEY="${CARRIER_CREDENTIAL_ENCRYPTION_KEY:-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA}"
+export ENCRYPTION_KEY="${ENCRYPTION_KEY:-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA}"
 export TURN_REALM="${TURN_REALM:-byoc-v1.local}"
 export TURN_AUTH_SECRET="${TURN_AUTH_SECRET:-byoc-v1-turn-secret-0123456789abcdef}"
 export TURN_EXTERNAL_IP="${TURN_EXTERNAL_IP:-127.0.0.1}"
 export TURN_PUBLIC_URLS="${TURN_PUBLIC_URLS:-turn:127.0.0.1:3478}"
 export RTPENGINE_PUBLIC_IP="${RTPENGINE_PUBLIC_IP:-172.31.0.10}"
-COMPOSE="docker compose -f deploy/self-hosted/compose.yaml -f tests/acceptance/byoc-v1/compose.yaml"
+COMPOSE="docker compose -f deploy/compose.yaml -f tests/byoc-v1/compose.yaml"
 
 cleanup() {
     status=$?
@@ -55,7 +64,7 @@ $COMPOSE config --quiet
 $COMPOSE up -d --build postgres redis nats rtpengine freeswitch byoc-v1-carrier
 until $COMPOSE exec -T postgres pg_isready -U leamout -d leamout >/dev/null 2>&1; do sleep 1; done
 $COMPOSE up --build migrate
-$COMPOSE exec -T postgres psql -v ON_ERROR_STOP=1 -U leamout -d leamout <tests/acceptance/byoc-v1/bootstrap.sql >/dev/null
+$COMPOSE exec -T postgres psql -v ON_ERROR_STOP=1 -U leamout -d leamout <tests/byoc-v1/bootstrap.sql >/dev/null
 $COMPOSE up -d --build opensips server worker
 
 ready=0
@@ -99,4 +108,4 @@ done
     exit 1
 }
 
-python3 tests/acceptance/byoc-v1/acceptance.py
+python3 tests/byoc-v1/acceptance.py

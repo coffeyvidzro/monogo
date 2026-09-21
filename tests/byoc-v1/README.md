@@ -7,7 +7,7 @@ It verifies the production-seeded generic provider, organization-scoped carrier 
 Run from the repository root:
 
 ```sh
-sh tests/acceptance/byoc-v1/run.sh
+sh tests/byoc-v1/run.sh
 ```
 
 Set `BYOC_V1_KEEP_STACK=1` to retain containers after a run.

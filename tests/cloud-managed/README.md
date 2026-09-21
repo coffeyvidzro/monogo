@@ -26,5 +26,5 @@ inbound delivery, and mismatched/conflicting CDRs cannot alter wholesale cost.
 Run it with:
 
 ```sh
-sh tests/acceptance/cloud-managed/run.sh
+sh tests/cloud-managed/run.sh
 ```

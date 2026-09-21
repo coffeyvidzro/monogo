@@ -5,8 +5,17 @@ import subprocess
 import urllib.request
 
 API = os.getenv("CLOUD_MANAGED_API_BASE", "http://127.0.0.1:8080")
-TOKEN = os.getenv("CLOUD_MANAGED_TOKEN", "lm_org_v1smoke0_v1smoke0abcdefghijklmnopqrstuvwx")
-COMPOSE = ["docker", "compose", "-f", "deploy/cloud/compose.yaml", "-f", "tests/acceptance/cloud-managed/compose.yaml"]
+TOKEN = os.getenv(
+    "CLOUD_MANAGED_TOKEN", "lm_org_v1smoke0_v1smoke0abcdefghijklmnopqrstuvwx"
+)
+COMPOSE = [
+    "docker",
+    "compose",
+    "-f",
+    "deploy/compose.yaml",
+    "-f",
+    "tests/cloud-managed/compose.yaml",
+]
 
 
 class Failure(RuntimeError):
@@ -20,12 +29,26 @@ def api(path):
     )
     with urllib.request.urlopen(request, timeout=10) as response:
         body = json.load(response)
-    return body["data"] if isinstance(body, dict) and body.get("success") is True else body
+    return (
+        body["data"] if isinstance(body, dict) and body.get("success") is True else body
+    )
 
 
 def sql(statement):
     result = subprocess.run(
-        COMPOSE + ["exec", "-T", "postgres", "psql", "-U", "leamout", "-d", "leamout", "-Atc", statement],
+        COMPOSE
+        + [
+            "exec",
+            "-T",
+            "postgres",
+            "psql",
+            "-U",
+            "leamout",
+            "-d",
+            "leamout",
+            "-Atc",
+            statement,
+        ],
         text=True,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
@@ -51,7 +74,9 @@ def main():
         "AND operation_type='managed_number_purchase'"
     )
     if reservation != "captured,2500,2500":
-        raise Failure(f"managed number reservation was not captured exactly once: {reservation!r}")
+        raise Failure(
+            f"managed number reservation was not captured exactly once: {reservation!r}"
+        )
 
     capture = sql(
         "SELECT count(*)::text || ',' || COALESCE(sum(amount_minor), 0)::text "
@@ -70,7 +95,9 @@ def main():
     )
     if balance != "7500,0":
         raise Failure(f"wallet balance/active reservation state is invalid: {balance}")
-    print("PASS managed DID provider success captured one prepaid debit and left no active hold")
+    print(
+        "PASS managed DID provider success captured one prepaid debit and left no active hold"
+    )
 
 
 if __name__ == "__main__":

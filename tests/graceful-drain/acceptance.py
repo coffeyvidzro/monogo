@@ -21,9 +21,9 @@ COMPOSE = [
     "docker",
     "compose",
     "-f",
-    "deploy/self-hosted/compose.yaml",
+    "deploy/compose.yaml",
     "-f",
-    "tests/acceptance/graceful-drain/compose.yaml",
+    "tests/graceful-drain/compose.yaml",
 ]
 STATE = {}
 
@@ -49,12 +49,15 @@ def compose(*args, check=True):
 
 
 def compose_succeeds(*args):
-    return subprocess.run(
-        COMPOSE + list(args),
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-        check=False,
-    ).returncode == 0
+    return (
+        subprocess.run(
+            COMPOSE + list(args),
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            check=False,
+        ).returncode
+        == 0
+    )
 
 
 def fs_args(service, command):
@@ -257,10 +260,7 @@ def provision():
 
 
 def establish_call():
-    before = {
-        call["id"]
-        for call in api("GET", "/v1/calls/?limit=100")["calls"]
-    }
+    before = {call["id"] for call in api("GET", "/v1/calls/?limit=100")["calls"]}
 
     originate_uuid = str(uuid.uuid4())
     originate_command = (
