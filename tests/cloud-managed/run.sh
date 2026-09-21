@@ -10,8 +10,9 @@ export CORS_ORIGINS="${CORS_ORIGINS:-http://localhost}"
 export POSTGRES_PASSWORD="${POSTGRES_PASSWORD:-acceptance-postgres-password}"
 export MINIO_ROOT_USER="${MINIO_ROOT_USER:-acceptance-root}"
 export MINIO_ROOT_PASSWORD="${MINIO_ROOT_PASSWORD:-acceptance-root-password}"
-export MINIO_APP_ACCESS_KEY="${MINIO_APP_ACCESS_KEY:-acceptance-app}"
-export MINIO_APP_SECRET_KEY="${MINIO_APP_SECRET_KEY:-acceptance-app-password}"
+# Disposable acceptance-only storage credentials; do not use root credentials in production.
+export MINIO_APP_ACCESS_KEY="$MINIO_ROOT_USER"
+export MINIO_APP_SECRET_KEY="$MINIO_ROOT_PASSWORD"
 CERT_DIR=$(mktemp -d "${TMPDIR:-/tmp}/leamout-cloud-managed.XXXXXX")
 export CLOUD_MANAGED_SUITE_DIR="$SCRIPT_DIR"
 export CLOUD_MANAGED_CERT_DIR="$CERT_DIR"
