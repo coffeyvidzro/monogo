@@ -118,7 +118,7 @@ def check(name, fn):
 def deploy():
     wait(
         "API readiness",
-        lambda: urllib.request.urlopen(API + "/readyz", timeout=2).status == 204,
+        lambda: urllib.request.urlopen(API + "/readyz", timeout=2).status == 200,
         45,
     )
     required = {
@@ -141,14 +141,16 @@ def deploy():
 
 
 def provider():
-    body = api("GET", "/v1/carrier-providers/")
-    item = next(
-        (x for x in body["carrier_providers"] if x["slug"] == "generic-sip"), None
+    # Carrier providers are internal platform inventory, not a public API.
+    # Migration 013 seeds this provider; verify the real row is usable.
+    provider_id = psql(
+        "SELECT id::text FROM carrier_providers "
+        "WHERE slug='generic-sip' AND adapter='sip' AND status='active'"
     )
-    if not item or item["adapter"] != "sip" or item["status"] != "active":
-        raise Failure("generic provider is missing or invalid")
-    S["provider"] = item
-    return f"production provider {item['id']} is active"
+    if not provider_id:
+        raise Failure("migration-seeded generic SIP provider is missing or inactive")
+    S["provider"] = {"id": provider_id}
+    return f"migration-seeded generic SIP provider {provider_id} is active"
 
 
 def assert_digest_runtime(secret_name, expected_ha1):
@@ -235,7 +237,7 @@ def trunk():
 def number_and_app():
     number = api(
         "POST",
-        "/v1/numbers/",
+        "/v1/numbers/byoc",
         {
             "type": "byoc",
             "number": DID,
@@ -253,7 +255,7 @@ def number_and_app():
 
     caller = api(
         "POST",
-        "/v1/numbers/",
+        "/v1/numbers/byoc",
         {
             "type": "byoc",
             "number": CALLER,
@@ -299,7 +301,7 @@ def reject_cross_org_did_ownership():
     )
     api("GET", f"/v1/numbers/{S['number']['id']}", expected=(404,), token=TOKEN_B)
     api(
-        "PUT",
+        "PATCH",
         f"/v1/numbers/{S['number']['id']}/carrier-connection",
         {"carrier_connection_id": foreign_connection["id"]},
         (404,),
@@ -451,7 +453,7 @@ def restart_persistence():
     compose("restart", "opensips", "server")
     wait(
         "API recovery",
-        lambda: urllib.request.urlopen(API + "/readyz", timeout=2).status == 204,
+        lambda: urllib.request.urlopen(API + "/readyz", timeout=2).status == 200,
         45,
     )
     item = api("GET", f"/v1/carrier-connections/{S['connection']['id']}")
