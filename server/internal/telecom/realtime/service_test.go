@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/coffeyvidzro/monogo/internal/integrations/coturn"
 	"github.com/google/uuid"
 )
 
@@ -26,19 +27,33 @@ func (f *fakeIssueLimiter) AllowFixedWindow(_ context.Context, key string, limit
 	return f.allowed, f.err
 }
 
-func validTestConfig() Config {
-	return Config{
+func validTestConfig() coturn.Config {
+	return coturn.Config{
 		AuthSecret: "test-shared-secret-at-least-32-bytes",
 		URLs:       []string{"turn:turn.example.com:3478"},
 	}
 }
 
+
+func newTestService(t *testing.T, config coturn.Config, limiter IssueLimiter) (*Service, error) {
+	t.Helper()
+	client, err := coturn.New(config)
+	if err != nil {
+		return nil, err
+	}
+	return NewService(client, limiter)
+}
+
 func TestIssueCreatesTenantBoundExpiringCoturnCredential(t *testing.T) {
 	limiter := &fakeIssueLimiter{allowed: true}
-	service, err := NewService(Config{
+	client, err := coturn.New(coturn.Config{
 		AuthSecret: "test-shared-secret-at-least-32-bytes",
 		URLs:       []string{" stun:turn.example.com:3478 ", "turns:turn.example.com:5349?transport=tcp"},
-	}, limiter)
+	})
+	if err != nil {
+		t.Fatalf("new coturn client: %v", err)
+	}
+	service, err := NewService(client, limiter)
 	if err != nil {
 		t.Fatalf("new service: %v", err)
 	}
@@ -78,7 +93,7 @@ func TestIssueCreatesTenantBoundExpiringCoturnCredential(t *testing.T) {
 }
 
 func TestIssueReturnsUniqueCredentials(t *testing.T) {
-	service, err := NewService(validTestConfig(), &fakeIssueLimiter{allowed: true})
+	service, err := newTestService(t, validTestConfig(), &fakeIssueLimiter{allowed: true})
 	if err != nil {
 		t.Fatalf("new service: %v", err)
 	}
@@ -101,9 +116,9 @@ func TestIssueReturnsUniqueCredentials(t *testing.T) {
 func TestNewServiceRejectsUnsafeConfiguration(t *testing.T) {
 	tests := []struct {
 		name   string
-		config Config
+		config coturn.Config
 	}{
-		{name: "missing secret", config: Config{URLs: []string{"turn:turn.example.com"}}},
+		{name: "missing secret", config: coturn.Config{URLs: []string{"turn:turn.example.com"}}},
 		{name: "short secret", config: Config{AuthSecret: "secret", URLs: []string{"turn:turn.example.com"}}},
 		{name: "missing URLs", config: Config{AuthSecret: strings.Repeat("s", 32)}},
 		{name: "insecure URL scheme", config: Config{AuthSecret: strings.Repeat("s", 32), URLs: []string{"https://turn.example.com"}}},
@@ -112,15 +127,15 @@ func TestNewServiceRejectsUnsafeConfiguration(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if _, err := NewService(tt.config, &fakeIssueLimiter{allowed: true}); err == nil {
-				t.Fatal("NewService() error = nil")
+			if _, err := coturn.New(tt.config); err == nil {
+				t.Fatal("coturn.New() error = nil")
 			}
 		})
 	}
 }
 
 func TestIssueRejectsMissingOrganization(t *testing.T) {
-	service, err := NewService(validTestConfig(), &fakeIssueLimiter{allowed: true})
+	service, err := newTestService(t, validTestConfig(), &fakeIssueLimiter{allowed: true})
 	if err != nil {
 		t.Fatalf("new service: %v", err)
 	}
@@ -130,7 +145,7 @@ func TestIssueRejectsMissingOrganization(t *testing.T) {
 }
 
 func TestIssueFailsClosedWhenRateLimited(t *testing.T) {
-	service, err := NewService(validTestConfig(), &fakeIssueLimiter{allowed: false})
+	service, err := newTestService(t, validTestConfig(), &fakeIssueLimiter{allowed: false})
 	if err != nil {
 		t.Fatalf("new service: %v", err)
 	}
