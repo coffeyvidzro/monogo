@@ -37,6 +37,45 @@ func TestTranslateFreeSWITCHEventKeepsCallAndChannelIdentitySeparate(t *testing.
 	}
 }
 
+func TestTranslateFreeSWITCHEventCapturesOutboundSIPDialog(t *testing.T) {
+	callID := uuid.New()
+	for _, eventName := range []string{"CHANNEL_PROGRESS", "CHANNEL_PROGRESS_MEDIA", "CHANNEL_ANSWER", "CHANNEL_HANGUP_COMPLETE"} {
+		t.Run(eventName, func(t *testing.T) {
+			event, err := TranslateFreeSWITCHEvent(freeswitch.Event{
+				Name: eventName,
+				Headers: map[string]string{
+					"Unique-ID":                "outbound-channel-1",
+					"variable_leamout_call_id": callID.String(),
+					"variable_sip_call_id":     "real-sip-dialog-id",
+				},
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if event.CallID != callID || event.ChannelID != "outbound-channel-1" || event.SIPCallID != "real-sip-dialog-id" {
+				t.Fatalf("outbound identifiers were not preserved: %+v", event)
+			}
+		})
+	}
+}
+
+func TestTranslateFreeSWITCHEventDoesNotInventSIPDialog(t *testing.T) {
+	callID := uuid.New()
+	event, err := TranslateFreeSWITCHEvent(freeswitch.Event{
+		Name: "CHANNEL_CREATE",
+		Headers: map[string]string{
+			"Unique-ID":                "outbound-channel-1",
+			"variable_leamout_call_id": callID.String(),
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if event.SIPCallID != "" {
+		t.Fatalf("a queued origination cannot be assigned a fabricated SIP Call-ID: %q", event.SIPCallID)
+	}
+}
+
 func TestTranslateFreeSWITCHEventRequiresLeamoutCallID(t *testing.T) {
 	_, err := TranslateFreeSWITCHEvent(freeswitch.Event{
 		Name:    "CHANNEL_ANSWER",
