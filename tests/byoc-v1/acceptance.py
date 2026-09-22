@@ -239,7 +239,6 @@ def number_and_app():
         "POST",
         "/v1/numbers/byoc",
         {
-            "type": "byoc",
             "number": DID,
             "country_code": "US",
             "carrier_connection_id": S["connection"]["id"],
@@ -257,7 +256,6 @@ def number_and_app():
         "POST",
         "/v1/numbers/byoc",
         {
-            "type": "byoc",
             "number": CALLER,
             "country_code": "US",
             "carrier_connection_id": S["connection"]["id"],
