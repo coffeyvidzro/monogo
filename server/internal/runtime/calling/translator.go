@@ -174,10 +174,10 @@ func TranslateFreeSWITCHEvent(event freeswitch.Event) (LifecycleEvent, error) {
 	}
 
 	result := LifecycleEvent{
-		CallID: callID,
-		ChannelID: channelID,
-		SIPCallID: strings.TrimSpace(event.Header("variable_sip_call_id")),
-		Type: eventType,
+		CallID:     callID,
+		ChannelID:  channelID,
+		SIPCallID:  strings.TrimSpace(event.Header("variable_sip_call_id")),
+		Type:       eventType,
 		OccurredAt: occurredAt,
 	}
 	if event.Name == "CHANNEL_HANGUP_COMPLETE" {
