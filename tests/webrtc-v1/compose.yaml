@@ -10,16 +10,12 @@ services:
     networks:
       media:
         ipv4_address: 172.31.0.30
-    command:
-      - -c
-      - /etc/coturn/turnserver.conf
-      - --realm=${TURN_REALM:?TURN_REALM is required}
-      - --static-auth-secret=${TURN_AUTH_SECRET:?TURN_AUTH_SECRET is required}
-      - --external-ip=${TURN_EXTERNAL_IP:?TURN_EXTERNAL_IP is required}
-      - --cert=/etc/coturn/tls/fullchain.pem
-      - --pkey=/etc/coturn/tls/privkey.pem
-      - --min-port=${WEBRTC_V1_TURN_MIN_PORT:?WEBRTC_V1_TURN_MIN_PORT is required}
-      - --max-port=${WEBRTC_V1_TURN_MAX_PORT:?WEBRTC_V1_TURN_MAX_PORT is required}
+    environment:
+      TURN_REALM: ${TURN_REALM:?TURN_REALM is required}
+      TURN_AUTH_SECRET: ${TURN_AUTH_SECRET:?TURN_AUTH_SECRET is required}
+      TURN_EXTERNAL_IP: ${TURN_EXTERNAL_IP:?TURN_EXTERNAL_IP is required}
+      TURN_MIN_PORT: "${WEBRTC_V1_TURN_MIN_PORT:?WEBRTC_V1_TURN_MIN_PORT is required}"
+      TURN_MAX_PORT: "${WEBRTC_V1_TURN_MAX_PORT:?WEBRTC_V1_TURN_MAX_PORT is required}"
     volumes:
       - ${WEBRTC_V1_CERT_DIR:?WEBRTC_V1_CERT_DIR is required}/opensips-fullchain.pem:/etc/coturn/tls/fullchain.pem:ro
       - ${WEBRTC_V1_CERT_DIR:?WEBRTC_V1_CERT_DIR is required}/opensips-privkey.pem:/etc/coturn/tls/privkey.pem:ro
