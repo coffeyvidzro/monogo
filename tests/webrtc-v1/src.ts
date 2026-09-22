@@ -39,7 +39,7 @@ const summarizeSDP = (description: RTCSessionDescription | null): string => {
         .map((line) => {
             const fields = line.slice("a=candidate:".length).split(/\s+/);
             const typ = fields.indexOf("typ");
-            return `${fields[2] ?? "?"}:${typ >= 0 ? fields[typ + 1] : "unknown"}`;
+            return `${fields[2] ?? "?"}:${fields[4] ?? "?"}:${fields[5] ?? "?"}:${typ >= 0 ? fields[typ + 1] : "unknown"}`;
         });
     return JSON.stringify({
         type: description.type,
