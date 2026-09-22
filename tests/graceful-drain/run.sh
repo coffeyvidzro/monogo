@@ -10,8 +10,9 @@ export CORS_ORIGINS="${CORS_ORIGINS:-http://localhost}"
 export POSTGRES_PASSWORD="${POSTGRES_PASSWORD:-acceptance-postgres-password}"
 export MINIO_ROOT_USER="${MINIO_ROOT_USER:-acceptance-root}"
 export MINIO_ROOT_PASSWORD="${MINIO_ROOT_PASSWORD:-acceptance-root-password}"
-export MINIO_APP_ACCESS_KEY="${MINIO_APP_ACCESS_KEY:-acceptance-app}"
-export MINIO_APP_SECRET_KEY="${MINIO_APP_SECRET_KEY:-acceptance-app-password}"
+# Disposable acceptance-only storage credentials; do not use root credentials in production.
+export MINIO_APP_ACCESS_KEY="$MINIO_ROOT_USER"
+export MINIO_APP_SECRET_KEY="$MINIO_ROOT_PASSWORD"
 
 export GRACEFUL_DRAIN_SUITE_DIR="$SCRIPT_DIR"
 export FREESWITCH_ESL_PASSWORD="${FREESWITCH_ESL_PASSWORD:-graceful-drain-esl-secret}"
@@ -55,7 +56,7 @@ cleanup() {
             "netstat -anu 2>/dev/null | awk 'NR > 2 { n=split(\$4,a,\":\"); p=a[n]+0; if (p >= 23000 && p <= 32768) print \$0 }'") >&2 || true
         (cd "$REPO_ROOT" && $COMPOSE exec -T graceful-drain-carrier fs_cli -H 127.0.0.1 -P 8021 -p "$FREESWITCH_ESL_PASSWORD" -x 'sofia status profile internal') || true
         (cd "$REPO_ROOT" && $COMPOSE exec -T freeswitch fs_cli -H 127.0.0.1 -P 8021 -p "$FREESWITCH_ESL_PASSWORD" -x 'sofia status profile internal') || true
-        (cd "$REPO_ROOT" && $COMPOSE logs --no-color --tail=400 server worker opensips freeswitch rtpengine graceful-drain-carrier postgres) || true
+        (cd "$REPO_ROOT" && $COMPOSE logs --no-color --tail=400 server worker opensips freeswitch rtpengine graceful-drain-carrier postgres migrate) || true
     fi
     if [ "${GRACEFUL_DRAIN_KEEP_STACK:-0}" != "1" ]; then
         (cd "$REPO_ROOT" && $COMPOSE down -v --remove-orphans) >/dev/null 2>&1 || true
@@ -148,7 +149,9 @@ until $COMPOSE exec -T postgres pg_isready -U leamout -d leamout >/dev/null 2>&1
     sleep 1
 done
 
-$COMPOSE up --build migrate
+# Only the migration service is managed by this invocation: PostgreSQL is
+# already healthy, and the migration exit status must stop the suite on failure.
+$COMPOSE up --build --no-deps --exit-code-from migrate migrate
 $COMPOSE exec -T postgres \
     psql -v ON_ERROR_STOP=1 -U leamout -d leamout \
     < tests/graceful-drain/bootstrap.sql \
@@ -192,7 +195,7 @@ for _ in $(seq 1 90); do
 import urllib.request
 try:
     with urllib.request.urlopen('http://127.0.0.1:8080/readyz', timeout=2) as response:
-        raise SystemExit(0 if response.status == 204 else 1)
+        raise SystemExit(0 if response.status == 200 else 1)
 except Exception:
     raise SystemExit(1)
 PY

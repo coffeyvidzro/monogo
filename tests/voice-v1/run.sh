@@ -10,8 +10,9 @@ export CORS_ORIGINS="${CORS_ORIGINS:-http://localhost}"
 export POSTGRES_PASSWORD="${POSTGRES_PASSWORD:-acceptance-postgres-password}"
 export MINIO_ROOT_USER="${MINIO_ROOT_USER:-acceptance-root}"
 export MINIO_ROOT_PASSWORD="${MINIO_ROOT_PASSWORD:-acceptance-root-password}"
-export MINIO_APP_ACCESS_KEY="${MINIO_APP_ACCESS_KEY:-acceptance-app}"
-export MINIO_APP_SECRET_KEY="${MINIO_APP_SECRET_KEY:-acceptance-app-password}"
+# Disposable acceptance-only storage credentials; do not use root credentials in production.
+export MINIO_APP_ACCESS_KEY="$MINIO_ROOT_USER"
+export MINIO_APP_SECRET_KEY="$MINIO_ROOT_PASSWORD"
 CERT_DIR=$(mktemp -d "${TMPDIR:-/tmp}/leamout-voice-v1.XXXXXX")
 
 export VOICE_V1_SUITE_DIR="$SCRIPT_DIR"
@@ -110,7 +111,9 @@ until $COMPOSE exec -T postgres pg_isready -U leamout -d leamout >/dev/null 2>&1
 done
 
 printf '%s\n' "Applying migrations..."
-$COMPOSE up --build migrate
+# Only the migration service is managed by this invocation: PostgreSQL is
+# already healthy, and the migration exit status must stop the suite on failure.
+$COMPOSE up --build --no-deps --exit-code-from migrate migrate
 $COMPOSE exec -T postgres \
     psql -v ON_ERROR_STOP=1 -U leamout -d leamout \
     <tests/voice-v1/bootstrap.sql >/dev/null
@@ -146,7 +149,7 @@ for _ in $(seq 1 90); do
 import urllib.request
 try:
     with urllib.request.urlopen('http://127.0.0.1:8080/readyz', timeout=2) as response:
-        raise SystemExit(0 if response.status == 204 else 1)
+        raise SystemExit(0 if response.status == 200 else 1)
 except Exception:
     raise SystemExit(1)
 PY

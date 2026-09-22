@@ -10,8 +10,9 @@ export CORS_ORIGINS="${CORS_ORIGINS:-http://localhost}"
 export POSTGRES_PASSWORD="${POSTGRES_PASSWORD:-acceptance-postgres-password}"
 export MINIO_ROOT_USER="${MINIO_ROOT_USER:-acceptance-root}"
 export MINIO_ROOT_PASSWORD="${MINIO_ROOT_PASSWORD:-acceptance-root-password}"
-export MINIO_APP_ACCESS_KEY="${MINIO_APP_ACCESS_KEY:-acceptance-app}"
-export MINIO_APP_SECRET_KEY="${MINIO_APP_SECRET_KEY:-acceptance-app-password}"
+# Disposable acceptance-only storage credentials; do not use root credentials in production.
+export MINIO_APP_ACCESS_KEY="$MINIO_ROOT_USER"
+export MINIO_APP_SECRET_KEY="$MINIO_ROOT_PASSWORD"
 CERT_DIR=$(mktemp -d "${TMPDIR:-/tmp}/leamout-cloud-managed.XXXXXX")
 export CLOUD_MANAGED_SUITE_DIR="$SCRIPT_DIR"
 export CLOUD_MANAGED_CERT_DIR="$CERT_DIR"
@@ -48,7 +49,7 @@ cleanup() {
     status=$?; trap - EXIT INT TERM
     if [ "$status" -ne 0 ]; then
         (cd "$REPO_ROOT" && $COMPOSE ps -a) || true
-        (cd "$REPO_ROOT" && $COMPOSE logs --no-color --tail=400 server worker opensips freeswitch cloud-managed-provider cloud-managed-wholesale postgres redis) || true
+        (cd "$REPO_ROOT" && $COMPOSE logs --no-color --tail=400 server worker opensips freeswitch cloud-managed-provider cloud-managed-wholesale postgres redis migrate) || true
     fi
     if [ "${CLOUD_MANAGED_KEEP_STACK:-0}" != "1" ]; then
         (cd "$REPO_ROOT" && $COMPOSE down -v --remove-orphans) >/dev/null 2>&1 || true
@@ -66,13 +67,15 @@ cd "$REPO_ROOT"
 $COMPOSE config --quiet
 $COMPOSE up -d --build postgres redis nats rtpengine freeswitch cloud-managed-provider cloud-managed-wholesale
 until $COMPOSE exec -T postgres pg_isready -U leamout -d leamout >/dev/null 2>&1; do sleep 1; done
-$COMPOSE up --build migrate
+# Only the migration service is managed by this invocation: PostgreSQL is
+# already healthy, and the migration exit status must stop the suite on failure.
+$COMPOSE up --build --no-deps --exit-code-from migrate migrate
 $COMPOSE exec -T postgres psql -v ON_ERROR_STOP=1 -U leamout -d leamout <tests/cloud-managed/bootstrap.sql >/dev/null
 $COMPOSE up -d --build server worker opensips
 
 ready=0
 for _ in $(seq 1 90); do
-    if python3 -c 'import urllib.request; assert urllib.request.urlopen("http://127.0.0.1:8080/readyz", timeout=2).status == 204; assert urllib.request.urlopen("http://127.0.0.1:18090/__state", timeout=2).status == 200; assert urllib.request.urlopen("http://127.0.0.1:18091", timeout=2).status == 200' >/dev/null 2>&1 \
+    if python3 -c 'import urllib.request; assert urllib.request.urlopen("http://127.0.0.1:8080/readyz", timeout=2).status == 200; assert urllib.request.urlopen("http://127.0.0.1:18090/__state", timeout=2).status == 200; assert urllib.request.urlopen("http://127.0.0.1:18091", timeout=2).status == 200' >/dev/null 2>&1 \
         && freeswitch_sip_ready \
         && $COMPOSE exec -T opensips /usr/local/bin/leamout-opensips-drain status >/dev/null 2>&1; then
         ready=1

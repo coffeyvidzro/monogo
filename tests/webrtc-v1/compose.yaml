@@ -1,8 +1,15 @@
 services:
+  server:
+    ports:
+      - "127.0.0.1:8080:8080"
   rtpengine:
     ports: !reset []
 
   coturn:
+    # Fixed test-network relay address shared with RTPengine and the Linux runner.
+    networks:
+      media:
+        ipv4_address: 172.31.0.30
     command:
       - -c
       - /etc/coturn/turnserver.conf

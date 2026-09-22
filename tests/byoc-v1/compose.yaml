@@ -1,4 +1,7 @@
 services:
+  server:
+    ports:
+      - "127.0.0.1:8080:8080"
   opensips:
     environment:
       OPENSIPS_ADVERTISED_ADDRESS: opensips
@@ -13,7 +16,7 @@ services:
   byoc-v1-carrier:
     image: leamout/byoc-v1-carrier:dev
     build:
-      context: ../../containers/freeswitch
+      context: ../containers/freeswitch
       dockerfile: Dockerfile
     restart: unless-stopped
     environment:
@@ -23,7 +26,14 @@ services:
       - ${BYOC_V1_SUITE_DIR:?BYOC_V1_SUITE_DIR is required}/carrier-sip-profile.xml:/leamout-config/sip_profiles/internal.xml:ro
       - ${BYOC_V1_SUITE_DIR:?BYOC_V1_SUITE_DIR is required}/carrier-directory.xml:/etc/freeswitch/directory/default.xml:ro
     networks:
-      public-signaling:
+      signaling:
         ipv4_address: 172.30.0.50
-      public-media:
+      media:
         ipv4_address: 172.31.0.50
+
+# Acceptance carriers bind to fixed addresses on the signaling network.
+networks:
+  signaling:
+    ipam:
+      config:
+        - subnet: 172.30.0.0/24

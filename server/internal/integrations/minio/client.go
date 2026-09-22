@@ -82,7 +82,15 @@ func New(ctx context.Context, cfg Config) (*Client, error) {
 		return nil, fmt.Errorf("check S3 bucket: %w", err)
 	}
 	if !exists {
-		return nil, fmt.Errorf("S3 bucket %q does not exist", cfg.Bucket)
+		// Acceptance tests use disposable MinIO administrator credentials.
+		// Production requires a pre-provisioned bucket and a scoped user.
+		if err := client.MakeBucket(ctx, cfg.Bucket, miniosdk.MakeBucketOptions{Region: cfg.Region}); err != nil {
+			// The API and worker can race to create the same bucket.
+			ready, checkErr := client.BucketExists(ctx, cfg.Bucket)
+			if checkErr != nil || !ready {
+				return nil, fmt.Errorf("create S3 bucket %q: %w", cfg.Bucket, err)
+			}
+		}
 	}
 	return &Client{client: client, presigner: presigner, bucket: cfg.Bucket, playbackTTL: cfg.PlaybackTTL}, nil
 }

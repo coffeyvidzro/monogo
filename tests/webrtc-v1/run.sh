@@ -10,8 +10,9 @@ export CORS_ORIGINS="${CORS_ORIGINS:-http://localhost}"
 export POSTGRES_PASSWORD="${POSTGRES_PASSWORD:-acceptance-postgres-password}"
 export MINIO_ROOT_USER="${MINIO_ROOT_USER:-acceptance-root}"
 export MINIO_ROOT_PASSWORD="${MINIO_ROOT_PASSWORD:-acceptance-root-password}"
-export MINIO_APP_ACCESS_KEY="${MINIO_APP_ACCESS_KEY:-acceptance-app}"
-export MINIO_APP_SECRET_KEY="${MINIO_APP_SECRET_KEY:-acceptance-app-password}"
+# Disposable acceptance-only storage credentials; do not use root credentials in production.
+export MINIO_APP_ACCESS_KEY="$MINIO_ROOT_USER"
+export MINIO_APP_SECRET_KEY="$MINIO_ROOT_PASSWORD"
 CERT_DIR=$(mktemp -d "${TMPDIR:-/tmp}/leamout-webrtc-v1.XXXXXX")
 
 export WEBRTC_V1_CERT_DIR="$CERT_DIR"
@@ -19,7 +20,8 @@ export FREESWITCH_ESL_PASSWORD="${FREESWITCH_ESL_PASSWORD:-webrtc-v1-esl-secret}
 export ENCRYPTION_KEY="${ENCRYPTION_KEY:-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA}"
 export TURN_REALM="${TURN_REALM:-webrtc-v1.local}"
 export TURN_AUTH_SECRET="${TURN_AUTH_SECRET:-webrtc-v1-turn-secret-0123456789abcdef}"
-export TURN_EXTERNAL_IP="${TURN_EXTERNAL_IP:-127.0.0.1}"
+# The Linux runner and RTPengine can both route to this test media-network IP.
+export TURN_EXTERNAL_IP="${TURN_EXTERNAL_IP:-172.31.0.30}"
 export TURN_PUBLIC_URLS="${TURN_PUBLIC_URLS:-turn:127.0.0.1:3478?transport=udp}"
 export RTPENGINE_PUBLIC_IP="${RTPENGINE_PUBLIC_IP:-172.31.0.10}"
 export LEAMOUT_API_URL="${LEAMOUT_API_URL:-http://127.0.0.1:8080}"
@@ -63,7 +65,7 @@ if [ -z "${WEBRTC_V1_TURN_MIN_PORT:-}" ] || [ -z "${WEBRTC_V1_TURN_MAX_PORT:-}" 
 import random
 import socket
 
-width = 8
+width = 64
 for _ in range(256):
     start = random.randint(61000, 64999 - width)
     sockets = []
@@ -129,7 +131,9 @@ until $COMPOSE exec -T postgres pg_isready -U leamout -d leamout >/dev/null 2>&1
 done
 
 printf '%s\n' "Applying migrations and WebRTC fixture..."
-$COMPOSE up --build migrate
+# Only the migration service is managed by this invocation: PostgreSQL is
+# already healthy, and the migration exit status must stop the suite on failure.
+$COMPOSE up --build --no-deps --exit-code-from migrate migrate
 $COMPOSE exec -T postgres \
     psql -v ON_ERROR_STOP=1 -U leamout -d leamout \
     <tests/webrtc-v1/bootstrap.sql >/dev/null
