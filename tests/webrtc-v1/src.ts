@@ -27,6 +27,33 @@ const inRelayRange = (
     port >= minPort &&
     port <= maxPort;
 
+// Only expose structural SDP data in CI: ICE secrets, SIP credentials,
+// fingerprint values, and full SDP bodies must never enter test logs.
+const summarizeSDP = (description: RTCSessionDescription | null): string => {
+    if (!description?.sdp) return "missing";
+    const lines = description.sdp.split(/\r?\n/);
+    const connections = lines.filter((line) => line.startsWith("c="));
+    const media = lines.filter((line) => line.startsWith("m="));
+    const candidates = lines
+        .filter((line) => line.startsWith("a=candidate:"))
+        .map((line) => {
+            const fields = line.slice("a=candidate:".length).split(/\s+/);
+            const typ = fields.indexOf("typ");
+            return `${fields[2] ?? "?"}:${typ >= 0 ? fields[typ + 1] : "unknown"}`;
+        });
+    return JSON.stringify({
+        type: description.type,
+        connections,
+        media,
+        candidates,
+        hasIceUfrag: lines.some((line) => line.startsWith("a=ice-ufrag:")),
+        hasIcePwd: lines.some((line) => line.startsWith("a=ice-pwd:")),
+        hasFingerprint: lines.some((line) => line.startsWith("a=fingerprint:")),
+        hasEndOfCandidates: lines.includes("a=end-of-candidates"),
+        setup: lines.filter((line) => line.startsWith("a=setup:")),
+    });
+};
+
 window.runLeamoutWebRTCAcceptance = async (config) => {
     const uri = UserAgent.makeURI(config.sipUri);
     const destination = UserAgent.makeURI(config.destinationUri);
@@ -143,7 +170,9 @@ window.runLeamoutWebRTCAcceptance = async (config) => {
                 `connectionState=${peerConnection.connectionState}; ` +
                 `localCandidates=[${localCandidates.join(", ")}]; ` +
                 `remoteCandidates=[${remoteCandidates.join(", ")}]; ` +
-                `pairs=[${pairs.join(", ")}]`,
+                `pairs=[${pairs.join(", ")}]; ` +
+                `localSDP=${summarizeSDP(peerConnection.localDescription)}; ` +
+                `remoteSDP=${summarizeSDP(peerConnection.remoteDescription)}`,
             );
         }
 

@@ -133,17 +133,6 @@ PY
 rm -f "$COMPOSE_CONFIG_TMP"
 COMPOSE_CONFIG_TMP=""
 
-# TEMPORARY: regenerate and print the canonical Atlas checksum so the stale
-# repository atlas.sum can be repaired from Atlas 1.3.0 itself. Remove this
-# block after committing the generated sum.
-docker run --rm \
-    -v "$REPO_ROOT/server/migrations:/migrations" \
-    arigaio/atlas:1.3.0-alpine \
-    migrate hash --dir file:///migrations
-echo '--- BEGIN GENERATED ATLAS SUM ---'
-cat server/migrations/atlas.sum
-echo '--- END GENERATED ATLAS SUM ---'
-
 $COMPOSE up -d --build postgres redis nats rtpengine freeswitch graceful-drain-carrier
 until $COMPOSE exec -T postgres pg_isready -U leamout -d leamout >/dev/null 2>&1; do
     sleep 1

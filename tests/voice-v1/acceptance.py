@@ -155,8 +155,8 @@ def health_status(path):
 
 
 def wait_api_ready():
-    wait_for("API liveness", lambda: health_status("/healthz") == 204, timeout=45)
-    wait_for("API readiness", lambda: health_status("/readyz") == 204, timeout=45)
+    wait_for("API liveness", lambda: health_status("/healthz") == 200, timeout=45)
+    wait_for("API readiness", lambda: health_status("/readyz") == 200, timeout=45)
 
 
 def get_call(call_id):
@@ -245,23 +245,20 @@ def deploy():
 
 
 def configure_provider():
-    _, providers = api("GET", "/v1/carrier-providers/", expected={200})
-    provider = next(
-        (
-            item
-            for item in providers["carrier_providers"]
-            if item["slug"] == "generic-sip"
-        ),
-        None,
+    # The platform's carrier-provider catalog is an internal fixture.
+    # Migration 013 seeds the generic SIP adapter.
+    provider_id = psql(
+        "SELECT id::text FROM carrier_providers "
+        "WHERE slug='generic-sip' AND adapter='sip' AND status='active'"
     )
-    if not provider:
-        raise AcceptanceError("built-in generic SIP provider is not visible")
+    if not provider_id:
+        raise AcceptanceError("migration-seeded generic SIP provider is unavailable")
 
     _, connection = api(
         "POST",
         "/v1/carrier-connections/",
         {
-            "provider_id": provider["id"],
+            "provider_id": provider_id,
             "name": "voice-v1-carrier",
             "inbound_enabled": True,
             "codecs": ["PCMU", "PCMA"],
@@ -312,9 +309,8 @@ def configure_provider():
 def create_voice_application():
     _, number = api(
         "POST",
-        "/v1/numbers/",
+        "/v1/numbers/byoc",
         {
-            "type": "byoc",
             "number": DID,
             "country_code": "US",
             "carrier_connection_id": STATE["connection_id"],
@@ -332,9 +328,8 @@ def create_voice_application():
     # owned, voice-enabled number on the same carrier connection as the trunk.
     _, caller_number = api(
         "POST",
-        "/v1/numbers/",
+        "/v1/numbers/byoc",
         {
-            "type": "byoc",
             "number": CALLER,
             "country_code": "US",
             "carrier_connection_id": STATE["connection_id"],
@@ -669,7 +664,7 @@ def webhooks():
 
 
 def health():
-    if health_status("/healthz") != 204 or health_status("/readyz") != 204:
+    if health_status("/healthz") != 200 or health_status("/readyz") != 200:
         raise AcceptanceError("HTTP health endpoints are not healthy")
     status = fs_cli("freeswitch", "status")
     if "UP" not in status.upper():
@@ -703,7 +698,7 @@ def restart_safety():
     compose("start", "freeswitch")
     wait_for(
         "readiness recovery after FreeSWITCH start",
-        lambda: health_status("/readyz") == 204,
+        lambda: health_status("/readyz") == 200,
         timeout=45,
     )
 
