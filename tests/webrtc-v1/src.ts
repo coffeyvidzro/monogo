@@ -123,12 +123,29 @@ window.runLeamoutWebRTCAcceptance = async (config) => {
                     report.nominated,
             );
         }
-        if (selectedPairs.length !== 1)
+        if (selectedPairs.length !== 1) {
+            const localCandidates = [...stats.values()]
+                .filter((report) => report.type === "local-candidate")
+                .map((candidate) =>
+                    `${candidate.candidateType ?? "unknown"}:${candidate.address ?? "unknown"}:${candidate.port ?? "unknown"}`,
+                );
+            const remoteCandidates = [...stats.values()]
+                .filter((report) => report.type === "remote-candidate")
+                .map((candidate) =>
+                    `${candidate.candidateType ?? "unknown"}:${candidate.address ?? "unknown"}:${candidate.port ?? "unknown"}`,
+                );
+            const pairs = [...stats.values()]
+                .filter((report) => report.type === "candidate-pair")
+                .map((pair) => `${pair.state}:${pair.nominated ? "nominated" : "not-nominated"}`);
             throw new Error(
                 `expected one selected ICE pair, got ${selectedPairs.length}; ` +
                 `iceConnectionState=${peerConnection.iceConnectionState}; ` +
-                `connectionState=${peerConnection.connectionState}`,
+                `connectionState=${peerConnection.connectionState}; ` +
+                `localCandidates=[${localCandidates.join(", ")}]; ` +
+                `remoteCandidates=[${remoteCandidates.join(", ")}]; ` +
+                `pairs=[${pairs.join(", ")}]`,
             );
+        }
 
         const localCandidates = [...stats.values()].filter(
             (report) => report.type === "local-candidate",
