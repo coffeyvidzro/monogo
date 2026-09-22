@@ -224,14 +224,49 @@ window.runLeamoutWebRTCAcceptance = async (config) => {
             );
         }
 
-        const inboundAudio = [...stats.values()].find(
-            (report) =>
-                report.type === "inbound-rtp" &&
-                report.kind === "audio" &&
-                report.bytesReceived > 0,
-        );
-        if (!inboundAudio)
-            throw new Error("no inbound audio received through TURN/RTPengine");
+        // ICE and DTLS can finish before the first audio frame exists.
+        // The echo endpoint returns browser audio, so verify that the
+        // microphone sends actual RTP and that remote audio arrives. Keep the
+        // call active while waiting rather than tearing it down immediately.
+        const audioDeadline = Date.now() + 12_000;
+        let inboundBytes = 0;
+        let outboundBytes = 0;
+        let inboundPackets = 0;
+        let outboundPackets = 0;
+        while (Date.now() < audioDeadline) {
+            stats = await peerConnection.getStats();
+            const inboundAudio = [...stats.values()].filter(
+                (report) => report.type === "inbound-rtp" && report.kind === "audio",
+            );
+            const outboundAudio = [...stats.values()].filter(
+                (report) => report.type === "outbound-rtp" && report.kind === "audio",
+            );
+            inboundBytes = inboundAudio.reduce(
+                (total, report) => total + (report.bytesReceived ?? 0), 0,
+            );
+            outboundBytes = outboundAudio.reduce(
+                (total, report) => total + (report.bytesSent ?? 0), 0,
+            );
+            inboundPackets = inboundAudio.reduce(
+                (total, report) => total + (report.packetsReceived ?? 0), 0,
+            );
+            outboundPackets = outboundAudio.reduce(
+                (total, report) => total + (report.packetsSent ?? 0), 0,
+            );
+            if (inboundBytes > 0 && outboundBytes > 0) break;
+            if (peerConnection.iceConnectionState === "failed" ||
+                peerConnection.connectionState === "failed") break;
+            await new Promise((resolve) => setTimeout(resolve, 250));
+        }
+        if (inboundBytes === 0 || outboundBytes === 0) {
+            throw new Error(
+                `no bidirectional audio through TURN/RTPengine after ICE nomination; ` +
+                `outboundBytes=${outboundBytes}, outboundPackets=${outboundPackets}, ` +
+                `inboundBytes=${inboundBytes}, inboundPackets=${inboundPackets}, ` +
+                `iceConnectionState=${peerConnection.iceConnectionState}, ` +
+                `connectionState=${peerConnection.connectionState}`,
+            );
+        }
         await inviter.bye();
     } finally {
         await registerer.unregister().catch(() => undefined);
