@@ -46,3 +46,14 @@ USER leamout
 EXPOSE 8080
 
 CMD ["/leamout/server"]
+# Atlas and the immutable migration set are built as a separate target so
+# Docker Compose can run schema changes before rolling out application workloads.
+FROM arigaio/atlas:1.3.0-alpine AS migration-build
+
+COPY migrations /migrations
+RUN /atlas migrate hash --dir file:///migrations
+
+FROM arigaio/atlas:1.3.0-alpine AS migrate
+
+COPY --from=migration-build /migrations /migrations
+ENTRYPOINT ["/atlas"]
