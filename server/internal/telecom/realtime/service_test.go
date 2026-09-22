@@ -34,7 +34,6 @@ func validTestConfig() coturn.Config {
 	}
 }
 
-
 func newTestService(t *testing.T, config coturn.Config, limiter IssueLimiter) (*Service, error) {
 	t.Helper()
 	client, err := coturn.New(config)
@@ -119,10 +118,10 @@ func TestNewServiceRejectsUnsafeConfiguration(t *testing.T) {
 		config coturn.Config
 	}{
 		{name: "missing secret", config: coturn.Config{URLs: []string{"turn:turn.example.com"}}},
-		{name: "short secret", config: Config{AuthSecret: "secret", URLs: []string{"turn:turn.example.com"}}},
-		{name: "missing URLs", config: Config{AuthSecret: strings.Repeat("s", 32)}},
-		{name: "insecure URL scheme", config: Config{AuthSecret: strings.Repeat("s", 32), URLs: []string{"https://turn.example.com"}}},
-		{name: "missing URL target", config: Config{AuthSecret: strings.Repeat("s", 32), URLs: []string{"turn:?transport=udp"}}},
+		{name: "short secret", config: coturn.Config{AuthSecret: "secret", URLs: []string{"turn:turn.example.com"}}},
+		{name: "missing URLs", config: coturn.Config{AuthSecret: strings.Repeat("s", 32)}},
+		{name: "insecure URL scheme", config: coturn.Config{AuthSecret: strings.Repeat("s", 32), URLs: []string{"https://turn.example.com"}}},
+		{name: "missing URL target", config: coturn.Config{AuthSecret: strings.Repeat("s", 32), URLs: []string{"turn:?transport=udp"}}},
 	}
 
 	for _, tt := range tests {
