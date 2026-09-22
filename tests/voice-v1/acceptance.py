@@ -311,7 +311,6 @@ def create_voice_application():
         "POST",
         "/v1/numbers/byoc",
         {
-            "type": "byoc",
             "number": DID,
             "country_code": "US",
             "carrier_connection_id": STATE["connection_id"],
@@ -331,7 +330,6 @@ def create_voice_application():
         "POST",
         "/v1/numbers/byoc",
         {
-            "type": "byoc",
             "number": CALLER,
             "country_code": "US",
             "carrier_connection_id": STATE["connection_id"],

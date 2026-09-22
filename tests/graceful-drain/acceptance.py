@@ -228,7 +228,6 @@ def provision():
         "POST",
         "/v1/numbers/byoc",
         {
-            "type": "byoc",
             "number": DID,
             "country_code": "US",
             "carrier_connection_id": connection["id"],

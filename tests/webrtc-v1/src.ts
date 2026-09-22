@@ -31,13 +31,13 @@ const inRelayRange = (
 // fingerprint values, and full SDP bodies must never enter test logs.
 const summarizeSDP = (description: RTCSessionDescription | null): string => {
     if (!description?.sdp) return "missing";
-    const lines = description.sdp.split(/\\r?\\n/);
+    const lines = description.sdp.split(/\r?\n/);
     const connections = lines.filter((line) => line.startsWith("c="));
     const media = lines.filter((line) => line.startsWith("m="));
     const candidates = lines
         .filter((line) => line.startsWith("a=candidate:"))
         .map((line) => {
-            const fields = line.slice("a=candidate:".length).split(/\\s+/);
+            const fields = line.slice("a=candidate:".length).split(/\s+/);
             const typ = fields.indexOf("typ");
             return `${fields[2] ?? "?"}:${typ >= 0 ? fields[typ + 1] : "unknown"}`;
         });
