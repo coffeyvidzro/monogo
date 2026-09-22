@@ -3,6 +3,10 @@ services:
     ports:
       - "127.0.0.1:8080:8080"
   rtpengine:
+    # Override the base Compose PUBLIC_IP (127.0.0.1 in this runner).
+    # The browser reaches RTPengine on the Docker media bridge, not loopback.
+    environment:
+      RTPENGINE_PUBLIC_IP: ${RTPENGINE_PUBLIC_IP:?RTPENGINE_PUBLIC_IP is required}
     ports: !reset []
 
   coturn:
