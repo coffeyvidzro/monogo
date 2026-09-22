@@ -30,7 +30,7 @@ func (m *modules) ready(ctx context.Context) error {
 // Worker readiness is private to its container. The listener starts only after
 // the FreeSWITCH lifecycle subscription has been acknowledged.
 func runWorkloadsWithReadiness(ctx context.Context, logger *logging.Logger, modules *modules) error {
-	listener, err := net.Listen("tcp", "127.0.0.1:8081")
+	listener, err := (&net.ListenConfig{}).Listen(ctx, "tcp", "127.0.0.1:8081")
 	if err != nil {
 		return fmt.Errorf("listen for worker readiness: %w", err)
 	}
