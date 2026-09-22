@@ -23,7 +23,7 @@ func TestWorkerReadinessHandler(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			handler := workerReadinessHandler(func(context.Context) error { return tt.err })
 			recorder := httptest.NewRecorder()
-			handler.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/readyz", nil))
+			handler.ServeHTTP(recorder, httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/readyz", nil))
 			if recorder.Code != tt.status {
 				t.Fatalf("status = %d, want %d", recorder.Code, tt.status)
 			}
@@ -43,7 +43,7 @@ func TestWorkerReadinessRejectsOtherMethods(t *testing.T) {
 		return nil
 	})
 	recorder := httptest.NewRecorder()
-	handler.ServeHTTP(recorder, httptest.NewRequest(http.MethodPost, "/readyz", nil))
+	handler.ServeHTTP(recorder, httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/readyz", nil))
 	if recorder.Code != http.StatusMethodNotAllowed {
 		t.Fatalf("status = %d, want %d", recorder.Code, http.StatusMethodNotAllowed)
 	}
