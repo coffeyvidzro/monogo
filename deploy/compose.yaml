@@ -218,18 +218,17 @@ services:
     networks: [control, signaling]
 
   coturn:
-    image: coturn/coturn:4.6.3
+    build:
+      context: ../containers/coturn
+      dockerfile: Dockerfile
     restart: unless-stopped
-    command:
-      - -c
-      - /etc/coturn/turnserver.conf
-      - --static-auth-secret=${TURN_AUTH_SECRET:?TURN_AUTH_SECRET is required}
-      - --realm=turn.${DOMAIN:?DOMAIN is required}
-      - --external-ip=${PUBLIC_IP:?PUBLIC_IP is required}
-      - --cert=/etc/coturn/tls/fullchain.pem
-      - --pkey=/etc/coturn/tls/privkey.pem
+    environment:
+      TURN_AUTH_SECRET: ${TURN_AUTH_SECRET:?TURN_AUTH_SECRET is required}
+      TURN_REALM: turn.${DOMAIN:?DOMAIN is required}
+      TURN_EXTERNAL_IP: ${PUBLIC_IP:?PUBLIC_IP is required}
+      TURN_MIN_PORT: "49152"
+      TURN_MAX_PORT: "65535"
     volumes:
-      - ../containers/coturn/turnserver.conf:/etc/coturn/turnserver.conf:ro
       - /etc/leamout/certs/fullchain.pem:/etc/coturn/tls/fullchain.pem:ro
       - /etc/leamout/certs/privkey.pem:/etc/coturn/tls/privkey.pem:ro
     ports:
