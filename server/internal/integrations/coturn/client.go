@@ -21,9 +21,11 @@ type Client struct {
 // mutate the response configuration after initialization.
 func New(config Config) (*Client, error) {
 	config.AuthSecret = strings.TrimSpace(config.AuthSecret)
-	for i := range config.URLs {
-		config.URLs[i] = strings.TrimSpace(config.URLs[i])
+	urls := make([]string, len(config.URLs))
+	for i, rawURL := range config.URLs {
+		urls[i] = strings.TrimSpace(rawURL)
 	}
+	config.URLs = urls
 	if err := config.validate(); err != nil {
 		return nil, err
 	}
