@@ -185,7 +185,7 @@ def connection_and_auth():
         (201,),
     )
     S["connection"] = item
-    item = api(
+    api(
         "PUT",
         f"/v1/carrier-connections/{item['id']}/outbound-auth",
         {
@@ -194,8 +194,12 @@ def connection_and_auth():
             "realm": "carrier.example",
             "secret": "first-secret",
         },
+        (204,),
     )
-    if not item["has_outbound_credentials"]:
+    # PUT acknowledges credential storage with no response body. Verify the
+    # actual persisted carrier configuration via GET instead.
+    updated = api("GET", f"/v1/carrier-connections/{item['id']}")
+    if not updated["has_outbound_credentials"]:
         raise Failure("outbound credentials were not marked present")
     assert_digest_runtime("first-secret", "367072b7e49f70c083774e6dc9d06af8")
     return "first digest credential is encrypted and active in OpenSIPS runtime"
@@ -318,8 +322,8 @@ def outbound(label):
         {
             "application_id": S["app"]["id"],
             "trunk_id": S["trunk"]["id"],
-            "from": CALLER,
-            "to": DID,
+            "from_uri": CALLER,
+            "to_uri": DID,
         },
         (201,),
     )
@@ -368,7 +372,11 @@ def rotate_and_authenticated_outbound():
             "realm": "carrier.example",
             "secret": "rotated-secret",
         },
+        (204,),
     )
+    updated = api("GET", f"/v1/carrier-connections/{S['connection']['id']}")
+    if not updated["has_outbound_credentials"]:
+        raise Failure("rotated outbound credentials were not marked present")
     assert_digest_runtime("rotated-secret", "9fcc44d55f26bac30b97201af8e5654d")
     write_carrier_secret("rotated-secret")
     opensips_after = compose("ps", "-q", "opensips")
@@ -441,7 +449,7 @@ def disable_rejects_routes():
     api(
         "POST",
         "/v1/calls/",
-        {"trunk_id": S["trunk"]["id"], "from": CALLER, "to": DID},
+        {"trunk_id": S["trunk"]["id"], "from_uri": CALLER, "to_uri": DID},
         (409,),
     )
     return "disabled carrier connection rejects new outbound routes"
