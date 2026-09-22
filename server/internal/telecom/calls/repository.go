@@ -54,6 +54,18 @@ func (r *Repository) CreateInbound(
 	})
 }
 
+// BindOutboundSIPCallID records the first real SIP dialog identity observed on
+// the originating FreeSWITCH channel. It never substitutes the logical call ID
+// or FreeSWITCH channel UUID for the SIP Call-ID.
+func (r *Repository) BindOutboundSIPCallID(ctx context.Context, organizationID, callID uuid.UUID, sipCallID string) error {
+	_, err := r.queries.SetOutboundCallSIPCallID(ctx, sqlc.SetOutboundCallSIPCallIDParams{
+		SipCallID:      sipCallID,
+		OrganizationID: organizationID,
+		ID:             callID,
+	})
+	return err
+}
+
 func (r *Repository) GetBySIPCallIDGlobal(
 	ctx context.Context,
 	sipCallID string,
