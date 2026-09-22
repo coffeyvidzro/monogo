@@ -1,4 +1,4 @@
-package realtime
+package coturn
 
 import (
 	"fmt"
@@ -6,15 +6,22 @@ import (
 	"strings"
 )
 
-func validateConfig(config Config) error {
-	if len(config.AuthSecret) < 32 {
+// Config contains the credential-issuer settings shared with the Coturn
+// container. URLs are publicly returned as ICE server configuration.
+type Config struct {
+	AuthSecret string
+	URLs       []string
+}
+
+func (c Config) validate() error {
+	if len(c.AuthSecret) < 32 {
 		return fmt.Errorf("TURN authentication secret must be at least 32 bytes")
 	}
-	if len(config.URLs) == 0 {
+	if len(c.URLs) == 0 {
 		return fmt.Errorf("at least one TURN or STUN URL is required")
 	}
-	for _, rawURL := range config.URLs {
-		if !validICEURL(strings.TrimSpace(rawURL)) {
+	for _, rawURL := range c.URLs {
+		if !validICEURL(rawURL) {
 			return fmt.Errorf("invalid TURN or STUN URL %q", rawURL)
 		}
 	}
@@ -32,9 +39,8 @@ func validICEURL(rawURL string) bool {
 		return false
 	}
 
-	// RFC 7064/7065 URLs normally parse the host and port into Opaque because
-	// they do not use // after the scheme. Also accept a conventional Host form
-	// while requiring an actual relay target in either representation.
+	// RFC 7064/7065 URLs normally parse the host and port into Opaque
+	// because they do not include // after the scheme.
 	target := parsed.Opaque
 	if target == "" {
 		target = parsed.Host
