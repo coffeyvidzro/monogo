@@ -29,7 +29,7 @@ func Run(ctx context.Context) error {
 		return fmt.Errorf("subscribe FreeSWITCH events: %w", err)
 	}
 
-	if err := runWorkloads(ctx, logger, modules); err != nil {
+	if err := runWorkloadsWithReadiness(ctx, logger, modules); err != nil {
 		return fmt.Errorf("worker runtime: %w", err)
 	}
 
