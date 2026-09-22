@@ -157,6 +157,20 @@ WHERE organization_id = sqlc.arg(organization_id)
   AND id = sqlc.arg(id)
 RETURNING *;
 
+-- name: SetOutboundCallSIPCallID :one
+-- Bind the actual FreeSWITCH SIP dialog identity after asynchronous originate.
+-- Replayed events with the same identity are idempotent; a different Call-ID
+-- must never overwrite a previously attributed dialog.
+UPDATE calls
+SET
+    sip_call_id = sqlc.arg(sip_call_id),
+    updated_at = CASE WHEN sip_call_id IS NULL THEN NOW() ELSE updated_at END
+WHERE organization_id = sqlc.arg(organization_id)
+  AND id = sqlc.arg(id)
+  AND direction = 'outbound'
+  AND (sip_call_id IS NULL OR sip_call_id = sqlc.arg(sip_call_id))
+RETURNING id;
+
 -- name: UpdateCallState :one
 UPDATE calls
 SET

@@ -54,6 +54,7 @@ const (
 type LifecycleEvent struct {
 	CallID       uuid.UUID
 	ChannelID    string
+	SIPCallID    string
 	Type         LifecycleEventType
 	OccurredAt   time.Time
 	HangupReason *string

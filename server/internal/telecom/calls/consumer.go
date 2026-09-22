@@ -47,6 +47,7 @@ func (c *Consumer) HandleLifecycle(
 	if err := c.service.ObserveLifecycle(ctx, LifecycleEvent{
 		CallID:       event.CallID,
 		ChannelID:    event.ChannelID,
+		SIPCallID:    event.SIPCallID,
 		Type:         LifecycleEventType(event.Type),
 		OccurredAt:   event.OccurredAt,
 		HangupReason: event.HangupReason,

@@ -34,6 +34,7 @@ const (
 type LifecycleEvent struct {
 	CallID       uuid.UUID
 	ChannelID    string
+	SIPCallID    string
 	Type         LifecycleType
 	OccurredAt   time.Time
 	HangupReason *string
@@ -55,6 +56,8 @@ type InboundEvent struct {
 func FreeSWITCHEvents() []string {
 	return []string{
 		"CHANNEL_CREATE",
+		"CHANNEL_PROGRESS",
+		"CHANNEL_PROGRESS_MEDIA",
 		"CHANNEL_ANSWER",
 		"CHANNEL_HOLD",
 		"CHANNEL_UNHOLD",
@@ -170,7 +173,13 @@ func TranslateFreeSWITCHEvent(event freeswitch.Event) (LifecycleEvent, error) {
 		return LifecycleEvent{}, err
 	}
 
-	result := LifecycleEvent{CallID: callID, ChannelID: channelID, Type: eventType, OccurredAt: occurredAt}
+	result := LifecycleEvent{
+		CallID: callID,
+		ChannelID: channelID,
+		SIPCallID: strings.TrimSpace(event.Header("variable_sip_call_id")),
+		Type: eventType,
+		OccurredAt: occurredAt,
+	}
 	if event.Name == "CHANNEL_HANGUP_COMPLETE" {
 		cause := strings.TrimSpace(firstNonEmpty(event.Header("Hangup-Cause"), event.Header("variable_hangup_cause")))
 		if cause != "" {
@@ -184,6 +193,8 @@ func lifecycleEventType(event freeswitch.Event) (LifecycleType, error) {
 	switch event.Name {
 	case "CHANNEL_CREATE":
 		return LifecycleInitiated, nil
+	case "CHANNEL_PROGRESS", "CHANNEL_PROGRESS_MEDIA":
+		return LifecycleRinging, nil
 	case "CHANNEL_ANSWER":
 		return LifecycleAnswered, nil
 	case "CHANNEL_HOLD":
