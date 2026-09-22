@@ -300,9 +300,9 @@ def establish_call():
     if not call.get("sip_call_id"):
         raise Failure("inbound call is missing SIP Call-ID attribution")
 
-    answered = api("POST", f"/v1/calls/{call['id']}/answer")
-    if answered.get("state") not in ("answered", "active"):
-        raise Failure(f"answer returned unexpected state: {answered.get('state')!r}")
+    # The action endpoint returns an acknowledgement, not a CallResponse.
+    # Poll the persisted call after executing the real FreeSWITCH answer action.
+    api("POST", f"/v1/calls/{call['id']}/answer")
 
     def connected_call():
         current = api("GET", f"/v1/calls/{call['id']}")
@@ -369,8 +369,9 @@ def cleanup_call():
         return
 
     channel_id = call["sip_call_id"]
-    updated = api("POST", f"/v1/calls/{call['id']}/hangup")
+    api("POST", f"/v1/calls/{call['id']}/hangup")
     time.sleep(0.5)
+    updated = api("GET", f"/v1/calls/{call['id']}")
     print(
         "POST-HANGUP "
         f"api_state={updated.get('state')} "
