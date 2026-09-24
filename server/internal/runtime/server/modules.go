@@ -6,6 +6,7 @@ import (
 
 	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
 	"github.com/coffeyvidzro/monogo/internal/identity"
+	"github.com/coffeyvidzro/monogo/internal/integrations/carriers/didww"
 	"github.com/coffeyvidzro/monogo/internal/integrations/coturn"
 	"github.com/coffeyvidzro/monogo/internal/integrations/freeswitch"
 	"github.com/coffeyvidzro/monogo/internal/integrations/minio"
@@ -102,6 +103,20 @@ func newModules(ctx context.Context, cfg config.Config) (*modules, error) {
 	}
 	recordingStorage := recordings.NewObjectStorage(objectClient)
 
+	// The DIDWW client is Leamout-owned; customer-provided carrier credentials
+	// must never be used for managed DID inventory or purchase operations.
+	var didwwInventory *didww.Client
+	if cfg.DIDWW.APIKey != "" {
+		didwwInventory, err = didww.New(didww.Config{
+			APIKey:  cfg.DIDWW.APIKey,
+			BaseURL: cfg.DIDWW.APIBaseURL,
+		})
+		if err != nil {
+			closeDependencies()
+			return nil, fmt.Errorf("initialize DIDWW inventory: %w", err)
+		}
+	}
+
 	queries := sqlc.New(postgresClient.Pool())
 	identityModule := identity.New(
 		queries,
@@ -118,6 +133,7 @@ func newModules(ctx context.Context, cfg config.Config) (*modules, error) {
 		CallsAdmission:       calling.NewAdmissionLimiter(redisClient),
 		ConferenceController: conferences.NewFreeSWITCHController(freeSwitch),
 		CredentialCipher:     credentialCipher,
+		DIDWWInventory:       didwwInventory,
 		RealtimeService:      turnService,
 		RecordingStorage:     recordingStorage,
 	})
