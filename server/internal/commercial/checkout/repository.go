@@ -27,19 +27,19 @@ func (r *Repository) Available() bool {
 func (r *Repository) Create(ctx context.Context, req CreateRequest, hash string) (sqlc.Checkout, error) {
 	return r.queries.CreateWalletCheckout(ctx, sqlc.CreateWalletCheckoutParams{
 		OrganizationID: req.OrganizationID,
-		WalletID: req.WalletID,
-		AmountMinor: req.AmountMinor,
-		Currency: req.Currency,
+		WalletID:       req.WalletID,
+		AmountMinor:    req.AmountMinor,
+		Currency:       req.Currency,
 		IdempotencyKey: req.IdempotencyKey,
-		RequestHash: hash,
-		ExpiresAt: pgconv.TimeToTimestamptz(req.ExpiresAt),
+		RequestHash:    hash,
+		ExpiresAt:      pgconv.TimeToTimestamptz(req.ExpiresAt),
 	})
 }
 
 func (r *Repository) ByKey(ctx context.Context, req CreateRequest) (sqlc.Checkout, error) {
 	return r.queries.GetWalletCheckoutByKey(ctx, sqlc.GetWalletCheckoutByKeyParams{
 		OrganizationID: req.OrganizationID,
-		WalletID: req.WalletID,
+		WalletID:       req.WalletID,
 		IdempotencyKey: req.IdempotencyKey,
 	})
 }
@@ -47,6 +47,6 @@ func (r *Repository) ByKey(ctx context.Context, req CreateRequest) (sqlc.Checkou
 func (r *Repository) Get(ctx context.Context, organizationID, checkoutID uuid.UUID) (sqlc.Checkout, error) {
 	return r.queries.GetWalletCheckout(ctx, sqlc.GetWalletCheckoutParams{
 		OrganizationID: organizationID,
-		ID: checkoutID,
+		ID:             checkoutID,
 	})
 }

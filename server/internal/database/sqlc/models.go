@@ -148,6 +148,22 @@ type CarrierProvider struct {
 	UpdatedAt pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 }
 
+// Wallet top-up intentions. Completion requires a verified payment and a unique wallet ledger credit; never infer success from checkout creation.
+type Checkout struct {
+	ID                    uuid.UUID          `db:"id" json:"id"`
+	WalletID              uuid.UUID          `db:"wallet_id" json:"wallet_id"`
+	AmountMinor           int64              `db:"amount_minor" json:"amount_minor"`
+	Currency              string             `db:"currency" json:"currency"`
+	IdempotencyKey        string             `db:"idempotency_key" json:"idempotency_key"`
+	RequestHash           string             `db:"request_hash" json:"request_hash"`
+	Status                string             `db:"status" json:"status"`
+	CreditedTransactionID *uuid.UUID         `db:"credited_transaction_id" json:"credited_transaction_id"`
+	ExpiresAt             pgtype.Timestamptz `db:"expires_at" json:"expires_at"`
+	CompletedAt           pgtype.Timestamptz `db:"completed_at" json:"completed_at"`
+	CreatedAt             pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	UpdatedAt             pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+}
+
 type Conference struct {
 	ID             uuid.UUID          `db:"id" json:"id"`
 	OrganizationID uuid.UUID          `db:"organization_id" json:"organization_id"`
@@ -323,6 +339,37 @@ type OutboxEvent struct {
 	UpdatedAt     pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 }
 
+// Provider payment attempts. A succeeded payment is not a wallet credit until a linked immutable ledger transaction exists.
+type Payment struct {
+	ID                  uuid.UUID          `db:"id" json:"id"`
+	CheckoutID          uuid.UUID          `db:"checkout_id" json:"checkout_id"`
+	Provider            string             `db:"provider" json:"provider"`
+	AttemptKey          string             `db:"attempt_key" json:"attempt_key"`
+	ProviderReference   *string            `db:"provider_reference" json:"provider_reference"`
+	AmountMinor         int64              `db:"amount_minor" json:"amount_minor"`
+	Currency            string             `db:"currency" json:"currency"`
+	Status              string             `db:"status" json:"status"`
+	VerifiedAt          pgtype.Timestamptz `db:"verified_at" json:"verified_at"`
+	WalletTransactionID *uuid.UUID         `db:"wallet_transaction_id" json:"wallet_transaction_id"`
+	FailureCode         *string            `db:"failure_code" json:"failure_code"`
+	CreatedAt           pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	UpdatedAt           pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+}
+
+// Signature-verified inbound provider event metadata and raw payload digest. Never store payment credentials or unredacted provider payloads here.
+type PaymentEvent struct {
+	ID              uuid.UUID          `db:"id" json:"id"`
+	PaymentID       *uuid.UUID         `db:"payment_id" json:"payment_id"`
+	Provider        string             `db:"provider" json:"provider"`
+	ProviderEventID string             `db:"provider_event_id" json:"provider_event_id"`
+	EventType       string             `db:"event_type" json:"event_type"`
+	PayloadSha256   string             `db:"payload_sha256" json:"payload_sha256"`
+	Status          string             `db:"status" json:"status"`
+	ErrorCode       *string            `db:"error_code" json:"error_code"`
+	ReceivedAt      pgtype.Timestamptz `db:"received_at" json:"received_at"`
+	ProcessedAt     pgtype.Timestamptz `db:"processed_at" json:"processed_at"`
+}
+
 type PhoneNumber struct {
 	ID                  uuid.UUID          `db:"id" json:"id"`
 	OrganizationID      uuid.UUID          `db:"organization_id" json:"organization_id"`
@@ -485,6 +532,29 @@ type VoiceBinding struct {
 	SipDomainID        *uuid.UUID         `db:"sip_domain_id" json:"sip_domain_id"`
 	SubscriberID       *uuid.UUID         `db:"subscriber_id" json:"subscriber_id"`
 	CreatedAt          pgtype.Timestamptz `db:"created_at" json:"created_at"`
+}
+
+// Available prepaid PAYG funds for an organization in a single currency; updates must be posted with a ledger entry in the same transaction.
+type Wallet struct {
+	ID             uuid.UUID          `db:"id" json:"id"`
+	OrganizationID uuid.UUID          `db:"organization_id" json:"organization_id"`
+	Currency       string             `db:"currency" json:"currency"`
+	BalanceMinor   int64              `db:"balance_minor" json:"balance_minor"`
+	CreatedAt      pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	UpdatedAt      pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+}
+
+// Immutable successful prepaid credits and debits. A unique business reference prevents a repeated operation from changing balance twice.
+type WalletTransaction struct {
+	ID                uuid.UUID          `db:"id" json:"id"`
+	WalletID          uuid.UUID          `db:"wallet_id" json:"wallet_id"`
+	Direction         string             `db:"direction" json:"direction"`
+	Reason            string             `db:"reason" json:"reason"`
+	AmountMinor       int64              `db:"amount_minor" json:"amount_minor"`
+	BalanceAfterMinor int64              `db:"balance_after_minor" json:"balance_after_minor"`
+	ReferenceType     string             `db:"reference_type" json:"reference_type"`
+	ReferenceID       uuid.UUID          `db:"reference_id" json:"reference_id"`
+	CreatedAt         pgtype.Timestamptz `db:"created_at" json:"created_at"`
 }
 
 type WebhookDelivery struct {
