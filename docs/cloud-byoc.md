@@ -32,7 +32,7 @@ unvalidated connection:
 6. Add at least one enabled endpoint for every outbound trunk.
 7. Wait for the endpoint health state to become `healthy`.
 8. Call `POST /v1/carrier-connections/{id}/validate`.
-9. Import the E.164 number with `POST /v1/numbers/byoc`.
+9. Import the E.164 number with `POST /v1/numbers/`.
 10. Bind the number to an active voice application.
 11. Run the inbound and outbound acceptance calls below.
 
