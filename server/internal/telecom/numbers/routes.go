@@ -14,10 +14,10 @@ func RegisterRoutes(
 ) {
 	router.Route("/numbers", func(r chi.Router) {
 		r.Use(auth)
-		r.With(idempotency).Post("/byoc", handler.CreateBYOC)
-		r.With(idempotency).Post("/managed", handler.PurchaseManaged)
-		r.Get("/orders/{order_id}", handler.GetManagedOrder)
 		r.Get("/available", handler.SearchAvailable)
+		r.With(idempotency).Post("/", handler.CreateNumber)
+		r.With(idempotency).Post("/purchase", handler.PurchaseNumber)
+		r.Get("/orders/{order_id}", handler.GetManagedOrder)
 		r.Get("/", handler.List)
 		r.Get("/{number_id}", handler.Get)
 		r.Patch("/{number_id}", handler.Update)
