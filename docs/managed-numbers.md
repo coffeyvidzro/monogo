@@ -22,9 +22,10 @@ or prepaid PAYG ledger** in this phase.
    Monogo order UUID used as DIDWW's external reference. It verifies that
    reference, waits for completion, then independently resolves the exact
    owned DID.
-5. The reconciler assigns the DID to the configured, platform-controlled
-   `DIDWW_INBOUND_TRUNK_ID` and reads the DID back. Only a matching number, DID
-   identity, and `voice_in_trunk` relationship permit activation.
+5. The reconciler resolves the single active, inbound-enabled DIDWW platform
+   connection and its database-backed `voice_in_trunk` provider resource. It
+   assigns the DID to that trunk and reads the DID back. Only a matching number,
+   DID identity, and `voice_in_trunk` relationship permit activation.
 6. Activation creates the managed `phone_numbers` row and completes the order
    in one serializable transaction. Normal inbound routing then uses the
    existing active-number and voice-binding lookup; an unbound number cannot
@@ -43,7 +44,8 @@ number. Completed acquisitions continue to hold their uniqueness claims.
 
 ## Configuration
 
-Set platform-owned `DIDWW_API_KEY` and `DIDWW_INBOUND_TRUNK_ID`. The inbound
-trunk must already exist in DIDWW and point only to an approved Monogo SIP
-edge. Missing either value fails managed purchases closed while BYOC remains
-available.
+Set the platform-owned `DIDWW_API_KEY`. The future backoffice must persist one
+active, inbound-enabled DIDWW platform carrier connection and associate its
+approved DIDWW Voice In Trunk through `carrier_connection_provider_resources`.
+Missing or ambiguous database routing configuration fails managed purchases
+closed while BYOC remains available.

@@ -18,21 +18,19 @@ import (
 )
 
 type Service struct {
-	repo           *Repository
-	inventory      *didww.Client
-	provider       managedProvider
-	inboundTrunkID string
-	db             *pgxpool.Pool
-	now            func() time.Time
+	repo      *Repository
+	inventory *didww.Client
+	provider  managedProvider
+	db        *pgxpool.Pool
+	now       func() time.Time
 }
 
 func NewService(repository *Repository, inventory *didww.Client) *Service {
 	return &Service{repo: repository, inventory: inventory, provider: inventory, now: time.Now}
 }
 
-func (s *Service) ConfigureManaged(db *pgxpool.Pool, inboundTrunkID string) {
+func (s *Service) ConfigureManaged(db *pgxpool.Pool) {
 	s.db = db
-	s.inboundTrunkID = strings.TrimSpace(inboundTrunkID)
 }
 
 // SearchAvailable reads DIDWW inventory only. It cannot reserve, purchase, or
@@ -207,8 +205,15 @@ func (s *Service) Purchase(ctx context.Context, organizationID uuid.UUID, key st
 	if !errors.Is(err, pgx.ErrNoRows) {
 		return ManagedOrder{}, apperror.NewInternal("read managed number order", err)
 	}
-	if s.provider == nil || s.inboundTrunkID == "" {
+	if s.provider == nil {
 		return ManagedOrder{}, apperror.NewServiceUnavailable("managed number purchasing is not configured", nil)
+	}
+	_, targets, err := s.repo.ManagedRoutingTargets(ctx)
+	if err != nil {
+		return ManagedOrder{}, apperror.NewInternal("resolve managed inbound route", err)
+	}
+	if len(targets) != 1 {
+		return ManagedOrder{}, apperror.NewServiceUnavailable("managed inbound route is not configured unambiguously", nil)
 	}
 
 	// Resolve the provider identity again at purchase time. Search results are
@@ -346,16 +351,21 @@ func (s *Service) Reconcile(ctx context.Context, orderID uuid.UUID) (ManagedOrde
 		return ManagedOrder{}, err
 	}
 
-	if !didUsesTrunk(did, s.inboundTrunkID) {
-		if _, err = s.provider.AssignDIDVoiceInTrunk(ctx, did.ID, s.inboundTrunkID); err != nil {
+	targets, err := s.repo.ManagedRoutingTargetsForProvider(ctx, order.ProviderID)
+	if err != nil || len(targets) != 1 {
+		return s.repo.ScheduleManagedReconciliation(ctx, order.ID, "inbound_route_not_configured", s.now().Add(managedReconcileDelay))
+	}
+	target := targets[0]
+	if !didUsesTrunk(did, target.ProviderResourceID) {
+		if _, err = s.provider.AssignDIDVoiceInTrunk(ctx, did.ID, target.ProviderResourceID); err != nil {
 			return s.repo.ScheduleManagedReconciliation(ctx, order.ID, "inbound_route_assignment_failed", s.now().Add(managedReconcileDelay))
 		}
 	}
 	verified, err := s.provider.GetDID(ctx, did.ID)
-	if err != nil || !didUsesTrunk(verified, s.inboundTrunkID) || normalizeProviderNumber(verified.Attributes.Number) != order.Number {
+	if err != nil || !didUsesTrunk(verified, target.ProviderResourceID) || normalizeProviderNumber(verified.Attributes.Number) != order.Number {
 		return s.repo.ScheduleManagedReconciliation(ctx, order.ID, "inbound_route_not_verified", s.now().Add(managedReconcileDelay))
 	}
-	return s.activateManagedNumber(ctx, order.ID, did.ID, s.now())
+	return s.activateManagedNumber(ctx, order.ID, did.ID, target, s.now())
 }
 func managedWriteError(err error) error {
 	if err == nil {
@@ -371,7 +381,7 @@ func managedWriteError(err error) error {
 	return apperror.NewInternal("persist managed number order", err)
 }
 
-func (s *Service) activateManagedNumber(ctx context.Context, orderID uuid.UUID, didID string, verifiedAt time.Time) (ManagedOrder, error) {
+func (s *Service) activateManagedNumber(ctx context.Context, orderID uuid.UUID, didID string, target sqlc.ListProviderRoutingTargetsRow, verifiedAt time.Time) (ManagedOrder, error) {
 	if s.db == nil {
 		return ManagedOrder{}, apperror.NewServiceUnavailable("managed number persistence is not configured", nil)
 	}
@@ -391,11 +401,11 @@ func (s *Service) activateManagedNumber(ctx context.Context, orderID uuid.UUID, 
 	if order.Status != "configuring" || order.ProviderDIDID == nil || *order.ProviderDIDID != didID {
 		return ManagedOrder{}, apperror.NewConflict("managed number order is not ready for activation")
 	}
-	phoneNumber, err := repository.CreateActivatedManagedNumber(ctx, order, didID)
+	phoneNumber, err := repository.CreateActivatedManagedNumber(ctx, order, didID, target.CarrierConnectionID)
 	if err != nil {
 		return ManagedOrder{}, managedWriteError(err)
 	}
-	order, err = repository.CompleteManagedOrder(ctx, order.ID, phoneNumber.ID, s.inboundTrunkID, verifiedAt)
+	order, err = repository.CompleteManagedOrder(ctx, order.ID, phoneNumber.ID, target.ProviderResourceID, verifiedAt)
 	if err != nil {
 		return ManagedOrder{}, managedWriteError(err)
 	}

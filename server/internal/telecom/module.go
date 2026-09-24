@@ -29,7 +29,6 @@ type Dependencies struct {
 	ConferenceController conferences.Controller
 	CredentialCipher     *encryption.Cipher
 	DIDWWInventory       *didww.Client
-	DIDWWInboundTrunkID  string
 	RealtimeService      *realtime.Service
 	RecordingStorage     recordings.Storage
 }
@@ -127,7 +126,7 @@ func New(deps Dependencies) (*Module, error) {
 
 	numbersRepository := numbers.NewRepository(deps.Queries)
 	numbersService := numbers.NewService(numbersRepository, deps.DIDWWInventory)
-	numbersService.ConfigureManaged(deps.DB, deps.DIDWWInboundTrunkID)
+	numbersService.ConfigureManaged(deps.DB)
 
 	voiceRepository := voice.NewRepository(deps.Queries)
 	voiceService := voice.NewService(voiceRepository)

@@ -188,7 +188,7 @@ func newModules(ctx context.Context, cfg config.Config) (*modules, error) {
 	}
 
 	var numberReconciliation *numbers.ReconciliationJob
-	if cfg.DIDWW.APIKey != "" && cfg.DIDWW.InboundTrunkID != "" {
+	if cfg.DIDWW.APIKey != "" {
 		provider, providerErr := didww.New(didww.Config{
 			APIKey:  cfg.DIDWW.APIKey,
 			BaseURL: cfg.DIDWW.APIBaseURL,
@@ -198,7 +198,7 @@ func newModules(ctx context.Context, cfg config.Config) (*modules, error) {
 			return nil, fmt.Errorf("initialize DIDWW managed numbers: %w", providerErr)
 		}
 		numberService := numbers.NewService(numbers.NewRepository(queries), provider)
-		numberService.ConfigureManaged(postgresClient.Pool(), cfg.DIDWW.InboundTrunkID)
+		numberService.ConfigureManaged(postgresClient.Pool())
 		numberReconciliation, err = numbers.NewReconciliationJob(numberService, 50)
 		if err != nil {
 			closeDependencies()

@@ -69,6 +69,24 @@ func (r *Repository) WithQueries(queries *sqlc.Queries) *Repository {
 	return NewRepository(queries)
 }
 
+func (r *Repository) ManagedRoutingTargets(
+	ctx context.Context,
+) (sqlc.CarrierProvider, []sqlc.ListProviderRoutingTargetsRow, error) {
+	provider, err := r.queries.GetCarrierProviderBySlug(ctx, "didww")
+	if err != nil {
+		return sqlc.CarrierProvider{}, nil, err
+	}
+	targets, err := r.ManagedRoutingTargetsForProvider(ctx, provider.ID)
+	return provider, targets, err
+}
+
+func (r *Repository) ManagedRoutingTargetsForProvider(
+	ctx context.Context,
+	providerID uuid.UUID,
+) ([]sqlc.ListProviderRoutingTargetsRow, error) {
+	return r.queries.ListProviderRoutingTargets(ctx, providerID)
+}
+
 func (r *Repository) CreateManagedOrder(ctx context.Context, organizationID uuid.UUID, key, hash string, request ManagedPurchaseRequest, availableDIDID, skuID string) (ManagedOrder, bool, error) {
 	row, err := r.queries.CreateManagedNumberOrder(ctx, sqlc.CreateManagedNumberOrderParams{
 		ID: uuid.New(), OrganizationID: organizationID, IdempotencyKey: key,
@@ -164,10 +182,16 @@ func (r *Repository) LockManagedOrder(ctx context.Context, id uuid.UUID) (Manage
 	return managedOrder(row), err
 }
 
-func (r *Repository) CreateActivatedManagedNumber(ctx context.Context, order ManagedOrder, didID string) (sqlc.PhoneNumber, error) {
+func (r *Repository) CreateActivatedManagedNumber(
+	ctx context.Context,
+	order ManagedOrder,
+	didID string,
+	carrierConnectionID uuid.UUID,
+) (sqlc.PhoneNumber, error) {
 	return r.queries.CreateManagedPhoneNumber(ctx, sqlc.CreateManagedPhoneNumberParams{
 		OrganizationID: order.OrganizationID, Number: order.Number, CountryCode: order.CountryCode,
 		ProviderID: &order.ProviderID, ProviderResourceID: &didID,
+		CarrierConnectionID: &carrierConnectionID,
 	})
 }
 
