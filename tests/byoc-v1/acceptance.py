@@ -336,9 +336,13 @@ def outbound(label):
     for field, value in expected.items():
         if call.get(field) != value:
             raise Failure(f"{field}={call.get(field)!r}, want {value}")
-    if not call.get("sip_call_id"):
-        raise Failure("outbound call has no SIP call id")
-    persisted = api("GET", f"/v1/calls/{call['id']}")
+    # Origination is queued. The real SIP Call-ID is persisted later by the
+    # FreeSWITCH lifecycle consumer, not necessarily in the POST response.
+    def persisted_with_sip_id():
+        current = api("GET", f"/v1/calls/{call['id']}")
+        return current if current.get("sip_call_id") else None
+
+    persisted = wait(f"{label} outbound SIP Call-ID", persisted_with_sip_id)
     for field, value in expected.items():
         if persisted.get(field) != value:
             raise Failure(f"persisted {field}={persisted.get(field)!r}, want {value}")
@@ -450,9 +454,9 @@ def disable_rejects_routes():
         "POST",
         "/v1/calls/",
         {"trunk_id": S["trunk"]["id"], "from_uri": CALLER, "to_uri": DID},
-        (409,),
+        (404,),
     )
-    return "disabled carrier connection rejects new outbound routes"
+    return "disabled carrier connection excludes outbound routes"
 
 
 def restart_persistence():
