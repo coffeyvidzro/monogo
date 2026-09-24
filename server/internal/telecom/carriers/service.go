@@ -68,7 +68,8 @@ func (s *Service) Create(ctx context.Context, org uuid.UUID, req CreateRequest) 
 		return Response{}, apperror.NewInternal("begin carrier connection creation", err)
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
-	row, err := s.repo.WithTx(tx).Create(ctx, sqlc.CreateCarrierConnectionParams{
+	transactionRepo := s.repo.WithTx(tx)
+	row, err := transactionRepo.Create(ctx, sqlc.CreateCarrierConnectionParams{
 		ID:                      id,
 		OrganizationID:          &org,
 		ProviderID:              req.ProviderID,
@@ -94,12 +95,12 @@ func (s *Service) Create(ctx context.Context, org uuid.UUID, req CreateRequest) 
 	// Keep the control-plane ciphertext and the OpenSIPS-readable HA1 rows
 	// in the same transaction. Missing/invalid credentials roll back creation.
 	if outRealm != nil {
-		if err := s.repo.WithTx(tx).InsertDigest(ctx, org, id, "outbound", *outUser, *outRealm, *outHA1); err != nil {
+		if err := transactionRepo.InsertDigest(ctx, org, id, "outbound", *outUser, *outRealm, *outHA1); err != nil {
 			return Response{}, writeError(err, "outbound carrier credentials could not be created")
 		}
 	}
 	if inRealm != nil {
-		if err := s.repo.WithTx(tx).InsertDigest(ctx, org, id, "inbound", *inUser, *inRealm, *inHA1); err != nil {
+		if err := transactionRepo.InsertDigest(ctx, org, id, "inbound", *inUser, *inRealm, *inHA1); err != nil {
 			return Response{}, writeError(err, "inbound carrier credentials could not be created")
 		}
 	}
