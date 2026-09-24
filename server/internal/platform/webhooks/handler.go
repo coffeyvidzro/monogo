@@ -136,12 +136,11 @@ func (h *Handler) GetDelivery(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	did, e := uuid.Parse(chi.URLParam(r, "delivery_id"))
-	if e != nil {
-		httputil.Error(w, apperror.NewBadRequest("invalid delivery_id"))
+	deliveryID, ok := deliveryID(w, r)
+	if !ok {
 		return
 	}
-	v, e := h.service.GetDelivery(r.Context(), org, id, did)
+	v, e := h.service.GetDelivery(r.Context(), org, id, deliveryID)
 	if e != nil {
 		httputil.Error(w, e)
 		return
@@ -153,18 +152,26 @@ func (h *Handler) Retry(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	did, e := uuid.Parse(chi.URLParam(r, "delivery_id"))
-	if e != nil {
-		httputil.Error(w, apperror.NewBadRequest("invalid delivery_id"))
+	deliveryID, ok := deliveryID(w, r)
+	if !ok {
 		return
 	}
-	v, e := h.service.Retry(r.Context(), org, id, did)
+	v, e := h.service.Retry(r.Context(), org, id, deliveryID)
 	if e != nil {
 		httputil.Error(w, e)
 		return
 	}
 	httputil.OK(w, deliveryResponse(v))
 }
+func deliveryID(w http.ResponseWriter, r *http.Request) (uuid.UUID, bool) {
+	id, err := uuid.Parse(chi.URLParam(r, "delivery_id"))
+	if err != nil {
+		httputil.Error(w, apperror.NewBadRequest("invalid delivery_id"))
+		return uuid.Nil, false
+	}
+	return id, true
+}
+
 func organization(w http.ResponseWriter, r *http.Request) (uuid.UUID, bool) {
 	v, ok := middleware.OrganizationIDFromContext(r.Context())
 	if !ok {
