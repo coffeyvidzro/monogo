@@ -35,14 +35,14 @@ func (r *Repository) Create(
 ) (sqlc.Call, error) {
 	return r.mutate(ctx, "call.initiated", func(queries *sqlc.Queries) (sqlc.Call, error) {
 		return queries.CreateCall(ctx, sqlc.CreateCallParams{
-		OrganizationID: organizationID,
-		ApplicationID:  req.ApplicationID,
-		Direction:      string(req.Direction),
-		State:          nil,
-		FromUri:        req.FromURI,
-		ToUri:          req.ToURI,
-		SipCallID:      req.SIPCallID,
-	})
+			OrganizationID: organizationID,
+			ApplicationID:  req.ApplicationID,
+			Direction:      string(req.Direction),
+			State:          nil,
+			FromUri:        req.FromURI,
+			ToUri:          req.ToURI,
+			SipCallID:      req.SIPCallID,
+		})
 	})
 }
 
@@ -55,14 +55,14 @@ func (r *Repository) CreateInbound(
 	sipCallID := req.SIPCallID
 	return r.mutate(ctx, "call.ringing", func(queries *sqlc.Queries) (sqlc.Call, error) {
 		return queries.CreateCall(ctx, sqlc.CreateCallParams{
-		OrganizationID: req.OrganizationID,
-		ApplicationID:  &applicationID,
-		Direction:      string(DirectionInbound),
-		State:          &state,
-		FromUri:        req.FromURI,
-		ToUri:          req.ToURI,
-		SipCallID:      &sipCallID,
-	})
+			OrganizationID: req.OrganizationID,
+			ApplicationID:  &applicationID,
+			Direction:      string(DirectionInbound),
+			State:          &state,
+			FromUri:        req.FromURI,
+			ToUri:          req.ToURI,
+			SipCallID:      &sipCallID,
+		})
 	})
 }
 
@@ -160,45 +160,45 @@ func (r *Repository) SetRouteAttribution(
 func (r *Repository) MarkRinging(ctx context.Context, organizationID, id uuid.UUID) (sqlc.Call, error) {
 	return r.mutate(ctx, "call.ringing", func(queries *sqlc.Queries) (sqlc.Call, error) {
 		return queries.MarkCallRinging(ctx, sqlc.MarkCallRingingParams{
-		OrganizationID: organizationID,
-		ID:             id,
-	})
+			OrganizationID: organizationID,
+			ID:             id,
+		})
 	})
 }
 
 func (r *Repository) MarkAnswered(ctx context.Context, organizationID, id uuid.UUID) (sqlc.Call, error) {
 	return r.mutate(ctx, "call.answered", func(queries *sqlc.Queries) (sqlc.Call, error) {
 		return queries.MarkCallAnswered(ctx, sqlc.MarkCallAnsweredParams{
-		OrganizationID: organizationID,
-		ID:             id,
-	})
+			OrganizationID: organizationID,
+			ID:             id,
+		})
 	})
 }
 
 func (r *Repository) MarkActive(ctx context.Context, organizationID, id uuid.UUID) (sqlc.Call, error) {
 	return r.mutate(ctx, "call.active", func(queries *sqlc.Queries) (sqlc.Call, error) {
 		return queries.MarkCallActive(ctx, sqlc.MarkCallActiveParams{
-		OrganizationID: organizationID,
-		ID:             id,
-	})
+			OrganizationID: organizationID,
+			ID:             id,
+		})
 	})
 }
 
 func (r *Repository) MarkHeld(ctx context.Context, organizationID, id uuid.UUID) (sqlc.Call, error) {
 	return r.mutate(ctx, "call.held", func(queries *sqlc.Queries) (sqlc.Call, error) {
 		return queries.MarkCallHeld(ctx, sqlc.MarkCallHeldParams{
-		OrganizationID: organizationID,
-		ID:             id,
-	})
+			OrganizationID: organizationID,
+			ID:             id,
+		})
 	})
 }
 
 func (r *Repository) MarkResumed(ctx context.Context, organizationID, id uuid.UUID) (sqlc.Call, error) {
 	return r.mutate(ctx, "call.resumed", func(queries *sqlc.Queries) (sqlc.Call, error) {
 		return queries.MarkCallResumed(ctx, sqlc.MarkCallResumedParams{
-		OrganizationID: organizationID,
-		ID:             id,
-	})
+			OrganizationID: organizationID,
+			ID:             id,
+		})
 	})
 }
 
@@ -209,10 +209,10 @@ func (r *Repository) MarkCompleted(
 ) (sqlc.Call, error) {
 	return r.mutate(ctx, "call.completed", func(queries *sqlc.Queries) (sqlc.Call, error) {
 		return queries.MarkCallCompleted(ctx, sqlc.MarkCallCompletedParams{
-		HangupReason:   reason,
-		OrganizationID: organizationID,
-		ID:             id,
-	})
+			HangupReason:   reason,
+			OrganizationID: organizationID,
+			ID:             id,
+		})
 	})
 }
 
@@ -223,10 +223,10 @@ func (r *Repository) MarkFailed(
 ) (sqlc.Call, error) {
 	return r.mutate(ctx, "call.failed", func(queries *sqlc.Queries) (sqlc.Call, error) {
 		return queries.MarkCallFailed(ctx, sqlc.MarkCallFailedParams{
-		HangupReason:   reason,
-		OrganizationID: organizationID,
-		ID:             id,
-	})
+			HangupReason:   reason,
+			OrganizationID: organizationID,
+			ID:             id,
+		})
 	})
 }
 
@@ -237,10 +237,10 @@ func (r *Repository) MarkCancelled(
 ) (sqlc.Call, error) {
 	return r.mutate(ctx, "call.cancelled", func(queries *sqlc.Queries) (sqlc.Call, error) {
 		return queries.MarkCallCancelled(ctx, sqlc.MarkCallCancelledParams{
-		HangupReason:   reason,
-		OrganizationID: organizationID,
-		ID:             id,
-	})
+			HangupReason:   reason,
+			OrganizationID: organizationID,
+			ID:             id,
+		})
 	})
 }
 
