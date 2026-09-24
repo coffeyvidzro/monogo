@@ -1,14 +1,45 @@
 package numbers
 
 import (
+	"encoding/json"
 	"errors"
 	"testing"
 
+	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
 	"github.com/coffeyvidzro/monogo/pkg/apperror"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 )
+
+func TestManagedNumberResponseHidesPlatformCarrier(t *testing.T) {
+	connectionID := uuid.New()
+	encoded, err := json.Marshal(response(sqlc.PhoneNumber{
+		ID:                  uuid.New(),
+		OrganizationID:      uuid.New(),
+		Number:              "+15551234567",
+		CountryCode:         "US",
+		ProvisioningMode:    "managed",
+		CarrierConnectionID: &connectionID,
+		Status:              "active",
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var body map[string]any
+	if err := json.Unmarshal(encoded, &body); err != nil {
+		t.Fatal(err)
+	}
+	if body["type"] != "managed" {
+		t.Fatalf("managed number type = %v", body["type"])
+	}
+	if _, exposed := body["carrier_connection_id"]; exposed {
+		t.Fatal("managed response exposed the platform carrier connection")
+	}
+	if _, exposed := body["provisioning_mode"]; exposed {
+		t.Fatal("managed response exposed internal provisioning terminology")
+	}
+}
 
 func TestNormalizeBYOC(t *testing.T) {
 	request := CreateBYOCRequest{

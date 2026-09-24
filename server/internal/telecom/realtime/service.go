@@ -2,17 +2,13 @@ package realtime
 
 import (
 	"context"
-	"crypto/hmac"
 	"crypto/rand"
-	"crypto/sha1" // #nosec G505 -- coturn's TURN REST authentication protocol requires HMAC-SHA1.
-	"encoding/base64"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
-	"strings"
 	"time"
 
+	"github.com/coffeyvidzro/monogo/internal/integrations/coturn"
 	"github.com/google/uuid"
 )
 
@@ -26,28 +22,24 @@ type IssueLimiter interface {
 }
 
 type Service struct {
-	config  Config
+	coturn  *coturn.Client
 	now     func() time.Time
 	random  io.Reader
 	limiter IssueLimiter
 }
 
-func NewService(config Config, limiter IssueLimiter) (*Service, error) {
-	for index := range config.URLs {
-		config.URLs[index] = strings.TrimSpace(config.URLs[index])
-	}
-	if err := validateConfig(config); err != nil {
-		return nil, err
+func NewService(coturnClient *coturn.Client, limiter IssueLimiter) (*Service, error) {
+	if coturnClient == nil {
+		return nil, fmt.Errorf("coturn client is required")
 	}
 	if limiter == nil {
 		return nil, fmt.Errorf("TURN credential issue limiter is required")
 	}
-	return &Service{config: config, now: time.Now, random: rand.Reader, limiter: limiter}, nil
+	return &Service{coturn: coturnClient, now: time.Now, random: rand.Reader, limiter: limiter}, nil
 }
 
-// Issue creates short-lived credentials compatible with coturn's
-// use-auth-secret mechanism. The expiry is encoded as the first username field
-// so coturn can reject the credential without calling the Leamout API.
+// Issue applies organization-scoped rate limiting before delegating TURN
+// credential generation to the Coturn integration.
 func (s *Service) Issue(ctx context.Context, organizationID uuid.UUID) (ICECredentials, error) {
 	if ctx == nil {
 		return ICECredentials{}, fmt.Errorf("context is required")
@@ -68,23 +60,16 @@ func (s *Service) Issue(ctx context.Context, organizationID uuid.UUID) (ICECrede
 		return ICECredentials{}, ErrIssueRateLimited
 	}
 
-	nonce := make([]byte, 16)
-	if _, err := io.ReadFull(s.random, nonce); err != nil {
-		return ICECredentials{}, fmt.Errorf("generate TURN credential nonce: %w", err)
+	issued, err := s.coturn.Issue(organizationID, s.now(), s.random)
+	if err != nil {
+		return ICECredentials{}, fmt.Errorf("issue TURN credential: %w", err)
 	}
-
-	expiresAt := s.now().UTC().Add(10 * time.Minute)
-	username := fmt.Sprintf("%d:%s:%s", expiresAt.Unix(), organizationID, hex.EncodeToString(nonce))
-	digest := hmac.New(sha1.New, []byte(s.config.AuthSecret))
-	_, _ = digest.Write([]byte(username))
-	credential := base64.StdEncoding.EncodeToString(digest.Sum(nil))
-
 	return ICECredentials{
 		ICEServers: []ICEServer{{
-			URLs:       append([]string(nil), s.config.URLs...),
-			Username:   username,
-			Credential: credential,
+			URLs:       s.coturn.URLs(),
+			Username:   issued.Username,
+			Credential: issued.Password,
 		}},
-		ExpiresAt: expiresAt,
+		ExpiresAt: issued.ExpiresAt,
 	}, nil
 }

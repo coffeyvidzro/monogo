@@ -115,9 +115,9 @@ telecom usage.
 ### Managed Carrier
 
 Leamout selects and provisions connectivity, is the commercial counterparty,
-and includes telecom usage in prepaid PAYG charging. DIDWW, CommPeak, and future
-provider credentials stay inside Leamout Cloud and are never distributed to
-customers.
+and includes telecom usage in prepaid PAYG charging. Upstream provider
+selection, routing identifiers, and credentials are platform-internal and are
+never exposed through customer APIs.
 
 ## Deployment boundaries
 

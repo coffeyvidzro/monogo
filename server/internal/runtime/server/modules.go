@@ -6,6 +6,7 @@ import (
 
 	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
 	"github.com/coffeyvidzro/monogo/internal/identity"
+	"github.com/coffeyvidzro/monogo/internal/integrations/coturn"
 	"github.com/coffeyvidzro/monogo/internal/integrations/freeswitch"
 	"github.com/coffeyvidzro/monogo/internal/integrations/minio"
 	"github.com/coffeyvidzro/monogo/internal/integrations/postgres"
@@ -78,13 +79,15 @@ func newModules(ctx context.Context, cfg config.Config) (*modules, error) {
 		return nil, fmt.Errorf("initialize carrier credential encryption: %w", err)
 	}
 
-	turnService, err := realtime.NewService(
-		realtime.Config{
-			AuthSecret: cfg.TURNAuthSecret,
-			URLs:       cfg.TURNPublicURLs,
-		},
-		redisClient,
-	)
+	coturnClient, err := coturn.New(coturn.Config{
+		AuthSecret: cfg.TURNAuthSecret,
+		URLs:       cfg.TURNPublicURLs,
+	})
+	if err != nil {
+		closeDependencies()
+		return nil, fmt.Errorf("initialize Coturn integration: %w", err)
+	}
+	turnService, err := realtime.NewService(coturnClient, redisClient)
 	if err != nil {
 		closeDependencies()
 		return nil, fmt.Errorf("initialize TURN credentials: %w", err)

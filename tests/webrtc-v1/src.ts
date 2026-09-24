@@ -1,0 +1,275 @@
+import { Inviter, Registerer, SessionState, UserAgent } from "sip.js";
+
+type AcceptanceConfig = {
+    websocketUrl: string;
+    sipUri: string;
+    authorizationUsername: string;
+    authorizationPassword: string;
+    destinationUri: string;
+    iceServers: RTCIceServer[];
+    turnRelayMinPort: number;
+    turnRelayMaxPort: number;
+};
+
+declare global {
+    interface Window {
+        runLeamoutWebRTCAcceptance(config: AcceptanceConfig): Promise<void>;
+    }
+}
+
+const inRelayRange = (
+    port: unknown,
+    minPort: number,
+    maxPort: number,
+): boolean =>
+    typeof port === "number" &&
+    Number.isInteger(port) &&
+    port >= minPort &&
+    port <= maxPort;
+
+// Only expose structural SDP data in CI: ICE secrets, SIP credentials,
+// fingerprint values, and full SDP bodies must never enter test logs.
+const summarizeSDP = (description: RTCSessionDescription | null): string => {
+    if (!description?.sdp) return "missing";
+    const lines = description.sdp.split(/\r?\n/);
+    const connections = lines.filter((line) => line.startsWith("c="));
+    const media = lines.filter((line) => line.startsWith("m="));
+    const candidates = lines
+        .filter((line) => line.startsWith("a=candidate:"))
+        .map((line) => {
+            const fields = line.slice("a=candidate:".length).split(/\s+/);
+            const typ = fields.indexOf("typ");
+            return `${fields[2] ?? "?"}:${fields[4] ?? "?"}:${fields[5] ?? "?"}:${typ >= 0 ? fields[typ + 1] : "unknown"}`;
+        });
+    return JSON.stringify({
+        type: description.type,
+        connections,
+        media,
+        candidates,
+        hasIceUfrag: lines.some((line) => line.startsWith("a=ice-ufrag:")),
+        hasIcePwd: lines.some((line) => line.startsWith("a=ice-pwd:")),
+        hasFingerprint: lines.some((line) => line.startsWith("a=fingerprint:")),
+        hasEndOfCandidates: lines.includes("a=end-of-candidates"),
+        setup: lines.filter((line) => line.startsWith("a=setup:")),
+    });
+};
+
+window.runLeamoutWebRTCAcceptance = async (config) => {
+    const uri = UserAgent.makeURI(config.sipUri);
+    const destination = UserAgent.makeURI(config.destinationUri);
+    if (!uri || !destination) throw new Error("invalid SIP URI");
+    if (
+        !Number.isInteger(config.turnRelayMinPort) ||
+        !Number.isInteger(config.turnRelayMaxPort)
+    ) {
+        throw new Error("invalid TURN relay port range");
+    }
+    if (
+        config.turnRelayMinPort < 1 ||
+        config.turnRelayMaxPort > 65535 ||
+        config.turnRelayMinPort > config.turnRelayMaxPort
+    ) {
+        throw new Error("invalid TURN relay port range");
+    }
+
+    const userAgent = new UserAgent({
+        uri,
+        authorizationUsername: config.authorizationUsername,
+        authorizationPassword: config.authorizationPassword,
+        transportOptions: { server: config.websocketUrl },
+        sessionDescriptionHandlerFactoryOptions: {
+            peerConnectionConfiguration: {
+                iceServers: config.iceServers,
+                iceTransportPolicy: "relay",
+            },
+        },
+    });
+    const registerer = new Registerer(userAgent);
+
+    try {
+        await userAgent.start();
+        await registerer.register();
+
+        const inviter = new Inviter(userAgent, destination, {
+            sessionDescriptionHandlerOptions: {
+                constraints: { audio: true, video: false },
+            },
+        });
+        await inviter.invite();
+        await new Promise<void>((resolve, reject) => {
+            const timer = setTimeout(
+                () => reject(new Error("SIP call did not establish")),
+                30_000,
+            );
+            inviter.stateChange.addListener((state) => {
+                if (state === SessionState.Established) {
+                    clearTimeout(timer);
+                    resolve();
+                } else if (state === SessionState.Terminated) {
+                    clearTimeout(timer);
+                    reject(
+                        new Error("SIP call terminated before establishment"),
+                    );
+                }
+            });
+        });
+
+        const handler = inviter.sessionDescriptionHandler as unknown as {
+            peerConnection: RTCPeerConnection;
+        };
+        const peerConnection = handler.peerConnection;
+        const remote = document.querySelector<HTMLAudioElement>("#remote");
+        if (!remote) throw new Error("remote audio element unavailable");
+        remote.srcObject = new MediaStream(
+            peerConnection
+                .getReceivers()
+                .flatMap((receiver) =>
+                    receiver.track ? [receiver.track] : [],
+                ),
+        );
+
+        // SIP establishment is not proof of ICE connectivity. Wait for ICE
+        // nomination and report the actual ICE state when media cannot connect.
+        let stats = await peerConnection.getStats();
+        let selectedPairs = [...stats.values()].filter(
+            (report) =>
+                report.type === "candidate-pair" &&
+                report.state === "succeeded" &&
+                report.nominated,
+        );
+        const deadline = Date.now() + 20_000;
+        while (selectedPairs.length !== 1 && Date.now() < deadline) {
+            if (peerConnection.iceConnectionState === "failed" ||
+                peerConnection.connectionState === "failed") break;
+            await new Promise((resolve) => setTimeout(resolve, 250));
+            stats = await peerConnection.getStats();
+            selectedPairs = [...stats.values()].filter(
+                (report) =>
+                    report.type === "candidate-pair" &&
+                    report.state === "succeeded" &&
+                    report.nominated,
+            );
+        }
+        if (selectedPairs.length !== 1) {
+            const localCandidates = [...stats.values()]
+                .filter((report) => report.type === "local-candidate")
+                .map((candidate) =>
+                    `${candidate.candidateType ?? "unknown"}:${candidate.address ?? "unknown"}:${candidate.port ?? "unknown"}`,
+                );
+            const remoteCandidates = [...stats.values()]
+                .filter((report) => report.type === "remote-candidate")
+                .map((candidate) =>
+                    `${candidate.candidateType ?? "unknown"}:${candidate.address ?? "unknown"}:${candidate.port ?? "unknown"}`,
+                );
+            const pairs = [...stats.values()]
+                .filter((report) => report.type === "candidate-pair")
+                .map((pair) => `${pair.state}:${pair.nominated ? "nominated" : "not-nominated"}`);
+            throw new Error(
+                `expected one selected ICE pair, got ${selectedPairs.length}; ` +
+                `iceConnectionState=${peerConnection.iceConnectionState}; ` +
+                `connectionState=${peerConnection.connectionState}; ` +
+                `localCandidates=[${localCandidates.join(", ")}]; ` +
+                `remoteCandidates=[${remoteCandidates.join(", ")}]; ` +
+                `pairs=[${pairs.join(", ")}]; ` +
+                `localSDP=${summarizeSDP(peerConnection.localDescription)}; ` +
+                `remoteSDP=${summarizeSDP(peerConnection.remoteDescription)}`,
+            );
+        }
+
+        const localCandidates = [...stats.values()].filter(
+            (report) => report.type === "local-candidate",
+        );
+        const gatheredRelayCandidates = localCandidates.filter(
+            (candidate) =>
+                candidate.candidateType === "relay" &&
+                inRelayRange(
+                    candidate.port,
+                    config.turnRelayMinPort,
+                    config.turnRelayMaxPort,
+                ),
+        );
+        if (gatheredRelayCandidates.length === 0) {
+            const observed = localCandidates
+                .map(
+                    (candidate) =>
+                        `${candidate.candidateType ?? "unknown"}:${candidate.port ?? "unknown"}`,
+                )
+                .join(", ");
+            throw new Error(
+                `no TURN relay candidate gathered in ${config.turnRelayMinPort}-${config.turnRelayMaxPort}; observed ${observed || "none"}`,
+            );
+        }
+
+        const localCandidate = stats.get(selectedPairs[0].localCandidateId);
+        if (!localCandidate)
+            throw new Error("selected ICE pair has no local candidate stats");
+        if (
+            !inRelayRange(
+                localCandidate.port,
+                config.turnRelayMinPort,
+                config.turnRelayMaxPort,
+            )
+        ) {
+            throw new Error(
+                `selected ICE candidate escaped TURN relay range ${config.turnRelayMinPort}-${config.turnRelayMaxPort}: ` +
+                    `${localCandidate.candidateType ?? "unknown"}:${localCandidate.port ?? "unknown"}`,
+            );
+        }
+        if (
+            localCandidate.candidateType !== "relay" &&
+            localCandidate.candidateType !== "prflx"
+        ) {
+            throw new Error(
+                `expected selected TURN relay/prflx candidate, got ${localCandidate.candidateType ?? "none"}`,
+            );
+        }
+
+        // ICE and DTLS can finish before the first audio frame exists.
+        // The echo endpoint returns browser audio, so verify that the
+        // microphone sends actual RTP and that remote audio arrives. Keep the
+        // call active while waiting rather than tearing it down immediately.
+        const audioDeadline = Date.now() + 12_000;
+        let inboundBytes = 0;
+        let outboundBytes = 0;
+        let inboundPackets = 0;
+        let outboundPackets = 0;
+        while (Date.now() < audioDeadline) {
+            stats = await peerConnection.getStats();
+            const inboundAudio = [...stats.values()].filter(
+                (report) => report.type === "inbound-rtp" && report.kind === "audio",
+            );
+            const outboundAudio = [...stats.values()].filter(
+                (report) => report.type === "outbound-rtp" && report.kind === "audio",
+            );
+            inboundBytes = inboundAudio.reduce(
+                (total, report) => total + (report.bytesReceived ?? 0), 0,
+            );
+            outboundBytes = outboundAudio.reduce(
+                (total, report) => total + (report.bytesSent ?? 0), 0,
+            );
+            inboundPackets = inboundAudio.reduce(
+                (total, report) => total + (report.packetsReceived ?? 0), 0,
+            );
+            outboundPackets = outboundAudio.reduce(
+                (total, report) => total + (report.packetsSent ?? 0), 0,
+            );
+            if (inboundBytes > 0 && outboundBytes > 0) break;
+            if (peerConnection.iceConnectionState === "failed" ||
+                peerConnection.connectionState === "failed") break;
+            await new Promise((resolve) => setTimeout(resolve, 250));
+        }
+        if (inboundBytes === 0 || outboundBytes === 0) {
+            throw new Error(
+                `no bidirectional audio through TURN/RTPengine after ICE nomination; ` +
+                `outboundBytes=${outboundBytes}, outboundPackets=${outboundPackets}, ` +
+                `inboundBytes=${inboundBytes}, inboundPackets=${inboundPackets}, ` +
+                `iceConnectionState=${peerConnection.iceConnectionState}, ` +
+                `connectionState=${peerConnection.connectionState}`,
+            );
+        }
+        await inviter.bye();
+    } finally {
+        await registerer.unregister().catch(() => undefined);
+        await userAgent.stop();
+    }
+};

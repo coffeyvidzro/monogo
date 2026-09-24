@@ -30,7 +30,7 @@ type Response struct {
 	OrganizationID      uuid.UUID  `json:"organization_id"`
 	Number              string     `json:"number"`
 	CountryCode         string     `json:"country_code"`
-	ProvisioningMode    string     `json:"provisioning_mode"`
+	Type                string     `json:"type"`
 	CarrierConnectionID *uuid.UUID `json:"carrier_connection_id,omitempty"`
 	VoiceEnabled        bool       `json:"voice_enabled"`
 	SmsEnabled          bool       `json:"sms_enabled"`
@@ -40,13 +40,19 @@ type Response struct {
 }
 
 func response(row sqlc.PhoneNumber) Response {
+	// A managed carrier connection belongs to Leamout. It identifies an
+	// upstream route and must not become part of the customer API contract.
+	carrierConnectionID := row.CarrierConnectionID
+	if row.ProvisioningMode == "managed" {
+		carrierConnectionID = nil
+	}
 	return Response{
 		ID:                  row.ID,
 		OrganizationID:      row.OrganizationID,
 		Number:              row.Number,
 		CountryCode:         row.CountryCode,
-		ProvisioningMode:    row.ProvisioningMode,
-		CarrierConnectionID: row.CarrierConnectionID,
+		Type:                row.ProvisioningMode,
+		CarrierConnectionID: carrierConnectionID,
 		VoiceEnabled:        row.VoiceEnabled,
 		SmsEnabled:          row.SmsEnabled,
 		Status:              row.Status,

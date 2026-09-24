@@ -3,6 +3,7 @@ package calls
 import (
 	"context"
 	"errors"
+	"strings"
 
 	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
 	"github.com/coffeyvidzro/monogo/pkg/apperror"
@@ -27,6 +28,20 @@ func (s *Service) ObserveLifecycle(ctx context.Context, event LifecycleEvent) er
 	if err != nil {
 		return apperror.NewInternal("resolve lifecycle call", err)
 	}
+	// Origination is queued; the real SIP Call-ID only exists once FreeSWITCH
+	// has created a SIP dialog. Record it from the correlated channel's ESL
+	// events, before applying the state transition (including terminal events).
+	if snapshot.Direction == string(DirectionOutbound) {
+		if sipCallID := strings.TrimSpace(event.SIPCallID); sipCallID != "" {
+			if err := s.repo.BindOutboundSIPCallID(ctx, snapshot.OrganizationID, event.CallID, sipCallID); err != nil {
+				if errors.Is(err, pgx.ErrNoRows) {
+					return apperror.NewConflict("outbound SIP Call-ID conflicts with existing call identity")
+				}
+				return apperror.NewInternal("persist outbound SIP Call-ID", err)
+			}
+		}
+	}
+
 	if !isTerminalLifecycle(event.Type) && snapshot.CarrierConnectionID != nil {
 		if err := s.admission.Refresh(ctx, *snapshot.CarrierConnectionID, event.CallID); err != nil {
 			return apperror.NewServiceUnavailable("refresh carrier call lease", err)

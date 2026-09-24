@@ -1071,6 +1071,34 @@ func (q *Queries) SetCallRouteAttribution(ctx context.Context, arg SetCallRouteA
 	return i, err
 }
 
+const setOutboundCallSIPCallID = `-- name: SetOutboundCallSIPCallID :one
+UPDATE calls
+SET
+    sip_call_id = $1,
+    updated_at = CASE WHEN sip_call_id IS NULL THEN NOW() ELSE updated_at END
+WHERE organization_id = $2
+  AND id = $3
+  AND direction = 'outbound'
+  AND (sip_call_id IS NULL OR sip_call_id = $1)
+RETURNING id
+`
+
+type SetOutboundCallSIPCallIDParams struct {
+	SipCallID      *string   `db:"sip_call_id" json:"sip_call_id"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	ID             uuid.UUID `db:"id" json:"id"`
+}
+
+// Bind the actual FreeSWITCH SIP dialog identity after asynchronous originate.
+// Replayed events with the same identity are idempotent; a different Call-ID
+// must never overwrite a previously attributed dialog.
+func (q *Queries) SetOutboundCallSIPCallID(ctx context.Context, arg SetOutboundCallSIPCallIDParams) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, setOutboundCallSIPCallID, arg.SipCallID, arg.OrganizationID, arg.ID)
+	var id uuid.UUID
+	err := row.Scan(&id)
+	return id, err
+}
+
 const updateCallState = `-- name: UpdateCallState :one
 UPDATE calls
 SET

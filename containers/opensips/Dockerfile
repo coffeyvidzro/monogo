@@ -19,6 +19,8 @@ RUN apt-get update \
         "opensips=$package_version" \
         "opensips-auth-modules=$package_version" \
         "opensips-postgres-module=$package_version" \
+        "opensips-tlsmgm-module=$package_version" \
+        "opensips-tls-openssl-module=$package_version" \
         "opensips-tls-module=$package_version" \
         "opensips-wss-module=$package_version" \
     && installed_version="$(dpkg-query -W -f='${Version}' opensips)" \

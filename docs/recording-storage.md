@@ -27,10 +27,17 @@ MINIO_APP_ACCESS_KEY=...
 MINIO_APP_SECRET_KEY=...
 ```
 
-The one-shot `minio-init` service creates a private bucket and a bucket-scoped
-application policy. The API and worker use the application credentials, not the
-root credentials. MinIO's console is not published. Caddy exposes only the S3
-API hostname needed by signed playback URLs.
+Provision a private `recordings` bucket and a bucket-scoped application user
+before starting production. Apply `deploy/minio-recordings-policy.json` to that
+user. The Compose stack no longer provisions the user or its policy. The API and
+worker use the application credentials, not the root credentials.
+
+On startup, the S3 client creates `recordings` if it is missing and the configured
+credentials allow bucket creation. The disposable acceptance suites use their
+MinIO administrator credentials for this bootstrap; production should use a
+pre-provisioned bucket and limited application credentials. MinIO's console is
+not published. Caddy exposes only the S3 API hostname needed by signed playback
+URLs.
 
 The FreeSWITCH and worker containers share `recordings-data`. Do not mount this
 volume into the API container. The worker validates that every source file and

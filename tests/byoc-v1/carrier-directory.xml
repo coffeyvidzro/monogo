@@ -1,0 +1,15 @@
+<include>
+  <domain name="carrier.example">
+    <groups>
+      <group name="default">
+        <users>
+          <user id="byoc-user">
+            <params>
+              <param name="password" value="first-secret"/>
+            </params>
+          </user>
+        </users>
+      </group>
+    </groups>
+  </domain>
+</include>

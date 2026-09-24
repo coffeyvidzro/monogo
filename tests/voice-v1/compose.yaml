@@ -1,0 +1,78 @@
+services:
+  server:
+    ports:
+      - "127.0.0.1:8080:8080"
+    environment:
+      SSL_CERT_FILE: /voice-v1-certs/ca.crt
+    volumes:
+      - ${VOICE_V1_CERT_DIR:?VOICE_V1_CERT_DIR is required}/ca.crt:/voice-v1-certs/ca.crt:ro
+
+  worker:
+    environment:
+      SSL_CERT_FILE: /voice-v1-certs/ca.crt
+    volumes:
+      - ${VOICE_V1_CERT_DIR:?VOICE_V1_CERT_DIR is required}/ca.crt:/voice-v1-certs/ca.crt:ro
+
+  opensips:
+    environment:
+      # The OpenSIPS entrypoint uses SIP_DOMAIN for Record-Route.
+      # In-dialog ACK/BYE must reach this container from both SIP peers.
+      SIP_DOMAIN: opensips
+    volumes:
+      - ${VOICE_V1_CERT_DIR:?VOICE_V1_CERT_DIR is required}/opensips-fullchain.pem:/etc/opensips/tls/fullchain.pem:ro
+      - ${VOICE_V1_CERT_DIR:?VOICE_V1_CERT_DIR is required}/opensips-privkey.pem:/etc/opensips/tls/privkey.pem:ro
+      - ${VOICE_V1_CERT_DIR:?VOICE_V1_CERT_DIR is required}/opensips-carrier-ca.pem:/etc/opensips/tls/carrier-ca.pem:ro
+
+  rtpengine:
+    # The acceptance carrier reaches RTPengine on public-media, so publishing
+    # the production RTP range to the GitHub runner is unnecessary.
+    ports: !reset []
+
+  voice-v1-carrier:
+    image: leamout/voice-v1-carrier:dev
+    build:
+      context: ../containers/freeswitch
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      FREESWITCH_ESL_PASSWORD: ${FREESWITCH_ESL_PASSWORD:?FREESWITCH_ESL_PASSWORD is required}
+    volumes:
+      - ${VOICE_V1_SUITE_DIR:?VOICE_V1_SUITE_DIR is required}/carrier-dialplan.xml:/leamout-config/dialplan/leamout.xml:ro
+      - ${VOICE_V1_SUITE_DIR:?VOICE_V1_SUITE_DIR is required}/carrier-sip-profile.xml:/leamout-config/sip_profiles/internal.xml:ro
+    expose:
+      - "5060/udp"
+      - "5060/tcp"
+      - "8021/tcp"
+    networks:
+      signaling:
+        ipv4_address: 172.30.0.50
+      media:
+        ipv4_address: 172.31.0.50
+
+  voice-v1-webhook:
+    image: python:3.13-alpine
+    restart: unless-stopped
+    command:
+      - python
+      - /app/webhook_receiver.py
+      - --cert
+      - /certs/webhook.crt
+      - --key
+      - /certs/webhook.key
+      - --port
+      - "8443"
+    volumes:
+      - ${VOICE_V1_SUITE_DIR:?VOICE_V1_SUITE_DIR is required}/webhook_receiver.py:/app/webhook_receiver.py:ro
+      - ${VOICE_V1_CERT_DIR:?VOICE_V1_CERT_DIR is required}/webhook.crt:/certs/webhook.crt:ro
+      - ${VOICE_V1_CERT_DIR:?VOICE_V1_CERT_DIR is required}/webhook.key:/certs/webhook.key:ro
+    ports:
+      - "18443:8443"
+    networks:
+      - control
+
+# Acceptance carriers bind to fixed addresses on the signaling network.
+networks:
+  signaling:
+    ipam:
+      config:
+        - subnet: 172.30.0.0/24
