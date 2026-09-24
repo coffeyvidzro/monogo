@@ -10,29 +10,6 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-func (r *Repository) ListForHealthCheck(ctx context.Context, checkedAt, dueBefore time.Time, batchSize int32) ([]sqlc.TrunkEndpoint, error) {
-	return r.queries.ListTrunkEndpointsForHealthCheck(ctx, sqlc.ListTrunkEndpointsForHealthCheckParams{
-		CheckedAt: pgconv.TimeToTimestamptz(checkedAt),
-		DueBefore: pgconv.TimeToTimestamptz(dueBefore),
-		BatchSize: batchSize,
-	})
-}
-
-func (r *Repository) MarkHealthy(ctx context.Context, id uuid.UUID, checkedAt time.Time, responseCode, latencyMs int32) error {
-	_, err := r.queries.MarkTrunkEndpointHealthy(ctx, sqlc.MarkTrunkEndpointHealthyParams{
-		CheckedAt: pgconv.TimeToTimestamptz(checkedAt), ResponseCode: &responseCode, LatencyMs: &latencyMs, ID: id,
-	})
-	return err
-}
-
-func (r *Repository) MarkProbeFailed(ctx context.Context, id uuid.UUID, checkedAt time.Time, latencyMs int32, message string, threshold int32, cooldownUntil time.Time) error {
-	_, err := r.queries.MarkTrunkEndpointProbeFailed(ctx, sqlc.MarkTrunkEndpointProbeFailedParams{
-		FailureThreshold: threshold, CheckedAt: pgconv.TimeToTimestamptz(checkedAt), LatencyMs: &latencyMs,
-		LastError: &message, CooldownUntil: pgconv.TimeToTimestamptz(cooldownUntil), ID: id,
-	})
-	return err
-}
-
 type Repository struct {
 	queries *sqlc.Queries
 }
@@ -44,6 +21,37 @@ func NewRepository(queries *sqlc.Queries) *Repository {
 func (r *Repository) WithTx(tx pgx.Tx) *Repository {
 	return NewRepository(r.queries.WithTx(tx))
 }
+
+func (r *Repository) ListForHealthCheck(ctx context.Context, checkedAt, dueBefore time.Time, batchSize int32) ([]sqlc.TrunkEndpoint, error) {
+	return r.queries.ListTrunkEndpointsForHealthCheck(ctx, sqlc.ListTrunkEndpointsForHealthCheckParams{
+		CheckedAt: pgconv.TimeToTimestamptz(checkedAt),
+		DueBefore: pgconv.TimeToTimestamptz(dueBefore),
+		BatchSize: batchSize,
+	})
+}
+
+func (r *Repository) MarkHealthy(ctx context.Context, id uuid.UUID, checkedAt time.Time, responseCode, latencyMs int32) error {
+	_, err := r.queries.MarkTrunkEndpointHealthy(ctx, sqlc.MarkTrunkEndpointHealthyParams{
+		CheckedAt:    pgconv.TimeToTimestamptz(checkedAt),
+		ResponseCode: &responseCode,
+		LatencyMs:    &latencyMs,
+		ID:           id,
+	})
+	return err
+}
+
+func (r *Repository) MarkProbeFailed(ctx context.Context, id uuid.UUID, checkedAt time.Time, latencyMs int32, message string, threshold int32, cooldownUntil time.Time) error {
+	_, err := r.queries.MarkTrunkEndpointProbeFailed(ctx, sqlc.MarkTrunkEndpointProbeFailedParams{
+		FailureThreshold: threshold,
+		CheckedAt:        pgconv.TimeToTimestamptz(checkedAt),
+		LatencyMs:        &latencyMs,
+		LastError:        &message,
+		CooldownUntil:    pgconv.TimeToTimestamptz(cooldownUntil),
+		ID:               id,
+	})
+	return err
+}
+
 
 func (r *Repository) Create(ctx context.Context, arg sqlc.CreateTrunkParams) (sqlc.Trunk, error) {
 	return r.queries.CreateTrunk(ctx, arg)
