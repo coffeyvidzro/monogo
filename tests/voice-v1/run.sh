@@ -161,4 +161,16 @@ PY
 done
 [ "$ready" -eq 1 ] || { echo "API did not become ready within 90 seconds" >&2; exit 1; }
 
+# Inbound persistence depends on the worker's FreeSWITCH ESL subscription.
+# Starting the carrier call before the subscription is ready can lose CHANNEL_CREATE.
+worker_ready=0
+for _ in $(seq 1 60); do
+    if $COMPOSE exec -T worker wget --spider -q http://127.0.0.1:8081/readyz; then
+        worker_ready=1
+        break
+    fi
+    sleep 1
+done
+[ "$worker_ready" -eq 1 ] || { echo "worker did not subscribe to FreeSWITCH lifecycle events within 60 seconds" >&2; exit 1; }
+
 python3 tests/voice-v1/acceptance.py
