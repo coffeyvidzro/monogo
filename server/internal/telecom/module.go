@@ -29,6 +29,7 @@ type Dependencies struct {
 	ConferenceController conferences.Controller
 	CredentialCipher     *encryption.Cipher
 	DIDWWInventory       *didww.Client
+	DIDWWInboundTrunkID  string
 	RealtimeService      *realtime.Service
 	RecordingStorage     recordings.Storage
 }
@@ -126,6 +127,7 @@ func New(deps Dependencies) (*Module, error) {
 
 	numbersRepository := numbers.NewRepository(deps.Queries)
 	numbersService := numbers.NewService(numbersRepository, deps.DIDWWInventory)
+	managedNumbersService := numbers.NewManagedService(deps.DB, deps.DIDWWInventory, deps.DIDWWInboundTrunkID)
 
 	voiceRepository := voice.NewRepository(deps.Queries)
 	voiceService := voice.NewService(voiceRepository)
@@ -159,7 +161,7 @@ func New(deps Dependencies) (*Module, error) {
 		Numbers: NumbersModule{
 			Repository: numbersRepository,
 			Service:    numbersService,
-			Handler:    numbers.NewHandler(numbersService),
+			Handler:    numbers.NewHandler(numbersService, managedNumbersService),
 		},
 		Routing: RoutingModule{
 			Repository: routingRepository,

@@ -1,6 +1,7 @@
 package numbers
 
 import (
+	"encoding/json"
 	"net/http"
 
 	"github.com/coffeyvidzro/monogo/internal/platform/middleware"
@@ -13,10 +14,72 @@ import (
 
 type Handler struct {
 	service *Service
+	managed *ManagedService
 }
 
-func NewHandler(service *Service) *Handler {
-	return &Handler{service: service}
+func NewHandler(service *Service, managed ...*ManagedService) *Handler {
+	h := &Handler{service: service}
+	if len(managed) > 0 {
+		h.managed = managed[0]
+	}
+	return h
+}
+
+func (h *Handler) PurchaseManaged(w http.ResponseWriter, r *http.Request) {
+	organizationID, err := requestOrganizationID(r)
+	if err != nil {
+		httputil.Error(w, err)
+		return
+	}
+	if h.managed == nil {
+		httputil.Error(w, apperror.NewServiceUnavailable("managed number purchasing is not configured", nil))
+		return
+	}
+	req, err := helper.DecodeJSON[ManagedPurchaseRequest](r)
+	if err != nil {
+		httputil.Error(w, err)
+		return
+	}
+	order, err := h.managed.Purchase(r.Context(), organizationID, r.Header.Get("Idempotency-Key"), req)
+	if err != nil {
+		httputil.Error(w, err)
+		return
+	}
+	if order.Status == "completed" {
+		httputil.OK(w, order)
+		return
+	}
+	w.Header().Set("Location", "/v1/numbers/orders/"+order.ID.String())
+	writeAccepted(w, order)
+}
+
+func (h *Handler) GetManagedOrder(w http.ResponseWriter, r *http.Request) {
+	organizationID, err := requestOrganizationID(r)
+	if err != nil {
+		httputil.Error(w, err)
+		return
+	}
+	id, err := uuid.Parse(chi.URLParam(r, "order_id"))
+	if err != nil || id == uuid.Nil {
+		httputil.Error(w, apperror.NewBadRequest("invalid order id"))
+		return
+	}
+	if h.managed == nil {
+		httputil.Error(w, apperror.NewServiceUnavailable("managed number purchasing is not configured", nil))
+		return
+	}
+	order, err := h.managed.Get(r.Context(), organizationID, id)
+	if err != nil {
+		httputil.Error(w, err)
+		return
+	}
+	httputil.OK(w, order)
+}
+
+func writeAccepted(w http.ResponseWriter, value any) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusAccepted)
+	_ = json.NewEncoder(w).Encode(value)
 }
 
 // SearchAvailable exposes display-only DIDWW inventory. Purchasing and

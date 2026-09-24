@@ -11,8 +11,9 @@ import (
 )
 
 type DIDWWConfig struct {
-	APIKey     string `env:"API_KEY"`
-	APIBaseURL string `env:"API_BASE_URL" envDefault:"https://api.didww.com/v3"`
+	APIKey         string `env:"API_KEY"`
+	APIBaseURL     string `env:"API_BASE_URL" envDefault:"https://api.didww.com/v3"`
+	InboundTrunkID string `env:"INBOUND_TRUNK_ID"`
 }
 
 type CommPeakConfig struct {
@@ -85,6 +86,7 @@ func (c *Config) normalize() {
 	c.EncryptionKey = strings.TrimSpace(c.EncryptionKey)
 	c.DIDWW.APIKey = strings.TrimSpace(c.DIDWW.APIKey)
 	c.DIDWW.APIBaseURL = strings.TrimRight(strings.TrimSpace(c.DIDWW.APIBaseURL), "/")
+	c.DIDWW.InboundTrunkID = strings.TrimSpace(c.DIDWW.InboundTrunkID)
 	c.CommPeak.Authorization = strings.TrimSpace(c.CommPeak.Authorization)
 	c.CommPeak.APIBaseURL = strings.TrimRight(strings.TrimSpace(c.CommPeak.APIBaseURL), "/")
 	c.Stripe.SecretKey = strings.TrimSpace(c.Stripe.SecretKey)

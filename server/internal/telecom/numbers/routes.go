@@ -15,6 +15,8 @@ func RegisterRoutes(
 	router.Route("/numbers", func(r chi.Router) {
 		r.Use(auth)
 		r.With(idempotency).Post("/byoc", handler.CreateBYOC)
+		r.With(idempotency).Post("/managed", handler.PurchaseManaged)
+		r.Get("/orders/{order_id}", handler.GetManagedOrder)
 		r.Get("/available", handler.SearchAvailable)
 		r.Get("/", handler.List)
 		r.Get("/{number_id}", handler.Get)

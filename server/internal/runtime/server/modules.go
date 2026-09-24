@@ -134,6 +134,7 @@ func newModules(ctx context.Context, cfg config.Config) (*modules, error) {
 		ConferenceController: conferences.NewFreeSWITCHController(freeSwitch),
 		CredentialCipher:     credentialCipher,
 		DIDWWInventory:       didwwInventory,
+		DIDWWInboundTrunkID:  cfg.DIDWW.InboundTrunkID,
 		RealtimeService:      turnService,
 		RecordingStorage:     recordingStorage,
 	})
