@@ -169,6 +169,13 @@ if [ "$sip_ready" -ne 1 ]; then
     exit 1
 fi
 
+# Verify the effective Record-Route address before originating a call.
+$COMPOSE exec -T opensips grep -Fx \
+    'advertised_address = "opensips"' /etc/opensips/opensips.cfg >/dev/null || {
+    echo "OpenSIPS must advertise the Docker-reachable hostname opensips" >&2
+    exit 1
+}
+
 # Acceptance-only wire diagnostics. On failure these traces tell us whether a
 # hangup leaves FreeSWITCH, reaches OpenSIPS, or bypasses the proxy entirely.
 $COMPOSE exec -T graceful-drain-carrier \

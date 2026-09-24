@@ -156,6 +156,31 @@ def channel_exists(service, channel_id):
     raise Failure(f"unable to parse {service} uuid_exists response: {output!r}")
 
 
+def channel_for_call(call):
+    # The SIP Call-ID identifies a SIP dialog, not a FreeSWITCH channel.
+    # Call control persists the channel UUID in Redis under the logical call ID.
+    channel_id = compose(
+        "exec",
+        "-T",
+        "redis",
+        "redis-cli",
+        "--raw",
+        "GET",
+        f"telecom:calls:channel:{call['id']}",
+    ).strip()
+    try:
+        uuid.UUID(channel_id)
+    except ValueError as error:
+        raise Failure(
+            f"call {call['id']} has no valid FreeSWITCH channel binding: {channel_id!r}"
+        ) from error
+    if fs("freeswitch", f"uuid_getvar {channel_id} leamout_call_id").strip() != call["id"]:
+        raise Failure("FreeSWITCH channel binding does not match the logical call ID")
+    if fs("freeswitch", f"uuid_getvar {channel_id} sip_call_id").strip() != call["sip_call_id"]:
+        raise Failure("FreeSWITCH channel SIP Call-ID does not match the persisted call")
+    return channel_id
+
+
 def opensips_dialogs():
     return numeric(
         compose(
@@ -310,6 +335,9 @@ def establish_call():
 
     current = wait("answered call state", connected_call, 20)
     STATE["call"] = current
+    STATE["channel_id"] = channel_for_call(current)
+    if not channel_exists("freeswitch", STATE["channel_id"]):
+        raise Failure("answered call has no active FreeSWITCH channel")
 
     wait("OpenSIPS dialog", lambda: opensips_dialogs() > 0, 15)
     wait("Leamout FreeSWITCH channel", lambda: freeswitch_channels() > 0, 15)
@@ -332,7 +360,7 @@ def establish_call():
 
 def restart_control_plane():
     call = STATE["call"]
-    channel_id = call["sip_call_id"]
+    channel_id = STATE["channel_id"]
 
     compose("restart", "server", "worker")
 
@@ -368,7 +396,7 @@ def cleanup_call():
     if not call:
         return
 
-    channel_id = call["sip_call_id"]
+    channel_id = STATE["channel_id"]
     api("POST", f"/v1/calls/{call['id']}/hangup")
     time.sleep(0.5)
     updated = api("GET", f"/v1/calls/{call['id']}")

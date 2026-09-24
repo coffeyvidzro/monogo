@@ -15,7 +15,9 @@ services:
 
   opensips:
     environment:
-      OPENSIPS_ADVERTISED_ADDRESS: opensips
+      # The OpenSIPS entrypoint uses SIP_DOMAIN for Record-Route.
+      # In-dialog ACK/BYE must reach this container from both SIP peers.
+      SIP_DOMAIN: opensips
     volumes:
       - ${VOICE_V1_CERT_DIR:?VOICE_V1_CERT_DIR is required}/opensips-fullchain.pem:/etc/opensips/tls/fullchain.pem:ro
       - ${VOICE_V1_CERT_DIR:?VOICE_V1_CERT_DIR is required}/opensips-privkey.pem:/etc/opensips/tls/privkey.pem:ro

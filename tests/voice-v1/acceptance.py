@@ -182,6 +182,27 @@ def list_recordings():
     return body["recordings"]
 
 
+def channel_for_call(call):
+    # FreeSWITCH channel UUID and SIP dialog Call-ID are distinct identities.
+    channel_id = compose(
+        "exec", "-T", "redis", "redis-cli", "--raw", "GET",
+        f"telecom:calls:channel:{call['id']}",
+    ).strip()
+    try:
+        uuid.UUID(channel_id)
+    except ValueError as error:
+        raise AcceptanceError(
+            f"call {call['id']} has no valid FreeSWITCH channel binding: {channel_id!r}"
+        ) from error
+    if fs_cli("freeswitch", f"uuid_exists {channel_id}").strip().lower() != "true":
+        raise AcceptanceError("outbound FreeSWITCH channel is not active")
+    if fs_cli("freeswitch", f"uuid_getvar {channel_id} leamout_call_id").strip() != call["id"]:
+        raise AcceptanceError("channel UUID is bound to another logical call")
+    if fs_cli("freeswitch", f"uuid_getvar {channel_id} sip_call_id").strip() != call["sip_call_id"]:
+        raise AcceptanceError("channel SIP Call-ID does not match the call record")
+    return channel_id
+
+
 def sink_events():
     cert_dir = os.environ.get("VOICE_V1_CERT_DIR")
     if not cert_dir:
@@ -412,7 +433,7 @@ def inbound_call():
                 for item in list_calls()
                 if item["id"] not in existing
                 and item["direction"] == "inbound"
-                and item["to"] == DID
+                and item["to_uri"] == DID
             ),
             False,
         )
@@ -426,13 +447,23 @@ def inbound_call():
 def answer_inbound():
     call_id = STATE["inbound_call_id"]
     try:
-        _, call = api("POST", f"/v1/calls/{call_id}/answer", expected={200})
-        if call["state"] not in {"answered", "active"}:
-            raise AcceptanceError(f"answer state is {call['state']}")
+        # Call-control POST endpoints acknowledge actions; state changes are
+        # observed asynchronously through FreeSWITCH lifecycle events.
+        api("POST", f"/v1/calls/{call_id}/answer", expected={200})
+        wait_call(
+            call_id,
+            lambda call: call["state"] in {"answered", "active"},
+            "answered inbound call",
+            timeout=30,
+        )
 
-        _, ended = api("POST", f"/v1/calls/{call_id}/hangup", expected={200})
-        if ended["state"] not in {"completed", "cancelled"}:
-            raise AcceptanceError(f"inbound hangup state is {ended['state']}")
+        api("POST", f"/v1/calls/{call_id}/hangup", expected={200})
+        ended = wait_call(
+            call_id,
+            lambda call: call["state"] in {"completed", "cancelled"},
+            "completed inbound call",
+            timeout=30,
+        )
         STATE["terminal_call_id"] = call_id
         STATE["terminal_state"] = ended["state"]
         return f"inbound answer and hangup persisted {ended['state']}"
@@ -449,17 +480,26 @@ def outbound_call():
         {
             "application_id": STATE["application_id"],
             "trunk_id": STATE["trunk_id"],
-            "from": CALLER,
-            "to": DID,
+            "from_uri": CALLER,
+            "to_uri": DID,
         },
         expected={201},
     )
-    if call["direction"] != "outbound" or not call.get("sip_call_id"):
-        raise AcceptanceError("outbound call has no media identity")
-    if call["state"] not in {"answered", "active"}:
-        raise AcceptanceError(f"answered outbound call persisted as {call['state']}")
+    if call["direction"] != "outbound":
+        raise AcceptanceError("created call is not outbound")
     STATE["call_id"] = call["id"]
-    STATE["sip_call_id"] = call["sip_call_id"]
+    answered = wait_call(
+        call["id"],
+        lambda current: (
+            current
+            if current.get("sip_call_id") and current["state"] in {"answered", "active"}
+            else False
+        ),
+        "answered outbound call with SIP Call-ID",
+        timeout=30,
+    )
+    STATE["sip_call_id"] = answered["sip_call_id"]
+    STATE["channel_id"] = channel_for_call(answered)
     return f"outbound call {call['id']} reached an answered carrier leg"
 
 
@@ -486,13 +526,13 @@ def play_audio():
     time.sleep(0.2)
     if (
         "true"
-        not in fs_cli("freeswitch", f"uuid_exists {STATE['sip_call_id']}").lower()
+        not in fs_cli("freeswitch", f"uuid_exists {STATE['channel_id']}").lower()
     ):
         raise AcceptanceError("media channel disappeared while playback was active")
     api("POST", f"/v1/calls/{call_id}/stop", expected={200})
     if (
         "true"
-        not in fs_cli("freeswitch", f"uuid_exists {STATE['sip_call_id']}").lower()
+        not in fs_cli("freeswitch", f"uuid_exists {STATE['channel_id']}").lower()
     ):
         raise AcceptanceError("media channel disappeared during playback")
     return "playback and stop executed on a live FreeSWITCH channel"
@@ -551,17 +591,22 @@ def transfer():
     time.sleep(0.25)
     if (
         "true"
-        not in fs_cli("freeswitch", f"uuid_exists {STATE['sip_call_id']}").lower()
+        not in fs_cli("freeswitch", f"uuid_exists {STATE['channel_id']}").lower()
     ):
         raise AcceptanceError("transferred channel is no longer live")
     return "live call transferred to the local 9196 dialplan"
 
 
 def hangup_outbound():
-    _, call = api("POST", f"/v1/calls/{STATE['call_id']}/hangup", expected={200})
-    if call["state"] not in {"completed", "cancelled"}:
-        raise AcceptanceError(f"hangup state is {call['state']}")
-    STATE["terminal_call_id"] = STATE["call_id"]
+    call_id = STATE["call_id"]
+    api("POST", f"/v1/calls/{call_id}/hangup", expected={200})
+    call = wait_call(
+        call_id,
+        lambda current: current["state"] in {"completed", "cancelled"},
+        "completed outbound call",
+        timeout=30,
+    )
+    STATE["terminal_call_id"] = call_id
     STATE["terminal_state"] = call["state"]
     return f"outbound cleanup persisted {call['state']}"
 
@@ -637,14 +682,15 @@ def query_call_state():
 
 
 def webhooks():
-    events = wait_for("webhook deliveries", lambda: sink_events() or False, timeout=20)
-    call_events = [
-        event
-        for event in events
-        if event["envelope"].get("type", "").startswith("call.")
-    ]
-    if not call_events:
-        raise AcceptanceError("no call webhook deliveries received")
+    def received_call_events():
+        found = [
+            event
+            for event in sink_events()
+            if event["envelope"].get("type", "").startswith("call.")
+        ]
+        return found or False
+
+    call_events = wait_for("call webhook deliveries", received_call_events, timeout=30)
     for event in call_events:
         verify_signature(event)
 

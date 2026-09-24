@@ -4,7 +4,9 @@ services:
       - "127.0.0.1:8080:8080"
   opensips:
     environment:
-      OPENSIPS_ADVERTISED_ADDRESS: opensips
+      # The OpenSIPS entrypoint uses SIP_DOMAIN for Record-Route.
+      # In-dialog ACK/BYE must reach this container from both SIP peers.
+      SIP_DOMAIN: opensips
     volumes:
       - ${BYOC_V1_CERT_DIR:?BYOC_V1_CERT_DIR is required}/fullchain.pem:/etc/opensips/tls/fullchain.pem:ro
       - ${BYOC_V1_CERT_DIR:?BYOC_V1_CERT_DIR is required}/privkey.pem:/etc/opensips/tls/privkey.pem:ro
