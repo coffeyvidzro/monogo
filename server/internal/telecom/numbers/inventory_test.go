@@ -25,11 +25,20 @@ func TestSearchAvailableReadsDIDWWInventoryWithoutExposingProviderIDs(t *testing
 			t.Errorf("unexpected inventory filter: %q", got)
 		}
 		w.Header().Set("Content-Type", "application/vnd.api+json")
-		_, _ = w.Write([]byte(`{"data":[{"id":"private-didww-id","attributes":{"number":"12125551234"}},{"id":"private-duplicate","attributes":{"number":"+12125551234"}},{"id":"invalid","attributes":{"number":"not-a-number"}}]}`))
+		_, _ = w.Write([]byte(`{
+			"data": [
+				{"id": "private-didww-id", "attributes": {"number": "12125551234"}},
+				{"id": "private-duplicate", "attributes": {"number": "+12125551234"}},
+				{"id": "invalid", "attributes": {"number": "not-a-number"}}
+			]
+		}`))
 	}))
 	defer server.Close()
 
-	inventory, err := didww.New(didww.Config{APIKey: "test-key", BaseURL: server.URL + "/v3"})
+	inventory, err := didww.New(didww.Config{
+		APIKey:  "test-key",
+		BaseURL: server.URL + "/v3",
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -75,7 +84,10 @@ func TestSearchAvailableDoesNotReturnProviderErrorsAsInventory(t *testing.T) {
 		w.WriteHeader(http.StatusBadGateway)
 	}))
 	defer server.Close()
-	inventory, err := didww.New(didww.Config{APIKey: "test-key", BaseURL: server.URL + "/v3"})
+	inventory, err := didww.New(didww.Config{
+		APIKey:  "test-key",
+		BaseURL: server.URL + "/v3",
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
