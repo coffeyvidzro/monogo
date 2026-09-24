@@ -77,9 +77,38 @@ type DeliveryResponse struct {
 	UpdatedAt      time.Time  `json:"updated_at"`
 }
 
-func endpointResponse(v sqlc.WebhookEndpoint) EndpointResponse {
-	return EndpointResponse{v.ID, v.OrganizationID, v.Url, v.Enabled, v.SubscribedEvents, pgconv.TimestamptzToTime(v.CreatedAt), pgconv.TimestamptzToTime(v.UpdatedAt), pgconv.TimestamptzToTimePtr(v.DisabledAt), v.ConsecutiveFailures, pgconv.TimestamptzToTimePtr(v.LastFailureAt), v.DisabledReason}
+func endpointResponse(webhook sqlc.WebhookEndpoint) EndpointResponse {
+	return EndpointResponse{
+		ID:                  webhook.ID,
+		OrganizationID:      webhook.OrganizationID,
+		URL:                 webhook.Url,
+		Enabled:             webhook.Enabled,
+		SubscribedEvents:    webhook.SubscribedEvents,
+		CreatedAt:           pgconv.TimestamptzToTime(webhook.CreatedAt),
+		UpdatedAt:           pgconv.TimestamptzToTime(webhook.UpdatedAt),
+		DisabledAt:          pgconv.TimestamptzToTimePtr(webhook.DisabledAt),
+		ConsecutiveFailures: webhook.ConsecutiveFailures,
+		LastFailureAt:       pgconv.TimestamptzToTimePtr(webhook.LastFailureAt),
+		DisabledReason:      webhook.DisabledReason,
+	}
 }
-func deliveryResponse(v sqlc.WebhookDelivery) DeliveryResponse {
-	return DeliveryResponse{v.ID, v.EventID, v.EndpointID, v.Status, v.AttemptCount, v.ReplayCount, pgconv.TimestamptzToTime(v.NextAttemptAt), pgconv.TimestamptzToTimePtr(v.LastAttemptAt), pgconv.TimestamptzToTimePtr(v.LastReplayedAt), v.ResponseStatus, v.ResponseBody, v.LastError, pgconv.TimestamptzToTimePtr(v.DeliveredAt), pgconv.TimestamptzToTime(v.CreatedAt), pgconv.TimestamptzToTime(v.UpdatedAt)}
+
+func deliveryResponse(delivery sqlc.WebhookDelivery) DeliveryResponse {
+	return DeliveryResponse{
+		ID:             delivery.ID,
+		EventID:        delivery.EventID,
+		EndpointID:     delivery.EndpointID,
+		Status:         delivery.Status,
+		AttemptCount:   delivery.AttemptCount,
+		ReplayCount:    delivery.ReplayCount,
+		NextAttemptAt:  pgconv.TimestamptzToTime(delivery.NextAttemptAt),
+		LastAttemptAt:  pgconv.TimestamptzToTimePtr(delivery.LastAttemptAt),
+		LastReplayedAt: pgconv.TimestamptzToTimePtr(delivery.LastReplayedAt),
+		ResponseStatus: delivery.ResponseStatus,
+		ResponseBody:   delivery.ResponseBody,
+		LastError:      delivery.LastError,
+		DeliveredAt:    pgconv.TimestamptzToTimePtr(delivery.DeliveredAt),
+		CreatedAt:      pgconv.TimestamptzToTime(delivery.CreatedAt),
+		UpdatedAt:      pgconv.TimestamptzToTime(delivery.UpdatedAt),
+	}
 }
