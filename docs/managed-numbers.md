@@ -1,70 +1,51 @@
 # Managed DID acquisition
 
-DIDWW is the initial Leamout-managed DID inventory, acquisition and inbound
-provider. CommPeak supplies Leamout-managed outbound termination and optional
-origination; it is not the DID acquisition provider. BYOC remains independent.
+DIDWW is the initial Monogo-managed DID inventory, acquisition, and inbound
+provider. CommPeak remains independent outbound termination infrastructure.
+Managed-number purchasing intentionally has **no wallet, stored-value balance,
+or prepaid PAYG ledger** in this phase.
 
-## Implemented
+## API workflow
 
-`GET /v1/numbers/available?contains=5551234` searches DIDWW with Leamout-owned
-credentials when `DIDWW_API_KEY` is configured. Results are **display-only**:
-no upstream IDs, SKUs, prices, or reservations are exposed.
+1. `GET /v1/numbers/available?contains=5551234` returns display-only E.164
+   inventory. Provider resource and SKU identifiers are never exposed.
+2. `POST /v1/numbers/managed` accepts `number` and `country_code` and requires
+   an `Idempotency-Key`. The server re-resolves exact DIDWW inventory and its
+   SKU immediately before creating a durable order. A global partial unique
+   index prevents a second live order for either the E.164 number or provider
+   inventory item.
+3. The API atomically claims the order before the provider request. Once a
+   request may have reached DIDWW, any error becomes `outcome_unknown`; the
+   request is never blindly repeated. The response is `202 Accepted` and its
+   `Location` points at `GET /v1/numbers/orders/{order_id}`.
+4. Reconciliation locates the existing order by its provider ID or the durable
+   Monogo order UUID used as DIDWW's external reference. It verifies that
+   reference, waits for completion, then independently resolves the exact
+   owned DID.
+5. The reconciler resolves the single active, inbound-enabled DIDWW platform
+   connection and its database-backed `voice_in_trunk` provider resource. It
+   assigns the DID to that trunk and reads the DID back. Only a matching number,
+   DID identity, and `voice_in_trunk` relationship permit activation.
+6. Activation creates the managed `phone_numbers` row and completes the order
+   in one serializable transaction. Normal inbound routing then uses the
+   existing active-number and voice-binding lookup; an unbound number cannot
+   route to an arbitrary destination.
 
-The purchase-intent foundation in `027_create_managed_number_orders.sql`
-and `managed_number_orders.sql` persists the organization, selected inventory,
-accepted internal quote, idempotency key and request hash, financial reservation
-reference, provider order and DID identities, and lifecycle state. It does not
-call DIDWW or charge a wallet.
+## Durable lifecycle
 
-## Required orchestration before enabling a purchase endpoint
+`ready -> submitting -> provider_pending -> configuring -> completed` is the
+normal path. `outcome_unknown` is reconciliation-only. Identity contradictions
+move the order to `manual_review`; only a confirmed failure before submission
+may release a number claim with `failed`.
 
-1. Resolve a server-generated, expiring selection for the authenticated
-   organization. Verify DIDWW inventory availability, SKU, country and E.164
-   number, and a trusted price and currency. Reject customer-supplied amounts.
-   Hash all immutable purchase inputs, including selection, accepted price,
-   currency, billing period, and quote, to bind the idempotency key.
-2. Create the intent with a fresh UUID. On a zero-row insert, fetch by the
-   organization-scoped idempotency key: replay only when its request hash and
-   immutable request values match. Otherwise return a conflict. If another
-   unresolved intent owns the number, do not issue an upstream order.
-3. Reserve funds through a real prepaid ledger using a unique reservation
-   reference for this intent. Only then mark the intent ready. The reservation
-   UUID alone does not establish that funds were secured.
-4. Atomically claim the ready intent before requesting the DIDWW order. Use
-   the durable intent UUID as the DIDWW external reference; it is a recovery
-   identifier, **not** provider-enforced idempotency. Never hold a database
-   transaction open across the provider request.
-5. If a provider response is lost, retain an unresolved state and reconcile
-   the original order via its ID, external reference and independently verified
-   DID ownership. An empty lookup is not permission for an automatic retry.
-   Verified callbacks may trigger reconciliation but cannot activate a number.
-6. After confirming acquisition, configure the selected DID to an approved
-   Leamout-controlled DIDWW inbound SIP trunk, then independently verify the
-   provider's DID/trunk relationship.
-7. Create or update the managed phone-number record in the correct tenant and
-   platform carrier scope, reconcile the prepaid capture, and activate only
-   when ownership and inbound routing are verified. A number can remain
-   unbound to a customer voice application without routing to arbitrary SIP
-   destinations. CommPeak termination is not an activation prerequisite.
+The order stores verification timestamps, reconciliation scheduling and attempt
+counts, provider identities, inbound trunk identity, and the activated phone
+number. Completed acquisitions continue to hold their uniqueness claims.
 
-## Purchase-intent state
+## Configuration
 
-`pending_funding -> ready -> submitting -> provider_pending -> configuring`
-is the intended progression. `outcome_unknown` must be reconciled before any
-re-submission. `manual_review` is reserved for unresolved provider outcomes;
-only confirmed pre-submission failures may use the initial `failed` query.
-`completed` is reserved for verified provider ownership, inbound routing,
-a linked managed phone number and correct financial settlement.
-
-The initial partial unique indexes intentionally keep completed acquisitions
-claimed. Number release and later re-acquisition must update these historical
-claims explicitly in a subsequent lifecycle migration; do not drop the
-uniqueness safeguard to work around a conflict.
-
-## Not enabled by this PR
-
-The schema and internal sqlc queries are foundations only. No public purchase
-endpoint, trusted quote issuer, actual wallet reservation/capture, DIDWW order
-submission, reconciliation worker, provider routing operation, number activation
-or managed release is introduced here. The existing BYOC and inventory APIs
-remain unchanged.
+Set the platform-owned `DIDWW_API_KEY`. The future backoffice must persist one
+active, inbound-enabled DIDWW platform carrier connection and associate its
+approved DIDWW Voice In Trunk through `carrier_connection_provider_resources`.
+Missing or ambiguous database routing configuration fails managed purchases
+closed while BYOC remains available.
