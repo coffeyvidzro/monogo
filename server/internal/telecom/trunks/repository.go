@@ -52,7 +52,6 @@ func (r *Repository) MarkProbeFailed(ctx context.Context, id uuid.UUID, checkedA
 	return err
 }
 
-
 func (r *Repository) Create(ctx context.Context, arg sqlc.CreateTrunkParams) (sqlc.Trunk, error) {
 	return r.queries.CreateTrunk(ctx, arg)
 }
