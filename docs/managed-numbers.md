@@ -7,9 +7,14 @@ or prepaid PAYG ledger** in this phase.
 
 ## API workflow
 
+`POST /v1/numbers/` creates a BYOC number. `POST /v1/numbers/purchase`
+initiates a managed DIDWW acquisition. Both POST routes require an idempotency
+key; they are distinct operations and must not be conflated.
+
+
 1. `GET /v1/numbers/available?contains=5551234` returns display-only E.164
    inventory. Provider resource and SKU identifiers are never exposed.
-2. `POST /v1/numbers/managed` accepts `number` and `country_code` and requires
+2. `POST /v1/numbers/purchase` accepts `number` and `country_code` and requires
    an `Idempotency-Key`. The server re-resolves exact DIDWW inventory and its
    SKU immediately before creating a durable order. A global partial unique
    index prevents a second live order for either the E.164 number or provider
