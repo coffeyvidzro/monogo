@@ -14,15 +14,10 @@ import (
 
 type Handler struct {
 	service *Service
-	managed *ManagedService
 }
 
-func NewHandler(service *Service, managed ...*ManagedService) *Handler {
-	h := &Handler{service: service}
-	if len(managed) > 0 {
-		h.managed = managed[0]
-	}
-	return h
+func NewHandler(service *Service) *Handler {
+	return &Handler{service: service}
 }
 
 func (h *Handler) PurchaseManaged(w http.ResponseWriter, r *http.Request) {
@@ -31,16 +26,12 @@ func (h *Handler) PurchaseManaged(w http.ResponseWriter, r *http.Request) {
 		httputil.Error(w, err)
 		return
 	}
-	if h.managed == nil {
-		httputil.Error(w, apperror.NewServiceUnavailable("managed number purchasing is not configured", nil))
-		return
-	}
 	req, err := helper.DecodeJSON[ManagedPurchaseRequest](r)
 	if err != nil {
 		httputil.Error(w, err)
 		return
 	}
-	order, err := h.managed.Purchase(r.Context(), organizationID, r.Header.Get("Idempotency-Key"), req)
+	order, err := h.service.Purchase(r.Context(), organizationID, r.Header.Get("Idempotency-Key"), req)
 	if err != nil {
 		httputil.Error(w, err)
 		return
@@ -64,11 +55,7 @@ func (h *Handler) GetManagedOrder(w http.ResponseWriter, r *http.Request) {
 		httputil.Error(w, apperror.NewBadRequest("invalid order id"))
 		return
 	}
-	if h.managed == nil {
-		httputil.Error(w, apperror.NewServiceUnavailable("managed number purchasing is not configured", nil))
-		return
-	}
-	order, err := h.managed.Get(r.Context(), organizationID, id)
+	order, err := h.service.GetManagedOrder(r.Context(), organizationID, id)
 	if err != nil {
 		httputil.Error(w, err)
 		return

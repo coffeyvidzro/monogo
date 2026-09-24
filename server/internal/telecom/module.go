@@ -127,7 +127,7 @@ func New(deps Dependencies) (*Module, error) {
 
 	numbersRepository := numbers.NewRepository(deps.Queries)
 	numbersService := numbers.NewService(numbersRepository, deps.DIDWWInventory)
-	managedNumbersService := numbers.NewManagedService(deps.DB, deps.DIDWWInventory, deps.DIDWWInboundTrunkID)
+	numbersService.ConfigureManaged(deps.DB, deps.DIDWWInboundTrunkID)
 
 	voiceRepository := voice.NewRepository(deps.Queries)
 	voiceService := voice.NewService(voiceRepository)
@@ -161,7 +161,7 @@ func New(deps Dependencies) (*Module, error) {
 		Numbers: NumbersModule{
 			Repository: numbersRepository,
 			Service:    numbersService,
-			Handler:    numbers.NewHandler(numbersService, managedNumbersService),
+			Handler:    numbers.NewHandler(numbersService),
 		},
 		Routing: RoutingModule{
 			Repository: routingRepository,

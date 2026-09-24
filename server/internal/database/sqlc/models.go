@@ -194,32 +194,32 @@ type Idempotency struct {
 	UpdatedAt           pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 }
 
-// Durable internal DIDWW acquisition intents; does not itself authorize provider orders or wallet charges.
+// Durable DIDWW acquisition and provisioning workflow; contains no wallet or prepaid ledger state.
 type ManagedNumberOrder struct {
-	ID                   uuid.UUID          `db:"id" json:"id"`
-	OrganizationID       uuid.UUID          `db:"organization_id" json:"organization_id"`
-	ProviderID           uuid.UUID          `db:"provider_id" json:"provider_id"`
-	PhoneNumberID        *uuid.UUID         `db:"phone_number_id" json:"phone_number_id"`
-	IdempotencyKey       string             `db:"idempotency_key" json:"idempotency_key"`
-	RequestHash          string             `db:"request_hash" json:"request_hash"`
-	Number               string             `db:"number" json:"number"`
-	CountryCode          string             `db:"country_code" json:"country_code"`
-	AvailableDidID       string             `db:"available_did_id" json:"available_did_id"`
-	SkuID                string             `db:"sku_id" json:"sku_id"`
-	QuoteID              uuid.UUID          `db:"quote_id" json:"quote_id"`
-	PurchaseAmountMinor  int64              `db:"purchase_amount_minor" json:"purchase_amount_minor"`
-	RecurringAmountMinor int64              `db:"recurring_amount_minor" json:"recurring_amount_minor"`
-	Currency             string             `db:"currency" json:"currency"`
-	QuoteExpiresAt       pgtype.Timestamptz `db:"quote_expires_at" json:"quote_expires_at"`
-	WalletReservationID  *uuid.UUID         `db:"wallet_reservation_id" json:"wallet_reservation_id"`
-	ProviderOrderID      *string            `db:"provider_order_id" json:"provider_order_id"`
-	ProviderDidID        *string            `db:"provider_did_id" json:"provider_did_id"`
-	Status               string             `db:"status" json:"status"`
-	SubmittedAt          pgtype.Timestamptz `db:"submitted_at" json:"submitted_at"`
-	ErrorCode            *string            `db:"error_code" json:"error_code"`
-	ErrorMessage         *string            `db:"error_message" json:"error_message"`
-	CreatedAt            pgtype.Timestamptz `db:"created_at" json:"created_at"`
-	UpdatedAt            pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+	ID                  uuid.UUID          `db:"id" json:"id"`
+	OrganizationID      uuid.UUID          `db:"organization_id" json:"organization_id"`
+	ProviderID          uuid.UUID          `db:"provider_id" json:"provider_id"`
+	PhoneNumberID       *uuid.UUID         `db:"phone_number_id" json:"phone_number_id"`
+	IdempotencyKey      string             `db:"idempotency_key" json:"idempotency_key"`
+	RequestHash         string             `db:"request_hash" json:"request_hash"`
+	Number              string             `db:"number" json:"number"`
+	CountryCode         string             `db:"country_code" json:"country_code"`
+	AvailableDidID      string             `db:"available_did_id" json:"available_did_id"`
+	SkuID               string             `db:"sku_id" json:"sku_id"`
+	ProviderOrderID     *string            `db:"provider_order_id" json:"provider_order_id"`
+	ProviderDidID       *string            `db:"provider_did_id" json:"provider_did_id"`
+	InboundTrunkID      *string            `db:"inbound_trunk_id" json:"inbound_trunk_id"`
+	Status              string             `db:"status" json:"status"`
+	SubmittedAt         pgtype.Timestamptz `db:"submitted_at" json:"submitted_at"`
+	OwnershipVerifiedAt pgtype.Timestamptz `db:"ownership_verified_at" json:"ownership_verified_at"`
+	RoutingVerifiedAt   pgtype.Timestamptz `db:"routing_verified_at" json:"routing_verified_at"`
+	ActivatedAt         pgtype.Timestamptz `db:"activated_at" json:"activated_at"`
+	ReconcileAfter      pgtype.Timestamptz `db:"reconcile_after" json:"reconcile_after"`
+	ReconcileAttempts   int32              `db:"reconcile_attempts" json:"reconcile_attempts"`
+	ErrorCode           *string            `db:"error_code" json:"error_code"`
+	ErrorMessage        *string            `db:"error_message" json:"error_message"`
+	CreatedAt           pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	UpdatedAt           pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 }
 
 type OpensipsCarrierDigestCredential struct {

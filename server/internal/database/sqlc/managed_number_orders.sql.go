@@ -12,27 +12,16 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const claimManagedNumberPurchaseSubmission = `-- name: ClaimManagedNumberPurchaseSubmission :one
+const claimManagedNumberOrderSubmission = `-- name: ClaimManagedNumberOrderSubmission :one
 UPDATE managed_number_orders
-SET status = 'submitting',
-    submitted_at = now()
-WHERE organization_id = $1
-  AND id = $2
-  AND status = 'ready'
-  AND wallet_reservation_id IS NOT NULL
-  AND quote_expires_at > now()
-RETURNING id, organization_id, provider_id, phone_number_id, idempotency_key, request_hash, number, country_code, available_did_id, sku_id, quote_id, purchase_amount_minor, recurring_amount_minor, currency, quote_expires_at, wallet_reservation_id, provider_order_id, provider_did_id, status, submitted_at, error_code, error_message, created_at, updated_at
+SET status = 'submitting', submitted_at = now(),
+    error_code = NULL, error_message = NULL
+WHERE id = $1 AND status = 'ready'
+RETURNING id, organization_id, provider_id, phone_number_id, idempotency_key, request_hash, number, country_code, available_did_id, sku_id, provider_order_id, provider_did_id, inbound_trunk_id, status, submitted_at, ownership_verified_at, routing_verified_at, activated_at, reconcile_after, reconcile_attempts, error_code, error_message, created_at, updated_at
 `
 
-type ClaimManagedNumberPurchaseSubmissionParams struct {
-	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
-	ID             uuid.UUID `db:"id" json:"id"`
-}
-
-// Claim exactly once before any network call. An interrupted submission must
-// be reconciled; it must never be blindly moved back to 'ready'.
-func (q *Queries) ClaimManagedNumberPurchaseSubmission(ctx context.Context, arg ClaimManagedNumberPurchaseSubmissionParams) (ManagedNumberOrder, error) {
-	row := q.db.QueryRow(ctx, claimManagedNumberPurchaseSubmission, arg.OrganizationID, arg.ID)
+func (q *Queries) ClaimManagedNumberOrderSubmission(ctx context.Context, id uuid.UUID) (ManagedNumberOrder, error) {
+	row := q.db.QueryRow(ctx, claimManagedNumberOrderSubmission, id)
 	var i ManagedNumberOrder
 	err := row.Scan(
 		&i.ID,
@@ -45,16 +34,16 @@ func (q *Queries) ClaimManagedNumberPurchaseSubmission(ctx context.Context, arg 
 		&i.CountryCode,
 		&i.AvailableDidID,
 		&i.SkuID,
-		&i.QuoteID,
-		&i.PurchaseAmountMinor,
-		&i.RecurringAmountMinor,
-		&i.Currency,
-		&i.QuoteExpiresAt,
-		&i.WalletReservationID,
 		&i.ProviderOrderID,
 		&i.ProviderDidID,
+		&i.InboundTrunkID,
 		&i.Status,
 		&i.SubmittedAt,
+		&i.OwnershipVerifiedAt,
+		&i.RoutingVerifiedAt,
+		&i.ActivatedAt,
+		&i.ReconcileAfter,
+		&i.ReconcileAttempts,
 		&i.ErrorCode,
 		&i.ErrorMessage,
 		&i.CreatedAt,
@@ -63,71 +52,92 @@ func (q *Queries) ClaimManagedNumberPurchaseSubmission(ctx context.Context, arg 
 	return i, err
 }
 
-const createManagedNumberPurchaseIntent = `-- name: CreateManagedNumberPurchaseIntent :one
-INSERT INTO managed_number_orders (
-    id,
-    organization_id,
-    provider_id,
-    idempotency_key,
-    request_hash,
-    number,
-    country_code,
-    available_did_id,
-    sku_id,
-    quote_id,
-    purchase_amount_minor,
-    recurring_amount_minor,
-    currency,
-    quote_expires_at
-)
-SELECT
-    $1::UUID,
-    o.id,
-    cp.id,
-    $2,
-    $3,
-    $4,
-    $5,
-    $6,
-    $7,
-    $8::UUID,
-    $9::BIGINT,
-    $10::BIGINT,
-    $11,
-    $12::TIMESTAMPTZ
-FROM organizations AS o
-JOIN carrier_providers AS cp ON cp.slug = 'didww' AND cp.adapter = 'didww' AND cp.status = 'active'
-WHERE o.id = $13::UUID
-  AND o.status = 'active'
-  AND o.deleted_at IS NULL
-  AND $12::TIMESTAMPTZ > now()
-ON CONFLICT DO NOTHING
-RETURNING id, organization_id, provider_id, phone_number_id, idempotency_key, request_hash, number, country_code, available_did_id, sku_id, quote_id, purchase_amount_minor, recurring_amount_minor, currency, quote_expires_at, wallet_reservation_id, provider_order_id, provider_did_id, status, submitted_at, error_code, error_message, created_at, updated_at
+const completeManagedNumberOrder = `-- name: CompleteManagedNumberOrder :one
+UPDATE managed_number_orders
+SET phone_number_id = $1,
+    inbound_trunk_id = $2,
+    routing_verified_at = $3,
+    activated_at = $3, status = 'completed',
+    error_code = NULL, error_message = NULL
+WHERE id = $4 AND status = 'configuring'
+RETURNING id, organization_id, provider_id, phone_number_id, idempotency_key, request_hash, number, country_code, available_did_id, sku_id, provider_order_id, provider_did_id, inbound_trunk_id, status, submitted_at, ownership_verified_at, routing_verified_at, activated_at, reconcile_after, reconcile_attempts, error_code, error_message, created_at, updated_at
 `
 
-type CreateManagedNumberPurchaseIntentParams struct {
-	ID                   uuid.UUID          `db:"id" json:"id"`
-	IdempotencyKey       string             `db:"idempotency_key" json:"idempotency_key"`
-	RequestHash          string             `db:"request_hash" json:"request_hash"`
-	Number               string             `db:"number" json:"number"`
-	CountryCode          string             `db:"country_code" json:"country_code"`
-	AvailableDidID       string             `db:"available_did_id" json:"available_did_id"`
-	SkuID                string             `db:"sku_id" json:"sku_id"`
-	QuoteID              uuid.UUID          `db:"quote_id" json:"quote_id"`
-	PurchaseAmountMinor  int64              `db:"purchase_amount_minor" json:"purchase_amount_minor"`
-	RecurringAmountMinor int64              `db:"recurring_amount_minor" json:"recurring_amount_minor"`
-	Currency             string             `db:"currency" json:"currency"`
-	QuoteExpiresAt       pgtype.Timestamptz `db:"quote_expires_at" json:"quote_expires_at"`
-	OrganizationID       uuid.UUID          `db:"organization_id" json:"organization_id"`
+type CompleteManagedNumberOrderParams struct {
+	PhoneNumberID  *uuid.UUID         `db:"phone_number_id" json:"phone_number_id"`
+	InboundTrunkID *string            `db:"inbound_trunk_id" json:"inbound_trunk_id"`
+	VerifiedAt     pgtype.Timestamptz `db:"verified_at" json:"verified_at"`
+	ID             uuid.UUID          `db:"id" json:"id"`
 }
 
-// These are internal purchase primitives, not an HTTP purchase API.
-// A trusted server-side quote/selection must be validated before the caller
-// creates an intent. A zero-row insert can mean a replay, conflicting intent,
-// unavailable tenant/provider, or an expired quote; inspect the existing key
-// before deciding whether to return a replay or a conflict.
-func (q *Queries) CreateManagedNumberPurchaseIntent(ctx context.Context, arg CreateManagedNumberPurchaseIntentParams) (ManagedNumberOrder, error) {
-	row := q.db.QueryRow(ctx, createManagedNumberPurchaseIntent,
+func (q *Queries) CompleteManagedNumberOrder(ctx context.Context, arg CompleteManagedNumberOrderParams) (ManagedNumberOrder, error) {
+	row := q.db.QueryRow(ctx, completeManagedNumberOrder,
+		arg.PhoneNumberID,
+		arg.InboundTrunkID,
+		arg.VerifiedAt,
+		arg.ID,
+	)
+	var i ManagedNumberOrder
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.ProviderID,
+		&i.PhoneNumberID,
+		&i.IdempotencyKey,
+		&i.RequestHash,
+		&i.Number,
+		&i.CountryCode,
+		&i.AvailableDidID,
+		&i.SkuID,
+		&i.ProviderOrderID,
+		&i.ProviderDidID,
+		&i.InboundTrunkID,
+		&i.Status,
+		&i.SubmittedAt,
+		&i.OwnershipVerifiedAt,
+		&i.RoutingVerifiedAt,
+		&i.ActivatedAt,
+		&i.ReconcileAfter,
+		&i.ReconcileAttempts,
+		&i.ErrorCode,
+		&i.ErrorMessage,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const createManagedNumberOrder = `-- name: CreateManagedNumberOrder :one
+INSERT INTO managed_number_orders (
+    id, organization_id, provider_id, idempotency_key, request_hash,
+    number, country_code, available_did_id, sku_id
+)
+SELECT $1, o.id, cp.id, $2,
+       $3, $4, $5,
+       $6, $7
+FROM organizations AS o
+JOIN carrier_providers AS cp
+  ON cp.slug = 'didww' AND cp.adapter = 'didww' AND cp.status = 'active'
+WHERE o.id = $8
+  AND o.status = 'active'
+  AND o.deleted_at IS NULL
+ON CONFLICT (organization_id, idempotency_key) DO NOTHING
+RETURNING id, organization_id, provider_id, phone_number_id, idempotency_key, request_hash, number, country_code, available_did_id, sku_id, provider_order_id, provider_did_id, inbound_trunk_id, status, submitted_at, ownership_verified_at, routing_verified_at, activated_at, reconcile_after, reconcile_attempts, error_code, error_message, created_at, updated_at
+`
+
+type CreateManagedNumberOrderParams struct {
+	ID             uuid.UUID `db:"id" json:"id"`
+	IdempotencyKey string    `db:"idempotency_key" json:"idempotency_key"`
+	RequestHash    string    `db:"request_hash" json:"request_hash"`
+	Number         string    `db:"number" json:"number"`
+	CountryCode    string    `db:"country_code" json:"country_code"`
+	AvailableDidID string    `db:"available_did_id" json:"available_did_id"`
+	SkuID          string    `db:"sku_id" json:"sku_id"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+}
+
+func (q *Queries) CreateManagedNumberOrder(ctx context.Context, arg CreateManagedNumberOrderParams) (ManagedNumberOrder, error) {
+	row := q.db.QueryRow(ctx, createManagedNumberOrder,
 		arg.ID,
 		arg.IdempotencyKey,
 		arg.RequestHash,
@@ -135,11 +145,6 @@ func (q *Queries) CreateManagedNumberPurchaseIntent(ctx context.Context, arg Cre
 		arg.CountryCode,
 		arg.AvailableDidID,
 		arg.SkuID,
-		arg.QuoteID,
-		arg.PurchaseAmountMinor,
-		arg.RecurringAmountMinor,
-		arg.Currency,
-		arg.QuoteExpiresAt,
 		arg.OrganizationID,
 	)
 	var i ManagedNumberOrder
@@ -154,16 +159,16 @@ func (q *Queries) CreateManagedNumberPurchaseIntent(ctx context.Context, arg Cre
 		&i.CountryCode,
 		&i.AvailableDidID,
 		&i.SkuID,
-		&i.QuoteID,
-		&i.PurchaseAmountMinor,
-		&i.RecurringAmountMinor,
-		&i.Currency,
-		&i.QuoteExpiresAt,
-		&i.WalletReservationID,
 		&i.ProviderOrderID,
 		&i.ProviderDidID,
+		&i.InboundTrunkID,
 		&i.Status,
 		&i.SubmittedAt,
+		&i.OwnershipVerifiedAt,
+		&i.RoutingVerifiedAt,
+		&i.ActivatedAt,
+		&i.ReconcileAfter,
+		&i.ReconcileAttempts,
 		&i.ErrorCode,
 		&i.ErrorMessage,
 		&i.CreatedAt,
@@ -172,32 +177,294 @@ func (q *Queries) CreateManagedNumberPurchaseIntent(ctx context.Context, arg Cre
 	return i, err
 }
 
-const failUnsubmittedManagedNumberPurchase = `-- name: FailUnsubmittedManagedNumberPurchase :one
-UPDATE managed_number_orders
-SET status = 'failed',
-    error_code = $1,
-    error_message = $2
-WHERE organization_id = $3
-  AND id = $4
-  AND status IN ('pending_funding', 'ready')
-  AND submitted_at IS NULL
-RETURNING id, organization_id, provider_id, phone_number_id, idempotency_key, request_hash, number, country_code, available_did_id, sku_id, quote_id, purchase_amount_minor, recurring_amount_minor, currency, quote_expires_at, wallet_reservation_id, provider_order_id, provider_did_id, status, submitted_at, error_code, error_message, created_at, updated_at
+const getManagedNumberOrder = `-- name: GetManagedNumberOrder :one
+SELECT id, organization_id, provider_id, phone_number_id, idempotency_key, request_hash, number, country_code, available_did_id, sku_id, provider_order_id, provider_did_id, inbound_trunk_id, status, submitted_at, ownership_verified_at, routing_verified_at, activated_at, reconcile_after, reconcile_attempts, error_code, error_message, created_at, updated_at
+FROM managed_number_orders
+WHERE organization_id = $1
+  AND id = $2
+LIMIT 1
 `
 
-type FailUnsubmittedManagedNumberPurchaseParams struct {
-	ErrorCode      *string   `db:"error_code" json:"error_code"`
-	ErrorMessage   *string   `db:"error_message" json:"error_message"`
+type GetManagedNumberOrderParams struct {
 	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
 	ID             uuid.UUID `db:"id" json:"id"`
 }
 
-// Failure before submitting to the provider is safe to record without
-// upstream reconciliation; after submission it is not.
-func (q *Queries) FailUnsubmittedManagedNumberPurchase(ctx context.Context, arg FailUnsubmittedManagedNumberPurchaseParams) (ManagedNumberOrder, error) {
-	row := q.db.QueryRow(ctx, failUnsubmittedManagedNumberPurchase,
+func (q *Queries) GetManagedNumberOrder(ctx context.Context, arg GetManagedNumberOrderParams) (ManagedNumberOrder, error) {
+	row := q.db.QueryRow(ctx, getManagedNumberOrder, arg.OrganizationID, arg.ID)
+	var i ManagedNumberOrder
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.ProviderID,
+		&i.PhoneNumberID,
+		&i.IdempotencyKey,
+		&i.RequestHash,
+		&i.Number,
+		&i.CountryCode,
+		&i.AvailableDidID,
+		&i.SkuID,
+		&i.ProviderOrderID,
+		&i.ProviderDidID,
+		&i.InboundTrunkID,
+		&i.Status,
+		&i.SubmittedAt,
+		&i.OwnershipVerifiedAt,
+		&i.RoutingVerifiedAt,
+		&i.ActivatedAt,
+		&i.ReconcileAfter,
+		&i.ReconcileAttempts,
+		&i.ErrorCode,
+		&i.ErrorMessage,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getManagedNumberOrderByKey = `-- name: GetManagedNumberOrderByKey :one
+SELECT id, organization_id, provider_id, phone_number_id, idempotency_key, request_hash, number, country_code, available_did_id, sku_id, provider_order_id, provider_did_id, inbound_trunk_id, status, submitted_at, ownership_verified_at, routing_verified_at, activated_at, reconcile_after, reconcile_attempts, error_code, error_message, created_at, updated_at
+FROM managed_number_orders
+WHERE organization_id = $1
+  AND idempotency_key = $2
+LIMIT 1
+`
+
+type GetManagedNumberOrderByKeyParams struct {
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	IdempotencyKey string    `db:"idempotency_key" json:"idempotency_key"`
+}
+
+func (q *Queries) GetManagedNumberOrderByKey(ctx context.Context, arg GetManagedNumberOrderByKeyParams) (ManagedNumberOrder, error) {
+	row := q.db.QueryRow(ctx, getManagedNumberOrderByKey, arg.OrganizationID, arg.IdempotencyKey)
+	var i ManagedNumberOrder
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.ProviderID,
+		&i.PhoneNumberID,
+		&i.IdempotencyKey,
+		&i.RequestHash,
+		&i.Number,
+		&i.CountryCode,
+		&i.AvailableDidID,
+		&i.SkuID,
+		&i.ProviderOrderID,
+		&i.ProviderDidID,
+		&i.InboundTrunkID,
+		&i.Status,
+		&i.SubmittedAt,
+		&i.OwnershipVerifiedAt,
+		&i.RoutingVerifiedAt,
+		&i.ActivatedAt,
+		&i.ReconcileAfter,
+		&i.ReconcileAttempts,
+		&i.ErrorCode,
+		&i.ErrorMessage,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getManagedNumberOrderInternal = `-- name: GetManagedNumberOrderInternal :one
+SELECT id, organization_id, provider_id, phone_number_id, idempotency_key, request_hash, number, country_code, available_did_id, sku_id, provider_order_id, provider_did_id, inbound_trunk_id, status, submitted_at, ownership_verified_at, routing_verified_at, activated_at, reconcile_after, reconcile_attempts, error_code, error_message, created_at, updated_at
+FROM managed_number_orders
+WHERE id = $1
+LIMIT 1
+`
+
+func (q *Queries) GetManagedNumberOrderInternal(ctx context.Context, id uuid.UUID) (ManagedNumberOrder, error) {
+	row := q.db.QueryRow(ctx, getManagedNumberOrderInternal, id)
+	var i ManagedNumberOrder
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.ProviderID,
+		&i.PhoneNumberID,
+		&i.IdempotencyKey,
+		&i.RequestHash,
+		&i.Number,
+		&i.CountryCode,
+		&i.AvailableDidID,
+		&i.SkuID,
+		&i.ProviderOrderID,
+		&i.ProviderDidID,
+		&i.InboundTrunkID,
+		&i.Status,
+		&i.SubmittedAt,
+		&i.OwnershipVerifiedAt,
+		&i.RoutingVerifiedAt,
+		&i.ActivatedAt,
+		&i.ReconcileAfter,
+		&i.ReconcileAttempts,
+		&i.ErrorCode,
+		&i.ErrorMessage,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const listManagedNumberOrdersForReconciliation = `-- name: ListManagedNumberOrdersForReconciliation :many
+SELECT id, organization_id, provider_id, phone_number_id, idempotency_key, request_hash, number, country_code, available_did_id, sku_id, provider_order_id, provider_did_id, inbound_trunk_id, status, submitted_at, ownership_verified_at, routing_verified_at, activated_at, reconcile_after, reconcile_attempts, error_code, error_message, created_at, updated_at
+FROM managed_number_orders
+WHERE status IN ('submitting', 'outcome_unknown', 'provider_pending', 'configuring')
+  AND reconcile_after <= now()
+ORDER BY reconcile_after, created_at
+LIMIT $1
+`
+
+func (q *Queries) ListManagedNumberOrdersForReconciliation(ctx context.Context, batchSize int32) ([]ManagedNumberOrder, error) {
+	rows, err := q.db.Query(ctx, listManagedNumberOrdersForReconciliation, batchSize)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ManagedNumberOrder{}
+	for rows.Next() {
+		var i ManagedNumberOrder
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrganizationID,
+			&i.ProviderID,
+			&i.PhoneNumberID,
+			&i.IdempotencyKey,
+			&i.RequestHash,
+			&i.Number,
+			&i.CountryCode,
+			&i.AvailableDidID,
+			&i.SkuID,
+			&i.ProviderOrderID,
+			&i.ProviderDidID,
+			&i.InboundTrunkID,
+			&i.Status,
+			&i.SubmittedAt,
+			&i.OwnershipVerifiedAt,
+			&i.RoutingVerifiedAt,
+			&i.ActivatedAt,
+			&i.ReconcileAfter,
+			&i.ReconcileAttempts,
+			&i.ErrorCode,
+			&i.ErrorMessage,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const lockManagedNumberOrder = `-- name: LockManagedNumberOrder :one
+SELECT id, organization_id, provider_id, phone_number_id, idempotency_key, request_hash, number, country_code, available_did_id, sku_id, provider_order_id, provider_did_id, inbound_trunk_id, status, submitted_at, ownership_verified_at, routing_verified_at, activated_at, reconcile_after, reconcile_attempts, error_code, error_message, created_at, updated_at
+FROM managed_number_orders
+WHERE id = $1
+FOR UPDATE
+`
+
+func (q *Queries) LockManagedNumberOrder(ctx context.Context, id uuid.UUID) (ManagedNumberOrder, error) {
+	row := q.db.QueryRow(ctx, lockManagedNumberOrder, id)
+	var i ManagedNumberOrder
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.ProviderID,
+		&i.PhoneNumberID,
+		&i.IdempotencyKey,
+		&i.RequestHash,
+		&i.Number,
+		&i.CountryCode,
+		&i.AvailableDidID,
+		&i.SkuID,
+		&i.ProviderOrderID,
+		&i.ProviderDidID,
+		&i.InboundTrunkID,
+		&i.Status,
+		&i.SubmittedAt,
+		&i.OwnershipVerifiedAt,
+		&i.RoutingVerifiedAt,
+		&i.ActivatedAt,
+		&i.ReconcileAfter,
+		&i.ReconcileAttempts,
+		&i.ErrorCode,
+		&i.ErrorMessage,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const markManagedNumberOrderManualReview = `-- name: MarkManagedNumberOrderManualReview :one
+UPDATE managed_number_orders
+SET status = 'manual_review', error_code = $1,
+    error_message = 'provider identity requires manual review'
+WHERE id = $2 AND status <> 'completed'
+RETURNING id, organization_id, provider_id, phone_number_id, idempotency_key, request_hash, number, country_code, available_did_id, sku_id, provider_order_id, provider_did_id, inbound_trunk_id, status, submitted_at, ownership_verified_at, routing_verified_at, activated_at, reconcile_after, reconcile_attempts, error_code, error_message, created_at, updated_at
+`
+
+type MarkManagedNumberOrderManualReviewParams struct {
+	ErrorCode *string   `db:"error_code" json:"error_code"`
+	ID        uuid.UUID `db:"id" json:"id"`
+}
+
+func (q *Queries) MarkManagedNumberOrderManualReview(ctx context.Context, arg MarkManagedNumberOrderManualReviewParams) (ManagedNumberOrder, error) {
+	row := q.db.QueryRow(ctx, markManagedNumberOrderManualReview, arg.ErrorCode, arg.ID)
+	var i ManagedNumberOrder
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.ProviderID,
+		&i.PhoneNumberID,
+		&i.IdempotencyKey,
+		&i.RequestHash,
+		&i.Number,
+		&i.CountryCode,
+		&i.AvailableDidID,
+		&i.SkuID,
+		&i.ProviderOrderID,
+		&i.ProviderDidID,
+		&i.InboundTrunkID,
+		&i.Status,
+		&i.SubmittedAt,
+		&i.OwnershipVerifiedAt,
+		&i.RoutingVerifiedAt,
+		&i.ActivatedAt,
+		&i.ReconcileAfter,
+		&i.ReconcileAttempts,
+		&i.ErrorCode,
+		&i.ErrorMessage,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const markManagedNumberOrderOutcomeUnknown = `-- name: MarkManagedNumberOrderOutcomeUnknown :one
+UPDATE managed_number_orders
+SET status = 'outcome_unknown', error_code = $1,
+    error_message = $2,
+    reconcile_after = $3
+WHERE id = $4 AND status = 'submitting'
+RETURNING id, organization_id, provider_id, phone_number_id, idempotency_key, request_hash, number, country_code, available_did_id, sku_id, provider_order_id, provider_did_id, inbound_trunk_id, status, submitted_at, ownership_verified_at, routing_verified_at, activated_at, reconcile_after, reconcile_attempts, error_code, error_message, created_at, updated_at
+`
+
+type MarkManagedNumberOrderOutcomeUnknownParams struct {
+	ErrorCode      *string            `db:"error_code" json:"error_code"`
+	ErrorMessage   *string            `db:"error_message" json:"error_message"`
+	ReconcileAfter pgtype.Timestamptz `db:"reconcile_after" json:"reconcile_after"`
+	ID             uuid.UUID          `db:"id" json:"id"`
+}
+
+func (q *Queries) MarkManagedNumberOrderOutcomeUnknown(ctx context.Context, arg MarkManagedNumberOrderOutcomeUnknownParams) (ManagedNumberOrder, error) {
+	row := q.db.QueryRow(ctx, markManagedNumberOrderOutcomeUnknown,
 		arg.ErrorCode,
 		arg.ErrorMessage,
-		arg.OrganizationID,
+		arg.ReconcileAfter,
 		arg.ID,
 	)
 	var i ManagedNumberOrder
@@ -212,16 +479,16 @@ func (q *Queries) FailUnsubmittedManagedNumberPurchase(ctx context.Context, arg 
 		&i.CountryCode,
 		&i.AvailableDidID,
 		&i.SkuID,
-		&i.QuoteID,
-		&i.PurchaseAmountMinor,
-		&i.RecurringAmountMinor,
-		&i.Currency,
-		&i.QuoteExpiresAt,
-		&i.WalletReservationID,
 		&i.ProviderOrderID,
 		&i.ProviderDidID,
+		&i.InboundTrunkID,
 		&i.Status,
 		&i.SubmittedAt,
+		&i.OwnershipVerifiedAt,
+		&i.RoutingVerifiedAt,
+		&i.ActivatedAt,
+		&i.ReconcileAfter,
+		&i.ReconcileAttempts,
 		&i.ErrorCode,
 		&i.ErrorMessage,
 		&i.CreatedAt,
@@ -230,261 +497,24 @@ func (q *Queries) FailUnsubmittedManagedNumberPurchase(ctx context.Context, arg 
 	return i, err
 }
 
-const getManagedNumberPurchaseIntentByID = `-- name: GetManagedNumberPurchaseIntentByID :one
-SELECT id, organization_id, provider_id, phone_number_id, idempotency_key, request_hash, number, country_code, available_did_id, sku_id, quote_id, purchase_amount_minor, recurring_amount_minor, currency, quote_expires_at, wallet_reservation_id, provider_order_id, provider_did_id, status, submitted_at, error_code, error_message, created_at, updated_at
-FROM managed_number_orders
-WHERE organization_id = $1
-  AND id = $2
-LIMIT 1
-`
-
-type GetManagedNumberPurchaseIntentByIDParams struct {
-	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
-	ID             uuid.UUID `db:"id" json:"id"`
-}
-
-func (q *Queries) GetManagedNumberPurchaseIntentByID(ctx context.Context, arg GetManagedNumberPurchaseIntentByIDParams) (ManagedNumberOrder, error) {
-	row := q.db.QueryRow(ctx, getManagedNumberPurchaseIntentByID, arg.OrganizationID, arg.ID)
-	var i ManagedNumberOrder
-	err := row.Scan(
-		&i.ID,
-		&i.OrganizationID,
-		&i.ProviderID,
-		&i.PhoneNumberID,
-		&i.IdempotencyKey,
-		&i.RequestHash,
-		&i.Number,
-		&i.CountryCode,
-		&i.AvailableDidID,
-		&i.SkuID,
-		&i.QuoteID,
-		&i.PurchaseAmountMinor,
-		&i.RecurringAmountMinor,
-		&i.Currency,
-		&i.QuoteExpiresAt,
-		&i.WalletReservationID,
-		&i.ProviderOrderID,
-		&i.ProviderDidID,
-		&i.Status,
-		&i.SubmittedAt,
-		&i.ErrorCode,
-		&i.ErrorMessage,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-	)
-	return i, err
-}
-
-const getManagedNumberPurchaseIntentByKey = `-- name: GetManagedNumberPurchaseIntentByKey :one
-SELECT id, organization_id, provider_id, phone_number_id, idempotency_key, request_hash, number, country_code, available_did_id, sku_id, quote_id, purchase_amount_minor, recurring_amount_minor, currency, quote_expires_at, wallet_reservation_id, provider_order_id, provider_did_id, status, submitted_at, error_code, error_message, created_at, updated_at
-FROM managed_number_orders
-WHERE organization_id = $1
-  AND idempotency_key = $2
-LIMIT 1
-`
-
-type GetManagedNumberPurchaseIntentByKeyParams struct {
-	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
-	IdempotencyKey string    `db:"idempotency_key" json:"idempotency_key"`
-}
-
-func (q *Queries) GetManagedNumberPurchaseIntentByKey(ctx context.Context, arg GetManagedNumberPurchaseIntentByKeyParams) (ManagedNumberOrder, error) {
-	row := q.db.QueryRow(ctx, getManagedNumberPurchaseIntentByKey, arg.OrganizationID, arg.IdempotencyKey)
-	var i ManagedNumberOrder
-	err := row.Scan(
-		&i.ID,
-		&i.OrganizationID,
-		&i.ProviderID,
-		&i.PhoneNumberID,
-		&i.IdempotencyKey,
-		&i.RequestHash,
-		&i.Number,
-		&i.CountryCode,
-		&i.AvailableDidID,
-		&i.SkuID,
-		&i.QuoteID,
-		&i.PurchaseAmountMinor,
-		&i.RecurringAmountMinor,
-		&i.Currency,
-		&i.QuoteExpiresAt,
-		&i.WalletReservationID,
-		&i.ProviderOrderID,
-		&i.ProviderDidID,
-		&i.Status,
-		&i.SubmittedAt,
-		&i.ErrorCode,
-		&i.ErrorMessage,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-	)
-	return i, err
-}
-
-const lockManagedNumberPurchaseIntent = `-- name: LockManagedNumberPurchaseIntent :one
-SELECT id, organization_id, provider_id, phone_number_id, idempotency_key, request_hash, number, country_code, available_did_id, sku_id, quote_id, purchase_amount_minor, recurring_amount_minor, currency, quote_expires_at, wallet_reservation_id, provider_order_id, provider_did_id, status, submitted_at, error_code, error_message, created_at, updated_at
-FROM managed_number_orders
-WHERE organization_id = $1
-  AND id = $2
-FOR UPDATE
-`
-
-type LockManagedNumberPurchaseIntentParams struct {
-	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
-	ID             uuid.UUID `db:"id" json:"id"`
-}
-
-func (q *Queries) LockManagedNumberPurchaseIntent(ctx context.Context, arg LockManagedNumberPurchaseIntentParams) (ManagedNumberOrder, error) {
-	row := q.db.QueryRow(ctx, lockManagedNumberPurchaseIntent, arg.OrganizationID, arg.ID)
-	var i ManagedNumberOrder
-	err := row.Scan(
-		&i.ID,
-		&i.OrganizationID,
-		&i.ProviderID,
-		&i.PhoneNumberID,
-		&i.IdempotencyKey,
-		&i.RequestHash,
-		&i.Number,
-		&i.CountryCode,
-		&i.AvailableDidID,
-		&i.SkuID,
-		&i.QuoteID,
-		&i.PurchaseAmountMinor,
-		&i.RecurringAmountMinor,
-		&i.Currency,
-		&i.QuoteExpiresAt,
-		&i.WalletReservationID,
-		&i.ProviderOrderID,
-		&i.ProviderDidID,
-		&i.Status,
-		&i.SubmittedAt,
-		&i.ErrorCode,
-		&i.ErrorMessage,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-	)
-	return i, err
-}
-
-const markManagedNumberPurchaseFunded = `-- name: MarkManagedNumberPurchaseFunded :one
-UPDATE managed_number_orders
-SET wallet_reservation_id = $1,
-    status = 'ready'
-WHERE organization_id = $2
-  AND id = $3
-  AND status = 'pending_funding'
-  AND wallet_reservation_id IS NULL
-  AND quote_expires_at > now()
-RETURNING id, organization_id, provider_id, phone_number_id, idempotency_key, request_hash, number, country_code, available_did_id, sku_id, quote_id, purchase_amount_minor, recurring_amount_minor, currency, quote_expires_at, wallet_reservation_id, provider_order_id, provider_did_id, status, submitted_at, error_code, error_message, created_at, updated_at
-`
-
-type MarkManagedNumberPurchaseFundedParams struct {
-	WalletReservationID *uuid.UUID `db:"wallet_reservation_id" json:"wallet_reservation_id"`
-	OrganizationID      uuid.UUID  `db:"organization_id" json:"organization_id"`
-	ID                  uuid.UUID  `db:"id" json:"id"`
-}
-
-// A wallet integration must actually reserve the accepted amount before
-// invoking this transition. This UUID is a reference, not proof of funds.
-func (q *Queries) MarkManagedNumberPurchaseFunded(ctx context.Context, arg MarkManagedNumberPurchaseFundedParams) (ManagedNumberOrder, error) {
-	row := q.db.QueryRow(ctx, markManagedNumberPurchaseFunded, arg.WalletReservationID, arg.OrganizationID, arg.ID)
-	var i ManagedNumberOrder
-	err := row.Scan(
-		&i.ID,
-		&i.OrganizationID,
-		&i.ProviderID,
-		&i.PhoneNumberID,
-		&i.IdempotencyKey,
-		&i.RequestHash,
-		&i.Number,
-		&i.CountryCode,
-		&i.AvailableDidID,
-		&i.SkuID,
-		&i.QuoteID,
-		&i.PurchaseAmountMinor,
-		&i.RecurringAmountMinor,
-		&i.Currency,
-		&i.QuoteExpiresAt,
-		&i.WalletReservationID,
-		&i.ProviderOrderID,
-		&i.ProviderDidID,
-		&i.Status,
-		&i.SubmittedAt,
-		&i.ErrorCode,
-		&i.ErrorMessage,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-	)
-	return i, err
-}
-
-const markManagedNumberPurchaseOutcomeUnknown = `-- name: MarkManagedNumberPurchaseOutcomeUnknown :one
-UPDATE managed_number_orders
-SET status = 'outcome_unknown'
-WHERE organization_id = $1
-  AND id = $2
-  AND status = 'submitting'
-RETURNING id, organization_id, provider_id, phone_number_id, idempotency_key, request_hash, number, country_code, available_did_id, sku_id, quote_id, purchase_amount_minor, recurring_amount_minor, currency, quote_expires_at, wallet_reservation_id, provider_order_id, provider_did_id, status, submitted_at, error_code, error_message, created_at, updated_at
-`
-
-type MarkManagedNumberPurchaseOutcomeUnknownParams struct {
-	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
-	ID             uuid.UUID `db:"id" json:"id"`
-}
-
-func (q *Queries) MarkManagedNumberPurchaseOutcomeUnknown(ctx context.Context, arg MarkManagedNumberPurchaseOutcomeUnknownParams) (ManagedNumberOrder, error) {
-	row := q.db.QueryRow(ctx, markManagedNumberPurchaseOutcomeUnknown, arg.OrganizationID, arg.ID)
-	var i ManagedNumberOrder
-	err := row.Scan(
-		&i.ID,
-		&i.OrganizationID,
-		&i.ProviderID,
-		&i.PhoneNumberID,
-		&i.IdempotencyKey,
-		&i.RequestHash,
-		&i.Number,
-		&i.CountryCode,
-		&i.AvailableDidID,
-		&i.SkuID,
-		&i.QuoteID,
-		&i.PurchaseAmountMinor,
-		&i.RecurringAmountMinor,
-		&i.Currency,
-		&i.QuoteExpiresAt,
-		&i.WalletReservationID,
-		&i.ProviderOrderID,
-		&i.ProviderDidID,
-		&i.Status,
-		&i.SubmittedAt,
-		&i.ErrorCode,
-		&i.ErrorMessage,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-	)
-	return i, err
-}
-
-const recordManagedNumberAcquiredDID = `-- name: RecordManagedNumberAcquiredDID :one
+const recordManagedNumberOwnedDID = `-- name: RecordManagedNumberOwnedDID :one
 UPDATE managed_number_orders
 SET provider_did_id = $1,
-    status = 'configuring'
-WHERE organization_id = $2
-  AND id = $3
-  AND status = 'provider_pending'
-  AND provider_order_id IS NOT NULL
-  AND provider_did_id IS NULL
-RETURNING id, organization_id, provider_id, phone_number_id, idempotency_key, request_hash, number, country_code, available_did_id, sku_id, quote_id, purchase_amount_minor, recurring_amount_minor, currency, quote_expires_at, wallet_reservation_id, provider_order_id, provider_did_id, status, submitted_at, error_code, error_message, created_at, updated_at
+    ownership_verified_at = $2, status = 'configuring',
+    error_code = NULL, error_message = NULL
+WHERE id = $3 AND status IN ('provider_pending', 'configuring')
+  AND (provider_did_id IS NULL OR provider_did_id = $1)
+RETURNING id, organization_id, provider_id, phone_number_id, idempotency_key, request_hash, number, country_code, available_did_id, sku_id, provider_order_id, provider_did_id, inbound_trunk_id, status, submitted_at, ownership_verified_at, routing_verified_at, activated_at, reconcile_after, reconcile_attempts, error_code, error_message, created_at, updated_at
 `
 
-type RecordManagedNumberAcquiredDIDParams struct {
-	ProviderDidID  *string   `db:"provider_did_id" json:"provider_did_id"`
-	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
-	ID             uuid.UUID `db:"id" json:"id"`
+type RecordManagedNumberOwnedDIDParams struct {
+	ProviderDidID *string            `db:"provider_did_id" json:"provider_did_id"`
+	VerifiedAt    pgtype.Timestamptz `db:"verified_at" json:"verified_at"`
+	ID            uuid.UUID          `db:"id" json:"id"`
 }
 
-// Only after the provider confirms ownership of the exact selected number
-// and DID may the worker advance to inbound-trunk provisioning.
-func (q *Queries) RecordManagedNumberAcquiredDID(ctx context.Context, arg RecordManagedNumberAcquiredDIDParams) (ManagedNumberOrder, error) {
-	row := q.db.QueryRow(ctx, recordManagedNumberAcquiredDID, arg.ProviderDidID, arg.OrganizationID, arg.ID)
+func (q *Queries) RecordManagedNumberOwnedDID(ctx context.Context, arg RecordManagedNumberOwnedDIDParams) (ManagedNumberOrder, error) {
+	row := q.db.QueryRow(ctx, recordManagedNumberOwnedDID, arg.ProviderDidID, arg.VerifiedAt, arg.ID)
 	var i ManagedNumberOrder
 	err := row.Scan(
 		&i.ID,
@@ -497,16 +527,16 @@ func (q *Queries) RecordManagedNumberAcquiredDID(ctx context.Context, arg Record
 		&i.CountryCode,
 		&i.AvailableDidID,
 		&i.SkuID,
-		&i.QuoteID,
-		&i.PurchaseAmountMinor,
-		&i.RecurringAmountMinor,
-		&i.Currency,
-		&i.QuoteExpiresAt,
-		&i.WalletReservationID,
 		&i.ProviderOrderID,
 		&i.ProviderDidID,
+		&i.InboundTrunkID,
 		&i.Status,
 		&i.SubmittedAt,
+		&i.OwnershipVerifiedAt,
+		&i.RoutingVerifiedAt,
+		&i.ActivatedAt,
+		&i.ReconcileAfter,
+		&i.ReconcileAttempts,
 		&i.ErrorCode,
 		&i.ErrorMessage,
 		&i.CreatedAt,
@@ -517,25 +547,23 @@ func (q *Queries) RecordManagedNumberAcquiredDID(ctx context.Context, arg Record
 
 const recordManagedNumberProviderOrder = `-- name: RecordManagedNumberProviderOrder :one
 UPDATE managed_number_orders
-SET provider_order_id = $1,
-    status = 'provider_pending'
-WHERE organization_id = $2
-  AND id = $3
+SET provider_order_id = $1, status = 'provider_pending',
+    error_code = NULL, error_message = NULL,
+    reconcile_after = $2
+WHERE id = $3
   AND status IN ('submitting', 'outcome_unknown', 'provider_pending')
   AND (provider_order_id IS NULL OR provider_order_id = $1)
-RETURNING id, organization_id, provider_id, phone_number_id, idempotency_key, request_hash, number, country_code, available_did_id, sku_id, quote_id, purchase_amount_minor, recurring_amount_minor, currency, quote_expires_at, wallet_reservation_id, provider_order_id, provider_did_id, status, submitted_at, error_code, error_message, created_at, updated_at
+RETURNING id, organization_id, provider_id, phone_number_id, idempotency_key, request_hash, number, country_code, available_did_id, sku_id, provider_order_id, provider_did_id, inbound_trunk_id, status, submitted_at, ownership_verified_at, routing_verified_at, activated_at, reconcile_after, reconcile_attempts, error_code, error_message, created_at, updated_at
 `
 
 type RecordManagedNumberProviderOrderParams struct {
-	ProviderOrderID *string   `db:"provider_order_id" json:"provider_order_id"`
-	OrganizationID  uuid.UUID `db:"organization_id" json:"organization_id"`
-	ID              uuid.UUID `db:"id" json:"id"`
+	ProviderOrderID *string            `db:"provider_order_id" json:"provider_order_id"`
+	ReconcileAfter  pgtype.Timestamptz `db:"reconcile_after" json:"reconcile_after"`
+	ID              uuid.UUID          `db:"id" json:"id"`
 }
 
-// Only after reconciliation has matched the upstream order to this internal
-// intent, including the original external reference, should it be persisted.
 func (q *Queries) RecordManagedNumberProviderOrder(ctx context.Context, arg RecordManagedNumberProviderOrderParams) (ManagedNumberOrder, error) {
-	row := q.db.QueryRow(ctx, recordManagedNumberProviderOrder, arg.ProviderOrderID, arg.OrganizationID, arg.ID)
+	row := q.db.QueryRow(ctx, recordManagedNumberProviderOrder, arg.ProviderOrderID, arg.ReconcileAfter, arg.ID)
 	var i ManagedNumberOrder
 	err := row.Scan(
 		&i.ID,
@@ -548,16 +576,64 @@ func (q *Queries) RecordManagedNumberProviderOrder(ctx context.Context, arg Reco
 		&i.CountryCode,
 		&i.AvailableDidID,
 		&i.SkuID,
-		&i.QuoteID,
-		&i.PurchaseAmountMinor,
-		&i.RecurringAmountMinor,
-		&i.Currency,
-		&i.QuoteExpiresAt,
-		&i.WalletReservationID,
 		&i.ProviderOrderID,
 		&i.ProviderDidID,
+		&i.InboundTrunkID,
 		&i.Status,
 		&i.SubmittedAt,
+		&i.OwnershipVerifiedAt,
+		&i.RoutingVerifiedAt,
+		&i.ActivatedAt,
+		&i.ReconcileAfter,
+		&i.ReconcileAttempts,
+		&i.ErrorCode,
+		&i.ErrorMessage,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const scheduleManagedNumberReconciliation = `-- name: ScheduleManagedNumberReconciliation :one
+UPDATE managed_number_orders
+SET reconcile_after = $1,
+    reconcile_attempts = reconcile_attempts + 1,
+    error_code = $2, error_message = NULL
+WHERE id = $3
+  AND status IN ('submitting', 'outcome_unknown', 'provider_pending', 'configuring')
+RETURNING id, organization_id, provider_id, phone_number_id, idempotency_key, request_hash, number, country_code, available_did_id, sku_id, provider_order_id, provider_did_id, inbound_trunk_id, status, submitted_at, ownership_verified_at, routing_verified_at, activated_at, reconcile_after, reconcile_attempts, error_code, error_message, created_at, updated_at
+`
+
+type ScheduleManagedNumberReconciliationParams struct {
+	ReconcileAfter pgtype.Timestamptz `db:"reconcile_after" json:"reconcile_after"`
+	ErrorCode      *string            `db:"error_code" json:"error_code"`
+	ID             uuid.UUID          `db:"id" json:"id"`
+}
+
+func (q *Queries) ScheduleManagedNumberReconciliation(ctx context.Context, arg ScheduleManagedNumberReconciliationParams) (ManagedNumberOrder, error) {
+	row := q.db.QueryRow(ctx, scheduleManagedNumberReconciliation, arg.ReconcileAfter, arg.ErrorCode, arg.ID)
+	var i ManagedNumberOrder
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.ProviderID,
+		&i.PhoneNumberID,
+		&i.IdempotencyKey,
+		&i.RequestHash,
+		&i.Number,
+		&i.CountryCode,
+		&i.AvailableDidID,
+		&i.SkuID,
+		&i.ProviderOrderID,
+		&i.ProviderDidID,
+		&i.InboundTrunkID,
+		&i.Status,
+		&i.SubmittedAt,
+		&i.OwnershipVerifiedAt,
+		&i.RoutingVerifiedAt,
+		&i.ActivatedAt,
+		&i.ReconcileAfter,
+		&i.ReconcileAttempts,
 		&i.ErrorCode,
 		&i.ErrorMessage,
 		&i.CreatedAt,
