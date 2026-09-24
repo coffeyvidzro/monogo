@@ -330,7 +330,7 @@ def configure_provider():
 def create_voice_application():
     _, number = api(
         "POST",
-        "/v1/numbers/byoc",
+        "/v1/numbers/",
         {
             "number": DID,
             "country_code": "US",
@@ -349,7 +349,7 @@ def create_voice_application():
     # owned, voice-enabled number on the same carrier connection as the trunk.
     _, caller_number = api(
         "POST",
-        "/v1/numbers/byoc",
+        "/v1/numbers/",
         {
             "number": CALLER,
             "country_code": "US",
