@@ -28,7 +28,7 @@ type Dependencies struct {
 	CallsAdmission       *calling.AdmissionLimiter
 	ConferenceController conferences.Controller
 	CredentialCipher     *encryption.Cipher
-	DIDWWInventory      *didww.Client
+	DIDWWInventory       *didww.Client
 	RealtimeService      *realtime.Service
 	RecordingStorage     recordings.Storage
 }

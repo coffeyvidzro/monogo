@@ -133,7 +133,7 @@ func newModules(ctx context.Context, cfg config.Config) (*modules, error) {
 		CallsAdmission:       calling.NewAdmissionLimiter(redisClient),
 		ConferenceController: conferences.NewFreeSWITCHController(freeSwitch),
 		CredentialCipher:     credentialCipher,
-		DIDWWInventory:      didwwInventory,
+		DIDWWInventory:       didwwInventory,
 		RealtimeService:      turnService,
 		RecordingStorage:     recordingStorage,
 	})
