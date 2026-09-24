@@ -94,7 +94,7 @@ func newModules(ctx context.Context, cfg config.Config) (*modules, error) {
 
 	routingRepository := routing.NewRepository(queries)
 	routingService := routing.NewService(routingRepository, nil)
-	callsRepository := calls.NewRepository(queries)
+	callsRepository := calls.NewRepository(queries, postgresClient.Pool())
 	callController := calling.NewController(freeSwitch)
 	admissionLimiter := calling.NewAdmissionLimiter(redisClient)
 	callsService := calls.NewService(
