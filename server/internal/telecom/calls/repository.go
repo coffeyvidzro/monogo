@@ -59,7 +59,7 @@ func (r *Repository) CreateInbound(
 // or FreeSWITCH channel UUID for the SIP Call-ID.
 func (r *Repository) BindOutboundSIPCallID(ctx context.Context, organizationID, callID uuid.UUID, sipCallID string) error {
 	_, err := r.queries.SetOutboundCallSIPCallID(ctx, sqlc.SetOutboundCallSIPCallIDParams{
-		SipCallID:      sipCallID,
+		SipCallID:      &sipCallID,
 		OrganizationID: organizationID,
 		ID:             callID,
 	})
