@@ -20,7 +20,7 @@ func NewHandler(service *Service) *Handler {
 	return &Handler{service: service}
 }
 
-func (h *Handler) PurchaseManaged(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) PurchaseNumber(w http.ResponseWriter, r *http.Request) {
 	organizationID, err := requestOrganizationID(r)
 	if err != nil {
 		httputil.Error(w, err)
@@ -85,7 +85,7 @@ func (h *Handler) SearchAvailable(w http.ResponseWriter, r *http.Request) {
 	httputil.OK(w, map[string]any{"numbers": numbers})
 }
 
-func (h *Handler) CreateBYOC(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) CreateNumber(w http.ResponseWriter, r *http.Request) {
 	organizationID, err := requestOrganizationID(r)
 	if err != nil {
 		httputil.Error(w, err)
