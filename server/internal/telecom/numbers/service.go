@@ -18,8 +18,11 @@ type Service struct {
 	inventory *didww.Client
 }
 
-func NewService(repo *Repository, inventory *didww.Client) *Service {
-	return &Service{repo: repo, inventory: inventory}
+func NewService(repository *Repository, inventory *didww.Client) *Service {
+	return &Service{
+		repo:      repository,
+		inventory: inventory,
+	}
 }
 
 // SearchAvailable reads DIDWW inventory only. It cannot reserve, purchase, or
@@ -54,8 +57,8 @@ func (s *Service) SearchAvailable(
 
 	numbers := make([]AvailableNumber, 0, len(result.Data))
 	seen := make(map[string]struct{}, len(result.Data))
-	for _, item := range result.Data {
-		number := strings.TrimSpace(item.Attributes.Number)
+	for _, availableDID := range result.Data {
+		number := strings.TrimSpace(availableDID.Attributes.Number)
 		if !strings.HasPrefix(number, "+") {
 			number = "+" + number
 		}
@@ -65,6 +68,7 @@ func (s *Service) SearchAvailable(
 		if _, exists := seen[number]; exists {
 			continue
 		}
+
 		seen[number] = struct{}{}
 		numbers = append(numbers, AvailableNumber{Number: number})
 	}
