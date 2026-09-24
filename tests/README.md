@@ -1,21 +1,21 @@
 # Acceptance tests
 
-The acceptance suites cover both supported product models and the shared Leamout
-Core voice architecture.
+These acceptance suites exercise implemented functionality in the current
+Leamout runtime. Cloud + Managed number purchasing and provider provisioning
+are not implemented and are not acceptance requirements.
 
-## Product-model suites
+## BYOC
 
 - `byoc-v1`: customer-owned carrier onboarding and SIP routing.
-- `cloud-managed`: Leamout-managed number purchasing, routing, and calling.
 
-## Leamout Core architecture suites
+## Core voice architecture
 
-- `voice-v1`: programmable voice across OpenSIPS, FreeSWITCH, RTPengine, and the
-  control plane.
+- `voice-v1`: programmable voice across OpenSIPS, FreeSWITCH, RTPengine, and
+  the control plane.
 - `webrtc-v1`: browser calling and TURN/ICE media relay through the core voice
   stack.
-- `graceful-drain`: safe draining of active calls across core signaling and
-  media services.
+- `graceful-drain`: draining active calls across core signaling and media
+  services.
 
-These architecture suites are not a separate product or deployment model. They
-exercise infrastructure shared by BYOC and Cloud + Managed services.
+The architecture suites exercise existing runtime capabilities; they do not
+establish availability of a Cloud + Managed product model.
