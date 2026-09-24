@@ -14,7 +14,7 @@ type ReconciliationJob struct {
 
 func NewReconciliationJob(service *Service, batch int) (*ReconciliationJob, error) {
 	if service == nil || service.repo == nil || service.repo.queries == nil ||
-		service.db == nil || service.provider == nil {
+		service.db == nil || service.inventory == nil {
 		return nil, fmt.Errorf("managed number reconciliation dependencies are required")
 	}
 	if batch < 1 || batch > 500 {

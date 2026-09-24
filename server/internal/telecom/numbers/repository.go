@@ -19,7 +19,11 @@ func NewRepository(queries *sqlc.Queries) *Repository {
 	return &Repository{queries: queries}
 }
 
-func (r *Repository) CreateBYOC(ctx context.Context, organizationID uuid.UUID, req CreateBYOCRequest) (sqlc.PhoneNumber, error) {
+func (r *Repository) CreateBYOC(
+	ctx context.Context,
+	organizationID uuid.UUID,
+	req CreateBYOCRequest,
+) (sqlc.PhoneNumber, error) {
 	return r.queries.CreateBYOCPhoneNumber(ctx, sqlc.CreateBYOCPhoneNumberParams{
 		OrganizationID:      organizationID,
 		Number:              req.Number,
@@ -41,7 +45,12 @@ func (r *Repository) Get(ctx context.Context, organizationID, id uuid.UUID) (sql
 	})
 }
 
-func (r *Repository) Update(ctx context.Context, organizationID, id uuid.UUID, req UpdateRequest) (sqlc.PhoneNumber, error) {
+func (r *Repository) Update(
+	ctx context.Context,
+	organizationID uuid.UUID,
+	id uuid.UUID,
+	req UpdateRequest,
+) (sqlc.PhoneNumber, error) {
 	return r.queries.UpdatePhoneNumber(ctx, sqlc.UpdatePhoneNumberParams{
 		ID:             id,
 		OrganizationID: organizationID,
@@ -50,7 +59,12 @@ func (r *Repository) Update(ctx context.Context, organizationID, id uuid.UUID, r
 	})
 }
 
-func (r *Repository) SetBYOCConnection(ctx context.Context, organizationID, id, connectionID uuid.UUID) (sqlc.PhoneNumber, error) {
+func (r *Repository) SetBYOCConnection(
+	ctx context.Context,
+	organizationID uuid.UUID,
+	id uuid.UUID,
+	connectionID uuid.UUID,
+) (sqlc.PhoneNumber, error) {
 	return r.queries.SetBYOCPhoneNumberCarrierConnection(ctx, sqlc.SetBYOCPhoneNumberCarrierConnectionParams{
 		ID:                  id,
 		OrganizationID:      organizationID,
@@ -87,23 +101,47 @@ func (r *Repository) ManagedRoutingTargetsForProvider(
 	return r.queries.ListProviderRoutingTargets(ctx, providerID)
 }
 
-func (r *Repository) CreateManagedOrder(ctx context.Context, organizationID uuid.UUID, key, hash string, request ManagedPurchaseRequest, availableDIDID, skuID string) (ManagedOrder, bool, error) {
-	row, err := r.queries.CreateManagedNumberOrder(ctx, sqlc.CreateManagedNumberOrderParams{
-		ID: uuid.New(), OrganizationID: organizationID, IdempotencyKey: key,
-		RequestHash: hash, Number: request.Number, CountryCode: request.CountryCode,
-		AvailableDidID: availableDIDID, SkuID: skuID,
-	})
+func (r *Repository) CreateManagedOrder(
+	ctx context.Context,
+	organizationID uuid.UUID,
+	key string,
+	hash string,
+	request ManagedPurchaseRequest,
+	availableDIDID string,
+	skuID string,
+) (ManagedOrder, bool, error) {
+	params := sqlc.CreateManagedNumberOrderParams{
+		ID:             uuid.New(),
+		OrganizationID: organizationID,
+		IdempotencyKey: key,
+		RequestHash:    hash,
+		Number:         request.Number,
+		CountryCode:    request.CountryCode,
+		AvailableDidID: availableDIDID,
+		SkuID:          skuID,
+	}
+	row, err := r.queries.CreateManagedNumberOrder(ctx, params)
 	created := err == nil
 	if errors.Is(err, pgx.ErrNoRows) {
-		row, err = r.queries.GetManagedNumberOrderByKey(ctx, sqlc.GetManagedNumberOrderByKeyParams{
-			OrganizationID: organizationID, IdempotencyKey: key,
-		})
+		params := sqlc.GetManagedNumberOrderByKeyParams{
+			OrganizationID: organizationID,
+			IdempotencyKey: key,
+		}
+		row, err = r.queries.GetManagedNumberOrderByKey(ctx, params)
 	}
 	return managedOrder(row), created, err
 }
 
-func (r *Repository) GetManagedOrder(ctx context.Context, organizationID, id uuid.UUID) (ManagedOrder, error) {
-	row, err := r.queries.GetManagedNumberOrder(ctx, sqlc.GetManagedNumberOrderParams{OrganizationID: organizationID, ID: id})
+func (r *Repository) GetManagedOrder(
+	ctx context.Context,
+	organizationID uuid.UUID,
+	id uuid.UUID,
+) (ManagedOrder, error) {
+	params := sqlc.GetManagedNumberOrderParams{
+		OrganizationID: organizationID,
+		ID:             id,
+	}
+	row, err := r.queries.GetManagedNumberOrder(ctx, params)
 	return managedOrder(row), err
 }
 
@@ -144,36 +182,78 @@ func (r *Repository) ClaimManagedSubmission(ctx context.Context, id uuid.UUID) (
 	return managedOrder(row), err
 }
 
-func (r *Repository) MarkManagedOutcomeUnknown(ctx context.Context, id uuid.UUID, code, message string, next time.Time) (ManagedOrder, error) {
-	row, err := r.queries.MarkManagedNumberOrderOutcomeUnknown(ctx, sqlc.MarkManagedNumberOrderOutcomeUnknownParams{
-		ID: id, ErrorCode: &code, ErrorMessage: &message, ReconcileAfter: pgconv.TimeToTimestamptz(next),
-	})
+func (r *Repository) MarkManagedOutcomeUnknown(
+	ctx context.Context,
+	id uuid.UUID,
+	code string,
+	message string,
+	next time.Time,
+) (ManagedOrder, error) {
+	params := sqlc.MarkManagedNumberOrderOutcomeUnknownParams{
+		ID:             id,
+		ErrorCode:      &code,
+		ErrorMessage:   &message,
+		ReconcileAfter: pgconv.TimeToTimestamptz(next),
+	}
+	row, err := r.queries.MarkManagedNumberOrderOutcomeUnknown(ctx, params)
 	return managedOrder(row), err
 }
 
-func (r *Repository) RecordManagedProviderOrder(ctx context.Context, id uuid.UUID, providerOrderID string, next time.Time) (ManagedOrder, error) {
-	row, err := r.queries.RecordManagedNumberProviderOrder(ctx, sqlc.RecordManagedNumberProviderOrderParams{
-		ID: id, ProviderOrderID: &providerOrderID, ReconcileAfter: pgconv.TimeToTimestamptz(next),
-	})
+func (r *Repository) RecordManagedProviderOrder(
+	ctx context.Context,
+	id uuid.UUID,
+	providerOrderID string,
+	next time.Time,
+) (ManagedOrder, error) {
+	params := sqlc.RecordManagedNumberProviderOrderParams{
+		ID:              id,
+		ProviderOrderID: &providerOrderID,
+		ReconcileAfter:  pgconv.TimeToTimestamptz(next),
+	}
+	row, err := r.queries.RecordManagedNumberProviderOrder(ctx, params)
 	return managedOrder(row), err
 }
 
-func (r *Repository) RecordManagedOwnedDID(ctx context.Context, id uuid.UUID, didID string, verifiedAt time.Time) (ManagedOrder, error) {
-	row, err := r.queries.RecordManagedNumberOwnedDID(ctx, sqlc.RecordManagedNumberOwnedDIDParams{
-		ID: id, ProviderDidID: &didID, VerifiedAt: pgconv.TimeToTimestamptz(verifiedAt),
-	})
+func (r *Repository) RecordManagedOwnedDID(
+	ctx context.Context,
+	id uuid.UUID,
+	didID string,
+	verifiedAt time.Time,
+) (ManagedOrder, error) {
+	params := sqlc.RecordManagedNumberOwnedDIDParams{
+		ID:            id,
+		ProviderDidID: &didID,
+		VerifiedAt:    pgconv.TimeToTimestamptz(verifiedAt),
+	}
+	row, err := r.queries.RecordManagedNumberOwnedDID(ctx, params)
 	return managedOrder(row), err
 }
 
-func (r *Repository) ScheduleManagedReconciliation(ctx context.Context, id uuid.UUID, code string, next time.Time) (ManagedOrder, error) {
-	row, err := r.queries.ScheduleManagedNumberReconciliation(ctx, sqlc.ScheduleManagedNumberReconciliationParams{
-		ID: id, ErrorCode: &code, ReconcileAfter: pgconv.TimeToTimestamptz(next),
-	})
+func (r *Repository) ScheduleManagedReconciliation(
+	ctx context.Context,
+	id uuid.UUID,
+	code string,
+	next time.Time,
+) (ManagedOrder, error) {
+	params := sqlc.ScheduleManagedNumberReconciliationParams{
+		ID:             id,
+		ErrorCode:      &code,
+		ReconcileAfter: pgconv.TimeToTimestamptz(next),
+	}
+	row, err := r.queries.ScheduleManagedNumberReconciliation(ctx, params)
 	return managedOrder(row), err
 }
 
-func (r *Repository) MarkManagedManualReview(ctx context.Context, id uuid.UUID, code string) (ManagedOrder, error) {
-	row, err := r.queries.MarkManagedNumberOrderManualReview(ctx, sqlc.MarkManagedNumberOrderManualReviewParams{ID: id, ErrorCode: &code})
+func (r *Repository) MarkManagedManualReview(
+	ctx context.Context,
+	id uuid.UUID,
+	code string,
+) (ManagedOrder, error) {
+	params := sqlc.MarkManagedNumberOrderManualReviewParams{
+		ID:        id,
+		ErrorCode: &code,
+	}
+	row, err := r.queries.MarkManagedNumberOrderManualReview(ctx, params)
 	return managedOrder(row), err
 }
 
@@ -188,17 +268,30 @@ func (r *Repository) CreateActivatedManagedNumber(
 	didID string,
 	carrierConnectionID uuid.UUID,
 ) (sqlc.PhoneNumber, error) {
-	return r.queries.CreateManagedPhoneNumber(ctx, sqlc.CreateManagedPhoneNumberParams{
-		OrganizationID: order.OrganizationID, Number: order.Number, CountryCode: order.CountryCode,
-		ProviderID: &order.ProviderID, ProviderResourceID: &didID,
+	params := sqlc.CreateManagedPhoneNumberParams{
+		OrganizationID:      order.OrganizationID,
+		Number:              order.Number,
+		CountryCode:         order.CountryCode,
+		ProviderID:          &order.ProviderID,
+		ProviderResourceID:  &didID,
 		CarrierConnectionID: &carrierConnectionID,
-	})
+	}
+	return r.queries.CreateManagedPhoneNumber(ctx, params)
 }
 
-func (r *Repository) CompleteManagedOrder(ctx context.Context, id, phoneNumberID uuid.UUID, trunkID string, verifiedAt time.Time) (ManagedOrder, error) {
-	row, err := r.queries.CompleteManagedNumberOrder(ctx, sqlc.CompleteManagedNumberOrderParams{
-		ID: id, PhoneNumberID: &phoneNumberID, InboundTrunkID: &trunkID,
-		VerifiedAt: pgconv.TimeToTimestamptz(verifiedAt),
-	})
+func (r *Repository) CompleteManagedOrder(
+	ctx context.Context,
+	id uuid.UUID,
+	phoneNumberID uuid.UUID,
+	trunkID string,
+	verifiedAt time.Time,
+) (ManagedOrder, error) {
+	params := sqlc.CompleteManagedNumberOrderParams{
+		ID:             id,
+		PhoneNumberID:  &phoneNumberID,
+		InboundTrunkID: &trunkID,
+		VerifiedAt:     pgconv.TimeToTimestamptz(verifiedAt),
+	}
+	row, err := r.queries.CompleteManagedNumberOrder(ctx, params)
 	return managedOrder(row), err
 }
