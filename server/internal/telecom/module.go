@@ -4,6 +4,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
+	"github.com/coffeyvidzro/monogo/internal/integrations/carriers/didww"
 	"github.com/coffeyvidzro/monogo/internal/runtime/calling"
 	"github.com/coffeyvidzro/monogo/internal/security/encryption"
 	"github.com/coffeyvidzro/monogo/internal/telecom/calls"
@@ -27,6 +28,7 @@ type Dependencies struct {
 	CallsAdmission       *calling.AdmissionLimiter
 	ConferenceController conferences.Controller
 	CredentialCipher     *encryption.Cipher
+	DIDWWInventory      *didww.Client
 	RealtimeService      *realtime.Service
 	RecordingStorage     recordings.Storage
 }
@@ -123,7 +125,7 @@ func New(deps Dependencies) (*Module, error) {
 	)
 
 	numbersRepository := numbers.NewRepository(deps.Queries)
-	numbersService := numbers.NewService(numbersRepository)
+	numbersService := numbers.NewService(numbersRepository, deps.DIDWWInventory)
 
 	voiceRepository := voice.NewRepository(deps.Queries)
 	voiceService := voice.NewService(voiceRepository)

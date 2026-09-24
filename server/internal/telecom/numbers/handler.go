@@ -19,6 +19,22 @@ func NewHandler(service *Service) *Handler {
 	return &Handler{service: service}
 }
 
+// SearchAvailable exposes display-only DIDWW inventory. Purchasing and
+// provisioning are deliberately not implemented by this endpoint.
+func (h *Handler) SearchAvailable(w http.ResponseWriter, r *http.Request) {
+	organizationID, err := requestOrganizationID(r)
+	if err != nil {
+		httputil.Error(w, err)
+		return
+	}
+	numbers, err := h.service.SearchAvailable(r.Context(), organizationID, r.URL.Query().Get("contains"))
+	if err != nil {
+		httputil.Error(w, err)
+		return
+	}
+	httputil.OK(w, map[string]any{"numbers": numbers})
+}
+
 func (h *Handler) CreateBYOC(w http.ResponseWriter, r *http.Request) {
 	organizationID, err := requestOrganizationID(r)
 	if err != nil {

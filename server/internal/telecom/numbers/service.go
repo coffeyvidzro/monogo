@@ -3,8 +3,10 @@ package numbers
 import (
 	"context"
 	"errors"
+	"strings"
 
 	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
+	"github.com/coffeyvidzro/monogo/internal/integrations/carriers/didww"
 	"github.com/coffeyvidzro/monogo/pkg/apperror"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -12,11 +14,61 @@ import (
 )
 
 type Service struct {
-	repo *Repository
+	repo      *Repository
+	inventory *didww.Client
 }
 
-func NewService(repo *Repository) *Service {
-	return &Service{repo: repo}
+func NewService(repo *Repository, inventory *didww.Client) *Service {
+	return &Service{repo: repo, inventory: inventory}
+}
+
+// SearchAvailable reads DIDWW inventory only. It cannot reserve, purchase, or
+// provision a number and never exposes upstream resource identifiers.
+func (s *Service) SearchAvailable(
+	ctx context.Context,
+	organizationID uuid.UUID,
+	contains string,
+) ([]AvailableNumber, error) {
+	if err := validateOrganization(organizationID); err != nil {
+		return nil, err
+	}
+	contains = strings.TrimSpace(contains)
+	if len(contains) < 3 || len(contains) > 15 {
+		return nil, apperror.NewBadRequest("contains must contain 3 to 15 digits")
+	}
+	for _, digit := range contains {
+		if digit < '0' || digit > '9' {
+			return nil, apperror.NewBadRequest("contains must contain only digits")
+		}
+	}
+	if s.inventory == nil {
+		return nil, apperror.NewServiceUnavailable("managed number inventory is not configured", nil)
+	}
+
+	result, err := s.inventory.SearchAvailableDIDs(ctx, didww.AvailableDIDFilter{
+		NumberContains: contains,
+	})
+	if err != nil {
+		return nil, apperror.NewServiceUnavailable("managed number inventory is unavailable", err)
+	}
+
+	numbers := make([]AvailableNumber, 0, len(result.Data))
+	seen := make(map[string]struct{}, len(result.Data))
+	for _, item := range result.Data {
+		number := strings.TrimSpace(item.Attributes.Number)
+		if !strings.HasPrefix(number, "+") {
+			number = "+" + number
+		}
+		if !e164.MatchString(number) || !strings.Contains(number, contains) {
+			continue
+		}
+		if _, exists := seen[number]; exists {
+			continue
+		}
+		seen[number] = struct{}{}
+		numbers = append(numbers, AvailableNumber{Number: number})
+	}
+	return numbers, nil
 }
 
 func (s *Service) CreateBYOC(ctx context.Context, organizationID uuid.UUID, req CreateBYOCRequest) (sqlc.PhoneNumber, error) {

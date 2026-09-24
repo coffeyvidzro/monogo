@@ -8,6 +8,12 @@ import (
 	"github.com/google/uuid"
 )
 
+// AvailableNumber is display-only inventory. It is not a purchase offer or
+// authorization to order an upstream DID.
+type AvailableNumber struct {
+	Number string `json:"number"`
+}
+
 type CreateBYOCRequest struct {
 	Number              string     `json:"number"`
 	CountryCode         string     `json:"country_code"`
