@@ -1,126 +1,104 @@
-package numbers
+package lifecycle
 
 import (
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"strings"
-	"time"
-
 	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
+	"github.com/coffeyvidzro/monogo/pkg/apperror"
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
+	"regexp"
+	"strings"
+	"time"
 )
 
-func (s *Service) ReconcileLifecycle(ctx context.Context, operation sqlc.NumberLifecycleOperation) error {
-	switch operation.Operation {
-	case "release":
-		return s.reconcileRelease(ctx, operation)
-	case "port_in":
-		return s.reconcilePortIn(ctx, operation)
-	default:
-		return nil
+func (s *Service) CreatePortIn(ctx context.Context, organizationID uuid.UUID, key string, req PortInRequest) (PortInResponse, error) {
+	key = strings.TrimSpace(key)
+	req.Number = strings.TrimSpace(req.Number)
+	req.LosingCarrier = strings.TrimSpace(req.LosingCarrier)
+	req.AccountNumber = strings.TrimSpace(req.AccountNumber)
+	req.AuthorizedName = strings.TrimSpace(req.AuthorizedName)
+	normalizeEmergency(&req.ServiceAddress)
+	if err := validateLifecycleKey(organizationID, key); err != nil {
+		return PortInResponse{}, err
 	}
-}
-
-func (s *Service) reconcileRelease(ctx context.Context, operation sqlc.NumberLifecycleOperation) error {
-	if operation.PhoneNumberID == nil || s.lifecycle == nil {
-		return fmt.Errorf("release operation dependencies are incomplete")
+	if !e164.MatchString(req.Number) || req.LosingCarrier == "" || req.AccountNumber == "" || req.AuthorizedName == "" {
+		return PortInResponse{}, apperror.NewBadRequest("number and porting account details are required")
 	}
-	number, err := s.repo.GetForRelease(ctx, operation.OrganizationID, *operation.PhoneNumberID)
-	if errors.Is(err, pgx.ErrNoRows) && operation.Status == "completed" {
-		return nil
+	if err := validateEmergency(req.ServiceAddress); err != nil {
+		return PortInResponse{}, err
 	}
-	if err != nil {
-		return err
-	}
-	if number.ProviderResourceID == nil {
-		return fmt.Errorf("managed number provider identity is missing")
-	}
-	if operation.Status == "pending" {
-		reference, providerErr := s.lifecycle.RequestRelease(ctx, *number.ProviderResourceID)
-		var pointer *string
-		if reference != "" {
-			pointer = &reference
+	if existing, err := s.repo.GetLifecycleOperationByKey(ctx, organizationID, key); err == nil {
+		if existing.Operation != "port_in" || existing.RequestedNumber != req.Number {
+			return PortInResponse{}, apperror.NewConflict("idempotency key was used for another operation")
 		}
-		_, err = s.repo.MarkLifecycleSubmitted(ctx, operation.ID, pointer, s.now().Add(managedReconcileDelay))
+		portCase, err := s.repo.queries.GetPortInCaseByOperation(ctx, existing.ID)
 		if err != nil {
-			return err
+			return PortInResponse{}, apperror.NewInternal("get port-in case", err)
 		}
-		if providerErr != nil {
-			return nil
-		}
+		documents, err := s.repo.queries.ListPortInDocuments(ctx, sqlc.ListPortInDocumentsParams{OrganizationID: organizationID, PortInCaseID: portCase.ID})
+		return PortInResponse{Case: portCase, Operation: existing, Documents: documents}, err
 	}
-	completed, providerErr := s.lifecycle.ReleaseCompleted(ctx, *number.ProviderResourceID)
-	if providerErr != nil || !completed {
-		_, err = s.repo.ScheduleLifecycle(ctx, operation.ID, s.now().Add(managedReconcileDelay))
-		return err
+	if s.db == nil {
+		return PortInResponse{}, apperror.NewServiceUnavailable("port-in lifecycle is not configured", nil)
 	}
 	tx, err := s.db.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.Serializable})
 	if err != nil {
-		return err
+		return PortInResponse{}, apperror.NewInternal("begin port-in", err)
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
-	queries := sqlc.New(tx)
-	if _, err = queries.ReleaseManagedPhoneNumber(ctx, *operation.PhoneNumberID); err != nil {
-		return err
-	}
-	completedOperation, err := queries.CompleteNumberLifecycleOperation(ctx, operation.ID)
+	repository := s.repo.WithQueries(sqlc.New(tx))
+	op, portCase, err := repository.CreatePortIn(ctx, organizationID, key, req)
 	if err != nil {
-		return err
+		return PortInResponse{}, writeError(err)
 	}
-	if err = insertNumberEvent(ctx, queries, "number.released", operation.OrganizationID, operation.ID, completedOperation); err != nil {
-		return err
+	if err = insertNumberEvent(ctx, sqlc.New(tx), "number.port_in.created", organizationID, portCase.ID, portCase); err != nil {
+		return PortInResponse{}, apperror.NewInternal("enqueue port-in event", err)
 	}
-	return tx.Commit(ctx)
+	if err = tx.Commit(ctx); err != nil {
+		return PortInResponse{}, apperror.NewInternal("commit port-in", err)
+	}
+	return PortInResponse{Case: portCase, Operation: op, Documents: []sqlc.PortInDocument{}}, nil
 }
 
-func (s *Service) ReconcileEmergency(ctx context.Context, registration sqlc.EmergencyRegistration) error {
-	if s.lifecycle == nil {
-		return fmt.Errorf("emergency provider is not configured")
+func (s *Service) GetPortIn(ctx context.Context, organizationID, caseID uuid.UUID) (PortInResponse, error) {
+	portCase, documents, err := s.repo.GetPortIn(ctx, organizationID, caseID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return PortInResponse{}, apperror.NewNotFound("port-in case not found")
 	}
-	number, err := s.repo.Get(ctx, registration.OrganizationID, registration.PhoneNumberID)
 	if err != nil {
-		return err
+		return PortInResponse{}, apperror.NewInternal("get port-in case", err)
 	}
-	address := EmergencyAddressRequest{
-		Name: registration.Name, AddressLine1: registration.AddressLine1,
-		Locality: registration.Locality, Region: registration.Region,
-		PostalCode: registration.PostalCode, CountryCode: registration.CountryCode,
-	}
-	if registration.AddressLine2 != nil {
-		address.AddressLine2 = *registration.AddressLine2
-	}
-	reference, valid, message, providerErr := s.lifecycle.ValidateEmergency(ctx, number.Number, address)
-	if providerErr != nil {
-		_, err = s.repo.queries.MarkEmergencyRegistrationValidating(ctx, sqlc.MarkEmergencyRegistrationValidatingParams{
-			ID: registration.ID, ValidationMessage: stringPointer(providerErr.Error()),
-			ReconcileAfter: pgTimestamptz(s.now().Add(managedReconcileDelay)),
-		})
-		return err
-	}
-	if !valid {
-		rejected, rejectErr := s.repo.queries.RejectEmergencyRegistration(ctx, sqlc.RejectEmergencyRegistrationParams{ID: registration.ID, ValidationMessage: &message})
-		if rejectErr != nil {
-			return rejectErr
-		}
-		return insertNumberEvent(ctx, s.repo.queries, "number.e911.rejected", registration.OrganizationID, registration.ID, rejected)
-	}
-	tx, err := s.db.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.Serializable})
+	op, err := s.repo.GetLifecycleOperation(ctx, organizationID, portCase.LifecycleOperationID)
 	if err != nil {
-		return err
+		return PortInResponse{}, apperror.NewInternal("get port-in operation", err)
 	}
-	defer func() { _ = tx.Rollback(ctx) }()
-	queries := sqlc.New(tx)
-	activated, err := queries.ActivateEmergencyRegistration(ctx, sqlc.ActivateEmergencyRegistrationParams{ID: registration.ID, ProviderReference: &reference})
+	return PortInResponse{Case: portCase, Operation: op, Documents: documents}, nil
+}
+
+func (s *Service) AddPortDocument(ctx context.Context, organizationID, caseID uuid.UUID, req PortDocumentRequest) (sqlc.PortInDocument, error) {
+	req.DocumentType = strings.ToLower(strings.TrimSpace(req.DocumentType))
+	req.ObjectKey = strings.TrimSpace(req.ObjectKey)
+	req.SHA256 = strings.ToLower(strings.TrimSpace(req.SHA256))
+	if organizationID == uuid.Nil || caseID == uuid.Nil {
+		return sqlc.PortInDocument{}, apperror.NewBadRequest("organization and port-in case are required")
+	}
+	if req.ObjectKey == "" || !regexp.MustCompile(`^[0-9a-f]{64}$`).MatchString(req.SHA256) {
+		return sqlc.PortInDocument{}, apperror.NewBadRequest("document object_key and sha256 are required")
+	}
+	switch req.DocumentType {
+	case "loa", "invoice", "ownership", "identity", "other":
+	default:
+		return sqlc.PortInDocument{}, apperror.NewBadRequest("document_type is invalid")
+	}
+	document, err := s.repo.AddPortDocument(ctx, organizationID, caseID, req)
 	if err != nil {
-		return err
+		return sqlc.PortInDocument{}, writeError(err)
 	}
-	if err = insertNumberEvent(ctx, queries, "number.e911.activated", registration.OrganizationID, registration.ID, activated); err != nil {
-		return err
-	}
-	return tx.Commit(ctx)
+	return document, nil
 }
 
 func (s *Service) reconcilePortIn(ctx context.Context, operation sqlc.NumberLifecycleOperation) error {
@@ -244,6 +222,7 @@ func (s *Service) activatePortIn(ctx context.Context, operation sqlc.NumberLifec
 }
 
 func stringPointer(value string) *string { return &value }
+
 func pgTimestamptz(value time.Time) pgtype.Timestamptz {
 	return pgtype.Timestamptz{Time: value, Valid: true}
 }

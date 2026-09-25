@@ -21,7 +21,6 @@ type Service struct {
 	repo      *Repository
 	inventory *didww.Client
 	db        *pgxpool.Pool
-	lifecycle NumberLifecycleProvider
 	now       func() time.Time
 }
 

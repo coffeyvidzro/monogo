@@ -1,7 +1,8 @@
-package numbers
+package lifecycle
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
@@ -85,6 +86,9 @@ func portDocumentResponse(document sqlc.PortInDocument) map[string]any {
 		"status": document.Status, "created_at": document.CreatedAt,
 	}
 }
+
+// ErrProviderCapabilityUnavailable indicates that the carrier does not implement a lifecycle capability.
+var ErrProviderCapabilityUnavailable = errors.New("provider lifecycle capability is unavailable")
 
 type NumberLifecycleProvider interface {
 	RequestRelease(ctx context.Context, providerResourceID string) (string, error)
