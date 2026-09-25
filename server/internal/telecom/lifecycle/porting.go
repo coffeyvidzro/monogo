@@ -5,14 +5,15 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"regexp"
+	"strings"
+	"time"
+
 	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
 	"github.com/coffeyvidzro/monogo/pkg/apperror"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
-	"regexp"
-	"strings"
-	"time"
 )
 
 func (s *Service) CreatePortIn(ctx context.Context, organizationID uuid.UUID, key string, req PortInRequest) (PortInResponse, error) {

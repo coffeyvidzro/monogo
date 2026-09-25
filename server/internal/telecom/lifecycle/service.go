@@ -3,12 +3,13 @@ package lifecycle
 import (
 	"context"
 	"errors"
+	"time"
+
 	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
 	"github.com/coffeyvidzro/monogo/pkg/apperror"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"time"
 )
 
 const managedReconcileDelay = 30 * time.Second
