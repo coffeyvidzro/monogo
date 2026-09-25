@@ -47,6 +47,7 @@ func New(db *pgxpool.Pool, queries *sqlc.Queries, stripeClient *stripe.Client, p
 	checkoutService := checkout.NewService(db)
 	paymentService := payments.NewService(db)
 	paymentService.ConfigureVerifiers(payments.NewProviderVerifiers(stripeClient, paystackClient))
+	paymentService.ConfigureInitiation(stripeClient, paystackClient)
 	walletService := wallets.NewService(db)
 	return &Module{
 		Checkout: CheckoutModule{
