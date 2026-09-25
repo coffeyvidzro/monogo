@@ -23,7 +23,7 @@ export TURN_EXTERNAL_IP="${TURN_EXTERNAL_IP:-127.0.0.1}"
 export TURN_PUBLIC_URLS="${TURN_PUBLIC_URLS:-turn:127.0.0.1:3478}"
 export TURN_REALM="${TURN_REALM:-graceful-drain.local}"
 
-COMPOSE="docker compose -f deploy/compose.yaml -f tests/graceful-drain/compose.yaml"
+COMPOSE="docker compose -f deploy/compose.yaml -f tests/graceful-drain/compose.yaml -f tests/acceptance-minio.yaml"
 COMPOSE_CONFIG_TMP=""
 
 fs_diag() {
