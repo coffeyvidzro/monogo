@@ -75,12 +75,19 @@ func (s *Service) Create(ctx context.Context, organizationID uuid.UUID, req Crea
 		_, _ = s.repo.MarkFailed(ctx, organizationID, call.ID, &reason)
 		return sqlc.Call{}, err
 	}
+	primary, ok := decision.Primary()
+	if !ok {
+		reason := "route_resolution_failed"
+		_, _ = s.repo.MarkFailed(ctx, organizationID, call.ID, &reason)
+		return sqlc.Call{}, apperror.NewNotFound("no eligible outbound route")
+	}
 
-	carrierID, trunkID, endpointID := decision.CarrierConnectionID, decision.TrunkID, decision.TrunkEndpointID
+	carrierID, trunkID, endpointID := primary.CarrierConnectionID, primary.TrunkID, primary.TrunkEndpointID
 	call, err = s.repo.SetRouteAttribution(ctx, organizationID, call.ID, RouteAttribution{
 		CarrierConnectionID: &carrierID,
 		TrunkID:             &trunkID,
 		TrunkEndpointID:     &endpointID,
+		RoutingDecisionID:   optionalDecisionID(decision.ID),
 	})
 	if err != nil {
 		reason := "route_attribution_failed"
@@ -88,7 +95,7 @@ func (s *Service) Create(ctx context.Context, organizationID uuid.UUID, req Crea
 		return sqlc.Call{}, apperror.NewInternal("set call route attribution", err)
 	}
 
-	if err := s.checkDailyMinutes(ctx, decision.CarrierConnectionID, decision.Limits.MaxDailyMinutes); err != nil {
+	if err := s.checkDailyMinutes(ctx, primary.CarrierConnectionID, primary.Limits.MaxDailyMinutes); err != nil {
 		reason := admissionFailureReason(err)
 		_, _ = s.repo.MarkFailed(ctx, organizationID, call.ID, &reason)
 		return sqlc.Call{}, admissionError(err)
@@ -96,9 +103,9 @@ func (s *Service) Create(ctx context.Context, organizationID uuid.UUID, req Crea
 
 	if err := s.admission.Acquire(
 		ctx,
-		decision.CarrierConnectionID,
+		primary.CarrierConnectionID,
 		call.ID.String(),
-		decision.Limits,
+		primary.Limits,
 	); err != nil {
 		reason := admissionFailureReason(err)
 		_, _ = s.repo.MarkFailed(ctx, organizationID, call.ID, &reason)
@@ -109,29 +116,36 @@ func (s *Service) Create(ctx context.Context, organizationID uuid.UUID, req Crea
 		CallID:              call.ID,
 		Destination:         req.ToURI,
 		CallerID:            req.FromURI,
-		CarrierConnectionID: decision.CarrierConnectionID,
-		Host:                decision.Host,
-		Port:                decision.Port,
-		Transport:           decision.Transport,
+		CarrierConnectionID: primary.CarrierConnectionID,
+		Host:                primary.Host,
+		Port:                primary.Port,
+		Transport:           primary.Transport,
 		Privacy:             req.Privacy,
 		DTMFMode:            req.DTMFMode,
 		MediaEncryption:     req.MediaEncryption,
 	})
 	if err != nil {
-		_ = s.admission.Release(ctx, decision.CarrierConnectionID, call.ID.String())
+		_ = s.admission.Release(ctx, primary.CarrierConnectionID, call.ID.String())
 		reason := "originate_failed"
 		_, _ = s.repo.MarkFailed(ctx, organizationID, call.ID, &reason)
 		return sqlc.Call{}, apperror.NewInternal("originate call", err)
 	}
 	if err := s.channels.Bind(ctx, call.ID, result.ChannelID); err != nil {
 		_ = s.controller.Hangup(ctx, result.ChannelID)
-		_ = s.admission.Release(ctx, decision.CarrierConnectionID, call.ID.String())
+		_ = s.admission.Release(ctx, primary.CarrierConnectionID, call.ID.String())
 		reason := "channel_binding_failed"
 		_, _ = s.repo.MarkFailed(ctx, organizationID, call.ID, &reason)
 		return sqlc.Call{}, apperror.NewInternal("bind call channel", err)
 	}
 
 	return s.repo.Get(ctx, organizationID, call.ID)
+}
+
+func optionalDecisionID(id uuid.UUID) *uuid.UUID {
+	if id == uuid.Nil {
+		return nil
+	}
+	return &id
 }
 
 func (s *Service) AdmitInbound(

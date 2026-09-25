@@ -1,11 +1,14 @@
 package routing
 
 import (
+	"regexp"
 	"strings"
 
 	"github.com/coffeyvidzro/monogo/pkg/apperror"
 	"github.com/google/uuid"
 )
+
+var managedE164 = regexp.MustCompile(`^\+[1-9][0-9]{6,14}$`)
 
 func normalizeInboundRequest(req InboundRequest) InboundRequest {
 	req.CalledNumber = strings.TrimSpace(req.CalledNumber)
@@ -50,4 +53,22 @@ func validateOutboundRequest(req OutboundRequest) error {
 		return apperror.NewBadRequest("destination is required")
 	}
 	return nil
+}
+
+func managedDestination(value string) (string, string, error) {
+	value = strings.TrimSpace(value)
+	lower := strings.ToLower(value)
+	if strings.HasPrefix(lower, "sip:") || strings.HasPrefix(lower, "tel:") {
+		value = value[4:]
+	}
+	if index := strings.IndexByte(value, '@'); index >= 0 {
+		value = value[:index]
+	}
+	if index := strings.IndexByte(value, ';'); index >= 0 {
+		value = value[:index]
+	}
+	if !managedE164.MatchString(value) {
+		return "", "", apperror.NewBadRequest("managed destination must be an E.164 number")
+	}
+	return value, strings.TrimPrefix(value, "+"), nil
 }

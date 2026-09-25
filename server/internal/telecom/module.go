@@ -112,7 +112,7 @@ type VoiceModule struct {
 }
 
 func New(deps Dependencies) (*Module, error) {
-	routingRepository := routing.NewRepository(deps.Queries)
+	routingRepository := routing.NewRepository(deps.Queries, deps.DB)
 	routingService := routing.NewService(routingRepository, nil)
 
 	callsRepository := calls.NewRepository(deps.Queries, deps.DB)

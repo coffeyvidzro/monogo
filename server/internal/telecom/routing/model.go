@@ -1,6 +1,10 @@
 package routing
 
-import "github.com/google/uuid"
+import (
+	"time"
+
+	"github.com/google/uuid"
+)
 
 type InboundRequest struct {
 	OrganizationID      uuid.UUID
@@ -33,7 +37,7 @@ type OutboundRequest struct {
 	Destination    string
 }
 
-type OutboundDecision struct {
+type OutboundRoute struct {
 	CarrierConnectionID uuid.UUID
 	TrunkID             uuid.UUID
 	TrunkEndpointID     uuid.UUID
@@ -42,4 +46,28 @@ type OutboundDecision struct {
 	Port                uint16
 	Transport           string
 	Limits              Limits
+	RateMicros          int64
+	ScoreMicros         int64
+}
+
+type OutboundDecision struct {
+	ID     uuid.UUID
+	Routes []OutboundRoute
+}
+
+func (d OutboundDecision) Primary() (OutboundRoute, bool) {
+	if len(d.Routes) == 0 {
+		return OutboundRoute{}, false
+	}
+	return d.Routes[0], true
+}
+
+type managedRouteCandidate struct {
+	Candidate             CarrierCandidate
+	Route                 OutboundRoute
+	ASRBasisPoints        int32
+	ALOCMilliseconds      int64
+	LatencyMilliseconds   int32
+	PacketLossBasisPoints int32
+	MetricsObservedAt     time.Time
 }

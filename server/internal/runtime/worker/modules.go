@@ -108,7 +108,7 @@ func newModules(ctx context.Context, cfg config.Config) (*modules, error) {
 		return nil, fmt.Errorf("initialize wallet reservation expiration: %w", err)
 	}
 
-	routingRepository := routing.NewRepository(queries)
+	routingRepository := routing.NewRepository(queries, postgresClient.Pool())
 	routingService := routing.NewService(routingRepository, nil)
 	callsRepository := calls.NewRepository(queries, postgresClient.Pool())
 	callController := calling.NewController(freeSwitch)

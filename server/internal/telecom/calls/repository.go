@@ -152,6 +152,7 @@ func (r *Repository) SetRouteAttribution(
 		CarrierConnectionID: route.CarrierConnectionID,
 		TrunkID:             route.TrunkID,
 		TrunkEndpointID:     route.TrunkEndpointID,
+		RoutingDecisionID:   route.RoutingDecisionID,
 		OrganizationID:      organizationID,
 		ID:                  id,
 	})
