@@ -1,8 +1,11 @@
 package wallets
 
 import (
+	"context"
 	"math"
 	"testing"
+
+	"github.com/google/uuid"
 )
 
 func TestManagedCallReserveMinor(t *testing.T) {
@@ -79,6 +82,66 @@ func TestManagedCallReserveMinor(t *testing.T) {
 			}
 			if got != test.want {
 				t.Fatalf("reserve minor = %d, want %d", got, test.want)
+			}
+		})
+	}
+}
+
+
+func TestManagedCallSettlementRequiresFinalBillingEvidence(t *testing.T) {
+	service := (*Service)(nil)
+	tests := []struct {
+		name       string
+		settlement ManagedCallSettlement
+	}{
+		{
+			name: "missing organization",
+			settlement: ManagedCallSettlement{
+				CallID:          uuid.New(),
+				AmountMinor:     1,
+				BillingEvidence: "verified-cdr",
+			},
+		},
+		{
+			name: "missing call ID",
+			settlement: ManagedCallSettlement{
+				OrganizationID:  uuid.New(),
+				AmountMinor:     1,
+				BillingEvidence: "verified-cdr",
+			},
+		},
+		{
+			name: "negative billable amount",
+			settlement: ManagedCallSettlement{
+				OrganizationID:  uuid.New(),
+				CallID:          uuid.New(),
+				AmountMinor:     -1,
+				BillingEvidence: "verified-cdr",
+			},
+		},
+		{
+			name: "unverified zero-charge outcome",
+			settlement: ManagedCallSettlement{
+				OrganizationID: uuid.New(),
+				CallID:         uuid.New(),
+				AmountMinor:    0,
+			},
+		},
+		{
+			name: "whitespace-only billing evidence",
+			settlement: ManagedCallSettlement{
+				OrganizationID:  uuid.New(),
+				CallID:          uuid.New(),
+				AmountMinor:     42,
+				BillingEvidence: "  ",
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			_, err := service.SettleManagedCall(context.Background(), test.settlement)
+			if err == nil {
+				t.Fatal("settlement without validated final billing evidence was accepted")
 			}
 		})
 	}

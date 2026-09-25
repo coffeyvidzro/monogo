@@ -160,7 +160,9 @@ RETURNING *;
 
 -- name: ListExpiredWalletReservations :many
 SELECT * FROM wallet_reservations
-WHERE status = 'active' AND expires_at <= now()
+WHERE status = 'active'
+  AND operation_type <> 'managed_call'
+  AND expires_at <= now()
 ORDER BY expires_at, id
 LIMIT sqlc.arg(row_limit);
 

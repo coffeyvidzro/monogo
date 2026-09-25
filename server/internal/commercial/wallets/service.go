@@ -164,6 +164,13 @@ func (s *Service) release(ctx context.Context, organizationID, reservationID uui
 		return sqlc.WalletReservation{}, apperror.NewBadRequest("organization and reservation are required")
 	}
 	return s.mutateReservation(ctx, organizationID, reservationID, func(repo *Repository, wallet sqlc.Wallet, reservation sqlc.WalletReservation) (sqlc.WalletReservation, error) {
+		// A managed call can remain billable after its reservation expiry.
+		// Only verified settlement may release these funds, never a timer.
+		if status == "expired" && reservation.OperationType == "managed_call" {
+			return sqlc.WalletReservation{}, apperror.NewConflict(
+				"managed call authorization requires explicit settlement",
+			)
+		}
 		if reservation.Status == status {
 			return reservation, nil
 		}

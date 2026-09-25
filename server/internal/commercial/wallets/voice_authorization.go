@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"strings"
 	"time"
 
 	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
@@ -85,4 +86,95 @@ func (s *Service) AuthorizeManagedCall(
 		)
 	}
 	return reservation, nil
+}
+
+
+// ManagedCallSettlement is supplied only after a trusted carrier billing
+// reconciliation has established the final, customer-rated charge or
+// explicitly confirmed that the call has no billable usage. An unanswered or
+// locally failed call is not sufficient evidence for a zero-charge release.
+type ManagedCallSettlement struct {
+	OrganizationID   uuid.UUID
+	CallID           uuid.UUID
+	AmountMinor      int64
+	BillingEvidence  string
+}
+
+// GetManagedCallReservation finds the durable hold by the logical call ID.
+// It can be called by a recovery worker even after the authorization expires.
+func (s *Service) GetManagedCallReservation(
+	ctx context.Context,
+	organizationID uuid.UUID,
+	callID uuid.UUID,
+) (sqlc.WalletReservation, error) {
+	if organizationID == uuid.Nil || callID == uuid.Nil {
+		return sqlc.WalletReservation{}, fmt.Errorf(
+			"managed call reservation requires organization and call IDs",
+		)
+	}
+	if s == nil || s.repo == nil || !s.repo.Available() {
+		return sqlc.WalletReservation{}, fmt.Errorf(
+			"managed call reservation storage is unavailable",
+		)
+	}
+	return s.repo.ReservationByOperation(
+		ctx,
+		organizationID,
+		"managed_call",
+		callID.String(),
+	)
+}
+
+// SettleManagedCall captures an externally verified final amount, or releases
+// an explicitly confirmed zero-charge call. The call ID is the immutable
+// financial reference: duplicate callbacks cannot create a second debit.
+// Any amount above the reserved cap fails closed for manual reconciliation.
+func (s *Service) SettleManagedCall(
+	ctx context.Context,
+	settlement ManagedCallSettlement,
+) (ReservationResult, error) {
+	if settlement.OrganizationID == uuid.Nil || settlement.CallID == uuid.Nil {
+		return ReservationResult{}, fmt.Errorf(
+			"managed call settlement requires organization and call IDs",
+		)
+	}
+	if settlement.AmountMinor < 0 || strings.TrimSpace(settlement.BillingEvidence) == "" {
+		return ReservationResult{}, fmt.Errorf(
+			"managed call settlement requires a verified final billing reference and nonnegative amount",
+		)
+	}
+	reservation, err := s.GetManagedCallReservation(
+		ctx,
+		settlement.OrganizationID,
+		settlement.CallID,
+	)
+	if err != nil {
+		return ReservationResult{}, err
+	}
+	if settlement.AmountMinor > reservation.AmountMinor {
+		return ReservationResult{}, fmt.Errorf(
+			"managed call final charge exceeds prepaid reservation",
+		)
+	}
+	if settlement.AmountMinor == 0 {
+		released, err := s.Release(
+			ctx,
+			settlement.OrganizationID,
+			reservation.ID,
+		)
+		if err != nil {
+			return ReservationResult{}, err
+		}
+		return ReservationResult{
+			Reservation: released,
+		}, nil
+	}
+	return s.Capture(ctx, CaptureRequest{
+		OrganizationID: settlement.OrganizationID,
+		ReservationID:  reservation.ID,
+		AmountMinor:    settlement.AmountMinor,
+		Reason:         "managed_call",
+		ReferenceType:  "managed_call",
+		ReferenceID:    settlement.CallID,
+	})
 }
