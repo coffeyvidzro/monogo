@@ -19,8 +19,6 @@ CREATE INDEX idx_audit_events_organization_time
 CREATE INDEX idx_audit_events_target
     ON audit_events (organization_id, target_type, target_id, occurred_at DESC);
 
-COMMENT ON TABLE audit_events IS
-    'Append-only security and configuration audit history. Metadata must never contain plaintext credentials.';
 
 CREATE FUNCTION reject_audit_event_mutation()
 RETURNS TRIGGER

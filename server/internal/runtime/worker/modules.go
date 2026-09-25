@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	commercialwallets "github.com/coffeyvidzro/monogo/internal/commercial/wallets"
 	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
 	"github.com/coffeyvidzro/monogo/internal/integrations/carriers/didww"
 	"github.com/coffeyvidzro/monogo/internal/integrations/freeswitch"
@@ -42,6 +43,7 @@ type modules struct {
 	idempotencyCleanup      *idempotency.CleanupJob
 	trunkHealth             *trunks.HealthCheckJob
 	numberReconciliation    *numbers.ReconciliationJob
+	reservationExpiration   *commercialwallets.ExpirationJob
 }
 
 func newModules(ctx context.Context, cfg config.Config) (*modules, error) {
@@ -94,6 +96,17 @@ func newModules(ctx context.Context, cfg config.Config) (*modules, error) {
 	}
 
 	queries := sqlc.New(postgresClient.Pool())
+	walletRepository := commercialwallets.NewRepository(postgresClient.Pool())
+	reservationExpiration, err := commercialwallets.NewExpirationJob(
+		walletRepository,
+		commercialwallets.NewService(postgresClient.Pool()),
+		100,
+		30*time.Second,
+	)
+	if err != nil {
+		closeDependencies()
+		return nil, fmt.Errorf("initialize wallet reservation expiration: %w", err)
+	}
 
 	routingRepository := routing.NewRepository(queries)
 	routingService := routing.NewService(routingRepository, nil)
@@ -223,6 +236,7 @@ func newModules(ctx context.Context, cfg config.Config) (*modules, error) {
 		idempotencyCleanup:      idempotencyCleanup,
 		trunkHealth:             trunkHealth,
 		numberReconciliation:    numberReconciliation,
+		reservationExpiration:   reservationExpiration,
 	}, nil
 }
 

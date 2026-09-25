@@ -122,6 +122,7 @@ func runWorkloads(ctx context.Context, logger *logging.Logger, modules *modules)
 	if modules.numberReconciliation != nil {
 		run("managed number reconciliation", modules.numberReconciliation.Run)
 	}
+	run("wallet reservation expiration", modules.reservationExpiration.Run)
 
 	return group.Wait()
 }

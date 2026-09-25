@@ -35,3 +35,17 @@ UPDATE checkouts SET status = 'completed',
     completed_at = now()
 WHERE id = sqlc.arg(id)::UUID AND status = 'pending'
 RETURNING *;
+
+-- A checkout cannot be canceled while a payment may still settle. Such
+-- attempts must be resolved or canceled at the provider first.
+-- name: CancelWalletCheckout :one
+UPDATE checkouts AS c
+SET status = 'canceled'
+WHERE c.id = sqlc.arg(id)::UUID
+  AND c.status = 'pending'
+  AND NOT EXISTS (
+      SELECT 1 FROM payments AS p
+      WHERE p.checkout_id = c.id
+        AND p.status IN ('created', 'pending', 'succeeded')
+  )
+RETURNING c.*;

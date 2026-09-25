@@ -2,10 +2,46 @@ package payments
 
 import (
 	"strings"
+	"time"
 
 	"github.com/coffeyvidzro/monogo/pkg/apperror"
 	"github.com/google/uuid"
 )
+
+func validateSettlement(req *VerifiedSettlement) error {
+	req.Provider = strings.ToLower(strings.TrimSpace(req.Provider))
+	req.ProviderReference = strings.TrimSpace(req.ProviderReference)
+	req.Currency = strings.ToUpper(strings.TrimSpace(req.Currency))
+	if req.OrganizationID == uuid.Nil || req.PaymentID == uuid.Nil {
+		return apperror.NewBadRequest("organization and payment are required")
+	}
+	if req.Provider != "stripe" && req.Provider != "paystack" {
+		return apperror.NewBadRequest("unsupported payment provider")
+	}
+	if req.ProviderReference == "" || len(req.ProviderReference) > 255 {
+		return apperror.NewBadRequest("provider payment reference is required")
+	}
+	if req.AmountMinor <= 0 || !validCurrency(req.Currency) {
+		return apperror.NewBadRequest("positive amount and three-letter currency are required")
+	}
+	if req.VerifiedAt.IsZero() || req.VerifiedAt.After(time.Now().Add(5*time.Minute)) {
+		return apperror.NewBadRequest("valid provider verification time is required")
+	}
+	req.VerifiedAt = req.VerifiedAt.UTC()
+	return nil
+}
+
+func validCurrency(value string) bool {
+	if len(value) != 3 {
+		return false
+	}
+	for _, ch := range value {
+		if ch < 'A' || ch > 'Z' {
+			return false
+		}
+	}
+	return true
+}
 
 func validateAttempt(req *Attempt) error {
 	req.Provider = strings.ToLower(strings.TrimSpace(req.Provider))

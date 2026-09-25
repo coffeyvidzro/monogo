@@ -19,11 +19,13 @@ type Module struct {
 type CheckoutModule struct {
 	Repository *checkout.Repository
 	Service    *checkout.Service
+	Handler    *checkout.Handler
 }
 
 type PaymentsModule struct {
 	Repository *payments.Repository
 	Service    *payments.Service
+	Handler    *payments.Handler
 }
 
 type UsageModule struct {
@@ -34,26 +36,34 @@ type UsageModule struct {
 type WalletsModule struct {
 	Repository *wallets.Repository
 	Service    *wallets.Service
+	Handler    *wallets.Handler
 }
 
 func New(db *pgxpool.Pool, queries *sqlc.Queries) *Module {
-	usageRepository := usage.NewRepository(queries)
+	usageRepository := usage.NewRepository(queries, db)
+	usageWalletRepository := wallets.NewRepository(db)
+	checkoutService := checkout.NewService(db)
+	paymentService := payments.NewService(db)
+	walletService := wallets.NewService(db)
 	return &Module{
 		Checkout: CheckoutModule{
 			Repository: checkout.NewRepository(db),
-			Service:    checkout.NewService(db),
+			Service:    checkoutService,
+			Handler:    checkout.NewHandler(checkoutService),
 		},
 		Payments: PaymentsModule{
 			Repository: payments.NewRepository(db),
-			Service:    payments.NewService(db),
+			Service:    paymentService,
+			Handler:    payments.NewHandler(paymentService),
 		},
 		Usage: UsageModule{
 			Repository: usageRepository,
-			Service:    usage.NewService(usageRepository),
+			Service:    usage.NewService(usageRepository, usageWalletRepository),
 		},
 		Wallets: WalletsModule{
 			Repository: wallets.NewRepository(db),
-			Service:    wallets.NewService(db),
+			Service:    walletService,
+			Handler:    wallets.NewHandler(walletService),
 		},
 	}
 }

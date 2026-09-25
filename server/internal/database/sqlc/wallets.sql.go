@@ -9,7 +9,45 @@ import (
 	"context"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
+
+const captureWalletReservation = `-- name: CaptureWalletReservation :one
+UPDATE wallet_reservations
+SET status = 'captured', captured_amount_minor = $1,
+    captured_transaction_id = $2, captured_at = now()
+WHERE id = $3 AND status = 'active'
+RETURNING id, wallet_id, organization_id, amount_minor, captured_amount_minor, operation_type, operation_id, status, expires_at, captured_transaction_id, captured_at, released_at, expired_at, created_at, updated_at
+`
+
+type CaptureWalletReservationParams struct {
+	CapturedAmountMinor   *int64     `db:"captured_amount_minor" json:"captured_amount_minor"`
+	CapturedTransactionID *uuid.UUID `db:"captured_transaction_id" json:"captured_transaction_id"`
+	ID                    uuid.UUID  `db:"id" json:"id"`
+}
+
+func (q *Queries) CaptureWalletReservation(ctx context.Context, arg CaptureWalletReservationParams) (WalletReservation, error) {
+	row := q.db.QueryRow(ctx, captureWalletReservation, arg.CapturedAmountMinor, arg.CapturedTransactionID, arg.ID)
+	var i WalletReservation
+	err := row.Scan(
+		&i.ID,
+		&i.WalletID,
+		&i.OrganizationID,
+		&i.AmountMinor,
+		&i.CapturedAmountMinor,
+		&i.OperationType,
+		&i.OperationID,
+		&i.Status,
+		&i.ExpiresAt,
+		&i.CapturedTransactionID,
+		&i.CapturedAt,
+		&i.ReleasedAt,
+		&i.ExpiredAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
 
 const createPrepaidWallet = `-- name: CreatePrepaidWallet :one
 INSERT INTO wallets (organization_id, currency)
@@ -19,7 +57,7 @@ WHERE o.id = $2
   AND o.status = 'active'
   AND o.deleted_at IS NULL
 ON CONFLICT (organization_id, currency) DO NOTHING
-RETURNING id, organization_id, currency, balance_minor, created_at, updated_at
+RETURNING id, organization_id, currency, balance_minor, reserved_minor, created_at, updated_at
 `
 
 type CreatePrepaidWalletParams struct {
@@ -35,6 +73,57 @@ func (q *Queries) CreatePrepaidWallet(ctx context.Context, arg CreatePrepaidWall
 		&i.OrganizationID,
 		&i.Currency,
 		&i.BalanceMinor,
+		&i.ReservedMinor,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const createWalletReservation = `-- name: CreateWalletReservation :one
+INSERT INTO wallet_reservations (
+    wallet_id, organization_id, amount_minor, operation_type, operation_id, expires_at
+) VALUES (
+    $1, $2, $3,
+    $4, $5, $6
+)
+ON CONFLICT (organization_id, operation_type, operation_id) DO NOTHING
+RETURNING id, wallet_id, organization_id, amount_minor, captured_amount_minor, operation_type, operation_id, status, expires_at, captured_transaction_id, captured_at, released_at, expired_at, created_at, updated_at
+`
+
+type CreateWalletReservationParams struct {
+	WalletID       uuid.UUID          `db:"wallet_id" json:"wallet_id"`
+	OrganizationID uuid.UUID          `db:"organization_id" json:"organization_id"`
+	AmountMinor    int64              `db:"amount_minor" json:"amount_minor"`
+	OperationType  string             `db:"operation_type" json:"operation_type"`
+	OperationID    string             `db:"operation_id" json:"operation_id"`
+	ExpiresAt      pgtype.Timestamptz `db:"expires_at" json:"expires_at"`
+}
+
+func (q *Queries) CreateWalletReservation(ctx context.Context, arg CreateWalletReservationParams) (WalletReservation, error) {
+	row := q.db.QueryRow(ctx, createWalletReservation,
+		arg.WalletID,
+		arg.OrganizationID,
+		arg.AmountMinor,
+		arg.OperationType,
+		arg.OperationID,
+		arg.ExpiresAt,
+	)
+	var i WalletReservation
+	err := row.Scan(
+		&i.ID,
+		&i.WalletID,
+		&i.OrganizationID,
+		&i.AmountMinor,
+		&i.CapturedAmountMinor,
+		&i.OperationType,
+		&i.OperationID,
+		&i.Status,
+		&i.ExpiresAt,
+		&i.CapturedTransactionID,
+		&i.CapturedAt,
+		&i.ReleasedAt,
+		&i.ExpiredAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -98,8 +187,44 @@ func (q *Queries) CreateWalletTransaction(ctx context.Context, arg CreateWalletT
 	return i, err
 }
 
+const extendWalletReservation = `-- name: ExtendWalletReservation :one
+UPDATE wallet_reservations
+SET amount_minor = $1, expires_at = $2
+WHERE id = $3 AND status = 'active' AND expires_at > now()
+RETURNING id, wallet_id, organization_id, amount_minor, captured_amount_minor, operation_type, operation_id, status, expires_at, captured_transaction_id, captured_at, released_at, expired_at, created_at, updated_at
+`
+
+type ExtendWalletReservationParams struct {
+	AmountMinor int64              `db:"amount_minor" json:"amount_minor"`
+	ExpiresAt   pgtype.Timestamptz `db:"expires_at" json:"expires_at"`
+	ID          uuid.UUID          `db:"id" json:"id"`
+}
+
+func (q *Queries) ExtendWalletReservation(ctx context.Context, arg ExtendWalletReservationParams) (WalletReservation, error) {
+	row := q.db.QueryRow(ctx, extendWalletReservation, arg.AmountMinor, arg.ExpiresAt, arg.ID)
+	var i WalletReservation
+	err := row.Scan(
+		&i.ID,
+		&i.WalletID,
+		&i.OrganizationID,
+		&i.AmountMinor,
+		&i.CapturedAmountMinor,
+		&i.OperationType,
+		&i.OperationID,
+		&i.Status,
+		&i.ExpiresAt,
+		&i.CapturedTransactionID,
+		&i.CapturedAt,
+		&i.ReleasedAt,
+		&i.ExpiredAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const getPrepaidWallet = `-- name: GetPrepaidWallet :one
-SELECT w.id, w.organization_id, w.currency, w.balance_minor, w.created_at, w.updated_at
+SELECT w.id, w.organization_id, w.currency, w.balance_minor, w.reserved_minor, w.created_at, w.updated_at
 FROM wallets AS w
 WHERE w.organization_id = $1
   AND w.currency = $2
@@ -119,8 +244,129 @@ func (q *Queries) GetPrepaidWallet(ctx context.Context, arg GetPrepaidWalletPara
 		&i.OrganizationID,
 		&i.Currency,
 		&i.BalanceMinor,
+		&i.ReservedMinor,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getPrepaidWalletByID = `-- name: GetPrepaidWalletByID :one
+SELECT id, organization_id, currency, balance_minor, reserved_minor, created_at, updated_at
+FROM wallets
+WHERE id = $1
+  AND organization_id = $2
+LIMIT 1
+`
+
+type GetPrepaidWalletByIDParams struct {
+	WalletID       uuid.UUID `db:"wallet_id" json:"wallet_id"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+}
+
+func (q *Queries) GetPrepaidWalletByID(ctx context.Context, arg GetPrepaidWalletByIDParams) (Wallet, error) {
+	row := q.db.QueryRow(ctx, getPrepaidWalletByID, arg.WalletID, arg.OrganizationID)
+	var i Wallet
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.Currency,
+		&i.BalanceMinor,
+		&i.ReservedMinor,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getWalletReservation = `-- name: GetWalletReservation :one
+SELECT id, wallet_id, organization_id, amount_minor, captured_amount_minor, operation_type, operation_id, status, expires_at, captured_transaction_id, captured_at, released_at, expired_at, created_at, updated_at FROM wallet_reservations
+WHERE id = $1 AND organization_id = $2
+LIMIT 1
+`
+
+type GetWalletReservationParams struct {
+	ID             uuid.UUID `db:"id" json:"id"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+}
+
+func (q *Queries) GetWalletReservation(ctx context.Context, arg GetWalletReservationParams) (WalletReservation, error) {
+	row := q.db.QueryRow(ctx, getWalletReservation, arg.ID, arg.OrganizationID)
+	var i WalletReservation
+	err := row.Scan(
+		&i.ID,
+		&i.WalletID,
+		&i.OrganizationID,
+		&i.AmountMinor,
+		&i.CapturedAmountMinor,
+		&i.OperationType,
+		&i.OperationID,
+		&i.Status,
+		&i.ExpiresAt,
+		&i.CapturedTransactionID,
+		&i.CapturedAt,
+		&i.ReleasedAt,
+		&i.ExpiredAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getWalletReservationByOperation = `-- name: GetWalletReservationByOperation :one
+SELECT id, wallet_id, organization_id, amount_minor, captured_amount_minor, operation_type, operation_id, status, expires_at, captured_transaction_id, captured_at, released_at, expired_at, created_at, updated_at FROM wallet_reservations
+WHERE organization_id = $1
+  AND operation_type = $2
+  AND operation_id = $3
+LIMIT 1
+`
+
+type GetWalletReservationByOperationParams struct {
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	OperationType  string    `db:"operation_type" json:"operation_type"`
+	OperationID    string    `db:"operation_id" json:"operation_id"`
+}
+
+func (q *Queries) GetWalletReservationByOperation(ctx context.Context, arg GetWalletReservationByOperationParams) (WalletReservation, error) {
+	row := q.db.QueryRow(ctx, getWalletReservationByOperation, arg.OrganizationID, arg.OperationType, arg.OperationID)
+	var i WalletReservation
+	err := row.Scan(
+		&i.ID,
+		&i.WalletID,
+		&i.OrganizationID,
+		&i.AmountMinor,
+		&i.CapturedAmountMinor,
+		&i.OperationType,
+		&i.OperationID,
+		&i.Status,
+		&i.ExpiresAt,
+		&i.CapturedTransactionID,
+		&i.CapturedAt,
+		&i.ReleasedAt,
+		&i.ExpiredAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getWalletTransaction = `-- name: GetWalletTransaction :one
+SELECT id, wallet_id, direction, reason, amount_minor, balance_after_minor, reference_type, reference_id, created_at FROM wallet_transactions WHERE id = $1 LIMIT 1
+`
+
+func (q *Queries) GetWalletTransaction(ctx context.Context, id uuid.UUID) (WalletTransaction, error) {
+	row := q.db.QueryRow(ctx, getWalletTransaction, id)
+	var i WalletTransaction
+	err := row.Scan(
+		&i.ID,
+		&i.WalletID,
+		&i.Direction,
+		&i.Reason,
+		&i.AmountMinor,
+		&i.BalanceAfterMinor,
+		&i.ReferenceType,
+		&i.ReferenceID,
+		&i.CreatedAt,
 	)
 	return i, err
 }
@@ -155,6 +401,84 @@ func (q *Queries) GetWalletTransactionByReference(ctx context.Context, arg GetWa
 		&i.CreatedAt,
 	)
 	return i, err
+}
+
+const listExpiredWalletReservations = `-- name: ListExpiredWalletReservations :many
+SELECT id, wallet_id, organization_id, amount_minor, captured_amount_minor, operation_type, operation_id, status, expires_at, captured_transaction_id, captured_at, released_at, expired_at, created_at, updated_at FROM wallet_reservations
+WHERE status = 'active' AND expires_at <= now()
+ORDER BY expires_at, id
+LIMIT $1
+`
+
+func (q *Queries) ListExpiredWalletReservations(ctx context.Context, rowLimit int32) ([]WalletReservation, error) {
+	rows, err := q.db.Query(ctx, listExpiredWalletReservations, rowLimit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []WalletReservation{}
+	for rows.Next() {
+		var i WalletReservation
+		if err := rows.Scan(
+			&i.ID,
+			&i.WalletID,
+			&i.OrganizationID,
+			&i.AmountMinor,
+			&i.CapturedAmountMinor,
+			&i.OperationType,
+			&i.OperationID,
+			&i.Status,
+			&i.ExpiresAt,
+			&i.CapturedTransactionID,
+			&i.CapturedAt,
+			&i.ReleasedAt,
+			&i.ExpiredAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listPrepaidWallets = `-- name: ListPrepaidWallets :many
+SELECT id, organization_id, currency, balance_minor, reserved_minor, created_at, updated_at
+FROM wallets
+WHERE organization_id = $1
+ORDER BY currency, id
+`
+
+func (q *Queries) ListPrepaidWallets(ctx context.Context, organizationID uuid.UUID) ([]Wallet, error) {
+	rows, err := q.db.Query(ctx, listPrepaidWallets, organizationID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Wallet{}
+	for rows.Next() {
+		var i Wallet
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrganizationID,
+			&i.Currency,
+			&i.BalanceMinor,
+			&i.ReservedMinor,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listWalletTransactions = `-- name: ListWalletTransactions :many
@@ -203,8 +527,54 @@ func (q *Queries) ListWalletTransactions(ctx context.Context, arg ListWalletTran
 	return items, nil
 }
 
+const listWalletTransactionsByWalletID = `-- name: ListWalletTransactionsByWalletID :many
+SELECT wt.id, wt.wallet_id, wt.direction, wt.reason, wt.amount_minor, wt.balance_after_minor, wt.reference_type, wt.reference_id, wt.created_at
+FROM wallet_transactions AS wt
+JOIN wallets AS w ON w.id = wt.wallet_id
+WHERE w.organization_id = $1
+  AND w.id = $2
+ORDER BY wt.created_at DESC, wt.id DESC
+LIMIT $3
+`
+
+type ListWalletTransactionsByWalletIDParams struct {
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	WalletID       uuid.UUID `db:"wallet_id" json:"wallet_id"`
+	RowLimit       int32     `db:"row_limit" json:"row_limit"`
+}
+
+func (q *Queries) ListWalletTransactionsByWalletID(ctx context.Context, arg ListWalletTransactionsByWalletIDParams) ([]WalletTransaction, error) {
+	rows, err := q.db.Query(ctx, listWalletTransactionsByWalletID, arg.OrganizationID, arg.WalletID, arg.RowLimit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []WalletTransaction{}
+	for rows.Next() {
+		var i WalletTransaction
+		if err := rows.Scan(
+			&i.ID,
+			&i.WalletID,
+			&i.Direction,
+			&i.Reason,
+			&i.AmountMinor,
+			&i.BalanceAfterMinor,
+			&i.ReferenceType,
+			&i.ReferenceID,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const lockPrepaidWallet = `-- name: LockPrepaidWallet :one
-SELECT id, organization_id, currency, balance_minor, created_at, updated_at
+SELECT id, organization_id, currency, balance_minor, reserved_minor, created_at, updated_at
 FROM wallets
 WHERE organization_id = $1
   AND currency = $2
@@ -226,6 +596,151 @@ func (q *Queries) LockPrepaidWallet(ctx context.Context, arg LockPrepaidWalletPa
 		&i.OrganizationID,
 		&i.Currency,
 		&i.BalanceMinor,
+		&i.ReservedMinor,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const lockPrepaidWalletByID = `-- name: LockPrepaidWalletByID :one
+SELECT id, organization_id, currency, balance_minor, reserved_minor, created_at, updated_at
+FROM wallets
+WHERE id = $1
+  AND organization_id = $2
+FOR UPDATE
+`
+
+type LockPrepaidWalletByIDParams struct {
+	WalletID       uuid.UUID `db:"wallet_id" json:"wallet_id"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+}
+
+func (q *Queries) LockPrepaidWalletByID(ctx context.Context, arg LockPrepaidWalletByIDParams) (Wallet, error) {
+	row := q.db.QueryRow(ctx, lockPrepaidWalletByID, arg.WalletID, arg.OrganizationID)
+	var i Wallet
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.Currency,
+		&i.BalanceMinor,
+		&i.ReservedMinor,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const lockWalletReservation = `-- name: LockWalletReservation :one
+SELECT id, wallet_id, organization_id, amount_minor, captured_amount_minor, operation_type, operation_id, status, expires_at, captured_transaction_id, captured_at, released_at, expired_at, created_at, updated_at FROM wallet_reservations
+WHERE id = $1 AND organization_id = $2
+FOR UPDATE
+`
+
+type LockWalletReservationParams struct {
+	ID             uuid.UUID `db:"id" json:"id"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+}
+
+func (q *Queries) LockWalletReservation(ctx context.Context, arg LockWalletReservationParams) (WalletReservation, error) {
+	row := q.db.QueryRow(ctx, lockWalletReservation, arg.ID, arg.OrganizationID)
+	var i WalletReservation
+	err := row.Scan(
+		&i.ID,
+		&i.WalletID,
+		&i.OrganizationID,
+		&i.AmountMinor,
+		&i.CapturedAmountMinor,
+		&i.OperationType,
+		&i.OperationID,
+		&i.Status,
+		&i.ExpiresAt,
+		&i.CapturedTransactionID,
+		&i.CapturedAt,
+		&i.ReleasedAt,
+		&i.ExpiredAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const releaseWalletReservation = `-- name: ReleaseWalletReservation :one
+UPDATE wallet_reservations
+SET status = $1,
+    released_at = CASE WHEN $1::TEXT = 'released' THEN now() ELSE NULL END,
+    expired_at = CASE WHEN $1::TEXT = 'expired' THEN now() ELSE NULL END
+WHERE id = $2 AND status = 'active'
+  AND $1::TEXT IN ('released', 'expired')
+RETURNING id, wallet_id, organization_id, amount_minor, captured_amount_minor, operation_type, operation_id, status, expires_at, captured_transaction_id, captured_at, released_at, expired_at, created_at, updated_at
+`
+
+type ReleaseWalletReservationParams struct {
+	Status string    `db:"status" json:"status"`
+	ID     uuid.UUID `db:"id" json:"id"`
+}
+
+func (q *Queries) ReleaseWalletReservation(ctx context.Context, arg ReleaseWalletReservationParams) (WalletReservation, error) {
+	row := q.db.QueryRow(ctx, releaseWalletReservation, arg.Status, arg.ID)
+	var i WalletReservation
+	err := row.Scan(
+		&i.ID,
+		&i.WalletID,
+		&i.OrganizationID,
+		&i.AmountMinor,
+		&i.CapturedAmountMinor,
+		&i.OperationType,
+		&i.OperationID,
+		&i.Status,
+		&i.ExpiresAt,
+		&i.CapturedTransactionID,
+		&i.CapturedAt,
+		&i.ReleasedAt,
+		&i.ExpiredAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const setPrepaidWalletAmounts = `-- name: SetPrepaidWalletAmounts :one
+UPDATE wallets
+SET balance_minor = $1,
+    reserved_minor = $2
+WHERE id = $3
+  AND organization_id = $4
+  AND balance_minor = $5
+  AND reserved_minor = $6
+RETURNING id, organization_id, currency, balance_minor, reserved_minor, created_at, updated_at
+`
+
+type SetPrepaidWalletAmountsParams struct {
+	BalanceMinor          int64     `db:"balance_minor" json:"balance_minor"`
+	ReservedMinor         int64     `db:"reserved_minor" json:"reserved_minor"`
+	WalletID              uuid.UUID `db:"wallet_id" json:"wallet_id"`
+	OrganizationID        uuid.UUID `db:"organization_id" json:"organization_id"`
+	PreviousBalanceMinor  int64     `db:"previous_balance_minor" json:"previous_balance_minor"`
+	PreviousReservedMinor int64     `db:"previous_reserved_minor" json:"previous_reserved_minor"`
+}
+
+// Reservation operations update posted and reserved amounts while holding the
+// wallet row lock. Both previous values protect against stale writes.
+func (q *Queries) SetPrepaidWalletAmounts(ctx context.Context, arg SetPrepaidWalletAmountsParams) (Wallet, error) {
+	row := q.db.QueryRow(ctx, setPrepaidWalletAmounts,
+		arg.BalanceMinor,
+		arg.ReservedMinor,
+		arg.WalletID,
+		arg.OrganizationID,
+		arg.PreviousBalanceMinor,
+		arg.PreviousReservedMinor,
+	)
+	var i Wallet
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.Currency,
+		&i.BalanceMinor,
+		&i.ReservedMinor,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -238,7 +753,7 @@ SET balance_minor = $1
 WHERE id = $2
   AND organization_id = $3
   AND balance_minor = $4
-RETURNING id, organization_id, currency, balance_minor, created_at, updated_at
+RETURNING id, organization_id, currency, balance_minor, reserved_minor, created_at, updated_at
 `
 
 type SetPrepaidWalletBalanceParams struct {
@@ -263,6 +778,7 @@ func (q *Queries) SetPrepaidWalletBalance(ctx context.Context, arg SetPrepaidWal
 		&i.OrganizationID,
 		&i.Currency,
 		&i.BalanceMinor,
+		&i.ReservedMinor,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)

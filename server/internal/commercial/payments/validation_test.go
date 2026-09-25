@@ -2,6 +2,7 @@ package payments
 
 import (
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 )
@@ -18,6 +19,37 @@ func TestValidateAttempt(t *testing.T) {
 	req.AmountMinor = 0
 	if err := validateAttempt(&req); err == nil {
 		t.Fatal("expected nonpositive amount to fail")
+	}
+}
+
+func TestValidateSettlement(t *testing.T) {
+	req := VerifiedSettlement{
+		OrganizationID: uuid.New(), PaymentID: uuid.New(), Provider: " Stripe ",
+		ProviderReference: " pi_123 ", AmountMinor: 2500, Currency: " usd ",
+		VerifiedAt: time.Now().Add(-time.Minute),
+	}
+	if err := validateSettlement(&req); err != nil {
+		t.Fatal(err)
+	}
+	if req.Provider != "stripe" || req.ProviderReference != "pi_123" || req.Currency != "USD" {
+		t.Fatalf("unexpected normalization: %+v", req)
+	}
+
+	bad := req
+	bad.VerifiedAt = time.Now().Add(10 * time.Minute)
+	if err := validateSettlement(&bad); err == nil {
+		t.Fatal("expected future verification to fail")
+	}
+	bad = req
+	bad.ProviderReference = " "
+	if err := validateSettlement(&bad); err == nil {
+		t.Fatal("expected empty provider reference to fail")
+	}
+	bad = req
+	bad.AmountMinor++
+	bad.Currency = "US1"
+	if err := validateSettlement(&bad); err == nil {
+		t.Fatal("expected invalid currency to fail")
 	}
 }
 

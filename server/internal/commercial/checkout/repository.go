@@ -6,10 +6,12 @@ import (
 	"github.com/coffeyvidzro/monogo/internal/database/pgconv"
 	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type Repository struct {
+	db      *pgxpool.Pool
 	queries *sqlc.Queries
 }
 
@@ -17,7 +19,13 @@ func NewRepository(db *pgxpool.Pool) *Repository {
 	if db == nil {
 		return &Repository{}
 	}
-	return &Repository{queries: sqlc.New(db)}
+	return &Repository{db: db, queries: sqlc.New(db)}
+}
+
+func (r *Repository) Begin(ctx context.Context) (pgx.Tx, error) { return r.db.Begin(ctx) }
+
+func (r *Repository) WithTx(tx pgx.Tx) *Repository {
+	return &Repository{queries: r.queries.WithTx(tx)}
 }
 
 func (r *Repository) Available() bool {
@@ -49,4 +57,12 @@ func (r *Repository) Get(ctx context.Context, organizationID, checkoutID uuid.UU
 		OrganizationID: organizationID,
 		ID:             checkoutID,
 	})
+}
+
+func (r *Repository) Cancel(ctx context.Context, checkoutID uuid.UUID) (sqlc.Checkout, error) {
+	return r.queries.CancelWalletCheckout(ctx, checkoutID)
+}
+
+func (r *Repository) Lock(ctx context.Context, checkoutID uuid.UUID) (sqlc.Checkout, error) {
+	return r.queries.LockWalletCheckout(ctx, checkoutID)
 }

@@ -2,13 +2,17 @@ package payments
 
 import (
 	"context"
+	"time"
 
+	"github.com/coffeyvidzro/monogo/internal/database/pgconv"
 	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type Repository struct {
+	db      *pgxpool.Pool
 	queries *sqlc.Queries
 }
 
@@ -16,11 +20,37 @@ func NewRepository(db *pgxpool.Pool) *Repository {
 	if db == nil {
 		return &Repository{}
 	}
-	return &Repository{queries: sqlc.New(db)}
+	return &Repository{db: db, queries: sqlc.New(db)}
 }
 
 func (r *Repository) Available() bool {
 	return r != nil && r.queries != nil
+}
+
+func (r *Repository) Begin(ctx context.Context) (pgx.Tx, error) { return r.db.Begin(ctx) }
+
+func (r *Repository) WithTx(tx pgx.Tx) *Repository {
+	return &Repository{queries: r.queries.WithTx(tx)}
+}
+
+func (r *Repository) Lock(ctx context.Context, organizationID, paymentID uuid.UUID) (sqlc.Payment, error) {
+	return r.queries.LockCheckoutPayment(ctx, sqlc.LockCheckoutPaymentParams{OrganizationID: organizationID, ID: paymentID})
+}
+
+func (r *Repository) LockCheckout(ctx context.Context, id uuid.UUID) (sqlc.Checkout, error) {
+	return r.queries.LockWalletCheckout(ctx, id)
+}
+
+func (r *Repository) Succeed(ctx context.Context, id uuid.UUID, reference string, verifiedAt time.Time) (sqlc.Payment, error) {
+	return r.queries.MarkCheckoutPaymentSucceeded(ctx, sqlc.MarkCheckoutPaymentSucceededParams{ID: id, ProviderReference: reference, VerifiedAt: pgconv.TimeToTimestamptz(verifiedAt)})
+}
+
+func (r *Repository) LinkTransaction(ctx context.Context, id, transactionID uuid.UUID) (sqlc.Payment, error) {
+	return r.queries.LinkPaymentWalletTransaction(ctx, sqlc.LinkPaymentWalletTransactionParams{ID: id, WalletTransactionID: transactionID})
+}
+
+func (r *Repository) CompleteCheckout(ctx context.Context, id, transactionID uuid.UUID) (sqlc.Checkout, error) {
+	return r.queries.CompleteWalletCheckout(ctx, sqlc.CompleteWalletCheckoutParams{ID: id, CreditedTransactionID: transactionID})
 }
 
 func (r *Repository) Create(ctx context.Context, req Attempt) (sqlc.Payment, error) {
@@ -50,6 +80,10 @@ func (r *Repository) Get(ctx context.Context, organizationID, paymentID uuid.UUI
 	})
 }
 
+func (r *Repository) Checkout(ctx context.Context, organizationID, checkoutID uuid.UUID) (sqlc.Checkout, error) {
+	return r.queries.GetPaymentCheckout(ctx, sqlc.GetPaymentCheckoutParams{OrganizationID: organizationID, ID: checkoutID})
+}
+
 func (r *Repository) RecordEvent(ctx context.Context, event Event) (sqlc.PaymentEvent, error) {
 	return r.queries.RecordIncomingPaymentEvent(ctx, sqlc.RecordIncomingPaymentEventParams{
 		PaymentID:       event.PaymentID,
@@ -65,4 +99,20 @@ func (r *Repository) EventByIdentity(ctx context.Context, event Event) (sqlc.Pay
 		Provider:        event.Provider,
 		ProviderEventID: event.ProviderEventID,
 	})
+}
+
+func (r *Repository) ListRecovery(ctx context.Context, limit int32) ([]RecoveryCandidate, error) {
+	rows, err := r.queries.ListPaymentsDueForRecovery(ctx, limit)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]RecoveryCandidate, 0, len(rows))
+	for _, row := range rows {
+		if row.ProviderReference == nil {
+			continue
+		}
+		result = append(result, RecoveryCandidate{OrganizationID: row.OrganizationID, PaymentID: row.ID,
+			Provider: row.Provider, ProviderReference: *row.ProviderReference, AmountMinor: row.AmountMinor, Currency: row.Currency})
+	}
+	return result, nil
 }

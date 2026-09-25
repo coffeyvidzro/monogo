@@ -9,18 +9,25 @@ import (
 	"context"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const createCheckoutPayment = `-- name: CreateCheckoutPayment :one
+WITH payment_checkout AS MATERIALIZED (
+    SELECT c.id, c.amount_minor, c.currency
+    FROM checkouts AS c
+    JOIN wallets AS w ON w.id = c.wallet_id
+    WHERE c.id = $3::UUID
+      AND w.organization_id = $4::UUID
+      AND c.status = 'pending' AND c.expires_at > now()
+      AND c.amount_minor = $5::BIGINT
+      AND c.currency = $6::TEXT
+    FOR UPDATE OF c
+)
 INSERT INTO payments (checkout_id, provider, attempt_key, amount_minor, currency)
 SELECT c.id, $1::TEXT, $2::TEXT,
        c.amount_minor, c.currency
-FROM checkouts AS c JOIN wallets AS w ON w.id = c.wallet_id
-WHERE c.id = $3::UUID
-  AND w.organization_id = $4::UUID
-  AND c.status = 'pending' AND c.expires_at > now()
-  AND c.amount_minor = $5::BIGINT
-  AND c.currency = $6::TEXT
+FROM payment_checkout AS c
 ON CONFLICT (checkout_id, provider, attempt_key) DO NOTHING
 RETURNING id, checkout_id, provider, attempt_key, provider_reference, amount_minor, currency, status, verified_at, wallet_transaction_id, failure_code, created_at, updated_at
 `
@@ -167,6 +174,39 @@ func (q *Queries) GetIncomingPaymentEventByIdentity(ctx context.Context, arg Get
 	return i, err
 }
 
+const getPaymentCheckout = `-- name: GetPaymentCheckout :one
+SELECT c.id, c.wallet_id, c.amount_minor, c.currency, c.idempotency_key, c.request_hash, c.status, c.credited_transaction_id, c.expires_at, c.completed_at, c.created_at, c.updated_at FROM checkouts AS c
+JOIN wallets AS w ON w.id = c.wallet_id
+WHERE w.organization_id = $1::UUID
+  AND c.id = $2::UUID
+LIMIT 1
+`
+
+type GetPaymentCheckoutParams struct {
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	ID             uuid.UUID `db:"id" json:"id"`
+}
+
+func (q *Queries) GetPaymentCheckout(ctx context.Context, arg GetPaymentCheckoutParams) (Checkout, error) {
+	row := q.db.QueryRow(ctx, getPaymentCheckout, arg.OrganizationID, arg.ID)
+	var i Checkout
+	err := row.Scan(
+		&i.ID,
+		&i.WalletID,
+		&i.AmountMinor,
+		&i.Currency,
+		&i.IdempotencyKey,
+		&i.RequestHash,
+		&i.Status,
+		&i.CreditedTransactionID,
+		&i.ExpiresAt,
+		&i.CompletedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const getProviderPaymentByReference = `-- name: GetProviderPaymentByReference :one
 SELECT id, checkout_id, provider, attempt_key, provider_reference, amount_minor, currency, status, verified_at, wallet_transaction_id, failure_code, created_at, updated_at FROM payments WHERE provider = $1::TEXT
   AND provider_reference = $2::TEXT LIMIT 1
@@ -179,6 +219,182 @@ type GetProviderPaymentByReferenceParams struct {
 
 func (q *Queries) GetProviderPaymentByReference(ctx context.Context, arg GetProviderPaymentByReferenceParams) (Payment, error) {
 	row := q.db.QueryRow(ctx, getProviderPaymentByReference, arg.Provider, arg.ProviderReference)
+	var i Payment
+	err := row.Scan(
+		&i.ID,
+		&i.CheckoutID,
+		&i.Provider,
+		&i.AttemptKey,
+		&i.ProviderReference,
+		&i.AmountMinor,
+		&i.Currency,
+		&i.Status,
+		&i.VerifiedAt,
+		&i.WalletTransactionID,
+		&i.FailureCode,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const linkPaymentWalletTransaction = `-- name: LinkPaymentWalletTransaction :one
+UPDATE payments SET wallet_transaction_id = $1::UUID
+WHERE id = $2::UUID
+  AND status = 'succeeded'
+  AND wallet_transaction_id IS NULL
+RETURNING id, checkout_id, provider, attempt_key, provider_reference, amount_minor, currency, status, verified_at, wallet_transaction_id, failure_code, created_at, updated_at
+`
+
+type LinkPaymentWalletTransactionParams struct {
+	WalletTransactionID uuid.UUID `db:"wallet_transaction_id" json:"wallet_transaction_id"`
+	ID                  uuid.UUID `db:"id" json:"id"`
+}
+
+func (q *Queries) LinkPaymentWalletTransaction(ctx context.Context, arg LinkPaymentWalletTransactionParams) (Payment, error) {
+	row := q.db.QueryRow(ctx, linkPaymentWalletTransaction, arg.WalletTransactionID, arg.ID)
+	var i Payment
+	err := row.Scan(
+		&i.ID,
+		&i.CheckoutID,
+		&i.Provider,
+		&i.AttemptKey,
+		&i.ProviderReference,
+		&i.AmountMinor,
+		&i.Currency,
+		&i.Status,
+		&i.VerifiedAt,
+		&i.WalletTransactionID,
+		&i.FailureCode,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const listPaymentsDueForRecovery = `-- name: ListPaymentsDueForRecovery :many
+SELECT p.id, p.checkout_id, p.provider, p.attempt_key, p.provider_reference, p.amount_minor, p.currency, p.status, p.verified_at, p.wallet_transaction_id, p.failure_code, p.created_at, p.updated_at, w.organization_id
+FROM payments AS p
+JOIN checkouts AS c ON c.id = p.checkout_id
+JOIN wallets AS w ON w.id = c.wallet_id
+WHERE p.provider_reference IS NOT NULL
+  AND (
+      p.status = 'pending'
+      OR (p.status = 'succeeded' AND p.wallet_transaction_id IS NULL)
+  )
+ORDER BY p.updated_at, p.id
+LIMIT $1
+`
+
+type ListPaymentsDueForRecoveryRow struct {
+	ID                  uuid.UUID          `db:"id" json:"id"`
+	CheckoutID          uuid.UUID          `db:"checkout_id" json:"checkout_id"`
+	Provider            string             `db:"provider" json:"provider"`
+	AttemptKey          string             `db:"attempt_key" json:"attempt_key"`
+	ProviderReference   *string            `db:"provider_reference" json:"provider_reference"`
+	AmountMinor         int64              `db:"amount_minor" json:"amount_minor"`
+	Currency            string             `db:"currency" json:"currency"`
+	Status              string             `db:"status" json:"status"`
+	VerifiedAt          pgtype.Timestamptz `db:"verified_at" json:"verified_at"`
+	WalletTransactionID *uuid.UUID         `db:"wallet_transaction_id" json:"wallet_transaction_id"`
+	FailureCode         *string            `db:"failure_code" json:"failure_code"`
+	CreatedAt           pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	UpdatedAt           pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+	OrganizationID      uuid.UUID          `db:"organization_id" json:"organization_id"`
+}
+
+func (q *Queries) ListPaymentsDueForRecovery(ctx context.Context, rowLimit int32) ([]ListPaymentsDueForRecoveryRow, error) {
+	rows, err := q.db.Query(ctx, listPaymentsDueForRecovery, rowLimit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListPaymentsDueForRecoveryRow{}
+	for rows.Next() {
+		var i ListPaymentsDueForRecoveryRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.CheckoutID,
+			&i.Provider,
+			&i.AttemptKey,
+			&i.ProviderReference,
+			&i.AmountMinor,
+			&i.Currency,
+			&i.Status,
+			&i.VerifiedAt,
+			&i.WalletTransactionID,
+			&i.FailureCode,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.OrganizationID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const lockCheckoutPayment = `-- name: LockCheckoutPayment :one
+SELECT p.id, p.checkout_id, p.provider, p.attempt_key, p.provider_reference, p.amount_minor, p.currency, p.status, p.verified_at, p.wallet_transaction_id, p.failure_code, p.created_at, p.updated_at FROM payments AS p
+JOIN checkouts AS c ON c.id = p.checkout_id
+JOIN wallets AS w ON w.id = c.wallet_id
+WHERE w.organization_id = $1::UUID
+  AND p.id = $2::UUID
+FOR UPDATE OF p
+`
+
+type LockCheckoutPaymentParams struct {
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	ID             uuid.UUID `db:"id" json:"id"`
+}
+
+func (q *Queries) LockCheckoutPayment(ctx context.Context, arg LockCheckoutPaymentParams) (Payment, error) {
+	row := q.db.QueryRow(ctx, lockCheckoutPayment, arg.OrganizationID, arg.ID)
+	var i Payment
+	err := row.Scan(
+		&i.ID,
+		&i.CheckoutID,
+		&i.Provider,
+		&i.AttemptKey,
+		&i.ProviderReference,
+		&i.AmountMinor,
+		&i.Currency,
+		&i.Status,
+		&i.VerifiedAt,
+		&i.WalletTransactionID,
+		&i.FailureCode,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const markCheckoutPaymentSucceeded = `-- name: MarkCheckoutPaymentSucceeded :one
+UPDATE payments SET
+    provider_reference = COALESCE(provider_reference, $1::TEXT),
+    status = 'succeeded',
+    verified_at = $2::TIMESTAMPTZ,
+    failure_code = NULL
+WHERE id = $3::UUID
+  AND status IN ('created', 'pending')
+  AND (provider_reference IS NULL OR provider_reference = $1::TEXT)
+RETURNING id, checkout_id, provider, attempt_key, provider_reference, amount_minor, currency, status, verified_at, wallet_transaction_id, failure_code, created_at, updated_at
+`
+
+type MarkCheckoutPaymentSucceededParams struct {
+	ProviderReference string             `db:"provider_reference" json:"provider_reference"`
+	VerifiedAt        pgtype.Timestamptz `db:"verified_at" json:"verified_at"`
+	ID                uuid.UUID          `db:"id" json:"id"`
+}
+
+// A verified provider result may arrive before the synchronous charge response
+// records its reference. Never overwrite a different reference.
+func (q *Queries) MarkCheckoutPaymentSucceeded(ctx context.Context, arg MarkCheckoutPaymentSucceededParams) (Payment, error) {
+	row := q.db.QueryRow(ctx, markCheckoutPaymentSucceeded, arg.ProviderReference, arg.VerifiedAt, arg.ID)
 	var i Payment
 	err := row.Scan(
 		&i.ID,

@@ -11,7 +11,6 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-// Append-only security and configuration audit history. Metadata must never contain plaintext credentials.
 type AuditEvent struct {
 	ID             uuid.UUID          `db:"id" json:"id"`
 	OrganizationID uuid.UUID          `db:"organization_id" json:"organization_id"`
@@ -148,7 +147,6 @@ type CarrierProvider struct {
 	UpdatedAt pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 }
 
-// Wallet top-up intentions. Completion requires a verified payment and a unique wallet ledger credit; never infer success from checkout creation.
 type Checkout struct {
 	ID                    uuid.UUID          `db:"id" json:"id"`
 	WalletID              uuid.UUID          `db:"wallet_id" json:"wallet_id"`
@@ -191,7 +189,6 @@ type ConferenceParticipant struct {
 	UpdatedAt         pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 }
 
-// Durable request replay records scoped to an authenticated principal or organization.
 type Idempotency struct {
 	Scope               string             `db:"scope" json:"scope"`
 	IdempotencyKey      string             `db:"idempotency_key" json:"idempotency_key"`
@@ -210,7 +207,6 @@ type Idempotency struct {
 	UpdatedAt           pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 }
 
-// Durable DIDWW acquisition and provisioning workflow; contains no wallet or prepaid ledger state.
 type ManagedNumberOrder struct {
 	ID                  uuid.UUID          `db:"id" json:"id"`
 	OrganizationID      uuid.UUID          `db:"organization_id" json:"organization_id"`
@@ -350,7 +346,6 @@ type OutboxEvent struct {
 	UpdatedAt     pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 }
 
-// Provider payment attempts. A succeeded payment is not a wallet credit until a linked immutable ledger transaction exists.
 type Payment struct {
 	ID                  uuid.UUID          `db:"id" json:"id"`
 	CheckoutID          uuid.UUID          `db:"checkout_id" json:"checkout_id"`
@@ -367,7 +362,6 @@ type Payment struct {
 	UpdatedAt           pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 }
 
-// Signature-verified inbound provider event metadata and raw payload digest. Never store payment credentials or unredacted provider payloads here.
 type PaymentEvent struct {
 	ID              uuid.UUID          `db:"id" json:"id"`
 	PaymentID       *uuid.UUID         `db:"payment_id" json:"payment_id"`
@@ -558,17 +552,34 @@ type VoiceBinding struct {
 	CreatedAt          pgtype.Timestamptz `db:"created_at" json:"created_at"`
 }
 
-// Available prepaid PAYG funds for an organization in a single currency; updates must be posted with a ledger entry in the same transaction.
 type Wallet struct {
 	ID             uuid.UUID          `db:"id" json:"id"`
 	OrganizationID uuid.UUID          `db:"organization_id" json:"organization_id"`
 	Currency       string             `db:"currency" json:"currency"`
 	BalanceMinor   int64              `db:"balance_minor" json:"balance_minor"`
+	ReservedMinor  int64              `db:"reserved_minor" json:"reserved_minor"`
 	CreatedAt      pgtype.Timestamptz `db:"created_at" json:"created_at"`
 	UpdatedAt      pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 }
 
-// Immutable successful prepaid credits and debits. A unique business reference prevents a repeated operation from changing balance twice.
+type WalletReservation struct {
+	ID                    uuid.UUID          `db:"id" json:"id"`
+	WalletID              uuid.UUID          `db:"wallet_id" json:"wallet_id"`
+	OrganizationID        uuid.UUID          `db:"organization_id" json:"organization_id"`
+	AmountMinor           int64              `db:"amount_minor" json:"amount_minor"`
+	CapturedAmountMinor   *int64             `db:"captured_amount_minor" json:"captured_amount_minor"`
+	OperationType         string             `db:"operation_type" json:"operation_type"`
+	OperationID           string             `db:"operation_id" json:"operation_id"`
+	Status                string             `db:"status" json:"status"`
+	ExpiresAt             pgtype.Timestamptz `db:"expires_at" json:"expires_at"`
+	CapturedTransactionID *uuid.UUID         `db:"captured_transaction_id" json:"captured_transaction_id"`
+	CapturedAt            pgtype.Timestamptz `db:"captured_at" json:"captured_at"`
+	ReleasedAt            pgtype.Timestamptz `db:"released_at" json:"released_at"`
+	ExpiredAt             pgtype.Timestamptz `db:"expired_at" json:"expired_at"`
+	CreatedAt             pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	UpdatedAt             pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+}
+
 type WalletTransaction struct {
 	ID                uuid.UUID          `db:"id" json:"id"`
 	WalletID          uuid.UUID          `db:"wallet_id" json:"wallet_id"`
