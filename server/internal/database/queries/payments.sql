@@ -56,7 +56,12 @@ SELECT * FROM payments WHERE provider = sqlc.arg(provider)::TEXT
 UPDATE payments SET provider_reference = sqlc.arg(provider_reference)::TEXT,
     status = 'pending'
 WHERE id = sqlc.arg(id)::UUID AND status = 'created'
-  AND provider_reference IS NULL RETURNING *;
+  AND provider_reference IS NULL
+  AND EXISTS (
+      SELECT 1 FROM checkouts AS c
+      WHERE c.id = payments.checkout_id AND c.status = 'pending'
+        AND c.expires_at > now()
+  ) RETURNING *;
 
 -- A verified provider result may arrive before the synchronous charge response
 -- records its reference. Never overwrite a different reference.
