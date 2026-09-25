@@ -1,11 +1,12 @@
-# Acceptance-only override: the untagged quay.io/minio/minio image in
-# deploy/compose.yaml currently returns HTTP 401 to GitHub-hosted runners.
-# Use a publicly published mirror of the SAME upstream MinIO release for
-# disposable test stacks. Production Compose image configuration is unchanged.
+# Acceptance-only override: quay.io/minio/minio is unavailable to the
+# GitHub-hosted acceptance runners. Use a public community-built mirror in
+# disposable test stacks; the production Compose image remains unchanged.
 services:
   minio:
-    image: ghcr.io/coollabsio/minio:RELEASE.2025-04-22T22-12-26Z@sha256:a4938f37f1be1841b8e7b627ad0207b265345fd0d063e42d7410c78af0e63e68
-    # The mirrored minimal image bundles mc but does not guarantee curl.
+    image: docker.io/coollabsio/minio:latest
+    environment:
+      MC_HOST_local: "http://${MINIO_ROOT_USER:?MINIO_ROOT_USER is required}:${MINIO_ROOT_PASSWORD:?MINIO_ROOT_PASSWORD is required}@127.0.0.1:9000"
+    # The image contains mc, whereas curl may be absent from its minimal base.
     healthcheck:
       test: ["CMD", "/usr/bin/mc", "ready", "local"]
       interval: 5s
