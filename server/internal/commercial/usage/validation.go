@@ -3,6 +3,8 @@ package usage
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
+	"io"
 	"regexp"
 	"strings"
 
@@ -46,7 +48,7 @@ func validateRecord(req *RecordRequest) error {
 	var trailing any
 	if err := decoder.Decode(&trailing); err == nil {
 		return apperror.NewBadRequest("usage dimensions must contain one JSON object")
-	} else if err.Error() != "EOF" {
+	} else if !errors.Is(err, io.EOF) {
 		return apperror.NewBadRequest("usage dimensions must contain one JSON object")
 	}
 	return nil
