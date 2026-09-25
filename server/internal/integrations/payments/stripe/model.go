@@ -48,6 +48,7 @@ func (c Config) Validate() error {
 type CreateCheckoutSessionRequest struct {
 	AmountMinor int64
 	Currency    string
+	PaymentID   string
 }
 
 func (r CreateCheckoutSessionRequest) Validate() error {
@@ -56,6 +57,9 @@ func (r CreateCheckoutSessionRequest) Validate() error {
 	}
 	if strings.TrimSpace(r.Currency) == "" {
 		return fmt.Errorf("stripe checkout currency is required")
+	}
+	if strings.TrimSpace(r.PaymentID) == "" {
+		return fmt.Errorf("stripe checkout payment identity is required")
 	}
 	return nil
 }

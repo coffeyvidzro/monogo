@@ -53,6 +53,7 @@ func (c *Client) CreateCheckoutSession(
 
 	values := url.Values{
 		"mode":                                          {"payment"},
+		"client_reference_id":                           {request.PaymentID},
 		"ui_mode":                                       {"custom"},
 		"payment_method_types[0]":                       {"card"},
 		"line_items[0][quantity]":                       {"1"},
@@ -62,7 +63,7 @@ func (c *Client) CreateCheckoutSession(
 	}
 
 	var session CheckoutSession
-	if err := c.doForm(ctx, http.MethodPost, "/checkout/sessions", values, &session); err != nil {
+	if err := c.doForm(ctx, http.MethodPost, "/checkout/sessions", values, &session, "leamout-"+request.PaymentID); err != nil {
 		return CheckoutSession{}, err
 	}
 
@@ -82,6 +83,7 @@ func (c *Client) RetrieveCheckoutSession(ctx context.Context, id string) (Checko
 		"/checkout/sessions/"+url.PathEscape(id),
 		nil,
 		&session,
+		"",
 	); err != nil {
 		return CheckoutSession{}, err
 	}
@@ -143,6 +145,7 @@ func (c *Client) doForm(
 	method, path string,
 	values url.Values,
 	target any,
+	idempotencyKey string,
 ) error {
 	if ctx == nil {
 		return fmt.Errorf("stripe context is required")
@@ -159,6 +162,9 @@ func (c *Client) doForm(
 	}
 	req.Header.Set("Authorization", "Bearer "+c.secretKey)
 	req.Header.Set("Stripe-Version", DefaultAPIVersion)
+	if idempotencyKey != "" {
+		req.Header.Set("Idempotency-Key", idempotencyKey)
+	}
 	req.Header.Set("Accept", "application/json")
 	if values != nil {
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
