@@ -11,18 +11,18 @@ import (
 )
 
 type DIDWWConfig struct {
-	APIKey     string `env:"API_KEY"`
+	APIKey     string `env:"API_KEY,required"`
 	APIBaseURL string `env:"API_BASE_URL" envDefault:"https://api.didww.com/v3"`
 }
 
 type CommPeakConfig struct {
-	Authorization string `env:"API_AUTHORIZATION"`
+	Authorization string `env:"API_AUTHORIZATION,required"`
 	APIBaseURL    string `env:"API_BASE_URL" envDefault:"https://api.commpeak.com"`
 }
 
 type StripeConfig struct {
-	SecretKey     string `env:"SECRET_KEY"`
-	WebhookSecret string `env:"WEBHOOK_SECRET"`
+	SecretKey     string `env:"SECRET_KEY,required"`
+	WebhookSecret string `env:"WEBHOOK_SECRET,required"`
 	APIBaseURL    string `env:"API_BASE_URL" envDefault:"https://api.stripe.com/v1"`
 }
 
@@ -66,6 +66,9 @@ func Load() (Config, error) {
 	}
 
 	cfg.normalize()
+	if err := cfg.validateCredentials(); err != nil {
+		return Config{}, err
+	}
 
 	return cfg, nil
 }
@@ -107,4 +110,24 @@ func normalizeStrings(values []string) []string {
 		}
 	}
 	return result
+}
+
+// The env parser rejects missing and empty values. Normalize first, then
+// reject whitespace-only values so all runtimes receive usable credentials.
+func (c Config) validateCredentials() error {
+	for _, credential := range []struct {
+		name  string
+		value string
+	}{
+		{name: "DIDWW_API_KEY", value: c.DIDWW.APIKey},
+		{name: "COMMPEAK_API_AUTHORIZATION", value: c.CommPeak.Authorization},
+		{name: "STRIPE_SECRET_KEY", value: c.Stripe.SecretKey},
+		{name: "STRIPE_WEBHOOK_SECRET", value: c.Stripe.WebhookSecret},
+		{name: "PAYSTACK_SECRET_KEY", value: c.Paystack.SecretKey},
+	} {
+		if credential.value == "" {
+			return fmt.Errorf("%s is required", credential.name)
+		}
+	}
+	return nil
 }
