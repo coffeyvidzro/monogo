@@ -191,8 +191,10 @@ WHERE id = sqlc.arg(id) AND status IN ('submitted', 'in_progress')
 RETURNING *;
 
 -- name: ActivatePortInCase :one
-UPDATE port_in_cases SET status = 'activated', activated_at = now()
-WHERE id = sqlc.arg(id) AND status = 'foc_received'
+UPDATE port_in_cases
+SET status = 'activated', activated_at = now()
+WHERE id = sqlc.arg(id)
+  AND status IN ('submitted', 'in_progress', 'foc_received')
 RETURNING *;
 
 -- name: RejectPortInCase :one

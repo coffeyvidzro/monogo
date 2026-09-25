@@ -42,7 +42,12 @@ func (s *Service) PutEmergency(ctx context.Context, organizationID, numberID uui
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 	queries := sqlc.New(tx)
-	_ = queries.DeactivateCurrentEmergencyRegistration(ctx, sqlc.DeactivateCurrentEmergencyRegistrationParams{OrganizationID: organizationID, PhoneNumberID: numberID})
+	if err = queries.DeactivateCurrentEmergencyRegistration(ctx, sqlc.DeactivateCurrentEmergencyRegistrationParams{
+		OrganizationID: organizationID,
+		PhoneNumberID:  numberID,
+	}); err != nil {
+		return sqlc.EmergencyRegistration{}, apperror.NewInternal("deactivate existing emergency registration", err)
+	}
 	line2 := req.AddressLine2
 	registration, err := queries.CreateEmergencyRegistration(ctx, sqlc.CreateEmergencyRegistrationParams{
 		OrganizationID: organizationID, PhoneNumberID: numberID, IdempotencyKey: &key, RequestHash: &hash,

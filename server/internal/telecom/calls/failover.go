@@ -40,7 +40,10 @@ func executeRoutePlan(
 		started := time.Now()
 		result, err := attempt(ctx, route)
 		outcome := routeAttemptOutcome{
-			Route: route, Attempt: index + 1, Duration: time.Since(started), Err: err,
+			Route:    route,
+			Attempt:  index + 1,
+			Duration: time.Since(started),
+			Err:      err,
 		}
 		if err == nil {
 			outcome.Outcome = "succeeded"
@@ -51,6 +54,11 @@ func executeRoutePlan(
 		}
 
 		outcome.FailureClass, outcome.SIPStatus, outcome.Outcome = classifyOriginateFailure(err)
+		if result.ChannelID != "" {
+			// A channel may already be active even if origination reported an error.
+			// Retrying on another carrier could connect and charge two calls.
+			outcome.Outcome = "terminal_failure"
+		}
 		if observe != nil {
 			observe(context.WithoutCancel(ctx), outcome)
 		}
@@ -73,8 +81,9 @@ func classifyOriginateFailure(err error) (failureClass string, sipStatus int, ou
 	}
 	failureClass = string(originateError.Class)
 	sipStatus = originateError.SIPStatus
+	// An originate timeout does not prove that the remote carrier never
+	// established a call; do not send another INVITE on an ambiguous outcome.
 	if originateError.Class == calling.OriginateFailureTransport ||
-		originateError.Class == calling.OriginateFailureTimeout ||
 		originateError.Class == calling.OriginateFailureCapacity ||
 		(originateError.Class == calling.OriginateFailureSIP && sipStatus >= 500 && sipStatus <= 599) {
 		outcome = "retryable_failure"

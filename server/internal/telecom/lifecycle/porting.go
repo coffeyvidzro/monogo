@@ -222,7 +222,9 @@ func (s *Service) activatePortIn(ctx context.Context, operation sqlc.NumberLifec
 	return tx.Commit(ctx)
 }
 
-func stringPointer(value string) *string { return &value }
+func stringPointer(value string) *string {
+	return &value
+}
 
 func pgTimestamptz(value time.Time) pgtype.Timestamptz {
 	return pgtype.Timestamptz{Time: value, Valid: true}

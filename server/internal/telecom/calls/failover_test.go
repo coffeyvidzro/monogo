@@ -66,11 +66,59 @@ func TestExecuteRoutePlanCapsAttemptBudgetAtThree(t *testing.T) {
 	) (calling.OriginateResult, error) {
 		attempts++
 		return calling.OriginateResult{}, &calling.OriginateError{
-			Class: calling.OriginateFailureTimeout, Err: context.DeadlineExceeded,
+			Class: calling.OriginateFailureCapacity,
+			Err:   errors.New("carrier at capacity"),
 		}
 	}, nil)
 	if err == nil || attempts != maxOutboundAttempts {
 		t.Fatalf("attempt budget used %d routes, err=%v", attempts, err)
+	}
+}
+
+func TestExecuteRoutePlanStopsAfterAmbiguousOrigination(t *testing.T) {
+	tests := []struct {
+		name       string
+		result     calling.OriginateResult
+		originateErr error
+	}{
+		{
+			name: "timeout with unknown remote state",
+			originateErr: &calling.OriginateError{
+				Class: calling.OriginateFailureTimeout,
+				Err:   context.DeadlineExceeded,
+			},
+		},
+		{
+			name:   "channel exists even after a retryable SIP response",
+			result: calling.OriginateResult{ChannelID: "possible-live-channel"},
+			originateErr: calling.NewSIPOriginateError(
+				503,
+				errors.New("response received after channel creation"),
+			),
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			attempts := 0
+			var recorded routeAttemptOutcome
+			_, _, err := executeRoutePlan(
+				context.Background(),
+				testRoutes(3),
+				func(_ context.Context, _ routing.OutboundRoute) (calling.OriginateResult, error) {
+					attempts++
+					return test.result, test.originateErr
+				},
+				func(_ context.Context, outcome routeAttemptOutcome) {
+					recorded = outcome
+				},
+			)
+			if err == nil || attempts != 1 {
+				t.Fatalf("ambiguous origination made %d attempts, err=%v", attempts, err)
+			}
+			if recorded.Outcome != "terminal_failure" {
+				t.Fatalf("ambiguous origination outcome = %q", recorded.Outcome)
+			}
+		})
 	}
 }
 
@@ -80,7 +128,14 @@ func TestClassifyOriginateFailure(t *testing.T) {
 		err       error
 		retryable bool
 	}{
-		{name: "timeout", err: &calling.OriginateError{Class: calling.OriginateFailureTimeout, Err: context.DeadlineExceeded}, retryable: true},
+		{
+			name: "timeout",
+			err: &calling.OriginateError{
+				Class: calling.OriginateFailureTimeout,
+				Err: context.DeadlineExceeded,
+			},
+			retryable: false,
+		},
 		{name: "capacity", err: &calling.OriginateError{Class: calling.OriginateFailureCapacity, Err: errors.New("CPS")}, retryable: true},
 		{name: "server response", err: calling.NewSIPOriginateError(500, errors.New("server error")), retryable: true},
 		{name: "client response", err: calling.NewSIPOriginateError(486, errors.New("busy")), retryable: false},
@@ -100,7 +155,9 @@ func testRoutes(count int) []routing.OutboundRoute {
 	routes := make([]routing.OutboundRoute, count)
 	for index := range routes {
 		routes[index] = routing.OutboundRoute{
-			CarrierConnectionID: uuid.New(), TrunkID: uuid.New(), TrunkEndpointID: uuid.New(),
+			CarrierConnectionID: uuid.New(),
+			TrunkID:             uuid.New(),
+			TrunkEndpointID:     uuid.New(),
 		}
 	}
 	return routes

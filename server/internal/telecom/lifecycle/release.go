@@ -32,16 +32,35 @@ func (s *Service) ReleaseManaged(ctx context.Context, organizationID, numberID u
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 	queries := sqlc.New(tx)
-	number, err := queries.GetPhoneNumberForRelease(ctx, sqlc.GetPhoneNumberForReleaseParams{ID: numberID, OrganizationID: organizationID})
+	number, err := queries.GetPhoneNumberForRelease(ctx, sqlc.GetPhoneNumberForReleaseParams{
+		ID:             numberID,
+		OrganizationID: organizationID,
+	})
 	if err != nil || number.ProvisioningMode != "managed" || number.ProviderResourceID == nil {
 		return sqlc.NumberLifecycleOperation{}, apperror.NewNotFound("managed number not found")
 	}
-	op, err := queries.CreateManagedReleaseOperation(ctx, sqlc.CreateManagedReleaseOperationParams{OrganizationID: organizationID, PhoneNumberID: numberID, IdempotencyKey: key})
+	op, err := queries.CreateManagedReleaseOperation(ctx, sqlc.CreateManagedReleaseOperationParams{
+		OrganizationID: organizationID,
+		PhoneNumberID:   numberID,
+		IdempotencyKey:  key,
+	})
 	if err != nil {
 		return sqlc.NumberLifecycleOperation{}, writeError(err)
 	}
-	if _, err = queries.DisableManagedPhoneNumberForRelease(ctx, sqlc.DisableManagedPhoneNumberForReleaseParams{ID: numberID, OrganizationID: organizationID}); err != nil {
+	if _, err = queries.DisableManagedPhoneNumberForRelease(ctx, sqlc.DisableManagedPhoneNumberForReleaseParams{
+		ID:             numberID,
+		OrganizationID: organizationID,
+	}); err != nil {
 		return sqlc.NumberLifecycleOperation{}, writeError(err)
+	}
+	// Record that provider submission may have started before performing the external request.
+	// A worker restart must never turn a pending operation into a second termination request.
+	op, err = queries.MarkNumberLifecycleSubmitted(ctx, sqlc.MarkNumberLifecycleSubmittedParams{
+		ID:             op.ID,
+		ReconcileAfter: pgTimestamptz(s.now().Add(managedReconcileDelay)),
+	})
+	if err != nil {
+		return sqlc.NumberLifecycleOperation{}, apperror.NewInternal("claim managed release submission", err)
 	}
 	if err = insertNumberEvent(ctx, queries, "number.release.requested", organizationID, op.ID, op); err != nil {
 		return sqlc.NumberLifecycleOperation{}, apperror.NewInternal("enqueue number release event", err)
@@ -78,20 +97,8 @@ func (s *Service) reconcileRelease(ctx context.Context, operation sqlc.NumberLif
 	if number.ProviderResourceID == nil {
 		return fmt.Errorf("managed number provider identity is missing")
 	}
-	if operation.Status == "pending" {
-		reference, providerErr := s.lifecycle.RequestRelease(ctx, *number.ProviderResourceID)
-		var pointer *string
-		if reference != "" {
-			pointer = &reference
-		}
-		_, err = s.repo.MarkLifecycleSubmitted(ctx, operation.ID, pointer, s.now().Add(managedReconcileDelay))
-		if err != nil {
-			return err
-		}
-		if providerErr != nil {
-			return nil
-		}
-	}
+	// Pending operations from earlier versions may already have reached DIDWW.
+	// Verify provider state; never infer that another termination request is safe.
 	completed, providerErr := s.lifecycle.ReleaseCompleted(ctx, *number.ProviderResourceID)
 	if providerErr != nil || !completed {
 		_, err = s.repo.ScheduleLifecycle(ctx, operation.ID, s.now().Add(managedReconcileDelay))
