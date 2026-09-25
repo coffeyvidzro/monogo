@@ -15,6 +15,19 @@ WHERE w.organization_id = sqlc.arg(organization_id)
   AND w.currency = sqlc.arg(currency)
 LIMIT 1;
 
+-- name: ListPrepaidWallets :many
+SELECT *
+FROM wallets
+WHERE organization_id = sqlc.arg(organization_id)
+ORDER BY currency, id;
+
+-- name: GetPrepaidWalletByID :one
+SELECT *
+FROM wallets
+WHERE id = sqlc.arg(wallet_id)
+  AND organization_id = sqlc.arg(organization_id)
+LIMIT 1;
+
 -- Lock the wallet before resolving a repeated financial reference, computing
 -- the next balance, and inserting the entry in the SAME database transaction.
 --
@@ -81,5 +94,14 @@ FROM wallet_transactions AS wt
 JOIN wallets AS w ON w.id = wt.wallet_id
 WHERE w.organization_id = sqlc.arg(organization_id)
   AND w.currency = sqlc.arg(currency)
+ORDER BY wt.created_at DESC, wt.id DESC
+LIMIT sqlc.arg(row_limit);
+
+-- name: ListWalletTransactionsByWalletID :many
+SELECT wt.*
+FROM wallet_transactions AS wt
+JOIN wallets AS w ON w.id = wt.wallet_id
+WHERE w.organization_id = sqlc.arg(organization_id)
+  AND w.id = sqlc.arg(wallet_id)
 ORDER BY wt.created_at DESC, wt.id DESC
 LIMIT sqlc.arg(row_limit);

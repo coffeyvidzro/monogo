@@ -19,6 +19,11 @@ type Service struct {
 	repo *Repository
 }
 
+const (
+	defaultTransactionLimit int32 = 50
+	maxTransactionLimit     int32 = 200
+)
+
 func NewService(db *pgxpool.Pool) *Service {
 	return &Service{repo: NewRepository(db)}
 }
@@ -62,6 +67,62 @@ func (s *Service) Get(ctx context.Context, organizationID uuid.UUID, currency st
 		return sqlc.Wallet{}, apperror.NewInternal("get prepaid wallet", err)
 	}
 	return wallet, nil
+}
+
+func (s *Service) List(ctx context.Context, organizationID uuid.UUID) ([]sqlc.Wallet, error) {
+	if organizationID == uuid.Nil {
+		return nil, apperror.NewBadRequest("organization is required")
+	}
+	if s == nil || !s.repo.Available() {
+		return nil, apperror.NewServiceUnavailable("prepaid wallets are not configured", nil)
+	}
+	rows, err := s.repo.List(ctx, organizationID)
+	if err != nil {
+		return nil, apperror.NewInternal("list prepaid wallets", err)
+	}
+	return rows, nil
+}
+
+func (s *Service) GetByID(ctx context.Context, organizationID, walletID uuid.UUID) (sqlc.Wallet, error) {
+	if organizationID == uuid.Nil || walletID == uuid.Nil {
+		return sqlc.Wallet{}, apperror.NewBadRequest("organization and wallet are required")
+	}
+	if s == nil || !s.repo.Available() {
+		return sqlc.Wallet{}, apperror.NewServiceUnavailable("prepaid wallets are not configured", nil)
+	}
+	row, err := s.repo.GetByID(ctx, organizationID, walletID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return sqlc.Wallet{}, apperror.NewNotFound("wallet not found")
+	}
+	if err != nil {
+		return sqlc.Wallet{}, apperror.NewInternal("get prepaid wallet", err)
+	}
+	return row, nil
+}
+
+func (s *Service) ListTransactions(ctx context.Context, organizationID, walletID uuid.UUID, limit int32) ([]sqlc.WalletTransaction, error) {
+	if organizationID == uuid.Nil || walletID == uuid.Nil {
+		return nil, apperror.NewBadRequest("organization and wallet are required")
+	}
+	if limit == 0 {
+		limit = defaultTransactionLimit
+	}
+	if limit < 0 || limit > maxTransactionLimit {
+		return nil, apperror.NewBadRequest("transaction limit must be between 1 and 200")
+	}
+	if s == nil || !s.repo.Available() {
+		return nil, apperror.NewServiceUnavailable("prepaid wallets are not configured", nil)
+	}
+	if _, err := s.repo.GetByID(ctx, organizationID, walletID); errors.Is(err, pgx.ErrNoRows) {
+		return nil, apperror.NewNotFound("wallet not found")
+	} else if err != nil {
+		return nil, apperror.NewInternal("get prepaid wallet", err)
+	}
+	rows, err := s.repo.ListTransactions(ctx, organizationID, walletID, limit)
+	if err != nil {
+		return nil, apperror.NewInternal("list wallet transactions", err)
+	}
+	return rows, nil
 }
 
 // Post changes a balance only together with one immutable financial entry.

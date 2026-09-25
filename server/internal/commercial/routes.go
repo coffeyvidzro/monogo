@@ -1,8 +1,12 @@
 package commercial
 
-import "github.com/go-chi/chi/v5"
+import (
+	"net/http"
 
-// RegisterRoutes is the commercial module's routing entry point. No public
-// checkout, payment, wallet or usage HTTP contract exists in this PR.
-// Internal ingestion must never be exposed by registering an unguarded route.
-func RegisterRoutes(_ chi.Router, _ *Module) {}
+	"github.com/coffeyvidzro/monogo/internal/commercial/wallets"
+	"github.com/go-chi/chi/v5"
+)
+
+func RegisterRoutes(router chi.Router, module *Module, organizationAccess func(string) func(http.Handler) http.Handler) {
+	wallets.RegisterRoutes(router, module.Wallets.Handler, organizationAccess("commercial-state"))
+}

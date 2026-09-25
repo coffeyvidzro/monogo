@@ -125,6 +125,33 @@ func (q *Queries) GetPrepaidWallet(ctx context.Context, arg GetPrepaidWalletPara
 	return i, err
 }
 
+const getPrepaidWalletByID = `-- name: GetPrepaidWalletByID :one
+SELECT id, organization_id, currency, balance_minor, created_at, updated_at
+FROM wallets
+WHERE id = $1
+  AND organization_id = $2
+LIMIT 1
+`
+
+type GetPrepaidWalletByIDParams struct {
+	WalletID       uuid.UUID `db:"wallet_id" json:"wallet_id"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+}
+
+func (q *Queries) GetPrepaidWalletByID(ctx context.Context, arg GetPrepaidWalletByIDParams) (Wallet, error) {
+	row := q.db.QueryRow(ctx, getPrepaidWalletByID, arg.WalletID, arg.OrganizationID)
+	var i Wallet
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.Currency,
+		&i.BalanceMinor,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const getWalletTransaction = `-- name: GetWalletTransaction :one
 SELECT id, wallet_id, direction, reason, amount_minor, balance_after_minor, reference_type, reference_id, created_at FROM wallet_transactions WHERE id = $1 LIMIT 1
 `
@@ -178,6 +205,40 @@ func (q *Queries) GetWalletTransactionByReference(ctx context.Context, arg GetWa
 	return i, err
 }
 
+const listPrepaidWallets = `-- name: ListPrepaidWallets :many
+SELECT id, organization_id, currency, balance_minor, created_at, updated_at
+FROM wallets
+WHERE organization_id = $1
+ORDER BY currency, id
+`
+
+func (q *Queries) ListPrepaidWallets(ctx context.Context, organizationID uuid.UUID) ([]Wallet, error) {
+	rows, err := q.db.Query(ctx, listPrepaidWallets, organizationID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Wallet{}
+	for rows.Next() {
+		var i Wallet
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrganizationID,
+			&i.Currency,
+			&i.BalanceMinor,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listWalletTransactions = `-- name: ListWalletTransactions :many
 SELECT wt.id, wt.wallet_id, wt.direction, wt.reason, wt.amount_minor, wt.balance_after_minor, wt.reference_type, wt.reference_id, wt.created_at
 FROM wallet_transactions AS wt
@@ -196,6 +257,52 @@ type ListWalletTransactionsParams struct {
 
 func (q *Queries) ListWalletTransactions(ctx context.Context, arg ListWalletTransactionsParams) ([]WalletTransaction, error) {
 	rows, err := q.db.Query(ctx, listWalletTransactions, arg.OrganizationID, arg.Currency, arg.RowLimit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []WalletTransaction{}
+	for rows.Next() {
+		var i WalletTransaction
+		if err := rows.Scan(
+			&i.ID,
+			&i.WalletID,
+			&i.Direction,
+			&i.Reason,
+			&i.AmountMinor,
+			&i.BalanceAfterMinor,
+			&i.ReferenceType,
+			&i.ReferenceID,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listWalletTransactionsByWalletID = `-- name: ListWalletTransactionsByWalletID :many
+SELECT wt.id, wt.wallet_id, wt.direction, wt.reason, wt.amount_minor, wt.balance_after_minor, wt.reference_type, wt.reference_id, wt.created_at
+FROM wallet_transactions AS wt
+JOIN wallets AS w ON w.id = wt.wallet_id
+WHERE w.organization_id = $1
+  AND w.id = $2
+ORDER BY wt.created_at DESC, wt.id DESC
+LIMIT $3
+`
+
+type ListWalletTransactionsByWalletIDParams struct {
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	WalletID       uuid.UUID `db:"wallet_id" json:"wallet_id"`
+	RowLimit       int32     `db:"row_limit" json:"row_limit"`
+}
+
+func (q *Queries) ListWalletTransactionsByWalletID(ctx context.Context, arg ListWalletTransactionsByWalletIDParams) ([]WalletTransaction, error) {
+	rows, err := q.db.Query(ctx, listWalletTransactionsByWalletID, arg.OrganizationID, arg.WalletID, arg.RowLimit)
 	if err != nil {
 		return nil, err
 	}

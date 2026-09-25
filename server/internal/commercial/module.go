@@ -34,10 +34,12 @@ type UsageModule struct {
 type WalletsModule struct {
 	Repository *wallets.Repository
 	Service    *wallets.Service
+	Handler    *wallets.Handler
 }
 
 func New(db *pgxpool.Pool, queries *sqlc.Queries) *Module {
 	usageRepository := usage.NewRepository(queries)
+	walletService := wallets.NewService(db)
 	return &Module{
 		Checkout: CheckoutModule{
 			Repository: checkout.NewRepository(db),
@@ -53,7 +55,8 @@ func New(db *pgxpool.Pool, queries *sqlc.Queries) *Module {
 		},
 		Wallets: WalletsModule{
 			Repository: wallets.NewRepository(db),
-			Service:    wallets.NewService(db),
+			Service:    walletService,
+			Handler:    wallets.NewHandler(walletService),
 		},
 	}
 }

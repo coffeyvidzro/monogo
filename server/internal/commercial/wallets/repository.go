@@ -57,6 +57,22 @@ func (r *Repository) Get(ctx context.Context, organizationID uuid.UUID, currency
 	})
 }
 
+func (r *Repository) List(ctx context.Context, organizationID uuid.UUID) ([]sqlc.Wallet, error) {
+	return r.queries.ListPrepaidWallets(ctx, organizationID)
+}
+
+func (r *Repository) GetByID(ctx context.Context, organizationID, walletID uuid.UUID) (sqlc.Wallet, error) {
+	return r.queries.GetPrepaidWalletByID(ctx, sqlc.GetPrepaidWalletByIDParams{
+		WalletID: walletID, OrganizationID: organizationID,
+	})
+}
+
+func (r *Repository) ListTransactions(ctx context.Context, organizationID, walletID uuid.UUID, limit int32) ([]sqlc.WalletTransaction, error) {
+	return r.queries.ListWalletTransactionsByWalletID(ctx, sqlc.ListWalletTransactionsByWalletIDParams{
+		OrganizationID: organizationID, WalletID: walletID, RowLimit: limit,
+	})
+}
+
 func (r *Repository) Lock(ctx context.Context, organizationID uuid.UUID, currency string) (sqlc.Wallet, error) {
 	return r.queries.LockPrepaidWallet(ctx, sqlc.LockPrepaidWalletParams{
 		OrganizationID: organizationID,
