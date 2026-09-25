@@ -115,3 +115,22 @@ WHERE p.provider_reference IS NOT NULL
   )
 ORDER BY p.updated_at, p.id
 LIMIT sqlc.arg(row_limit);
+
+-- name: ClaimStripeCheckoutPayment :one
+UPDATE payments SET status = 'pending'
+WHERE id = sqlc.arg(id)::UUID
+  AND provider = 'stripe' AND status = 'created'
+  AND provider_reference IS NULL
+  AND EXISTS (
+      SELECT 1 FROM checkouts AS c
+      WHERE c.id = payments.checkout_id
+        AND c.status = 'pending' AND c.expires_at > now()
+  )
+RETURNING *;
+
+-- name: SaveStripeCheckoutReference :one
+UPDATE payments SET provider_reference = sqlc.arg(provider_reference)::TEXT
+WHERE id = sqlc.arg(id)::UUID
+  AND provider = 'stripe' AND status IN ('pending', 'succeeded')
+  AND (provider_reference IS NULL OR provider_reference = sqlc.arg(provider_reference)::TEXT)
+RETURNING *;
