@@ -14,7 +14,7 @@ import (
 )
 
 type paymentService interface {
-	CreateForCheckout(context.Context, uuid.UUID, uuid.UUID, string, string) (sqlc.Payment, error)
+	Initiate(context.Context, uuid.UUID, uuid.UUID, string, CreateInput) (InitiationResult, error)
 	Get(context.Context, uuid.UUID, uuid.UUID) (sqlc.Payment, error)
 }
 
@@ -38,13 +38,18 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 		httputil.Error(w, err)
 		return
 	}
-	row, err := h.service.CreateForCheckout(r.Context(), organizationID, checkoutID, input.Provider, r.Header.Get("Idempotency-Key"))
+	result, err := h.service.Initiate(r.Context(), organizationID, checkoutID, r.Header.Get("Idempotency-Key"), input)
 	if err != nil {
 		httputil.Error(w, err)
 		return
 	}
-	w.Header().Set("Location", "/v1/payments/"+row.ID.String())
-	httputil.Created(w, response(row))
+	w.Header().Set("Location", "/v1/payments/"+result.Payment.ID.String())
+	httputil.Created(w, InitiationResponse{
+		Response: response(result.Payment),
+		ClientSecret: result.ClientSecret,
+		DisplayText: result.DisplayText,
+		ProviderStatus: result.ProviderStatus,
+	})
 }
 
 func (h *Handler) Get(w http.ResponseWriter, r *http.Request) {
