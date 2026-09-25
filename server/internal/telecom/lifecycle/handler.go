@@ -25,9 +25,6 @@ func writeAccepted(w http.ResponseWriter, value any) {
 	_ = json.NewEncoder(w).Encode(value)
 }
 
-// SearchAvailable exposes display-only DIDWW inventory. Purchasing and
-// provisioning are deliberately not implemented by this endpoint.
-
 func (h *Handler) ReleaseManaged(w http.ResponseWriter, r *http.Request) {
 	organizationID, numberID, err := requestIDs(r)
 	if err != nil {

@@ -139,7 +139,7 @@ func New(deps Dependencies) (*Module, error) {
 	numbersService := numbers.NewService(numbersRepository, deps.DIDWWInventory)
 	numbersService.ConfigureManaged(deps.DB)
 	lifecycleRepository := lifecycle.NewRepository(deps.Queries)
-	lifecycleService := lifecycle.NewService(lifecycleRepository, deps.DB, lifecycle.NewDIDWWLifecycleProvider(deps.DIDWWInventory))
+	lifecycleService := lifecycle.NewService(lifecycleRepository, deps.DB, didww.NewLifecycleProvider(deps.DIDWWInventory))
 
 	voiceRepository := voice.NewRepository(deps.Queries)
 	voiceService := voice.NewService(voiceRepository)

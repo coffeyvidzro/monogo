@@ -65,5 +65,4 @@ func writeError(err error) error {
 	return apperror.NewInternal("update number", err)
 }
 
-const managedReconcileDelay = 30 * time.Second
 

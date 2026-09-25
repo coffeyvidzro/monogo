@@ -214,7 +214,7 @@ func newModules(ctx context.Context, cfg config.Config) (*modules, error) {
 	}
 	numberService := numbers.NewService(numbers.NewRepository(queries), provider)
 	numberService.ConfigureManaged(postgresClient.Pool())
-	lifecycleService := lifecycle.NewService(lifecycle.NewRepository(queries), postgresClient.Pool(), lifecycle.NewDIDWWLifecycleProvider(provider))
+	lifecycleService := lifecycle.NewService(lifecycle.NewRepository(queries), postgresClient.Pool(), didww.NewLifecycleProvider(provider))
 	lifecycleReconciliation, err := lifecycle.NewReconciliationJob(lifecycleService, 50)
 	if err != nil {
 		closeDependencies()
