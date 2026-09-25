@@ -55,4 +55,3 @@ func (s *Service) VerifyAndSettle(
 		VerifiedAt:        verification.VerifiedAt,
 	})
 }
-
