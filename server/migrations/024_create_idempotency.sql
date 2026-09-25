@@ -37,6 +37,3 @@ CREATE TABLE idempotency (
 );
 
 CREATE INDEX idx_idempotency_expires_at ON idempotency (expires_at);
-
-COMMENT ON TABLE idempotency IS
-    'Durable request replay records scoped to an authenticated principal or organization.';

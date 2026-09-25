@@ -37,6 +37,3 @@ CREATE INDEX idx_checkouts_pending_expiration
 CREATE TRIGGER set_checkouts_updated_at
 BEFORE UPDATE ON checkouts
 FOR EACH ROW EXECUTE FUNCTION set_updated_at();
-
-COMMENT ON TABLE checkouts IS
-    'Wallet top-up intentions. Completion requires a verified payment and a unique wallet ledger credit; never infer success from checkout creation.';

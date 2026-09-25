@@ -130,12 +130,3 @@ CREATE INDEX idx_wallet_reservations_wallet_created
 CREATE TRIGGER set_wallet_reservations_updated_at
 BEFORE UPDATE ON wallet_reservations
 FOR EACH ROW EXECUTE FUNCTION set_updated_at();
-
-COMMENT ON TABLE wallets IS
-    'Posted prepaid PAYG funds and active reserved funds for an organization in one currency; spendable funds are balance_minor minus reserved_minor.';
-
-COMMENT ON TABLE wallet_transactions IS
-    'Immutable successful prepaid credits and debits. A unique business reference prevents a repeated operation from changing balance twice.';
-
-COMMENT ON TABLE wallet_reservations IS
-    'Funds committed before a managed-provider or communication obligation; active reservations reduce spendable balance.';

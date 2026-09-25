@@ -88,8 +88,3 @@ CREATE INDEX idx_payment_events_payment_received
     ON payment_events (payment_id, received_at DESC);
 CREATE INDEX idx_payment_events_unprocessed
     ON payment_events (received_at) WHERE status = 'received';
-
-COMMENT ON TABLE payments IS
-    'Provider payment attempts. A succeeded payment is not a wallet credit until a linked immutable ledger transaction exists.';
-COMMENT ON TABLE payment_events IS
-    'Signature-verified inbound provider event metadata and raw payload digest. Never store payment credentials or unredacted provider payloads here.';

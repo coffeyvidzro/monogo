@@ -73,6 +73,3 @@ CREATE INDEX idx_managed_number_orders_reconciliation
 CREATE TRIGGER set_managed_number_orders_updated_at
 BEFORE UPDATE ON managed_number_orders
 FOR EACH ROW EXECUTE FUNCTION set_updated_at();
-
-COMMENT ON TABLE managed_number_orders IS
-    'Durable DIDWW acquisition and provisioning workflow; contains no wallet or prepaid ledger state.';
