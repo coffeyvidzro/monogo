@@ -27,6 +27,14 @@ JOIN wallets AS w ON w.id = c.wallet_id
 WHERE w.organization_id = sqlc.arg(organization_id)::UUID
   AND p.id = sqlc.arg(id)::UUID LIMIT 1;
 
+-- name: LockCheckoutPayment :one
+SELECT p.* FROM payments AS p
+JOIN checkouts AS c ON c.id = p.checkout_id
+JOIN wallets AS w ON w.id = c.wallet_id
+WHERE w.organization_id = sqlc.arg(organization_id)::UUID
+  AND p.id = sqlc.arg(id)::UUID
+FOR UPDATE OF p;
+
 -- name: GetProviderPaymentByReference :one
 SELECT * FROM payments WHERE provider = sqlc.arg(provider)::TEXT
   AND provider_reference = sqlc.arg(provider_reference)::TEXT LIMIT 1;
@@ -36,6 +44,26 @@ UPDATE payments SET provider_reference = sqlc.arg(provider_reference)::TEXT,
     status = 'pending'
 WHERE id = sqlc.arg(id)::UUID AND status = 'created'
   AND provider_reference IS NULL RETURNING *;
+
+-- A verified provider result may arrive before the synchronous charge response
+-- records its reference. Never overwrite a different reference.
+-- name: MarkCheckoutPaymentSucceeded :one
+UPDATE payments SET
+    provider_reference = COALESCE(provider_reference, sqlc.arg(provider_reference)::TEXT),
+    status = 'succeeded',
+    verified_at = sqlc.arg(verified_at)::TIMESTAMPTZ,
+    failure_code = NULL
+WHERE id = sqlc.arg(id)::UUID
+  AND status IN ('created', 'pending')
+  AND (provider_reference IS NULL OR provider_reference = sqlc.arg(provider_reference)::TEXT)
+RETURNING *;
+
+-- name: LinkPaymentWalletTransaction :one
+UPDATE payments SET wallet_transaction_id = sqlc.arg(wallet_transaction_id)::UUID
+WHERE id = sqlc.arg(id)::UUID
+  AND status = 'succeeded'
+  AND wallet_transaction_id IS NULL
+RETURNING *;
 
 -- name: RecordIncomingPaymentEvent :one
 INSERT INTO payment_events (

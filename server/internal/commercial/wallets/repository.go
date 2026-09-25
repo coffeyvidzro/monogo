@@ -35,6 +35,14 @@ func (r *Repository) WithTx(tx pgx.Tx) *Repository {
 	return &Repository{queries: r.queries.WithTx(tx)}
 }
 
+func (r *Repository) LockByID(ctx context.Context, organizationID, walletID uuid.UUID) (sqlc.Wallet, error) {
+	return r.queries.LockPrepaidWalletByID(ctx, sqlc.LockPrepaidWalletByIDParams{WalletID: walletID, OrganizationID: organizationID})
+}
+
+func (r *Repository) Transaction(ctx context.Context, id uuid.UUID) (sqlc.WalletTransaction, error) {
+	return r.queries.GetWalletTransaction(ctx, id)
+}
+
 func (r *Repository) Create(ctx context.Context, organizationID uuid.UUID, currency string) (sqlc.Wallet, error) {
 	return r.queries.CreatePrepaidWallet(ctx, sqlc.CreatePrepaidWalletParams{
 		OrganizationID: organizationID,

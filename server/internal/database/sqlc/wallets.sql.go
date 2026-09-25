@@ -125,6 +125,27 @@ func (q *Queries) GetPrepaidWallet(ctx context.Context, arg GetPrepaidWalletPara
 	return i, err
 }
 
+const getWalletTransaction = `-- name: GetWalletTransaction :one
+SELECT id, wallet_id, direction, reason, amount_minor, balance_after_minor, reference_type, reference_id, created_at FROM wallet_transactions WHERE id = $1 LIMIT 1
+`
+
+func (q *Queries) GetWalletTransaction(ctx context.Context, id uuid.UUID) (WalletTransaction, error) {
+	row := q.db.QueryRow(ctx, getWalletTransaction, id)
+	var i WalletTransaction
+	err := row.Scan(
+		&i.ID,
+		&i.WalletID,
+		&i.Direction,
+		&i.Reason,
+		&i.AmountMinor,
+		&i.BalanceAfterMinor,
+		&i.ReferenceType,
+		&i.ReferenceID,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const getWalletTransactionByReference = `-- name: GetWalletTransactionByReference :one
 SELECT id, wallet_id, direction, reason, amount_minor, balance_after_minor, reference_type, reference_id, created_at
 FROM wallet_transactions
@@ -220,6 +241,33 @@ type LockPrepaidWalletParams struct {
 // the next balance, and inserting the entry in the SAME database transaction.
 func (q *Queries) LockPrepaidWallet(ctx context.Context, arg LockPrepaidWalletParams) (Wallet, error) {
 	row := q.db.QueryRow(ctx, lockPrepaidWallet, arg.OrganizationID, arg.Currency)
+	var i Wallet
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.Currency,
+		&i.BalanceMinor,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const lockPrepaidWalletByID = `-- name: LockPrepaidWalletByID :one
+SELECT id, organization_id, currency, balance_minor, created_at, updated_at
+FROM wallets
+WHERE id = $1
+  AND organization_id = $2
+FOR UPDATE
+`
+
+type LockPrepaidWalletByIDParams struct {
+	WalletID       uuid.UUID `db:"wallet_id" json:"wallet_id"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+}
+
+func (q *Queries) LockPrepaidWalletByID(ctx context.Context, arg LockPrepaidWalletByIDParams) (Wallet, error) {
+	row := q.db.QueryRow(ctx, lockPrepaidWalletByID, arg.WalletID, arg.OrganizationID)
 	var i Wallet
 	err := row.Scan(
 		&i.ID,

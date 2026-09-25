@@ -25,6 +25,13 @@ WHERE organization_id = sqlc.arg(organization_id)
   AND currency = sqlc.arg(currency)
 FOR UPDATE;
 
+-- name: LockPrepaidWalletByID :one
+SELECT *
+FROM wallets
+WHERE id = sqlc.arg(wallet_id)
+  AND organization_id = sqlc.arg(organization_id)
+FOR UPDATE;
+
 -- name: GetWalletTransactionByReference :one
 SELECT *
 FROM wallet_transactions
@@ -32,6 +39,9 @@ WHERE wallet_id = sqlc.arg(wallet_id)
   AND reference_type = sqlc.arg(reference_type)
   AND reference_id = sqlc.arg(reference_id)
 LIMIT 1;
+
+-- name: GetWalletTransaction :one
+SELECT * FROM wallet_transactions WHERE id = sqlc.arg(id) LIMIT 1;
 
 -- Only the internal wallet service should call this, after row locking and
 -- only in the transaction that also inserts the corresponding ledger entry.
