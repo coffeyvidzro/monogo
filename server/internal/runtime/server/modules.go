@@ -109,16 +109,13 @@ func newModules(ctx context.Context, cfg config.Config) (*modules, error) {
 
 	// The DIDWW client is Leamout-owned; customer-provided carrier credentials
 	// must never be used for managed DID inventory or purchase operations.
-	var didwwInventory *didww.Client
-	if cfg.DIDWW.APIKey != "" {
-		didwwInventory, err = didww.New(didww.Config{
-			APIKey:  cfg.DIDWW.APIKey,
-			BaseURL: cfg.DIDWW.APIBaseURL,
-		})
-		if err != nil {
-			closeDependencies()
-			return nil, fmt.Errorf("initialize DIDWW inventory: %w", err)
-		}
+	didwwInventory, err := didww.New(didww.Config{
+		APIKey:  cfg.DIDWW.APIKey,
+		BaseURL: cfg.DIDWW.APIBaseURL,
+	})
+	if err != nil {
+		closeDependencies()
+		return nil, fmt.Errorf("initialize DIDWW inventory: %w", err)
 	}
 
 	queries := sqlc.New(postgresClient.Pool())
@@ -128,26 +125,20 @@ func newModules(ctx context.Context, cfg config.Config) (*modules, error) {
 		cfg.Domain,
 	)
 	tenancyModule := tenancy.New(queries)
-	var stripeClient *stripe.Client
-	if cfg.Stripe.SecretKey != "" && cfg.Stripe.WebhookSecret != "" {
-		stripeConfig := stripe.DefaultConfig(cfg.Stripe.SecretKey, cfg.Stripe.WebhookSecret)
-		stripeConfig.BaseURL = cfg.Stripe.APIBaseURL
-		stripeClient, err = stripe.New(stripeConfig)
-		if err != nil {
-			closeDependencies()
-			return nil, fmt.Errorf("initialize Stripe payment provider: %w", err)
-		}
+	stripeConfig := stripe.DefaultConfig(cfg.Stripe.SecretKey, cfg.Stripe.WebhookSecret)
+	stripeConfig.BaseURL = cfg.Stripe.APIBaseURL
+	stripeClient, err := stripe.New(stripeConfig)
+	if err != nil {
+		closeDependencies()
+		return nil, fmt.Errorf("initialize Stripe payment provider: %w", err)
 	}
 
-	var paystackClient *paystack.Client
-	if cfg.Paystack.SecretKey != "" {
-		paystackConfig := paystack.DefaultConfig(cfg.Paystack.SecretKey)
-		paystackConfig.BaseURL = cfg.Paystack.APIBaseURL
-		paystackClient, err = paystack.New(paystackConfig)
-		if err != nil {
-			closeDependencies()
-			return nil, fmt.Errorf("initialize Paystack payment provider: %w", err)
-		}
+	paystackConfig := paystack.DefaultConfig(cfg.Paystack.SecretKey)
+	paystackConfig.BaseURL = cfg.Paystack.APIBaseURL
+	paystackClient, err := paystack.New(paystackConfig)
+	if err != nil {
+		closeDependencies()
+		return nil, fmt.Errorf("initialize Paystack payment provider: %w", err)
 	}
 
 	commercialModule := commercial.New(postgresClient.Pool(), queries, stripeClient, paystackClient)

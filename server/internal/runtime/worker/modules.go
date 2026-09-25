@@ -200,23 +200,20 @@ func newModules(ctx context.Context, cfg config.Config) (*modules, error) {
 		return nil, fmt.Errorf("initialize webhook delivery worker: %w", err)
 	}
 
-	var numberReconciliation *numbers.ReconciliationJob
-	if cfg.DIDWW.APIKey != "" {
-		provider, providerErr := didww.New(didww.Config{
-			APIKey:  cfg.DIDWW.APIKey,
-			BaseURL: cfg.DIDWW.APIBaseURL,
-		})
-		if providerErr != nil {
-			closeDependencies()
-			return nil, fmt.Errorf("initialize DIDWW managed numbers: %w", providerErr)
-		}
-		numberService := numbers.NewService(numbers.NewRepository(queries), provider)
-		numberService.ConfigureManaged(postgresClient.Pool())
-		numberReconciliation, err = numbers.NewReconciliationJob(numberService, 50)
-		if err != nil {
-			closeDependencies()
-			return nil, fmt.Errorf("initialize managed number reconciliation: %w", err)
-		}
+	provider, err := didww.New(didww.Config{
+		APIKey:  cfg.DIDWW.APIKey,
+		BaseURL: cfg.DIDWW.APIBaseURL,
+	})
+	if err != nil {
+		closeDependencies()
+		return nil, fmt.Errorf("initialize DIDWW managed numbers: %w", err)
+	}
+	numberService := numbers.NewService(numbers.NewRepository(queries), provider)
+	numberService.ConfigureManaged(postgresClient.Pool())
+	numberReconciliation, err := numbers.NewReconciliationJob(numberService, 50)
+	if err != nil {
+		closeDependencies()
+		return nil, fmt.Errorf("initialize managed number reconciliation: %w", err)
 	}
 
 	return &modules{

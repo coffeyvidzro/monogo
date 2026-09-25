@@ -13,6 +13,14 @@ export MINIO_ROOT_PASSWORD="${MINIO_ROOT_PASSWORD:-acceptance-root-password}"
 # Disposable acceptance-only storage credentials; do not use root credentials in production.
 export MINIO_APP_ACCESS_KEY="$MINIO_ROOT_USER"
 export MINIO_APP_SECRET_KEY="$MINIO_ROOT_PASSWORD"
+# Synthetic credentials for disposable acceptance stacks; no provider calls
+# are made by these suites. Never reuse these values for real deployments.
+export DIDWW_API_KEY="${DIDWW_API_KEY:-acceptance-didww-not-live}"
+export COMMPEAK_API_AUTHORIZATION="${COMMPEAK_API_AUTHORIZATION:-acceptance-commpeak-not-live}"
+export STRIPE_SECRET_KEY="${STRIPE_SECRET_KEY:-sk_test_acceptance_not_live}"
+export STRIPE_WEBHOOK_SECRET="${STRIPE_WEBHOOK_SECRET:-whsec_acceptance_not_live}"
+export PAYSTACK_SECRET_KEY="${PAYSTACK_SECRET_KEY:-sk_test_acceptance_not_live}"
+
 CERT_DIR=$(mktemp -d "${TMPDIR:-/tmp}/leamout-webrtc-v1.XXXXXX")
 
 export WEBRTC_V1_CERT_DIR="$CERT_DIR"
