@@ -53,7 +53,7 @@ func validateCompletion(
 		current.AmountMinor != payment.AmountMinor ||
 		current.Currency != payment.Currency ||
 		payment.Status != "succeeded" ||
-		payment.VerifiedAt.Valid == false ||
+		!payment.VerifiedAt.Valid ||
 		payment.WalletTransactionID == nil ||
 		*payment.WalletTransactionID != credit.ID ||
 		credit.Direction != "credit" ||
