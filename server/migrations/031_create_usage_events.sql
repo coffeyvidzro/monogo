@@ -3,28 +3,34 @@
 CREATE TABLE IF NOT EXISTS meters (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE RESTRICT,
+    key TEXT NOT NULL UNIQUE,
     name TEXT NOT NULL,
     unit TEXT NOT NULL,
-    status TEXT NOT NULL DEFAULT 'active',
+    active BOOLEAN NOT NULL DEFAULT true,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
 
+    -- Required for the usage_events composite FK: the referenced meter
+    -- must belong to the same organization as the usage observation.
     CONSTRAINT uq_meters_id_organization UNIQUE (id, organization_id),
-    CONSTRAINT uq_meters_organization_name UNIQUE (organization_id, name),
-    CONSTRAINT chk_meters_name CHECK (name ~ '^[a-z0-9]+(?:_[a-z0-9]+)*$'),
-    CONSTRAINT chk_meters_unit CHECK (length(btrim(unit)) > 0),
-    CONSTRAINT chk_meters_status CHECK (status IN ('active', 'disabled'))
+    CONSTRAINT chk_meters_key CHECK (
+        length(trim(key)) > 0 AND key !~ '[[:space:]]'
+    ),
+    CONSTRAINT chk_meters_name CHECK (length(trim(name)) > 0),
+    CONSTRAINT chk_meters_unit CHECK (length(trim(unit)) > 0)
 );
 
-CREATE INDEX IF NOT EXISTS idx_meters_organization_status
-    ON meters (organization_id, status);
+CREATE INDEX IF NOT EXISTS idx_meters_active
+    ON meters (created_at DESC)
+    WHERE active;
 
 CREATE TRIGGER set_meters_updated_at
 BEFORE UPDATE ON meters
-FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+FOR EACH ROW
+EXECUTE FUNCTION set_updated_at();
 
 COMMENT ON TABLE meters IS
-    'Organization-scoped measurement definitions; neither prices nor makes usage billable.';
+    'Organization-owned meter definitions identified by a globally unique key; no pricing or billability is implied.';
 
 CREATE TABLE IF NOT EXISTS usage_events (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
