@@ -26,8 +26,8 @@ func NewService(repo *Repository, walletRepositories ...*wallets.Repository) *Se
 }
 
 // Charge records an immutable observation and atomically authorizes and debits
-// its trusted rated amount. Replays return the original charge without another
-// debit; a different rating for the same observation is rejected.
+// its trusted rated amount. The immutable wallet transaction uses the usage
+// event as its business reference, so no parallel billing record is required.
 func (s *Service) Charge(ctx context.Context, req ChargeRequest) (ChargeResult, error) {
 	req.Currency = strings.ToUpper(strings.TrimSpace(req.Currency))
 	if err := validateRecord(&req.Usage); err != nil {
@@ -57,16 +57,12 @@ func (s *Service) Charge(ctx context.Context, req ChargeRequest) (ChargeResult, 
 	if err != nil {
 		return ChargeResult{}, apperror.NewInternal("lock usage wallet", err)
 	}
-	existing, err := repo.ChargeByEvent(ctx, req.Usage.OrganizationID, event.ID)
+	existing, err := walletRepo.FindTransaction(ctx, wallet.ID, "usage_event", event.ID)
 	if err == nil {
-		if existing.AmountMinor != req.AmountMinor || existing.Currency != req.Currency {
+		if existing.Direction != "debit" || existing.Reason != "usage" || existing.AmountMinor != req.AmountMinor {
 			return ChargeResult{}, apperror.NewConflict("usage observation was charged with a different rating")
 		}
-		entry, getErr := walletRepo.Transaction(ctx, existing.WalletTransactionID)
-		if getErr != nil {
-			return ChargeResult{}, apperror.NewInternal("read usage debit", getErr)
-		}
-		return ChargeResult{UsageEvent: event, Charge: existing, Transaction: entry}, nil
+		return ChargeResult{UsageEvent: event, Transaction: existing}, nil
 	}
 	if !errors.Is(err, pgx.ErrNoRows) {
 		return ChargeResult{}, apperror.NewInternal("read usage charge", err)
@@ -84,14 +80,10 @@ func (s *Service) Charge(ctx context.Context, req ChargeRequest) (ChargeResult, 
 	if err != nil {
 		return ChargeResult{}, apperror.NewInternal("record usage debit", err)
 	}
-	charge, err := repo.CreateCharge(ctx, event.ID, entry.ID, req.AmountMinor, req.Currency)
-	if err != nil {
-		return ChargeResult{}, apperror.NewInternal("record usage charge", err)
-	}
 	if err := tx.Commit(ctx); err != nil {
 		return ChargeResult{}, apperror.NewInternal("commit usage charge", err)
 	}
-	return ChargeResult{UsageEvent: event, Charge: charge, Transaction: entry}, nil
+	return ChargeResult{UsageEvent: event, Transaction: entry}, nil
 }
 
 func validCurrency(value string) bool {

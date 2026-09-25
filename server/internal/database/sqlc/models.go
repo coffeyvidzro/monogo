@@ -511,16 +511,6 @@ type TrunkEndpoint struct {
 	UpdatedAt           pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 }
 
-// A trusted rated usage amount atomically debited from a prepaid wallet; one charge per immutable usage event.
-type UsageCharge struct {
-	ID                  uuid.UUID          `db:"id" json:"id"`
-	UsageEventID        uuid.UUID          `db:"usage_event_id" json:"usage_event_id"`
-	WalletTransactionID uuid.UUID          `db:"wallet_transaction_id" json:"wallet_transaction_id"`
-	AmountMinor         int64              `db:"amount_minor" json:"amount_minor"`
-	Currency            string             `db:"currency" json:"currency"`
-	CreatedAt           pgtype.Timestamptz `db:"created_at" json:"created_at"`
-}
-
 type UsageEvent struct {
 	ID             uuid.UUID          `db:"id" json:"id"`
 	OrganizationID uuid.UUID          `db:"organization_id" json:"organization_id"`

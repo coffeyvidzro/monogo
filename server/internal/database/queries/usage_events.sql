@@ -45,22 +45,6 @@ WHERE organization_id = sqlc.arg(organization_id)::UUID
   AND id = sqlc.arg(id)::UUID
 LIMIT 1;
 
--- name: GetUsageChargeByEvent :one
-SELECT uc.* FROM usage_charges AS uc
-JOIN usage_events AS ue ON ue.id = uc.usage_event_id
-WHERE ue.organization_id = sqlc.arg(organization_id)::UUID
-  AND uc.usage_event_id = sqlc.arg(usage_event_id)::UUID
-LIMIT 1;
-
--- name: CreateUsageCharge :one
-INSERT INTO usage_charges (
-    usage_event_id, wallet_transaction_id, amount_minor, currency
-) VALUES (
-    sqlc.arg(usage_event_id)::UUID, sqlc.arg(wallet_transaction_id)::UUID,
-    sqlc.arg(amount_minor)::BIGINT, sqlc.arg(currency)::TEXT
-)
-RETURNING *;
-
 -- name: ListUsageEventsByMeter :many
 SELECT * FROM usage_events
 WHERE organization_id = sqlc.arg(organization_id)::UUID

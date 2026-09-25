@@ -70,12 +70,3 @@ func (r *Repository) Get(ctx context.Context, organizationID, eventID uuid.UUID)
 		ID:             eventID,
 	})
 }
-
-func (r *Repository) ChargeByEvent(ctx context.Context, organizationID, eventID uuid.UUID) (sqlc.UsageCharge, error) {
-	return r.queries.GetUsageChargeByEvent(ctx, sqlc.GetUsageChargeByEventParams{OrganizationID: organizationID, UsageEventID: eventID})
-}
-
-func (r *Repository) CreateCharge(ctx context.Context, eventID, transactionID uuid.UUID, amount int64, currency string) (sqlc.UsageCharge, error) {
-	return r.queries.CreateUsageCharge(ctx, sqlc.CreateUsageChargeParams{UsageEventID: eventID,
-		WalletTransactionID: transactionID, AmountMinor: amount, Currency: currency})
-}

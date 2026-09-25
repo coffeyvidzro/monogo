@@ -31,6 +31,5 @@ type ChargeRequest struct {
 
 type ChargeResult struct {
 	UsageEvent  sqlc.UsageEvent
-	Charge      sqlc.UsageCharge
 	Transaction sqlc.WalletTransaction
 }
