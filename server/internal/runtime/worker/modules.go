@@ -6,6 +6,7 @@ import (
 	"time"
 
 	commercialpayments "github.com/coffeyvidzro/monogo/internal/commercial/payments"
+	commercialwallets "github.com/coffeyvidzro/monogo/internal/commercial/wallets"
 	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
 	"github.com/coffeyvidzro/monogo/internal/integrations/carriers/didww"
 	"github.com/coffeyvidzro/monogo/internal/integrations/freeswitch"
@@ -46,6 +47,7 @@ type modules struct {
 	trunkHealth             *trunks.HealthCheckJob
 	numberReconciliation    *numbers.ReconciliationJob
 	paymentRecovery         *commercialpayments.RecoveryJob
+	reservationExpiration   *commercialwallets.ExpirationJob
 }
 
 func newModules(ctx context.Context, cfg config.Config) (*modules, error) {
@@ -98,6 +100,13 @@ func newModules(ctx context.Context, cfg config.Config) (*modules, error) {
 	}
 
 	queries := sqlc.New(postgresClient.Pool())
+	walletRepository := commercialwallets.NewRepository(postgresClient.Pool())
+	reservationExpiration, err := commercialwallets.NewExpirationJob(walletRepository,
+		commercialwallets.NewService(postgresClient.Pool()), 100, 30*time.Second)
+	if err != nil {
+		closeDependencies()
+		return nil, fmt.Errorf("initialize wallet reservation expiration: %w", err)
+	}
 	var stripeClient *stripe.Client
 	if cfg.Stripe.SecretKey != "" && cfg.Stripe.WebhookSecret != "" {
 		stripeCfg := stripe.DefaultConfig(cfg.Stripe.SecretKey, cfg.Stripe.WebhookSecret)
@@ -259,6 +268,7 @@ func newModules(ctx context.Context, cfg config.Config) (*modules, error) {
 		trunkHealth:             trunkHealth,
 		numberReconciliation:    numberReconciliation,
 		paymentRecovery:         paymentRecovery,
+		reservationExpiration:   reservationExpiration,
 	}, nil
 }
 

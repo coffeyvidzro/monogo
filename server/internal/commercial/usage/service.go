@@ -67,7 +67,7 @@ func (s *Service) Charge(ctx context.Context, req ChargeRequest) (ChargeResult, 
 	if !errors.Is(err, pgx.ErrNoRows) {
 		return ChargeResult{}, apperror.NewInternal("read usage charge", err)
 	}
-	if wallet.BalanceMinor < req.AmountMinor {
+	if wallet.BalanceMinor-wallet.ReservedMinor < req.AmountMinor {
 		return ChargeResult{}, apperror.NewPaymentRequired("insufficient prepaid balance")
 	}
 	next := wallet.BalanceMinor - req.AmountMinor

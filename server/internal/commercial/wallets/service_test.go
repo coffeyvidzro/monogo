@@ -4,6 +4,7 @@ import (
 	"errors"
 	"math"
 	"testing"
+	"time"
 
 	"github.com/coffeyvidzro/monogo/pkg/apperror"
 	"github.com/google/uuid"
@@ -42,6 +43,36 @@ func TestNextBalance(t *testing.T) {
 				t.Fatalf("nextBalance() error = %v; want %s", err, tc.code)
 			}
 		})
+	}
+}
+
+func TestValidateReservationCommands(t *testing.T) {
+	organizationID, reservationID := uuid.New(), uuid.New()
+	reserve := ReserveRequest{OrganizationID: organizationID, Currency: " usd ", AmountMinor: 100,
+		OperationType: "voice_call", OperationID: "call-1", ExpiresAt: time.Now().Add(time.Minute)}
+	if err := validateReserve(&reserve); err != nil {
+		t.Fatal(err)
+	}
+	if reserve.Currency != "USD" {
+		t.Fatalf("currency = %q", reserve.Currency)
+	}
+	extend := ExtendRequest{OrganizationID: organizationID, ReservationID: reservationID,
+		AmountMinor: 200, ExpiresAt: time.Now().Add(time.Minute)}
+	if err := validateExtend(&extend); err != nil {
+		t.Fatal(err)
+	}
+	if err := validateCapture(CaptureRequest{OrganizationID: organizationID, ReservationID: reservationID,
+		AmountMinor: 75, Reason: "usage", ReferenceType: "usage_event", ReferenceID: uuid.New()}); err != nil {
+		t.Fatal(err)
+	}
+
+	reserve.OperationID = " "
+	if err := validateReserve(&reserve); err == nil {
+		t.Fatal("expected empty operation ID to fail")
+	}
+	if err := validateCapture(CaptureRequest{OrganizationID: organizationID, ReservationID: reservationID,
+		AmountMinor: 0, Reason: "usage", ReferenceType: "usage_event", ReferenceID: uuid.New()}); err == nil {
+		t.Fatal("expected zero capture to fail")
 	}
 }
 

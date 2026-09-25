@@ -3,6 +3,8 @@ package wallets
 import (
 	"math"
 	"regexp"
+	"strings"
+	"time"
 
 	"github.com/coffeyvidzro/monogo/pkg/apperror"
 	"github.com/google/uuid"
@@ -24,6 +26,44 @@ func validateEntry(entry Entry) error {
 		!referenceLabel.MatchString(entry.ReferenceType) ||
 		entry.ReferenceID == uuid.Nil {
 		return apperror.NewBadRequest("valid wallet reason and durable reference are required")
+	}
+	return nil
+}
+
+func validateReserve(req *ReserveRequest) error {
+	req.Currency = strings.ToUpper(strings.TrimSpace(req.Currency))
+	req.OperationType = strings.TrimSpace(req.OperationType)
+	req.OperationID = strings.TrimSpace(req.OperationID)
+	if req.OrganizationID == uuid.Nil || !validCurrency(req.Currency) || req.AmountMinor <= 0 {
+		return apperror.NewBadRequest("valid organization, currency, and reservation amount are required")
+	}
+	if !referenceLabel.MatchString(req.OperationType) || req.OperationID == "" || len(req.OperationID) > 255 {
+		return apperror.NewBadRequest("valid reservation operation is required")
+	}
+	if !req.ExpiresAt.After(time.Now()) {
+		return apperror.NewBadRequest("reservation expiration must be in the future")
+	}
+	req.ExpiresAt = req.ExpiresAt.UTC().Truncate(time.Microsecond)
+	return nil
+}
+
+func validateExtend(req *ExtendRequest) error {
+	if req.OrganizationID == uuid.Nil || req.ReservationID == uuid.Nil || req.AmountMinor <= 0 {
+		return apperror.NewBadRequest("reservation and positive total amount are required")
+	}
+	if !req.ExpiresAt.After(time.Now()) {
+		return apperror.NewBadRequest("reservation expiration must be in the future")
+	}
+	req.ExpiresAt = req.ExpiresAt.UTC().Truncate(time.Microsecond)
+	return nil
+}
+
+func validateCapture(req CaptureRequest) error {
+	if req.OrganizationID == uuid.Nil || req.ReservationID == uuid.Nil || req.AmountMinor <= 0 {
+		return apperror.NewBadRequest("reservation and positive capture amount are required")
+	}
+	if !referenceLabel.MatchString(req.Reason) || !referenceLabel.MatchString(req.ReferenceType) || req.ReferenceID == uuid.Nil {
+		return apperror.NewBadRequest("valid capture reason and durable reference are required")
 	}
 	return nil
 }

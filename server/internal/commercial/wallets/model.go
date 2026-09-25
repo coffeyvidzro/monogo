@@ -20,12 +20,44 @@ type Entry struct {
 	ReferenceID    uuid.UUID
 }
 
+type ReserveRequest struct {
+	OrganizationID uuid.UUID
+	Currency       string
+	AmountMinor    int64
+	OperationType  string
+	OperationID    string
+	ExpiresAt      time.Time
+}
+
+type ExtendRequest struct {
+	OrganizationID uuid.UUID
+	ReservationID  uuid.UUID
+	AmountMinor    int64
+	ExpiresAt      time.Time
+}
+
+type CaptureRequest struct {
+	OrganizationID uuid.UUID
+	ReservationID  uuid.UUID
+	AmountMinor    int64
+	Reason         string
+	ReferenceType  string
+	ReferenceID    uuid.UUID
+}
+
+type ReservationResult struct {
+	Reservation sqlc.WalletReservation
+	Transaction *sqlc.WalletTransaction
+}
+
 type Response struct {
-	ID           uuid.UUID `json:"id"`
-	Currency     string    `json:"currency"`
-	BalanceMinor int64     `json:"balance_minor"`
-	CreatedAt    time.Time `json:"created_at"`
-	UpdatedAt    time.Time `json:"updated_at"`
+	ID             uuid.UUID `json:"id"`
+	Currency       string    `json:"currency"`
+	BalanceMinor   int64     `json:"balance_minor"`
+	ReservedMinor  int64     `json:"reserved_minor"`
+	AvailableMinor int64     `json:"available_minor"`
+	CreatedAt      time.Time `json:"created_at"`
+	UpdatedAt      time.Time `json:"updated_at"`
 }
 
 type TransactionResponse struct {
@@ -42,6 +74,7 @@ type TransactionResponse struct {
 
 func response(row sqlc.Wallet) Response {
 	return Response{ID: row.ID, Currency: row.Currency, BalanceMinor: row.BalanceMinor,
+		ReservedMinor: row.ReservedMinor, AvailableMinor: row.BalanceMinor - row.ReservedMinor,
 		CreatedAt: pgconv.TimestamptzToTime(row.CreatedAt), UpdatedAt: pgconv.TimestamptzToTime(row.UpdatedAt)}
 }
 

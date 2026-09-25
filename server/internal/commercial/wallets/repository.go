@@ -2,7 +2,9 @@ package wallets
 
 import (
 	"context"
+	"time"
 
+	"github.com/coffeyvidzro/monogo/internal/database/pgconv"
 	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -105,6 +107,49 @@ func (r *Repository) SetBalance(
 		PreviousBalanceMinor: wallet.BalanceMinor,
 		BalanceMinor:         next,
 	})
+}
+
+func (r *Repository) SetAmounts(ctx context.Context, wallet sqlc.Wallet, organizationID uuid.UUID, balance, reserved int64) (sqlc.Wallet, error) {
+	return r.queries.SetPrepaidWalletAmounts(ctx, sqlc.SetPrepaidWalletAmountsParams{
+		WalletID: wallet.ID, OrganizationID: organizationID, BalanceMinor: balance, ReservedMinor: reserved,
+		PreviousBalanceMinor: wallet.BalanceMinor, PreviousReservedMinor: wallet.ReservedMinor,
+	})
+}
+
+func (r *Repository) CreateReservation(ctx context.Context, walletID uuid.UUID, req ReserveRequest) (sqlc.WalletReservation, error) {
+	return r.queries.CreateWalletReservation(ctx, sqlc.CreateWalletReservationParams{WalletID: walletID,
+		OrganizationID: req.OrganizationID, AmountMinor: req.AmountMinor, OperationType: req.OperationType,
+		OperationID: req.OperationID, ExpiresAt: pgconv.TimeToTimestamptz(req.ExpiresAt)})
+}
+
+func (r *Repository) ReservationByOperation(ctx context.Context, organizationID uuid.UUID, operationType, operationID string) (sqlc.WalletReservation, error) {
+	return r.queries.GetWalletReservationByOperation(ctx, sqlc.GetWalletReservationByOperationParams{
+		OrganizationID: organizationID, OperationType: operationType, OperationID: operationID})
+}
+
+func (r *Repository) GetReservation(ctx context.Context, organizationID, id uuid.UUID) (sqlc.WalletReservation, error) {
+	return r.queries.GetWalletReservation(ctx, sqlc.GetWalletReservationParams{OrganizationID: organizationID, ID: id})
+}
+
+func (r *Repository) LockReservation(ctx context.Context, organizationID, id uuid.UUID) (sqlc.WalletReservation, error) {
+	return r.queries.LockWalletReservation(ctx, sqlc.LockWalletReservationParams{OrganizationID: organizationID, ID: id})
+}
+
+func (r *Repository) ExtendReservation(ctx context.Context, id uuid.UUID, amount int64, expiresAt time.Time) (sqlc.WalletReservation, error) {
+	return r.queries.ExtendWalletReservation(ctx, sqlc.ExtendWalletReservationParams{ID: id, AmountMinor: amount, ExpiresAt: pgconv.TimeToTimestamptz(expiresAt)})
+}
+
+func (r *Repository) ReleaseReservation(ctx context.Context, id uuid.UUID, status string) (sqlc.WalletReservation, error) {
+	return r.queries.ReleaseWalletReservation(ctx, sqlc.ReleaseWalletReservationParams{ID: id, Status: status})
+}
+
+func (r *Repository) CaptureReservation(ctx context.Context, id uuid.UUID, amount int64, transactionID uuid.UUID) (sqlc.WalletReservation, error) {
+	return r.queries.CaptureWalletReservation(ctx, sqlc.CaptureWalletReservationParams{ID: id,
+		CapturedAmountMinor: &amount, CapturedTransactionID: &transactionID})
+}
+
+func (r *Repository) ExpiredReservations(ctx context.Context, limit int32) ([]sqlc.WalletReservation, error) {
+	return r.queries.ListExpiredWalletReservations(ctx, limit)
 }
 
 func (r *Repository) Record(

@@ -67,6 +67,18 @@ WHERE id = sqlc.arg(wallet_id)
   AND balance_minor = sqlc.arg(previous_balance_minor)
 RETURNING *;
 
+-- Reservation operations update posted and reserved amounts while holding the
+-- wallet row lock. Both previous values protect against stale writes.
+-- name: SetPrepaidWalletAmounts :one
+UPDATE wallets
+SET balance_minor = sqlc.arg(balance_minor),
+    reserved_minor = sqlc.arg(reserved_minor)
+WHERE id = sqlc.arg(wallet_id)
+  AND organization_id = sqlc.arg(organization_id)
+  AND balance_minor = sqlc.arg(previous_balance_minor)
+  AND reserved_minor = sqlc.arg(previous_reserved_minor)
+RETURNING *;
+
 -- name: CreateWalletTransaction :one
 INSERT INTO wallet_transactions (
     wallet_id,
@@ -95,6 +107,61 @@ JOIN wallets AS w ON w.id = wt.wallet_id
 WHERE w.organization_id = sqlc.arg(organization_id)
   AND w.currency = sqlc.arg(currency)
 ORDER BY wt.created_at DESC, wt.id DESC
+LIMIT sqlc.arg(row_limit);
+
+-- name: CreateWalletReservation :one
+INSERT INTO wallet_reservations (
+    wallet_id, organization_id, amount_minor, operation_type, operation_id, expires_at
+) VALUES (
+    sqlc.arg(wallet_id), sqlc.arg(organization_id), sqlc.arg(amount_minor),
+    sqlc.arg(operation_type), sqlc.arg(operation_id), sqlc.arg(expires_at)
+)
+ON CONFLICT (organization_id, operation_type, operation_id) DO NOTHING
+RETURNING *;
+
+-- name: GetWalletReservationByOperation :one
+SELECT * FROM wallet_reservations
+WHERE organization_id = sqlc.arg(organization_id)
+  AND operation_type = sqlc.arg(operation_type)
+  AND operation_id = sqlc.arg(operation_id)
+LIMIT 1;
+
+-- name: GetWalletReservation :one
+SELECT * FROM wallet_reservations
+WHERE id = sqlc.arg(id) AND organization_id = sqlc.arg(organization_id)
+LIMIT 1;
+
+-- name: LockWalletReservation :one
+SELECT * FROM wallet_reservations
+WHERE id = sqlc.arg(id) AND organization_id = sqlc.arg(organization_id)
+FOR UPDATE;
+
+-- name: ExtendWalletReservation :one
+UPDATE wallet_reservations
+SET amount_minor = sqlc.arg(amount_minor), expires_at = sqlc.arg(expires_at)
+WHERE id = sqlc.arg(id) AND status = 'active' AND expires_at > now()
+RETURNING *;
+
+-- name: ReleaseWalletReservation :one
+UPDATE wallet_reservations
+SET status = sqlc.arg(status),
+    released_at = CASE WHEN sqlc.arg(status)::TEXT = 'released' THEN now() ELSE NULL END,
+    expired_at = CASE WHEN sqlc.arg(status)::TEXT = 'expired' THEN now() ELSE NULL END
+WHERE id = sqlc.arg(id) AND status = 'active'
+  AND sqlc.arg(status)::TEXT IN ('released', 'expired')
+RETURNING *;
+
+-- name: CaptureWalletReservation :one
+UPDATE wallet_reservations
+SET status = 'captured', captured_amount_minor = sqlc.arg(captured_amount_minor),
+    captured_transaction_id = sqlc.arg(captured_transaction_id), captured_at = now()
+WHERE id = sqlc.arg(id) AND status = 'active'
+RETURNING *;
+
+-- name: ListExpiredWalletReservations :many
+SELECT * FROM wallet_reservations
+WHERE status = 'active' AND expires_at <= now()
+ORDER BY expires_at, id
 LIMIT sqlc.arg(row_limit);
 
 -- name: ListWalletTransactionsByWalletID :many

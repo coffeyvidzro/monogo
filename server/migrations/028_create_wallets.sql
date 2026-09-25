@@ -5,12 +5,16 @@ CREATE TABLE wallets (
     organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE RESTRICT,
     currency TEXT NOT NULL,
     balance_minor BIGINT NOT NULL DEFAULT 0,
+    reserved_minor BIGINT NOT NULL DEFAULT 0,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
 
     CONSTRAINT uq_wallets_organization_currency UNIQUE (organization_id, currency),
+    CONSTRAINT uq_wallets_id_organization UNIQUE (id, organization_id),
     CONSTRAINT chk_wallets_currency CHECK (currency ~ '^[A-Z]{3}$'),
-    CONSTRAINT chk_wallets_nonnegative_balance CHECK (balance_minor >= 0)
+    CONSTRAINT chk_wallets_nonnegative_balance CHECK (balance_minor >= 0),
+    CONSTRAINT chk_wallets_reserved_nonnegative CHECK (reserved_minor >= 0),
+    CONSTRAINT chk_wallets_reserved_within_balance CHECK (reserved_minor <= balance_minor)
 );
 
 CREATE INDEX idx_wallets_organization ON wallets (organization_id);
@@ -63,8 +67,75 @@ CREATE TRIGGER wallet_transactions_immutable
 BEFORE UPDATE OR DELETE ON wallet_transactions
 FOR EACH ROW EXECUTE FUNCTION reject_wallet_transaction_mutation();
 
+-- Reservations make funds unavailable before a managed-provider obligation or
+-- long-running communication is allowed to consume them. Capture is final and
+-- releases any unused part of the hold.
+CREATE TABLE wallet_reservations (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    wallet_id UUID NOT NULL,
+    organization_id UUID NOT NULL,
+    amount_minor BIGINT NOT NULL,
+    captured_amount_minor BIGINT,
+    operation_type TEXT NOT NULL,
+    operation_id TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'active',
+    expires_at TIMESTAMPTZ NOT NULL,
+    captured_transaction_id UUID UNIQUE REFERENCES wallet_transactions(id) ON DELETE RESTRICT,
+    captured_at TIMESTAMPTZ,
+    released_at TIMESTAMPTZ,
+    expired_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+    CONSTRAINT fk_wallet_reservations_wallet_organization
+        FOREIGN KEY (wallet_id, organization_id)
+        REFERENCES wallets (id, organization_id) ON DELETE RESTRICT,
+    CONSTRAINT uq_wallet_reservations_operation
+        UNIQUE (organization_id, operation_type, operation_id),
+    CONSTRAINT chk_wallet_reservations_amount CHECK (amount_minor > 0),
+    CONSTRAINT chk_wallet_reservations_captured_amount CHECK (
+        captured_amount_minor IS NULL OR captured_amount_minor BETWEEN 1 AND amount_minor
+    ),
+    CONSTRAINT chk_wallet_reservations_operation_type CHECK (
+        operation_type ~ '^[a-z0-9]+(?:_[a-z0-9]+)*$'
+    ),
+    CONSTRAINT chk_wallet_reservations_operation_id CHECK (
+        length(operation_id) BETWEEN 1 AND 255 AND operation_id = btrim(operation_id)
+    ),
+    CONSTRAINT chk_wallet_reservations_status CHECK (
+        status IN ('active', 'captured', 'released', 'expired')
+    ),
+    CONSTRAINT chk_wallet_reservations_expiry CHECK (expires_at > created_at),
+    CONSTRAINT chk_wallet_reservations_lifecycle CHECK (
+        (status = 'active' AND captured_amount_minor IS NULL
+            AND captured_transaction_id IS NULL AND captured_at IS NULL
+            AND released_at IS NULL AND expired_at IS NULL)
+        OR (status = 'captured' AND captured_amount_minor IS NOT NULL
+            AND captured_transaction_id IS NOT NULL AND captured_at IS NOT NULL
+            AND released_at IS NULL AND expired_at IS NULL)
+        OR (status = 'released' AND captured_amount_minor IS NULL
+            AND captured_transaction_id IS NULL AND captured_at IS NULL
+            AND released_at IS NOT NULL AND expired_at IS NULL)
+        OR (status = 'expired' AND captured_amount_minor IS NULL
+            AND captured_transaction_id IS NULL AND captured_at IS NULL
+            AND released_at IS NULL AND expired_at IS NOT NULL)
+    )
+);
+
+CREATE INDEX idx_wallet_reservations_active_expiry
+    ON wallet_reservations (expires_at, id) WHERE status = 'active';
+CREATE INDEX idx_wallet_reservations_wallet_created
+    ON wallet_reservations (wallet_id, created_at DESC, id DESC);
+
+CREATE TRIGGER set_wallet_reservations_updated_at
+BEFORE UPDATE ON wallet_reservations
+FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
 COMMENT ON TABLE wallets IS
-    'Available prepaid PAYG funds for an organization in a single currency; updates must be posted with a ledger entry in the same transaction.';
+    'Posted prepaid PAYG funds and active reserved funds for an organization in one currency; spendable funds are balance_minor minus reserved_minor.';
 
 COMMENT ON TABLE wallet_transactions IS
     'Immutable successful prepaid credits and debits. A unique business reference prevents a repeated operation from changing balance twice.';
+
+COMMENT ON TABLE wallet_reservations IS
+    'Funds committed before a managed-provider or communication obligation; active reservations reduce spendable balance.';

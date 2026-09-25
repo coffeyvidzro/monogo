@@ -125,6 +125,7 @@ func runWorkloads(ctx context.Context, logger *logging.Logger, modules *modules)
 	if modules.paymentRecovery != nil {
 		run("payment recovery", modules.paymentRecovery.Run)
 	}
+	run("wallet reservation expiration", modules.reservationExpiration.Run)
 
 	return group.Wait()
 }

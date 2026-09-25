@@ -558,14 +558,34 @@ type VoiceBinding struct {
 	CreatedAt          pgtype.Timestamptz `db:"created_at" json:"created_at"`
 }
 
-// Available prepaid PAYG funds for an organization in a single currency; updates must be posted with a ledger entry in the same transaction.
+// Posted prepaid PAYG funds and active reserved funds for an organization in one currency; spendable funds are balance_minor minus reserved_minor.
 type Wallet struct {
 	ID             uuid.UUID          `db:"id" json:"id"`
 	OrganizationID uuid.UUID          `db:"organization_id" json:"organization_id"`
 	Currency       string             `db:"currency" json:"currency"`
 	BalanceMinor   int64              `db:"balance_minor" json:"balance_minor"`
+	ReservedMinor  int64              `db:"reserved_minor" json:"reserved_minor"`
 	CreatedAt      pgtype.Timestamptz `db:"created_at" json:"created_at"`
 	UpdatedAt      pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+}
+
+// Funds committed before a managed-provider or communication obligation; active reservations reduce spendable balance.
+type WalletReservation struct {
+	ID                    uuid.UUID          `db:"id" json:"id"`
+	WalletID              uuid.UUID          `db:"wallet_id" json:"wallet_id"`
+	OrganizationID        uuid.UUID          `db:"organization_id" json:"organization_id"`
+	AmountMinor           int64              `db:"amount_minor" json:"amount_minor"`
+	CapturedAmountMinor   *int64             `db:"captured_amount_minor" json:"captured_amount_minor"`
+	OperationType         string             `db:"operation_type" json:"operation_type"`
+	OperationID           string             `db:"operation_id" json:"operation_id"`
+	Status                string             `db:"status" json:"status"`
+	ExpiresAt             pgtype.Timestamptz `db:"expires_at" json:"expires_at"`
+	CapturedTransactionID *uuid.UUID         `db:"captured_transaction_id" json:"captured_transaction_id"`
+	CapturedAt            pgtype.Timestamptz `db:"captured_at" json:"captured_at"`
+	ReleasedAt            pgtype.Timestamptz `db:"released_at" json:"released_at"`
+	ExpiredAt             pgtype.Timestamptz `db:"expired_at" json:"expired_at"`
+	CreatedAt             pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	UpdatedAt             pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 }
 
 // Immutable successful prepaid credits and debits. A unique business reference prevents a repeated operation from changing balance twice.
