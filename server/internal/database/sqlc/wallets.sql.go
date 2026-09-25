@@ -405,7 +405,9 @@ func (q *Queries) GetWalletTransactionByReference(ctx context.Context, arg GetWa
 
 const listExpiredWalletReservations = `-- name: ListExpiredWalletReservations :many
 SELECT id, wallet_id, organization_id, amount_minor, captured_amount_minor, operation_type, operation_id, status, expires_at, captured_transaction_id, captured_at, released_at, expired_at, created_at, updated_at FROM wallet_reservations
-WHERE status = 'active' AND expires_at <= now()
+WHERE status = 'active'
+  AND operation_type <> 'managed_call'
+  AND expires_at <= now()
 ORDER BY expires_at, id
 LIMIT $1
 `

@@ -87,7 +87,6 @@ func TestManagedCallReserveMinor(t *testing.T) {
 	}
 }
 
-
 func TestManagedCallSettlementRequiresFinalBillingEvidence(t *testing.T) {
 	service := (*Service)(nil)
 	tests := []struct {

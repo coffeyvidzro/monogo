@@ -88,16 +88,15 @@ func (s *Service) AuthorizeManagedCall(
 	return reservation, nil
 }
 
-
 // ManagedCallSettlement is supplied only after a trusted carrier billing
 // reconciliation has established the final, customer-rated charge or
 // explicitly confirmed that the call has no billable usage. An unanswered or
 // locally failed call is not sufficient evidence for a zero-charge release.
 type ManagedCallSettlement struct {
-	OrganizationID   uuid.UUID
-	CallID           uuid.UUID
-	AmountMinor      int64
-	BillingEvidence  string
+	OrganizationID  uuid.UUID
+	CallID          uuid.UUID
+	AmountMinor     int64
+	BillingEvidence string
 }
 
 // GetManagedCallReservation finds the durable hold by the logical call ID.
