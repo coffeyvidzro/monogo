@@ -5,11 +5,13 @@ import (
 
 	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
 	"github.com/coffeyvidzro/monogo/internal/integrations/carriers/didww"
+	"github.com/coffeyvidzro/monogo/internal/platform/metrics"
 	"github.com/coffeyvidzro/monogo/internal/runtime/calling"
 	"github.com/coffeyvidzro/monogo/internal/security/encryption"
 	"github.com/coffeyvidzro/monogo/internal/telecom/calls"
 	"github.com/coffeyvidzro/monogo/internal/telecom/carriers"
 	"github.com/coffeyvidzro/monogo/internal/telecom/conferences"
+	"github.com/coffeyvidzro/monogo/internal/telecom/lifecycle"
 	"github.com/coffeyvidzro/monogo/internal/telecom/numbers"
 	"github.com/coffeyvidzro/monogo/internal/telecom/realtime"
 	"github.com/coffeyvidzro/monogo/internal/telecom/recordings"
@@ -31,6 +33,7 @@ type Dependencies struct {
 	DIDWWInventory       *didww.Client
 	RealtimeService      *realtime.Service
 	RecordingStorage     recordings.Storage
+	Metrics              *metrics.Registry
 }
 
 type Module struct {
@@ -38,6 +41,7 @@ type Module struct {
 	Carriers    CarriersModule
 	Conferences ConferencesModule
 	Numbers     NumbersModule
+	Lifecycle   LifecycleModule
 	Realtime    RealtimeModule
 	Recordings  RecordingsModule
 	Routing     RoutingModule
@@ -69,6 +73,12 @@ type NumbersModule struct {
 	Repository *numbers.Repository
 	Service    *numbers.Service
 	Handler    *numbers.Handler
+}
+
+type LifecycleModule struct {
+	Repository *lifecycle.Repository
+	Service    *lifecycle.Service
+	Handler    *lifecycle.Handler
 }
 
 type RealtimeModule struct {
@@ -112,7 +122,7 @@ type VoiceModule struct {
 }
 
 func New(deps Dependencies) (*Module, error) {
-	routingRepository := routing.NewRepository(deps.Queries)
+	routingRepository := routing.NewRepository(deps.Queries, deps.DB)
 	routingService := routing.NewService(routingRepository, nil)
 
 	callsRepository := calls.NewRepository(deps.Queries, deps.DB)
@@ -122,11 +132,14 @@ func New(deps Dependencies) (*Module, error) {
 		deps.CallsController,
 		deps.CallsChannelStore,
 		deps.CallsAdmission,
+		deps.Metrics,
 	)
 
 	numbersRepository := numbers.NewRepository(deps.Queries)
 	numbersService := numbers.NewService(numbersRepository, deps.DIDWWInventory)
 	numbersService.ConfigureManaged(deps.DB)
+	lifecycleRepository := lifecycle.NewRepository(deps.Queries)
+	lifecycleService := lifecycle.NewService(lifecycleRepository, deps.DB, didww.NewLifecycleProvider(deps.DIDWWInventory))
 
 	voiceRepository := voice.NewRepository(deps.Queries)
 	voiceService := voice.NewService(voiceRepository)
@@ -161,6 +174,11 @@ func New(deps Dependencies) (*Module, error) {
 			Repository: numbersRepository,
 			Service:    numbersService,
 			Handler:    numbers.NewHandler(numbersService),
+		},
+		Lifecycle: LifecycleModule{
+			Repository: lifecycleRepository,
+			Service:    lifecycleService,
+			Handler:    lifecycle.NewHandler(lifecycleService),
 		},
 		Routing: RoutingModule{
 			Repository: routingRepository,

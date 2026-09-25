@@ -150,3 +150,6 @@ production secrets, public addresses, DNS, and SIP/TURN certificates.
 4. Model Cloud usage events, the append-only wallet ledger, credit reservations,
    and managed-resource assignments as distinct commercial concerns.
 5. Deliver Cloud + BYOC before enabling Cloud + Managed.
+
+The multi-carrier ranking and number lifecycle safety boundaries are described
+in [Multi-carrier routing and number lifecycle](multi-carrier-and-number-lifecycle.md).

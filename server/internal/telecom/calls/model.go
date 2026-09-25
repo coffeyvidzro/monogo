@@ -118,6 +118,7 @@ type RouteAttribution struct {
 	CarrierConnectionID *uuid.UUID
 	TrunkID             *uuid.UUID
 	TrunkEndpointID     *uuid.UUID
+	RoutingDecisionID   *uuid.UUID
 }
 
 type CallResponse struct {

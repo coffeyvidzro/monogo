@@ -68,6 +68,7 @@ type Call struct {
 	HangupReason        *string            `db:"hangup_reason" json:"hangup_reason"`
 	CreatedAt           pgtype.Timestamptz `db:"created_at" json:"created_at"`
 	UpdatedAt           pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+	RoutingDecisionID   *uuid.UUID         `db:"routing_decision_id" json:"routing_decision_id"`
 }
 
 type CallParticipant struct {
@@ -147,6 +148,28 @@ type CarrierProvider struct {
 	UpdatedAt pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 }
 
+type CarrierRate struct {
+	ID                  uuid.UUID          `db:"id" json:"id"`
+	CarrierConnectionID uuid.UUID          `db:"carrier_connection_id" json:"carrier_connection_id"`
+	DestinationPrefix   string             `db:"destination_prefix" json:"destination_prefix"`
+	RateMicros          int64              `db:"rate_micros" json:"rate_micros"`
+	BillingCurrency     string             `db:"billing_currency" json:"billing_currency"`
+	EffectiveAt         pgtype.Timestamptz `db:"effective_at" json:"effective_at"`
+	ExpiresAt           pgtype.Timestamptz `db:"expires_at" json:"expires_at"`
+	CreatedAt           pgtype.Timestamptz `db:"created_at" json:"created_at"`
+}
+
+type CarrierRouteMetric struct {
+	TrunkEndpointID       uuid.UUID          `db:"trunk_endpoint_id" json:"trunk_endpoint_id"`
+	AsrBasisPoints        int32              `db:"asr_basis_points" json:"asr_basis_points"`
+	AlocMilliseconds      int64              `db:"aloc_milliseconds" json:"aloc_milliseconds"`
+	LatencyMilliseconds   int32              `db:"latency_milliseconds" json:"latency_milliseconds"`
+	PacketLossBasisPoints int32              `db:"packet_loss_basis_points" json:"packet_loss_basis_points"`
+	SampleCount           int64              `db:"sample_count" json:"sample_count"`
+	ObservedAt            pgtype.Timestamptz `db:"observed_at" json:"observed_at"`
+	UpdatedAt             pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+}
+
 type Checkout struct {
 	ID                    uuid.UUID          `db:"id" json:"id"`
 	WalletID              uuid.UUID          `db:"wallet_id" json:"wallet_id"`
@@ -187,6 +210,31 @@ type ConferenceParticipant struct {
 	LeftAt            pgtype.Timestamptz `db:"left_at" json:"left_at"`
 	CreatedAt         pgtype.Timestamptz `db:"created_at" json:"created_at"`
 	UpdatedAt         pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+}
+
+type EmergencyRegistration struct {
+	ID                uuid.UUID          `db:"id" json:"id"`
+	OrganizationID    uuid.UUID          `db:"organization_id" json:"organization_id"`
+	PhoneNumberID     uuid.UUID          `db:"phone_number_id" json:"phone_number_id"`
+	ProviderID        uuid.UUID          `db:"provider_id" json:"provider_id"`
+	Status            string             `db:"status" json:"status"`
+	Name              string             `db:"name" json:"name"`
+	AddressLine1      string             `db:"address_line1" json:"address_line1"`
+	AddressLine2      *string            `db:"address_line2" json:"address_line2"`
+	Locality          string             `db:"locality" json:"locality"`
+	Region            string             `db:"region" json:"region"`
+	PostalCode        string             `db:"postal_code" json:"postal_code"`
+	CountryCode       string             `db:"country_code" json:"country_code"`
+	ProviderReference *string            `db:"provider_reference" json:"provider_reference"`
+	ValidationMessage *string            `db:"validation_message" json:"validation_message"`
+	ActivatedAt       pgtype.Timestamptz `db:"activated_at" json:"activated_at"`
+	DeactivatedAt     pgtype.Timestamptz `db:"deactivated_at" json:"deactivated_at"`
+	CreatedAt         pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	UpdatedAt         pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+	IdempotencyKey    *string            `db:"idempotency_key" json:"idempotency_key"`
+	RequestHash       *string            `db:"request_hash" json:"request_hash"`
+	ReconcileAfter    pgtype.Timestamptz `db:"reconcile_after" json:"reconcile_after"`
+	ReconcileAttempts int32              `db:"reconcile_attempts" json:"reconcile_attempts"`
 }
 
 type Idempotency struct {
@@ -243,6 +291,27 @@ type Meter struct {
 	Active         bool               `db:"active" json:"active"`
 	CreatedAt      pgtype.Timestamptz `db:"created_at" json:"created_at"`
 	UpdatedAt      pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+}
+
+type NumberLifecycleOperation struct {
+	ID                uuid.UUID          `db:"id" json:"id"`
+	OrganizationID    uuid.UUID          `db:"organization_id" json:"organization_id"`
+	PhoneNumberID     *uuid.UUID         `db:"phone_number_id" json:"phone_number_id"`
+	ProviderID        uuid.UUID          `db:"provider_id" json:"provider_id"`
+	IdempotencyKey    string             `db:"idempotency_key" json:"idempotency_key"`
+	Operation         string             `db:"operation" json:"operation"`
+	Status            string             `db:"status" json:"status"`
+	ProviderReference *string            `db:"provider_reference" json:"provider_reference"`
+	RequestedNumber   string             `db:"requested_number" json:"requested_number"`
+	RequestPayload    []byte             `db:"request_payload" json:"request_payload"`
+	FailureCode       *string            `db:"failure_code" json:"failure_code"`
+	FailureMessage    *string            `db:"failure_message" json:"failure_message"`
+	SubmittedAt       pgtype.Timestamptz `db:"submitted_at" json:"submitted_at"`
+	CompletedAt       pgtype.Timestamptz `db:"completed_at" json:"completed_at"`
+	CreatedAt         pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	UpdatedAt         pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+	ReconcileAfter    pgtype.Timestamptz `db:"reconcile_after" json:"reconcile_after"`
+	ReconcileAttempts int32              `db:"reconcile_attempts" json:"reconcile_attempts"`
 }
 
 type OpensipsCarrierDigestCredential struct {
@@ -393,6 +462,39 @@ type PhoneNumber struct {
 	UpdatedAt           pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 }
 
+type PortInCase struct {
+	ID                    uuid.UUID          `db:"id" json:"id"`
+	OrganizationID        uuid.UUID          `db:"organization_id" json:"organization_id"`
+	LifecycleOperationID  uuid.UUID          `db:"lifecycle_operation_id" json:"lifecycle_operation_id"`
+	LosingCarrier         string             `db:"losing_carrier" json:"losing_carrier"`
+	AccountNumber         string             `db:"account_number" json:"account_number"`
+	AccountPinCiphertext  []byte             `db:"account_pin_ciphertext" json:"account_pin_ciphertext"`
+	AuthorizedName        string             `db:"authorized_name" json:"authorized_name"`
+	ServiceAddress        []byte             `db:"service_address" json:"service_address"`
+	DesiredPortDate       pgtype.Date        `db:"desired_port_date" json:"desired_port_date"`
+	Status                string             `db:"status" json:"status"`
+	ProviderCaseReference *string            `db:"provider_case_reference" json:"provider_case_reference"`
+	RejectionCode         *string            `db:"rejection_code" json:"rejection_code"`
+	RejectionMessage      *string            `db:"rejection_message" json:"rejection_message"`
+	FocAt                 pgtype.Timestamptz `db:"foc_at" json:"foc_at"`
+	ActivatedAt           pgtype.Timestamptz `db:"activated_at" json:"activated_at"`
+	CreatedAt             pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	UpdatedAt             pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+}
+
+type PortInDocument struct {
+	ID                uuid.UUID          `db:"id" json:"id"`
+	OrganizationID    uuid.UUID          `db:"organization_id" json:"organization_id"`
+	PortInCaseID      uuid.UUID          `db:"port_in_case_id" json:"port_in_case_id"`
+	DocumentType      string             `db:"document_type" json:"document_type"`
+	ObjectKey         string             `db:"object_key" json:"object_key"`
+	Sha256            string             `db:"sha256" json:"sha256"`
+	Status            string             `db:"status" json:"status"`
+	ProviderReference *string            `db:"provider_reference" json:"provider_reference"`
+	CreatedAt         pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	UpdatedAt         pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+}
+
 type ProcessedEvent struct {
 	ConsumerName string             `db:"consumer_name" json:"consumer_name"`
 	EventID      uuid.UUID          `db:"event_id" json:"event_id"`
@@ -421,6 +523,47 @@ type Recording struct {
 	CompletedAt     pgtype.Timestamptz `db:"completed_at" json:"completed_at"`
 	CreatedAt       pgtype.Timestamptz `db:"created_at" json:"created_at"`
 	UpdatedAt       pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+}
+
+type RoutingAttempt struct {
+	ID                   uuid.UUID          `db:"id" json:"id"`
+	RoutingDecisionID    uuid.UUID          `db:"routing_decision_id" json:"routing_decision_id"`
+	CallID               uuid.UUID          `db:"call_id" json:"call_id"`
+	Attempt              int32              `db:"attempt" json:"attempt"`
+	CarrierConnectionID  uuid.UUID          `db:"carrier_connection_id" json:"carrier_connection_id"`
+	TrunkID              uuid.UUID          `db:"trunk_id" json:"trunk_id"`
+	TrunkEndpointID      uuid.UUID          `db:"trunk_endpoint_id" json:"trunk_endpoint_id"`
+	Outcome              string             `db:"outcome" json:"outcome"`
+	FailureClass         *string            `db:"failure_class" json:"failure_class"`
+	SipStatus            *int32             `db:"sip_status" json:"sip_status"`
+	DurationMilliseconds int64              `db:"duration_milliseconds" json:"duration_milliseconds"`
+	CreatedAt            pgtype.Timestamptz `db:"created_at" json:"created_at"`
+}
+
+type RoutingDecision struct {
+	ID                          uuid.UUID          `db:"id" json:"id"`
+	OrganizationID              uuid.UUID          `db:"organization_id" json:"organization_id"`
+	Destination                 string             `db:"destination" json:"destination"`
+	SelectedCarrierConnectionID uuid.UUID          `db:"selected_carrier_connection_id" json:"selected_carrier_connection_id"`
+	SelectedTrunkID             uuid.UUID          `db:"selected_trunk_id" json:"selected_trunk_id"`
+	SelectedTrunkEndpointID     uuid.UUID          `db:"selected_trunk_endpoint_id" json:"selected_trunk_endpoint_id"`
+	CandidateCount              int32              `db:"candidate_count" json:"candidate_count"`
+	CreatedAt                   pgtype.Timestamptz `db:"created_at" json:"created_at"`
+}
+
+type RoutingDecisionCandidate struct {
+	RoutingDecisionID     uuid.UUID          `db:"routing_decision_id" json:"routing_decision_id"`
+	Rank                  int32              `db:"rank" json:"rank"`
+	CarrierConnectionID   uuid.UUID          `db:"carrier_connection_id" json:"carrier_connection_id"`
+	TrunkID               uuid.UUID          `db:"trunk_id" json:"trunk_id"`
+	TrunkEndpointID       uuid.UUID          `db:"trunk_endpoint_id" json:"trunk_endpoint_id"`
+	RateMicros            int64              `db:"rate_micros" json:"rate_micros"`
+	AsrBasisPoints        int32              `db:"asr_basis_points" json:"asr_basis_points"`
+	AlocMilliseconds      int64              `db:"aloc_milliseconds" json:"aloc_milliseconds"`
+	LatencyMilliseconds   int32              `db:"latency_milliseconds" json:"latency_milliseconds"`
+	PacketLossBasisPoints int32              `db:"packet_loss_basis_points" json:"packet_loss_basis_points"`
+	MetricsObservedAt     pgtype.Timestamptz `db:"metrics_observed_at" json:"metrics_observed_at"`
+	ScoreMicros           int64              `db:"score_micros" json:"score_micros"`
 }
 
 type Session struct {

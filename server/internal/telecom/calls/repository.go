@@ -7,6 +7,7 @@ import (
 
 	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
 	"github.com/coffeyvidzro/monogo/internal/platform/outbox"
+	"github.com/coffeyvidzro/monogo/internal/telecom/routing"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -152,9 +153,60 @@ func (r *Repository) SetRouteAttribution(
 		CarrierConnectionID: route.CarrierConnectionID,
 		TrunkID:             route.TrunkID,
 		TrunkEndpointID:     route.TrunkEndpointID,
+		RoutingDecisionID:   route.RoutingDecisionID,
 		OrganizationID:      organizationID,
 		ID:                  id,
 	})
+}
+
+func (r *Repository) RecordRoutingAttempt(
+	ctx context.Context,
+	decisionID, callID uuid.UUID,
+	attempt routeAttemptOutcome,
+) error {
+	var failureClass *string
+	if attempt.FailureClass != "" {
+		failureClass = &attempt.FailureClass
+	}
+	var sipStatus *int32
+	if attempt.SIPStatus != 0 {
+		value := int32(attempt.SIPStatus) // #nosec G115 -- validated SIP status is between 100 and 699.
+		sipStatus = &value
+	}
+	_, err := r.queries.CreateRoutingAttempt(ctx, sqlc.CreateRoutingAttemptParams{
+		RoutingDecisionID:    decisionID,
+		CallID:               callID,
+		Attempt:              int32(attempt.Attempt), // #nosec G115 -- failover is bounded to three attempts.
+		CarrierConnectionID:  attempt.Route.CarrierConnectionID,
+		TrunkID:              attempt.Route.TrunkID,
+		TrunkEndpointID:      attempt.Route.TrunkEndpointID,
+		Outcome:              attempt.Outcome,
+		FailureClass:         failureClass,
+		SipStatus:            sipStatus,
+		DurationMilliseconds: attempt.Duration.Milliseconds(),
+	})
+	return err
+}
+
+func (r *Repository) SetRoutingDecisionSelectedRoute(
+	ctx context.Context,
+	organizationID, decisionID uuid.UUID,
+	route routing.OutboundRoute,
+) error {
+	rows, err := r.queries.SetRoutingDecisionSelectedRoute(ctx, sqlc.SetRoutingDecisionSelectedRouteParams{
+		CarrierConnectionID: route.CarrierConnectionID,
+		TrunkID:             route.TrunkID,
+		TrunkEndpointID:     route.TrunkEndpointID,
+		ID:                  decisionID,
+		OrganizationID:      organizationID,
+	})
+	if err != nil {
+		return err
+	}
+	if rows != 1 {
+		return fmt.Errorf("routing decision selection update affected %d rows", rows)
+	}
+	return nil
 }
 
 func (r *Repository) MarkRinging(ctx context.Context, organizationID, id uuid.UUID) (sqlc.Call, error) {

@@ -16,10 +16,12 @@ import (
 	"github.com/coffeyvidzro/monogo/internal/platform/config"
 	"github.com/coffeyvidzro/monogo/internal/platform/idempotency"
 	"github.com/coffeyvidzro/monogo/internal/platform/logging"
+	"github.com/coffeyvidzro/monogo/internal/platform/metrics"
 	"github.com/coffeyvidzro/monogo/internal/platform/outbox"
 	"github.com/coffeyvidzro/monogo/internal/platform/webhooks"
 	"github.com/coffeyvidzro/monogo/internal/runtime/calling"
 	"github.com/coffeyvidzro/monogo/internal/telecom/calls"
+	"github.com/coffeyvidzro/monogo/internal/telecom/lifecycle"
 	"github.com/coffeyvidzro/monogo/internal/telecom/numbers"
 	"github.com/coffeyvidzro/monogo/internal/telecom/recordings"
 	"github.com/coffeyvidzro/monogo/internal/telecom/routing"
@@ -43,6 +45,7 @@ type modules struct {
 	idempotencyCleanup      *idempotency.CleanupJob
 	trunkHealth             *trunks.HealthCheckJob
 	numberReconciliation    *numbers.ReconciliationJob
+	lifecycleReconciliation *lifecycle.ReconciliationJob
 	reservationExpiration   *commercialwallets.ExpirationJob
 }
 
@@ -108,7 +111,7 @@ func newModules(ctx context.Context, cfg config.Config) (*modules, error) {
 		return nil, fmt.Errorf("initialize wallet reservation expiration: %w", err)
 	}
 
-	routingRepository := routing.NewRepository(queries)
+	routingRepository := routing.NewRepository(queries, postgresClient.Pool())
 	routingService := routing.NewService(routingRepository, nil)
 	callsRepository := calls.NewRepository(queries, postgresClient.Pool())
 	callController := calling.NewController(freeSwitch)
@@ -119,6 +122,7 @@ func newModules(ctx context.Context, cfg config.Config) (*modules, error) {
 		callController,
 		calling.NewChannelStore(redisClient),
 		admissionLimiter,
+		metrics.New(redisClient),
 	)
 	callConsumer := calls.NewConsumer(callsService)
 	callReconciliation, err := calls.NewReconciliationJob(
@@ -210,6 +214,12 @@ func newModules(ctx context.Context, cfg config.Config) (*modules, error) {
 	}
 	numberService := numbers.NewService(numbers.NewRepository(queries), provider)
 	numberService.ConfigureManaged(postgresClient.Pool())
+	lifecycleService := lifecycle.NewService(lifecycle.NewRepository(queries), postgresClient.Pool(), didww.NewLifecycleProvider(provider))
+	lifecycleReconciliation, err := lifecycle.NewReconciliationJob(lifecycleService, 50)
+	if err != nil {
+		closeDependencies()
+		return nil, fmt.Errorf("initialize number lifecycle reconciliation: %w", err)
+	}
 	numberReconciliation, err := numbers.NewReconciliationJob(numberService, 50)
 	if err != nil {
 		closeDependencies()
@@ -233,6 +243,7 @@ func newModules(ctx context.Context, cfg config.Config) (*modules, error) {
 		idempotencyCleanup:      idempotencyCleanup,
 		trunkHealth:             trunkHealth,
 		numberReconciliation:    numberReconciliation,
+		lifecycleReconciliation: lifecycleReconciliation,
 		reservationExpiration:   reservationExpiration,
 	}, nil
 }

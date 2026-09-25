@@ -23,9 +23,7 @@ func NewReconciliationJob(service *Service, batch int) (*ReconciliationJob, erro
 	return &ReconciliationJob{service: service, batch: batch, interval: 30 * time.Second}, nil
 }
 
-// RunOnce is safe to call from multiple workers: lifecycle updates are
-// conditional, provider ordering is never performed here, and activation is
-// serialized by the durable order row.
+// RunOnce reconciles managed number orders without executing lifecycle operations.
 func (j *ReconciliationJob) RunOnce(ctx context.Context) error {
 	orders, err := j.service.repo.ListManagedOrdersDue(ctx, int32(j.batch))
 	if err != nil {

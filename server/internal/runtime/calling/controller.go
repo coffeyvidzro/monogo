@@ -2,6 +2,7 @@ package calling
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"strconv"
@@ -68,12 +69,12 @@ func (c *Controller) Originate(
 ) (OriginateResult, error) {
 	endpoint, routeURI, err := freeSWITCHEgress(req)
 	if err != nil {
-		return OriginateResult{}, err
+		return OriginateResult{}, &OriginateError{Class: OriginateFailureValidation, Err: err}
 	}
 
 	variables, err := egressVariables(req, routeURI)
 	if err != nil {
-		return OriginateResult{}, err
+		return OriginateResult{}, &OriginateError{Class: OriginateFailureValidation, Err: err}
 	}
 
 	call, err := c.client.Originate(ctx, freeswitch.OriginateRequest{
@@ -83,13 +84,32 @@ func (c *Controller) Originate(
 		Variables:   variables,
 	})
 	if err != nil {
-		return OriginateResult{}, fmt.Errorf("originate call: %w", err)
+		return OriginateResult{}, classifyClientOriginateError(err)
 	}
 	if strings.TrimSpace(call.UUID) == "" {
 		return OriginateResult{}, fmt.Errorf("FreeSWITCH returned empty channel UUID")
 	}
 
 	return OriginateResult{ChannelID: call.UUID}, nil
+}
+
+func classifyClientOriginateError(err error) error {
+	class := OriginateFailureInternal
+	if errors.Is(err, context.DeadlineExceeded) {
+		class = OriginateFailureTimeout
+	} else if errors.Is(err, context.Canceled) {
+		class = OriginateFailureInternal
+	} else {
+		var networkError net.Error
+		if errors.As(err, &networkError) {
+			if networkError.Timeout() {
+				class = OriginateFailureTimeout
+			} else {
+				class = OriginateFailureTransport
+			}
+		}
+	}
+	return &OriginateError{Class: class, Err: fmt.Errorf("originate call: %w", err)}
 }
 
 func egressVariables(req OriginateRequest, routeURI string) (map[string]string, error) {

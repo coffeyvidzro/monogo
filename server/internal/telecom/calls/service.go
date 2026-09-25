@@ -18,6 +18,12 @@ type Service struct {
 	controller *calling.Controller
 	channels   *calling.ChannelStore
 	admission  *calling.AdmissionLimiter
+	metrics    routeAttemptMetrics
+}
+
+type routeAttemptMetrics interface {
+	RouteAttempt(context.Context, uuid.UUID, uuid.UUID, uuid.UUID, string, string, int)
+	EndpointSelection(context.Context, uuid.UUID, uuid.UUID, uuid.UUID, bool)
 }
 
 func NewService(
@@ -26,6 +32,7 @@ func NewService(
 	controller *calling.Controller,
 	channels *calling.ChannelStore,
 	admission *calling.AdmissionLimiter,
+	metrics routeAttemptMetrics,
 ) *Service {
 	if repo == nil {
 		panic("calls: repository is required")
@@ -48,6 +55,7 @@ func NewService(
 		controller: controller,
 		channels:   channels,
 		admission:  admission,
+		metrics:    metrics,
 	}
 }
 
@@ -75,63 +83,109 @@ func (s *Service) Create(ctx context.Context, organizationID uuid.UUID, req Crea
 		_, _ = s.repo.MarkFailed(ctx, organizationID, call.ID, &reason)
 		return sqlc.Call{}, err
 	}
+	_, ok := decision.Primary()
+	if !ok {
+		reason := "route_resolution_failed"
+		_, _ = s.repo.MarkFailed(ctx, organizationID, call.ID, &reason)
+		return sqlc.Call{}, apperror.NewNotFound("no eligible outbound route")
+	}
 
-	carrierID, trunkID, endpointID := decision.CarrierConnectionID, decision.TrunkID, decision.TrunkEndpointID
-	call, err = s.repo.SetRouteAttribution(ctx, organizationID, call.ID, RouteAttribution{
-		CarrierConnectionID: &carrierID,
-		TrunkID:             &trunkID,
-		TrunkEndpointID:     &endpointID,
+	// Until an atomic prepaid reservation and final settlement are wired,
+	// managed carrier origination must not create unbacked wholesale exposure.
+	if decision.ID != uuid.Nil {
+		reason := "prepaid_authorization_unavailable"
+		_, _ = s.repo.MarkFailed(ctx, organizationID, call.ID, &reason)
+		return sqlc.Call{}, apperror.NewServiceUnavailable(
+			"managed outbound calls require prepaid authorization",
+			nil,
+		)
+	}
+
+	result, selected, err := executeRoutePlan(ctx, decision.Routes, func(
+		attemptCtx context.Context,
+		route routing.OutboundRoute,
+	) (calling.OriginateResult, error) {
+		carrierID, trunkID, endpointID := route.CarrierConnectionID, route.TrunkID, route.TrunkEndpointID
+		if _, attributionErr := s.repo.SetRouteAttribution(attemptCtx, organizationID, call.ID, RouteAttribution{
+			CarrierConnectionID: &carrierID,
+			TrunkID:             &trunkID,
+			TrunkEndpointID:     &endpointID,
+			RoutingDecisionID:   optionalDecisionID(decision.ID),
+		}); attributionErr != nil {
+			return calling.OriginateResult{}, &calling.OriginateError{
+				Class: calling.OriginateFailureInternal, Err: attributionErr,
+			}
+		}
+		if limitErr := s.checkDailyMinutes(attemptCtx, route.CarrierConnectionID, route.Limits.MaxDailyMinutes); limitErr != nil {
+			return calling.OriginateResult{}, &calling.OriginateError{
+				Class: calling.OriginateFailureCapacity, Err: limitErr,
+			}
+		}
+		if admissionErr := s.admission.Acquire(
+			attemptCtx, route.CarrierConnectionID, call.ID.String(), route.Limits,
+		); admissionErr != nil {
+			return calling.OriginateResult{}, &calling.OriginateError{
+				Class: calling.OriginateFailureCapacity, Err: admissionErr,
+			}
+		}
+		result, originateErr := s.controller.Originate(attemptCtx, calling.OriginateRequest{
+			CallID: call.ID, Destination: req.ToURI, CallerID: req.FromURI,
+			CarrierConnectionID: route.CarrierConnectionID,
+			Host:                route.Host, Port: route.Port, Transport: route.Transport,
+			Privacy: req.Privacy, DTMFMode: req.DTMFMode, MediaEncryption: req.MediaEncryption,
+		})
+		if originateErr != nil {
+			_ = s.admission.Release(attemptCtx, route.CarrierConnectionID, call.ID.String())
+		}
+		return result, originateErr
+	}, func(attemptCtx context.Context, attempt routeAttemptOutcome) {
+		if decision.ID != uuid.Nil {
+			_ = s.repo.RecordRoutingAttempt(attemptCtx, decision.ID, call.ID, attempt)
+		}
+		if s.metrics != nil {
+			s.metrics.RouteAttempt(
+				attemptCtx, attempt.Route.CarrierConnectionID, attempt.Route.TrunkID,
+				attempt.Route.TrunkEndpointID, attempt.Outcome, attempt.FailureClass, attempt.Attempt,
+			)
+			if attempt.Outcome == "succeeded" {
+				s.metrics.EndpointSelection(
+					attemptCtx, attempt.Route.CarrierConnectionID, attempt.Route.TrunkID,
+					attempt.Route.TrunkEndpointID, attempt.Attempt > 1,
+				)
+			}
+		}
 	})
 	if err != nil {
-		reason := "route_attribution_failed"
-		_, _ = s.repo.MarkFailed(ctx, organizationID, call.ID, &reason)
-		return sqlc.Call{}, apperror.NewInternal("set call route attribution", err)
-	}
-
-	if err := s.checkDailyMinutes(ctx, decision.CarrierConnectionID, decision.Limits.MaxDailyMinutes); err != nil {
-		reason := admissionFailureReason(err)
-		_, _ = s.repo.MarkFailed(ctx, organizationID, call.ID, &reason)
-		return sqlc.Call{}, admissionError(err)
-	}
-
-	if err := s.admission.Acquire(
-		ctx,
-		decision.CarrierConnectionID,
-		call.ID.String(),
-		decision.Limits,
-	); err != nil {
-		reason := admissionFailureReason(err)
-		_, _ = s.repo.MarkFailed(ctx, organizationID, call.ID, &reason)
-		return sqlc.Call{}, admissionError(err)
-	}
-
-	result, err := s.controller.Originate(ctx, calling.OriginateRequest{
-		CallID:              call.ID,
-		Destination:         req.ToURI,
-		CallerID:            req.FromURI,
-		CarrierConnectionID: decision.CarrierConnectionID,
-		Host:                decision.Host,
-		Port:                decision.Port,
-		Transport:           decision.Transport,
-		Privacy:             req.Privacy,
-		DTMFMode:            req.DTMFMode,
-		MediaEncryption:     req.MediaEncryption,
-	})
-	if err != nil {
-		_ = s.admission.Release(ctx, decision.CarrierConnectionID, call.ID.String())
 		reason := "originate_failed"
 		_, _ = s.repo.MarkFailed(ctx, organizationID, call.ID, &reason)
 		return sqlc.Call{}, apperror.NewInternal("originate call", err)
 	}
+	if decision.ID != uuid.Nil {
+		if err := s.repo.SetRoutingDecisionSelectedRoute(ctx, organizationID, decision.ID, selected); err != nil {
+			_ = s.controller.Hangup(ctx, result.ChannelID)
+			_ = s.admission.Release(ctx, selected.CarrierConnectionID, call.ID.String())
+			reason := "route_decision_update_failed"
+			_, _ = s.repo.MarkFailed(ctx, organizationID, call.ID, &reason)
+			return sqlc.Call{}, apperror.NewInternal("update selected routing decision", err)
+		}
+	}
+
 	if err := s.channels.Bind(ctx, call.ID, result.ChannelID); err != nil {
 		_ = s.controller.Hangup(ctx, result.ChannelID)
-		_ = s.admission.Release(ctx, decision.CarrierConnectionID, call.ID.String())
+		_ = s.admission.Release(ctx, selected.CarrierConnectionID, call.ID.String())
 		reason := "channel_binding_failed"
 		_, _ = s.repo.MarkFailed(ctx, organizationID, call.ID, &reason)
 		return sqlc.Call{}, apperror.NewInternal("bind call channel", err)
 	}
 
 	return s.repo.Get(ctx, organizationID, call.ID)
+}
+
+func optionalDecisionID(id uuid.UUID) *uuid.UUID {
+	if id == uuid.Nil {
+		return nil
+	}
+	return &id
 }
 
 func (s *Service) AdmitInbound(

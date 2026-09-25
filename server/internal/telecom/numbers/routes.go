@@ -11,6 +11,7 @@ func RegisterRoutes(
 	handler *Handler,
 	auth func(http.Handler) http.Handler,
 	idempotency func(http.Handler) http.Handler,
+	additionalRoutes ...func(chi.Router),
 ) {
 	router.Route("/numbers", func(r chi.Router) {
 		r.Use(auth)
@@ -23,5 +24,8 @@ func RegisterRoutes(
 		r.Patch("/{number_id}", handler.Update)
 		r.Patch("/{number_id}/carrier-connection", handler.SetBYOCConnection)
 		r.Delete("/{number_id}", handler.Delete)
+		for _, register := range additionalRoutes {
+			register(r)
+		}
 	})
 }
