@@ -11,6 +11,8 @@ import (
 	"github.com/coffeyvidzro/monogo/internal/integrations/coturn"
 	"github.com/coffeyvidzro/monogo/internal/integrations/freeswitch"
 	"github.com/coffeyvidzro/monogo/internal/integrations/minio"
+	"github.com/coffeyvidzro/monogo/internal/integrations/payments/paystack"
+	"github.com/coffeyvidzro/monogo/internal/integrations/payments/stripe"
 	"github.com/coffeyvidzro/monogo/internal/integrations/postgres"
 	redisintegration "github.com/coffeyvidzro/monogo/internal/integrations/redis"
 	"github.com/coffeyvidzro/monogo/internal/platform"
@@ -107,16 +109,13 @@ func newModules(ctx context.Context, cfg config.Config) (*modules, error) {
 
 	// The DIDWW client is Leamout-owned; customer-provided carrier credentials
 	// must never be used for managed DID inventory or purchase operations.
-	var didwwInventory *didww.Client
-	if cfg.DIDWW.APIKey != "" {
-		didwwInventory, err = didww.New(didww.Config{
-			APIKey:  cfg.DIDWW.APIKey,
-			BaseURL: cfg.DIDWW.APIBaseURL,
-		})
-		if err != nil {
-			closeDependencies()
-			return nil, fmt.Errorf("initialize DIDWW inventory: %w", err)
-		}
+	didwwInventory, err := didww.New(didww.Config{
+		APIKey:  cfg.DIDWW.APIKey,
+		BaseURL: cfg.DIDWW.APIBaseURL,
+	})
+	if err != nil {
+		closeDependencies()
+		return nil, fmt.Errorf("initialize DIDWW inventory: %w", err)
 	}
 
 	queries := sqlc.New(postgresClient.Pool())
@@ -126,7 +125,23 @@ func newModules(ctx context.Context, cfg config.Config) (*modules, error) {
 		cfg.Domain,
 	)
 	tenancyModule := tenancy.New(queries)
-	commercialModule := commercial.New(postgresClient.Pool(), queries)
+	stripeConfig := stripe.DefaultConfig(cfg.Stripe.SecretKey, cfg.Stripe.WebhookSecret)
+	stripeConfig.BaseURL = cfg.Stripe.APIBaseURL
+	stripeClient, err := stripe.New(stripeConfig)
+	if err != nil {
+		closeDependencies()
+		return nil, fmt.Errorf("initialize Stripe payment provider: %w", err)
+	}
+
+	paystackConfig := paystack.DefaultConfig(cfg.Paystack.SecretKey)
+	paystackConfig.BaseURL = cfg.Paystack.APIBaseURL
+	paystackClient, err := paystack.New(paystackConfig)
+	if err != nil {
+		closeDependencies()
+		return nil, fmt.Errorf("initialize Paystack payment provider: %w", err)
+	}
+
+	commercialModule := commercial.New(postgresClient.Pool(), queries, stripeClient, paystackClient)
 	platformModule := platform.New(postgresClient.Pool(), queries)
 	telecomModule, err := telecom.New(telecom.Dependencies{
 		DB:                   postgresClient.Pool(),

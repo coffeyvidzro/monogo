@@ -11,18 +11,18 @@ import (
 )
 
 type DIDWWConfig struct {
-	APIKey     string `env:"API_KEY"`
+	APIKey     string `env:"API_KEY,required"`
 	APIBaseURL string `env:"API_BASE_URL" envDefault:"https://api.didww.com/v3"`
 }
 
 type CommPeakConfig struct {
-	Authorization string `env:"API_AUTHORIZATION"`
+	Authorization string `env:"API_AUTHORIZATION,required"`
 	APIBaseURL    string `env:"API_BASE_URL" envDefault:"https://api.commpeak.com"`
 }
 
 type StripeConfig struct {
-	SecretKey     string `env:"SECRET_KEY"`
-	WebhookSecret string `env:"WEBHOOK_SECRET"`
+	SecretKey     string `env:"SECRET_KEY,required"`
+	WebhookSecret string `env:"WEBHOOK_SECRET,required"`
 	APIBaseURL    string `env:"API_BASE_URL" envDefault:"https://api.stripe.com/v1"`
 }
 

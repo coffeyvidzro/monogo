@@ -16,10 +16,17 @@ import (
 type Service struct {
 	repo       *Repository
 	walletRepo *wallets.Repository
+	verifiers  map[string]ProviderVerifier
 }
 
 func NewService(db *pgxpool.Pool) *Service {
 	return &Service{repo: NewRepository(db), walletRepo: wallets.NewRepository(db)}
+}
+
+// ConfigureVerifiers supplies server-owned payment provider clients. This does
+// not expose payment verification or wallet credits to customer API requests.
+func (s *Service) ConfigureVerifiers(verifiers map[string]ProviderVerifier) {
+	s.verifiers = verifiers
 }
 
 // Settle credits a checkout after the caller has independently authenticated
@@ -100,7 +107,7 @@ func (s *Service) Settle(ctx context.Context, req VerifiedSettlement) (Settlemen
 	if err != nil {
 		return SettlementResult{}, apperror.NewInternal("link payment credit", err)
 	}
-	checkoutRow, err = repo.CompleteCheckout(ctx, checkoutRow.ID, entry.ID)
+	checkoutRow, err = repo.CompleteCheckout(ctx, checkoutRow, payment, entry)
 	if err != nil {
 		return SettlementResult{}, apperror.NewInternal("complete checkout", err)
 	}

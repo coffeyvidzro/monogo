@@ -6,6 +6,8 @@ import (
 	"github.com/coffeyvidzro/monogo/internal/commercial/usage"
 	"github.com/coffeyvidzro/monogo/internal/commercial/wallets"
 	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
+	"github.com/coffeyvidzro/monogo/internal/integrations/payments/paystack"
+	"github.com/coffeyvidzro/monogo/internal/integrations/payments/stripe"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -39,11 +41,12 @@ type WalletsModule struct {
 	Handler    *wallets.Handler
 }
 
-func New(db *pgxpool.Pool, queries *sqlc.Queries) *Module {
+func New(db *pgxpool.Pool, queries *sqlc.Queries, stripeClient *stripe.Client, paystackClient *paystack.Client) *Module {
 	usageRepository := usage.NewRepository(queries, db)
 	usageWalletRepository := wallets.NewRepository(db)
 	checkoutService := checkout.NewService(db)
 	paymentService := payments.NewService(db)
+	paymentService.ConfigureVerifiers(payments.NewProviderVerifiers(stripeClient, paystackClient))
 	walletService := wallets.NewService(db)
 	return &Module{
 		Checkout: CheckoutModule{
