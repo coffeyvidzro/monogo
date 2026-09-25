@@ -20,6 +20,16 @@ type Attempt struct {
 
 type CreateInput struct {
 	Provider string `json:"provider"`
+	Email    string `json:"email,omitempty"`
+	Phone    string `json:"phone,omitempty"`
+	Network  string `json:"network,omitempty"`
+}
+
+type InitiationResponse struct {
+	Response
+	ClientSecret   string `json:"client_secret,omitempty"`
+	DisplayText    string `json:"display_text,omitempty"`
+	ProviderStatus string `json:"provider_status,omitempty"`
 }
 
 type Response struct {
