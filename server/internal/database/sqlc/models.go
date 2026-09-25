@@ -238,6 +238,17 @@ type ManagedNumberOrder struct {
 	UpdatedAt           pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 }
 
+type Meter struct {
+	ID             uuid.UUID          `db:"id" json:"id"`
+	OrganizationID uuid.UUID          `db:"organization_id" json:"organization_id"`
+	Key            string             `db:"key" json:"key"`
+	Name           string             `db:"name" json:"name"`
+	Unit           string             `db:"unit" json:"unit"`
+	Active         bool               `db:"active" json:"active"`
+	CreatedAt      pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	UpdatedAt      pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+}
+
 type OpensipsCarrierDigestCredential struct {
 	CarrierConnectionID uuid.UUID   `db:"carrier_connection_id" json:"carrier_connection_id"`
 	OrganizationID      uuid.UUID   `db:"organization_id" json:"organization_id"`
@@ -498,6 +509,19 @@ type TrunkEndpoint struct {
 	CooldownUntil       pgtype.Timestamptz `db:"cooldown_until" json:"cooldown_until"`
 	CreatedAt           pgtype.Timestamptz `db:"created_at" json:"created_at"`
 	UpdatedAt           pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+}
+
+type UsageEvent struct {
+	ID             uuid.UUID          `db:"id" json:"id"`
+	OrganizationID uuid.UUID          `db:"organization_id" json:"organization_id"`
+	MeterID        uuid.UUID          `db:"meter_id" json:"meter_id"`
+	Quantity       int64              `db:"quantity" json:"quantity"`
+	SourceType     string             `db:"source_type" json:"source_type"`
+	SourceID       string             `db:"source_id" json:"source_id"`
+	IdempotencyKey string             `db:"idempotency_key" json:"idempotency_key"`
+	Dimensions     []byte             `db:"dimensions" json:"dimensions"`
+	OccurredAt     pgtype.Timestamptz `db:"occurred_at" json:"occurred_at"`
+	CreatedAt      pgtype.Timestamptz `db:"created_at" json:"created_at"`
 }
 
 type User struct {
