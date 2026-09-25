@@ -36,6 +36,24 @@ func (j *ReconciliationJob) RunOnce(ctx context.Context) error {
 			return fmt.Errorf("reconcile managed number order %s: %w", order.ID, err)
 		}
 	}
+	operations, err := j.service.repo.ListLifecycleDue(ctx, int32(j.batch))
+	if err != nil {
+		return fmt.Errorf("list number lifecycle reconciliations: %w", err)
+	}
+	for _, operation := range operations {
+		if err := j.service.ReconcileLifecycle(ctx, operation); err != nil {
+			return fmt.Errorf("reconcile number lifecycle operation %s: %w", operation.ID, err)
+		}
+	}
+	registrations, err := j.service.repo.ListEmergencyDue(ctx, int32(j.batch))
+	if err != nil {
+		return fmt.Errorf("list emergency registration reconciliations: %w", err)
+	}
+	for _, registration := range registrations {
+		if err := j.service.ReconcileEmergency(ctx, registration); err != nil {
+			return fmt.Errorf("reconcile emergency registration %s: %w", registration.ID, err)
+		}
+	}
 	return nil
 }
 

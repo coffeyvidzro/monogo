@@ -187,6 +187,136 @@ func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+func (h *Handler) ReleaseManaged(w http.ResponseWriter, r *http.Request) {
+	organizationID, numberID, err := requestIDs(r)
+	if err != nil {
+		httputil.Error(w, err)
+		return
+	}
+	op, err := h.service.ReleaseManaged(r.Context(), organizationID, numberID, r.Header.Get("Idempotency-Key"))
+	if err != nil {
+		httputil.Error(w, err)
+		return
+	}
+	w.Header().Set("Location", "/v1/numbers/lifecycle/"+op.ID.String())
+	writeAccepted(w, lifecycleResponse(op))
+}
+
+func (h *Handler) GetLifecycle(w http.ResponseWriter, r *http.Request) {
+	organizationID, err := requestOrganizationID(r)
+	if err != nil {
+		httputil.Error(w, err)
+		return
+	}
+	id, err := uuid.Parse(chi.URLParam(r, "operation_id"))
+	if err != nil {
+		httputil.Error(w, apperror.NewBadRequest("invalid lifecycle operation id"))
+		return
+	}
+	op, err := h.service.GetLifecycle(r.Context(), organizationID, id)
+	if err != nil {
+		httputil.Error(w, err)
+		return
+	}
+	httputil.OK(w, lifecycleResponse(op))
+}
+
+func (h *Handler) PutEmergency(w http.ResponseWriter, r *http.Request) {
+	organizationID, numberID, err := requestIDs(r)
+	if err != nil {
+		httputil.Error(w, err)
+		return
+	}
+	req, err := helper.DecodeJSON[EmergencyAddressRequest](r)
+	if err != nil {
+		httputil.Error(w, err)
+		return
+	}
+	registration, err := h.service.PutEmergency(r.Context(), organizationID, numberID, r.Header.Get("Idempotency-Key"), req)
+	if err != nil {
+		httputil.Error(w, err)
+		return
+	}
+	writeAccepted(w, emergencyResponse(registration))
+}
+
+func (h *Handler) GetEmergency(w http.ResponseWriter, r *http.Request) {
+	organizationID, numberID, err := requestIDs(r)
+	if err != nil {
+		httputil.Error(w, err)
+		return
+	}
+	registration, err := h.service.GetEmergency(r.Context(), organizationID, numberID)
+	if err != nil {
+		httputil.Error(w, err)
+		return
+	}
+	httputil.OK(w, emergencyResponse(registration))
+}
+
+func (h *Handler) CreatePortIn(w http.ResponseWriter, r *http.Request) {
+	organizationID, err := requestOrganizationID(r)
+	if err != nil {
+		httputil.Error(w, err)
+		return
+	}
+	req, err := helper.DecodeJSON[PortInRequest](r)
+	if err != nil {
+		httputil.Error(w, err)
+		return
+	}
+	portIn, err := h.service.CreatePortIn(r.Context(), organizationID, r.Header.Get("Idempotency-Key"), req)
+	if err != nil {
+		httputil.Error(w, err)
+		return
+	}
+	w.Header().Set("Location", "/v1/numbers/port-ins/"+portIn.Case.ID.String())
+	writeAccepted(w, portInResponse(portIn))
+}
+
+func (h *Handler) GetPortIn(w http.ResponseWriter, r *http.Request) {
+	organizationID, err := requestOrganizationID(r)
+	if err != nil {
+		httputil.Error(w, err)
+		return
+	}
+	id, err := uuid.Parse(chi.URLParam(r, "case_id"))
+	if err != nil {
+		httputil.Error(w, apperror.NewBadRequest("invalid port-in case id"))
+		return
+	}
+	portIn, err := h.service.GetPortIn(r.Context(), organizationID, id)
+	if err != nil {
+		httputil.Error(w, err)
+		return
+	}
+	httputil.OK(w, portInResponse(portIn))
+}
+
+func (h *Handler) AddPortDocument(w http.ResponseWriter, r *http.Request) {
+	organizationID, err := requestOrganizationID(r)
+	if err != nil {
+		httputil.Error(w, err)
+		return
+	}
+	id, err := uuid.Parse(chi.URLParam(r, "case_id"))
+	if err != nil {
+		httputil.Error(w, apperror.NewBadRequest("invalid port-in case id"))
+		return
+	}
+	req, err := helper.DecodeJSON[PortDocumentRequest](r)
+	if err != nil {
+		httputil.Error(w, err)
+		return
+	}
+	document, err := h.service.AddPortDocument(r.Context(), organizationID, id, req)
+	if err != nil {
+		httputil.Error(w, err)
+		return
+	}
+	httputil.Created(w, portDocumentResponse(document))
+}
+
 func requestOrganizationID(r *http.Request) (uuid.UUID, error) {
 	id, ok := middleware.OrganizationIDFromContext(r.Context())
 	if !ok || id == uuid.Nil {

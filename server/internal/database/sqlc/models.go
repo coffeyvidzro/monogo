@@ -231,6 +231,10 @@ type EmergencyRegistration struct {
 	DeactivatedAt     pgtype.Timestamptz `db:"deactivated_at" json:"deactivated_at"`
 	CreatedAt         pgtype.Timestamptz `db:"created_at" json:"created_at"`
 	UpdatedAt         pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+	IdempotencyKey    *string            `db:"idempotency_key" json:"idempotency_key"`
+	RequestHash       *string            `db:"request_hash" json:"request_hash"`
+	ReconcileAfter    pgtype.Timestamptz `db:"reconcile_after" json:"reconcile_after"`
+	ReconcileAttempts int32              `db:"reconcile_attempts" json:"reconcile_attempts"`
 }
 
 type Idempotency struct {
@@ -306,6 +310,8 @@ type NumberLifecycleOperation struct {
 	CompletedAt       pgtype.Timestamptz `db:"completed_at" json:"completed_at"`
 	CreatedAt         pgtype.Timestamptz `db:"created_at" json:"created_at"`
 	UpdatedAt         pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+	ReconcileAfter    pgtype.Timestamptz `db:"reconcile_after" json:"reconcile_after"`
+	ReconcileAttempts int32              `db:"reconcile_attempts" json:"reconcile_attempts"`
 }
 
 type OpensipsCarrierDigestCredential struct {
@@ -454,6 +460,39 @@ type PhoneNumber struct {
 	ErrorMessage        *string            `db:"error_message" json:"error_message"`
 	CreatedAt           pgtype.Timestamptz `db:"created_at" json:"created_at"`
 	UpdatedAt           pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+}
+
+type PortInCase struct {
+	ID                    uuid.UUID          `db:"id" json:"id"`
+	OrganizationID        uuid.UUID          `db:"organization_id" json:"organization_id"`
+	LifecycleOperationID  uuid.UUID          `db:"lifecycle_operation_id" json:"lifecycle_operation_id"`
+	LosingCarrier         string             `db:"losing_carrier" json:"losing_carrier"`
+	AccountNumber         string             `db:"account_number" json:"account_number"`
+	AccountPinCiphertext  []byte             `db:"account_pin_ciphertext" json:"account_pin_ciphertext"`
+	AuthorizedName        string             `db:"authorized_name" json:"authorized_name"`
+	ServiceAddress        []byte             `db:"service_address" json:"service_address"`
+	DesiredPortDate       pgtype.Date        `db:"desired_port_date" json:"desired_port_date"`
+	Status                string             `db:"status" json:"status"`
+	ProviderCaseReference *string            `db:"provider_case_reference" json:"provider_case_reference"`
+	RejectionCode         *string            `db:"rejection_code" json:"rejection_code"`
+	RejectionMessage      *string            `db:"rejection_message" json:"rejection_message"`
+	FocAt                 pgtype.Timestamptz `db:"foc_at" json:"foc_at"`
+	ActivatedAt           pgtype.Timestamptz `db:"activated_at" json:"activated_at"`
+	CreatedAt             pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	UpdatedAt             pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+}
+
+type PortInDocument struct {
+	ID                uuid.UUID          `db:"id" json:"id"`
+	OrganizationID    uuid.UUID          `db:"organization_id" json:"organization_id"`
+	PortInCaseID      uuid.UUID          `db:"port_in_case_id" json:"port_in_case_id"`
+	DocumentType      string             `db:"document_type" json:"document_type"`
+	ObjectKey         string             `db:"object_key" json:"object_key"`
+	Sha256            string             `db:"sha256" json:"sha256"`
+	Status            string             `db:"status" json:"status"`
+	ProviderReference *string            `db:"provider_reference" json:"provider_reference"`
+	CreatedAt         pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	UpdatedAt         pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 }
 
 type ProcessedEvent struct {

@@ -37,6 +37,26 @@ requires a provider reference and timestamp; replacing an address therefore
 means deactivating the old registration and creating a new one, never editing
 regulatory history in place.
 
+Managed release is exposed as an idempotent lifecycle operation. The number is
+disabled before DIDWW termination is requested, reconciliation independently
+verifies the provider's terminated flag, and the local number is released in
+the same transaction that emits the completion webhook event.
+
+E911 replacement deactivates the previous current registration and creates a
+new immutable address version. Local structural validation happens at the API
+boundary; provider validation and activation run asynchronously through the
+`NumberLifecycleProvider` capability. The default DIDWW adapter fails closed
+for regulatory products until account-specific emergency API support is
+configured.
+
+Port-ins have a tenant-scoped case, idempotent lifecycle operation, protected
+object-storage document references and SHA-256 checksums, provider case state,
+FOC timestamp, and activation state. Reconciliation submits only after at least
+one document is registered, polls provider status, and atomically creates the
+managed number and activation webhook after provider confirmation. The default
+DIDWW adapter likewise keeps porting unavailable until an account-specific
+porting capability is supplied; no endpoint contract is guessed.
+
 ## Next integration slices
 
 The outbound executor consumes at most the first three ranked routes. Transport
