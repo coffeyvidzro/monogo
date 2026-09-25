@@ -12,7 +12,7 @@ import (
 // MarkupBasisPoints is a markup over wholesale cost, not a gross-margin rate.
 // All rates are USD micros per minute, without floating-point arithmetic.
 type Quote struct {
-	Currency               string
+	Currency                string
 	WholesaleRateMicros     int64
 	CustomerRateMicros      int64
 	MarkupBasisPoints       int64
@@ -40,7 +40,7 @@ func QuoteFromWholesale(
 	minimumBillableSeconds int64,
 ) (Quote, error) {
 	quote := Quote{
-		Currency:               "USD",
+		Currency:                "USD",
 		WholesaleRateMicros:     wholesaleRateMicros,
 		MarkupBasisPoints:       markupBasisPoints,
 		BillingIncrementSeconds: billingIncrementSeconds,
