@@ -56,8 +56,10 @@ func (q *Queries) ActivateEmergencyRegistration(ctx context.Context, arg Activat
 }
 
 const activatePortInCase = `-- name: ActivatePortInCase :one
-UPDATE port_in_cases SET status = 'activated', activated_at = now()
-WHERE id = $1 AND status = 'foc_received'
+UPDATE port_in_cases
+SET status = 'activated', activated_at = now()
+WHERE id = $1
+  AND status IN ('submitted', 'in_progress', 'foc_received')
 RETURNING id, organization_id, lifecycle_operation_id, losing_carrier, account_number, account_pin_ciphertext, authorized_name, service_address, desired_port_date, status, provider_case_reference, rejection_code, rejection_message, foc_at, activated_at, created_at, updated_at
 `
 

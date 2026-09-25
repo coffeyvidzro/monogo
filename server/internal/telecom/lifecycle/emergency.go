@@ -36,13 +36,20 @@ func (s *Service) PutEmergency(ctx context.Context, organizationID, numberID uui
 	if s.db == nil {
 		return sqlc.EmergencyRegistration{}, apperror.NewServiceUnavailable("emergency registration is not configured", nil)
 	}
-	tx, err := s.db.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.Serializable})
+	tx, err := s.db.BeginTx(ctx, pgx.TxOptions{
+		IsoLevel: pgx.Serializable,
+	})
 	if err != nil {
 		return sqlc.EmergencyRegistration{}, apperror.NewInternal("begin emergency registration", err)
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 	queries := sqlc.New(tx)
-	_ = queries.DeactivateCurrentEmergencyRegistration(ctx, sqlc.DeactivateCurrentEmergencyRegistrationParams{OrganizationID: organizationID, PhoneNumberID: numberID})
+	if err = queries.DeactivateCurrentEmergencyRegistration(ctx, sqlc.DeactivateCurrentEmergencyRegistrationParams{
+		OrganizationID: organizationID,
+		PhoneNumberID:  numberID,
+	}); err != nil {
+		return sqlc.EmergencyRegistration{}, apperror.NewInternal("deactivate existing emergency registration", err)
+	}
 	line2 := req.AddressLine2
 	registration, err := queries.CreateEmergencyRegistration(ctx, sqlc.CreateEmergencyRegistrationParams{
 		OrganizationID: organizationID, PhoneNumberID: numberID, IdempotencyKey: &key, RequestHash: &hash,
@@ -97,19 +104,27 @@ func (s *Service) ReconcileEmergency(ctx context.Context, registration sqlc.Emer
 		return err
 	}
 	if !valid {
-		rejected, rejectErr := s.repo.queries.RejectEmergencyRegistration(ctx, sqlc.RejectEmergencyRegistrationParams{ID: registration.ID, ValidationMessage: &message})
+		rejected, rejectErr := s.repo.queries.RejectEmergencyRegistration(ctx, sqlc.RejectEmergencyRegistrationParams{
+			ID:                registration.ID,
+			ValidationMessage: &message,
+		})
 		if rejectErr != nil {
 			return rejectErr
 		}
 		return insertNumberEvent(ctx, s.repo.queries, "number.e911.rejected", registration.OrganizationID, registration.ID, rejected)
 	}
-	tx, err := s.db.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.Serializable})
+	tx, err := s.db.BeginTx(ctx, pgx.TxOptions{
+		IsoLevel: pgx.Serializable,
+	})
 	if err != nil {
 		return err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 	queries := sqlc.New(tx)
-	activated, err := queries.ActivateEmergencyRegistration(ctx, sqlc.ActivateEmergencyRegistrationParams{ID: registration.ID, ProviderReference: &reference})
+	activated, err := queries.ActivateEmergencyRegistration(ctx, sqlc.ActivateEmergencyRegistrationParams{
+		ID:                registration.ID,
+		ProviderReference: &reference,
+	})
 	if err != nil {
 		return err
 	}

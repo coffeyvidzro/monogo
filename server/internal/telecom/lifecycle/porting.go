@@ -40,13 +40,22 @@ func (s *Service) CreatePortIn(ctx context.Context, organizationID uuid.UUID, ke
 		if err != nil {
 			return PortInResponse{}, apperror.NewInternal("get port-in case", err)
 		}
-		documents, err := s.repo.queries.ListPortInDocuments(ctx, sqlc.ListPortInDocumentsParams{OrganizationID: organizationID, PortInCaseID: portCase.ID})
-		return PortInResponse{Case: portCase, Operation: existing, Documents: documents}, err
+		documents, err := s.repo.queries.ListPortInDocuments(ctx, sqlc.ListPortInDocumentsParams{
+			OrganizationID: organizationID,
+			PortInCaseID:   portCase.ID,
+		})
+		return PortInResponse{
+			Case:      portCase,
+			Operation: existing,
+			Documents: documents,
+		}, err
 	}
 	if s.db == nil {
 		return PortInResponse{}, apperror.NewServiceUnavailable("port-in lifecycle is not configured", nil)
 	}
-	tx, err := s.db.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.Serializable})
+	tx, err := s.db.BeginTx(ctx, pgx.TxOptions{
+		IsoLevel: pgx.Serializable,
+	})
 	if err != nil {
 		return PortInResponse{}, apperror.NewInternal("begin port-in", err)
 	}
@@ -62,7 +71,11 @@ func (s *Service) CreatePortIn(ctx context.Context, organizationID uuid.UUID, ke
 	if err = tx.Commit(ctx); err != nil {
 		return PortInResponse{}, apperror.NewInternal("commit port-in", err)
 	}
-	return PortInResponse{Case: portCase, Operation: op, Documents: []sqlc.PortInDocument{}}, nil
+	return PortInResponse{
+		Case:      portCase,
+		Operation: op,
+		Documents: []sqlc.PortInDocument{},
+	}, nil
 }
 
 func (s *Service) GetPortIn(ctx context.Context, organizationID, caseID uuid.UUID) (PortInResponse, error) {
@@ -77,7 +90,11 @@ func (s *Service) GetPortIn(ctx context.Context, organizationID, caseID uuid.UUI
 	if err != nil {
 		return PortInResponse{}, apperror.NewInternal("get port-in operation", err)
 	}
-	return PortInResponse{Case: portCase, Operation: op, Documents: documents}, nil
+	return PortInResponse{
+		Case:      portCase,
+		Operation: op,
+		Documents: documents,
+	}, nil
 }
 
 func (s *Service) AddPortDocument(ctx context.Context, organizationID, caseID uuid.UUID, req PortDocumentRequest) (sqlc.PortInDocument, error) {
@@ -110,7 +127,10 @@ func (s *Service) reconcilePortIn(ctx context.Context, operation sqlc.NumberLife
 	if err != nil {
 		return err
 	}
-	documents, err := s.repo.queries.ListPortInDocuments(ctx, sqlc.ListPortInDocumentsParams{OrganizationID: operation.OrganizationID, PortInCaseID: portCase.ID})
+	documents, err := s.repo.queries.ListPortInDocuments(ctx, sqlc.ListPortInDocumentsParams{
+		OrganizationID: operation.OrganizationID,
+		PortInCaseID:   portCase.ID,
+	})
 	if err != nil {
 		return err
 	}
@@ -129,10 +149,18 @@ func (s *Service) reconcilePortIn(ctx context.Context, operation sqlc.NumberLife
 				reason = "number is not portable"
 			}
 			code := "not_portable"
-			if _, err = s.repo.queries.RejectPortInCase(ctx, sqlc.RejectPortInCaseParams{ID: portCase.ID, RejectionCode: &code, RejectionMessage: &reason}); err != nil {
+			if _, err = s.repo.queries.RejectPortInCase(ctx, sqlc.RejectPortInCaseParams{
+				ID:               portCase.ID,
+				RejectionCode:    &code,
+				RejectionMessage: &reason,
+			}); err != nil {
 				return err
 			}
-			if _, err = s.repo.queries.FailNumberLifecycleOperation(ctx, sqlc.FailNumberLifecycleOperationParams{ID: operation.ID, FailureCode: &code, FailureMessage: &reason}); err != nil {
+			if _, err = s.repo.queries.FailNumberLifecycleOperation(ctx, sqlc.FailNumberLifecycleOperationParams{
+				ID:             operation.ID,
+				FailureCode:    &code,
+				FailureMessage: &reason,
+			}); err != nil {
 				return err
 			}
 			return nil
@@ -152,7 +180,10 @@ func (s *Service) reconcilePortIn(ctx context.Context, operation sqlc.NumberLife
 			_, err = s.repo.ScheduleLifecycle(ctx, operation.ID, s.now().Add(managedReconcileDelay))
 			return err
 		}
-		if _, err = s.repo.queries.MarkPortInSubmitted(ctx, sqlc.MarkPortInSubmittedParams{ID: portCase.ID, ProviderCaseReference: &reference}); err != nil {
+		if _, err = s.repo.queries.MarkPortInSubmitted(ctx, sqlc.MarkPortInSubmittedParams{
+			ID:                    portCase.ID,
+			ProviderCaseReference: &reference,
+		}); err != nil {
 			return err
 		}
 		_, err = s.repo.MarkLifecycleSubmitted(ctx, operation.ID, &reference, s.now().Add(managedReconcileDelay))
@@ -172,17 +203,28 @@ func (s *Service) reconcilePortIn(ctx context.Context, operation sqlc.NumberLife
 		if code == "" {
 			code = "provider_rejected"
 		}
-		rejected, rejectErr := s.repo.queries.RejectPortInCase(ctx, sqlc.RejectPortInCaseParams{ID: portCase.ID, RejectionCode: &code, RejectionMessage: &message})
+		rejected, rejectErr := s.repo.queries.RejectPortInCase(ctx, sqlc.RejectPortInCaseParams{
+			ID:               portCase.ID,
+			RejectionCode:    &code,
+			RejectionMessage: &message,
+		})
 		if rejectErr != nil {
 			return rejectErr
 		}
-		if _, failErr := s.repo.queries.FailNumberLifecycleOperation(ctx, sqlc.FailNumberLifecycleOperationParams{ID: operation.ID, FailureCode: &code, FailureMessage: &message}); failErr != nil {
+		if _, failErr := s.repo.queries.FailNumberLifecycleOperation(ctx, sqlc.FailNumberLifecycleOperationParams{
+			ID:             operation.ID,
+			FailureCode:    &code,
+			FailureMessage: &message,
+		}); failErr != nil {
 			return failErr
 		}
 		return insertNumberEvent(ctx, s.repo.queries, "number.port_in.rejected", operation.OrganizationID, portCase.ID, rejected)
 	}
 	if status.Status == "foc_received" && status.FOCAt != nil {
-		_, err = s.repo.queries.MarkPortInFOC(ctx, sqlc.MarkPortInFOCParams{ID: portCase.ID, FocAt: pgTimestamptz(*status.FOCAt)})
+		_, err = s.repo.queries.MarkPortInFOC(ctx, sqlc.MarkPortInFOCParams{
+			ID:    portCase.ID,
+			FocAt: pgTimestamptz(*status.FOCAt),
+		})
 	}
 	if status.Status != "activated" {
 		_, scheduleErr := s.repo.ScheduleLifecycle(ctx, operation.ID, s.now().Add(managedReconcileDelay))
@@ -195,7 +237,9 @@ func (s *Service) reconcilePortIn(ctx context.Context, operation sqlc.NumberLife
 }
 
 func (s *Service) activatePortIn(ctx context.Context, operation sqlc.NumberLifecycleOperation, portCase sqlc.PortInCase, request PortInRequest, providerResourceID string) error {
-	tx, err := s.db.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.Serializable})
+	tx, err := s.db.BeginTx(ctx, pgx.TxOptions{
+		IsoLevel: pgx.Serializable,
+	})
 	if err != nil {
 		return err
 	}
@@ -216,14 +260,22 @@ func (s *Service) activatePortIn(ctx context.Context, operation sqlc.NumberLifec
 	if err != nil {
 		return err
 	}
-	if err = insertNumberEvent(ctx, queries, "number.port_in.activated", operation.OrganizationID, portCase.ID, map[string]any{"operation": completed, "number": number}); err != nil {
+	if err = insertNumberEvent(ctx, queries, "number.port_in.activated", operation.OrganizationID, portCase.ID, map[string]any{
+		"operation": completed,
+		"number":    number,
+	}); err != nil {
 		return err
 	}
 	return tx.Commit(ctx)
 }
 
-func stringPointer(value string) *string { return &value }
+func stringPointer(value string) *string {
+	return &value
+}
 
 func pgTimestamptz(value time.Time) pgtype.Timestamptz {
-	return pgtype.Timestamptz{Time: value, Valid: true}
+	return pgtype.Timestamptz{
+		Time:  value,
+		Valid: true,
+	}
 }
