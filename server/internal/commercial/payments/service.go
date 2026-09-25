@@ -133,6 +133,27 @@ func (s *Service) Create(ctx context.Context, req Attempt) (sqlc.Payment, error)
 	return row, nil
 }
 
+// CreateForCheckout creates an internal provider attempt using the checkout as
+// the authoritative source for amount and currency. It does not contact the
+// provider or claim that funds have been collected.
+func (s *Service) CreateForCheckout(ctx context.Context, organizationID, checkoutID uuid.UUID, provider, attemptKey string) (sqlc.Payment, error) {
+	if organizationID == uuid.Nil || checkoutID == uuid.Nil {
+		return sqlc.Payment{}, apperror.NewBadRequest("organization and checkout are required")
+	}
+	if s == nil || !s.repo.Available() {
+		return sqlc.Payment{}, apperror.NewServiceUnavailable("payment persistence is not configured", nil)
+	}
+	checkoutRow, err := s.repo.Checkout(ctx, organizationID, checkoutID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return sqlc.Payment{}, apperror.NewNotFound("checkout not found")
+	}
+	if err != nil {
+		return sqlc.Payment{}, apperror.NewInternal("get payment checkout", err)
+	}
+	return s.Create(ctx, Attempt{OrganizationID: organizationID, CheckoutID: checkoutID,
+		Provider: provider, AttemptKey: attemptKey, AmountMinor: checkoutRow.AmountMinor, Currency: checkoutRow.Currency})
+}
+
 func (s *Service) Get(ctx context.Context, organizationID, paymentID uuid.UUID) (sqlc.Payment, error) {
 	if organizationID == uuid.Nil || paymentID == uuid.Nil {
 		return sqlc.Payment{}, apperror.NewBadRequest("organization and payment are required")

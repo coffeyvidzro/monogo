@@ -13,15 +13,21 @@ import (
 )
 
 const createCheckoutPayment = `-- name: CreateCheckoutPayment :one
+WITH payment_checkout AS MATERIALIZED (
+    SELECT c.id, c.amount_minor, c.currency
+    FROM checkouts AS c
+    JOIN wallets AS w ON w.id = c.wallet_id
+    WHERE c.id = $3::UUID
+      AND w.organization_id = $4::UUID
+      AND c.status = 'pending' AND c.expires_at > now()
+      AND c.amount_minor = $5::BIGINT
+      AND c.currency = $6::TEXT
+    FOR UPDATE OF c
+)
 INSERT INTO payments (checkout_id, provider, attempt_key, amount_minor, currency)
 SELECT c.id, $1::TEXT, $2::TEXT,
        c.amount_minor, c.currency
-FROM checkouts AS c JOIN wallets AS w ON w.id = c.wallet_id
-WHERE c.id = $3::UUID
-  AND w.organization_id = $4::UUID
-  AND c.status = 'pending' AND c.expires_at > now()
-  AND c.amount_minor = $5::BIGINT
-  AND c.currency = $6::TEXT
+FROM payment_checkout AS c
 ON CONFLICT (checkout_id, provider, attempt_key) DO NOTHING
 RETURNING id, checkout_id, provider, attempt_key, provider_reference, amount_minor, currency, status, verified_at, wallet_transaction_id, failure_code, created_at, updated_at
 `
@@ -164,6 +170,39 @@ func (q *Queries) GetIncomingPaymentEventByIdentity(ctx context.Context, arg Get
 		&i.ErrorCode,
 		&i.ReceivedAt,
 		&i.ProcessedAt,
+	)
+	return i, err
+}
+
+const getPaymentCheckout = `-- name: GetPaymentCheckout :one
+SELECT c.id, c.wallet_id, c.amount_minor, c.currency, c.idempotency_key, c.request_hash, c.status, c.credited_transaction_id, c.expires_at, c.completed_at, c.created_at, c.updated_at FROM checkouts AS c
+JOIN wallets AS w ON w.id = c.wallet_id
+WHERE w.organization_id = $1::UUID
+  AND c.id = $2::UUID
+LIMIT 1
+`
+
+type GetPaymentCheckoutParams struct {
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	ID             uuid.UUID `db:"id" json:"id"`
+}
+
+func (q *Queries) GetPaymentCheckout(ctx context.Context, arg GetPaymentCheckoutParams) (Checkout, error) {
+	row := q.db.QueryRow(ctx, getPaymentCheckout, arg.OrganizationID, arg.ID)
+	var i Checkout
+	err := row.Scan(
+		&i.ID,
+		&i.WalletID,
+		&i.AmountMinor,
+		&i.Currency,
+		&i.IdempotencyKey,
+		&i.RequestHash,
+		&i.Status,
+		&i.CreditedTransactionID,
+		&i.ExpiresAt,
+		&i.CompletedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
 	)
 	return i, err
 }

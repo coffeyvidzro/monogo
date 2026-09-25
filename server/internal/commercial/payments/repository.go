@@ -80,6 +80,10 @@ func (r *Repository) Get(ctx context.Context, organizationID, paymentID uuid.UUI
 	})
 }
 
+func (r *Repository) Checkout(ctx context.Context, organizationID, checkoutID uuid.UUID) (sqlc.Checkout, error) {
+	return r.queries.GetPaymentCheckout(ctx, sqlc.GetPaymentCheckoutParams{OrganizationID: organizationID, ID: checkoutID})
+}
+
 func (r *Repository) RecordEvent(ctx context.Context, event Event) (sqlc.PaymentEvent, error) {
 	return r.queries.RecordIncomingPaymentEvent(ctx, sqlc.RecordIncomingPaymentEventParams{
 		PaymentID:       event.PaymentID,

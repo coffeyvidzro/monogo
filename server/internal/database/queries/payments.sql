@@ -1,13 +1,19 @@
 -- name: CreateCheckoutPayment :one
+WITH payment_checkout AS MATERIALIZED (
+    SELECT c.id, c.amount_minor, c.currency
+    FROM checkouts AS c
+    JOIN wallets AS w ON w.id = c.wallet_id
+    WHERE c.id = sqlc.arg(checkout_id)::UUID
+      AND w.organization_id = sqlc.arg(organization_id)::UUID
+      AND c.status = 'pending' AND c.expires_at > now()
+      AND c.amount_minor = sqlc.arg(amount_minor)::BIGINT
+      AND c.currency = sqlc.arg(currency)::TEXT
+    FOR UPDATE OF c
+)
 INSERT INTO payments (checkout_id, provider, attempt_key, amount_minor, currency)
 SELECT c.id, sqlc.arg(provider)::TEXT, sqlc.arg(attempt_key)::TEXT,
        c.amount_minor, c.currency
-FROM checkouts AS c JOIN wallets AS w ON w.id = c.wallet_id
-WHERE c.id = sqlc.arg(checkout_id)::UUID
-  AND w.organization_id = sqlc.arg(organization_id)::UUID
-  AND c.status = 'pending' AND c.expires_at > now()
-  AND c.amount_minor = sqlc.arg(amount_minor)::BIGINT
-  AND c.currency = sqlc.arg(currency)::TEXT
+FROM payment_checkout AS c
 ON CONFLICT (checkout_id, provider, attempt_key) DO NOTHING
 RETURNING *;
 
@@ -26,6 +32,13 @@ JOIN checkouts AS c ON c.id = p.checkout_id
 JOIN wallets AS w ON w.id = c.wallet_id
 WHERE w.organization_id = sqlc.arg(organization_id)::UUID
   AND p.id = sqlc.arg(id)::UUID LIMIT 1;
+
+-- name: GetPaymentCheckout :one
+SELECT c.* FROM checkouts AS c
+JOIN wallets AS w ON w.id = c.wallet_id
+WHERE w.organization_id = sqlc.arg(organization_id)::UUID
+  AND c.id = sqlc.arg(id)::UUID
+LIMIT 1;
 
 -- name: LockCheckoutPayment :one
 SELECT p.* FROM payments AS p

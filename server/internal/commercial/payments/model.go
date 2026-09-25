@@ -3,6 +3,7 @@ package payments
 import (
 	"time"
 
+	"github.com/coffeyvidzro/monogo/internal/database/pgconv"
 	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
 	"github.com/google/uuid"
 )
@@ -15,6 +16,33 @@ type Attempt struct {
 	AttemptKey     string
 	AmountMinor    int64
 	Currency       string
+}
+
+type CreateInput struct {
+	Provider string `json:"provider"`
+}
+
+type Response struct {
+	ID                  uuid.UUID  `json:"id"`
+	CheckoutID          uuid.UUID  `json:"checkout_id"`
+	Provider            string     `json:"provider"`
+	ProviderReference   *string    `json:"provider_reference,omitempty"`
+	AmountMinor         int64      `json:"amount_minor"`
+	Currency            string     `json:"currency"`
+	Status              string     `json:"status"`
+	WalletTransactionID *uuid.UUID `json:"wallet_transaction_id,omitempty"`
+	FailureCode         *string    `json:"failure_code,omitempty"`
+	VerifiedAt          *time.Time `json:"verified_at,omitempty"`
+	CreatedAt           time.Time  `json:"created_at"`
+	UpdatedAt           time.Time  `json:"updated_at"`
+}
+
+func response(row sqlc.Payment) Response {
+	return Response{ID: row.ID, CheckoutID: row.CheckoutID, Provider: row.Provider,
+		ProviderReference: row.ProviderReference, AmountMinor: row.AmountMinor, Currency: row.Currency,
+		Status: row.Status, WalletTransactionID: row.WalletTransactionID, FailureCode: row.FailureCode,
+		VerifiedAt: pgconv.TimestamptzToTimePtr(row.VerifiedAt), CreatedAt: pgconv.TimestamptzToTime(row.CreatedAt),
+		UpdatedAt: pgconv.TimestamptzToTime(row.UpdatedAt)}
 }
 
 // Event represents metadata from an already authenticated provider webhook.

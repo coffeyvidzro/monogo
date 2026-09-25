@@ -12,6 +12,41 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const cancelWalletCheckout = `-- name: CancelWalletCheckout :one
+UPDATE checkouts AS c
+SET status = 'canceled'
+WHERE c.id = $1::UUID
+  AND c.status = 'pending'
+  AND NOT EXISTS (
+      SELECT 1 FROM payments AS p
+      WHERE p.checkout_id = c.id
+        AND p.status IN ('created', 'pending', 'succeeded')
+  )
+RETURNING c.id, c.wallet_id, c.amount_minor, c.currency, c.idempotency_key, c.request_hash, c.status, c.credited_transaction_id, c.expires_at, c.completed_at, c.created_at, c.updated_at
+`
+
+// A checkout cannot be canceled while a payment may still settle. Such
+// attempts must be resolved or canceled at the provider first.
+func (q *Queries) CancelWalletCheckout(ctx context.Context, id uuid.UUID) (Checkout, error) {
+	row := q.db.QueryRow(ctx, cancelWalletCheckout, id)
+	var i Checkout
+	err := row.Scan(
+		&i.ID,
+		&i.WalletID,
+		&i.AmountMinor,
+		&i.Currency,
+		&i.IdempotencyKey,
+		&i.RequestHash,
+		&i.Status,
+		&i.CreditedTransactionID,
+		&i.ExpiresAt,
+		&i.CompletedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const completeWalletCheckout = `-- name: CompleteWalletCheckout :one
 UPDATE checkouts SET status = 'completed',
     credited_transaction_id = $1::UUID,
