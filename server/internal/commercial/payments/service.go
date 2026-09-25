@@ -7,6 +7,8 @@ import (
 
 	"github.com/coffeyvidzro/monogo/internal/commercial/wallets"
 	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
+	"github.com/coffeyvidzro/monogo/internal/integrations/payments/paystack"
+	"github.com/coffeyvidzro/monogo/internal/integrations/payments/stripe"
 	"github.com/coffeyvidzro/monogo/pkg/apperror"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -17,6 +19,8 @@ type Service struct {
 	repo       *Repository
 	walletRepo *wallets.Repository
 	verifiers  map[string]ProviderVerifier
+	stripeClient *stripe.Client
+	paystackClient *paystack.Client
 }
 
 func NewService(db *pgxpool.Pool) *Service {
