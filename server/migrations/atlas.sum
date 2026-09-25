@@ -1,4 +1,4 @@
-h1:CJtqNi+IKXvyFRWNM6B+DPi1L1lxLVctXeD0DtNEu/0=
+h1:z9MK6s0rGHfwX9v81L2Jzs8poldNIrPgdOFU9FDpB3I=
 001_extensions.sql h1:V12FA/dbb8clPffRf/1QJRpbB/S0eECkElwvfOVRda4=
 002_create_users.sql h1:w8z6z5sqnmtExCGa63iYl2ssG9rgXX8m3VPqvb1z4jo=
 003_create_authentication.sql h1:6R8fm0zInr9A/OW74oYTBLpPYHRf3dpVjw13qyjdd7E=
@@ -34,3 +34,4 @@ h1:CJtqNi+IKXvyFRWNM6B+DPi1L1lxLVctXeD0DtNEu/0=
 033_create_carrier_routing.sql h1:QalidksLgrM8cjXvyvvmVwFRrt1LarxoKbPyFhRte8s=
 034_create_routing_attempts.sql h1:/rvYebTz7a58cJjPs/72FhBubrIRmaGJFGa+VXPXa1E=
 035_extend_number_lifecycle.sql h1:FDRxYCG+5AL2F+p6oION2nZCwn1O5BqU7+vOMQHFjbY=
+036_emergency_registration_replacement.sql h1:rCuUxPQsgAgQnloNPSd+ThIXXeUNIJ5u0Y8DrDicb0E=

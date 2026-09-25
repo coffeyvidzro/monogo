@@ -77,7 +77,7 @@ func TestValidateRateObservation(t *testing.T) {
 func TestValidateHealthObservation(t *testing.T) {
 	now := time.Now().UTC()
 	base := HealthObservation{
-		EndpointID:           uuid.New(),
+		EndpointID:            uuid.New(),
 		ASRBasisPoints:        9_000,
 		ALOCMilliseconds:      80_000,
 		LatencyMilliseconds:   20,

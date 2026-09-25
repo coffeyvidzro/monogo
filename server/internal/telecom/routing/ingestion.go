@@ -28,13 +28,13 @@ type RateObservation struct {
 // HealthObservation represents measured, non-synthetic SIP/RTP route telemetry.
 // A collector must supply endpoint identity and an actual observation time.
 type HealthObservation struct {
-	EndpointID          uuid.UUID
-	ASRBasisPoints       int32
-	ALOCMilliseconds     int64
-	LatencyMilliseconds  int32
+	EndpointID            uuid.UUID
+	ASRBasisPoints        int32
+	ALOCMilliseconds      int64
+	LatencyMilliseconds   int32
 	PacketLossBasisPoints int32
-	SampleCount          int64
-	ObservedAt           time.Time
+	SampleCount           int64
+	ObservedAt            time.Time
 }
 
 type SnapshotIngestor struct {
