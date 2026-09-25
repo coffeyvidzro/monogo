@@ -11,12 +11,12 @@ import (
 func TestValidateRecord(t *testing.T) {
 	valid := RecordRequest{
 		OrganizationID: uuid.New(),
-		MeterID: uuid.New(),
-		Quantity: 1,
-		SourceType: "voice_call",
-		SourceID: "call-123",
+		MeterID:        uuid.New(),
+		Quantity:       1,
+		SourceType:     "voice_call",
+		SourceID:       "call-123",
 		IdempotencyKey: "voice_call:call-123",
-		OccurredAt: time.Now().UTC(),
+		OccurredAt:     time.Now().UTC(),
 	}
 	if err := validateRecord(&valid); err != nil {
 		t.Fatal(err)
