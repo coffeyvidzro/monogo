@@ -1,4 +1,4 @@
-package numbers
+package lifecycle
 
 import (
 	"context"
@@ -10,6 +10,24 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 )
+
+type Repository struct {
+	queries *sqlc.Queries
+}
+
+func NewRepository(queries *sqlc.Queries) *Repository {
+	return &Repository{queries: queries}
+}
+
+func (r *Repository) WithQueries(queries *sqlc.Queries) *Repository {
+	return NewRepository(queries)
+}
+
+func (r *Repository) Get(ctx context.Context, organizationID, id uuid.UUID) (sqlc.PhoneNumber, error) {
+	return r.queries.GetPhoneNumberByID(ctx, sqlc.GetPhoneNumberByIDParams{
+		ID: id, OrganizationID: organizationID,
+	})
+}
 
 func (r *Repository) GetForRelease(ctx context.Context, organizationID, numberID uuid.UUID) (sqlc.PhoneNumber, error) {
 	return r.queries.GetPhoneNumberForRelease(ctx, sqlc.GetPhoneNumberForReleaseParams{

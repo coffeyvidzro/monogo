@@ -11,6 +11,7 @@ import (
 	"github.com/coffeyvidzro/monogo/internal/telecom/calls"
 	"github.com/coffeyvidzro/monogo/internal/telecom/carriers"
 	"github.com/coffeyvidzro/monogo/internal/telecom/conferences"
+	"github.com/coffeyvidzro/monogo/internal/telecom/lifecycle"
 	"github.com/coffeyvidzro/monogo/internal/telecom/numbers"
 	"github.com/coffeyvidzro/monogo/internal/telecom/realtime"
 	"github.com/coffeyvidzro/monogo/internal/telecom/recordings"
@@ -40,6 +41,7 @@ type Module struct {
 	Carriers    CarriersModule
 	Conferences ConferencesModule
 	Numbers     NumbersModule
+	Lifecycle   LifecycleModule
 	Realtime    RealtimeModule
 	Recordings  RecordingsModule
 	Routing     RoutingModule
@@ -71,6 +73,12 @@ type NumbersModule struct {
 	Repository *numbers.Repository
 	Service    *numbers.Service
 	Handler    *numbers.Handler
+}
+
+type LifecycleModule struct {
+	Repository *lifecycle.Repository
+	Service    *lifecycle.Service
+	Handler    *lifecycle.Handler
 }
 
 type RealtimeModule struct {
@@ -130,7 +138,8 @@ func New(deps Dependencies) (*Module, error) {
 	numbersRepository := numbers.NewRepository(deps.Queries)
 	numbersService := numbers.NewService(numbersRepository, deps.DIDWWInventory)
 	numbersService.ConfigureManaged(deps.DB)
-	numbersService.ConfigureLifecycle(numbers.NewDIDWWLifecycleProvider(deps.DIDWWInventory))
+	lifecycleRepository := lifecycle.NewRepository(deps.Queries)
+	lifecycleService := lifecycle.NewService(lifecycleRepository, deps.DB, lifecycle.NewDIDWWLifecycleProvider(deps.DIDWWInventory))
 
 	voiceRepository := voice.NewRepository(deps.Queries)
 	voiceService := voice.NewService(voiceRepository)
@@ -165,6 +174,11 @@ func New(deps Dependencies) (*Module, error) {
 			Repository: numbersRepository,
 			Service:    numbersService,
 			Handler:    numbers.NewHandler(numbersService),
+		},
+		Lifecycle: LifecycleModule{
+			Repository: lifecycleRepository,
+			Service:    lifecycleService,
+			Handler:    lifecycle.NewHandler(lifecycleService),
 		},
 		Routing: RoutingModule{
 			Repository: routingRepository,

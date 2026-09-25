@@ -21,6 +21,7 @@ import (
 	"github.com/coffeyvidzro/monogo/internal/platform/webhooks"
 	"github.com/coffeyvidzro/monogo/internal/runtime/calling"
 	"github.com/coffeyvidzro/monogo/internal/telecom/calls"
+	"github.com/coffeyvidzro/monogo/internal/telecom/lifecycle"
 	"github.com/coffeyvidzro/monogo/internal/telecom/numbers"
 	"github.com/coffeyvidzro/monogo/internal/telecom/recordings"
 	"github.com/coffeyvidzro/monogo/internal/telecom/routing"
@@ -44,6 +45,7 @@ type modules struct {
 	idempotencyCleanup      *idempotency.CleanupJob
 	trunkHealth             *trunks.HealthCheckJob
 	numberReconciliation    *numbers.ReconciliationJob
+	lifecycleReconciliation *lifecycle.ReconciliationJob
 	reservationExpiration   *commercialwallets.ExpirationJob
 }
 
@@ -212,7 +214,12 @@ func newModules(ctx context.Context, cfg config.Config) (*modules, error) {
 	}
 	numberService := numbers.NewService(numbers.NewRepository(queries), provider)
 	numberService.ConfigureManaged(postgresClient.Pool())
-	numberService.ConfigureLifecycle(numbers.NewDIDWWLifecycleProvider(provider))
+	lifecycleService := lifecycle.NewService(lifecycle.NewRepository(queries), postgresClient.Pool(), lifecycle.NewDIDWWLifecycleProvider(provider))
+	lifecycleReconciliation, err := lifecycle.NewReconciliationJob(lifecycleService, 50)
+	if err != nil {
+		closeDependencies()
+		return nil, fmt.Errorf("initialize number lifecycle reconciliation: %w", err)
+	}
 	numberReconciliation, err := numbers.NewReconciliationJob(numberService, 50)
 	if err != nil {
 		closeDependencies()
@@ -236,6 +243,7 @@ func newModules(ctx context.Context, cfg config.Config) (*modules, error) {
 		idempotencyCleanup:      idempotencyCleanup,
 		trunkHealth:             trunkHealth,
 		numberReconciliation:    numberReconciliation,
+		lifecycleReconciliation: lifecycleReconciliation,
 		reservationExpiration:   reservationExpiration,
 	}, nil
 }
