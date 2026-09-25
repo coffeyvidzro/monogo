@@ -122,3 +122,19 @@ func (r *Repository) ListRecovery(ctx context.Context, limit int32) ([]RecoveryC
 	}
 	return result, nil
 }
+
+func (r *Repository) ClaimStripe(ctx context.Context, paymentID uuid.UUID) (sqlc.Payment, error) {
+	return r.queries.ClaimStripeCheckoutPayment(ctx, paymentID)
+}
+
+func (r *Repository) ClaimPaystack(ctx context.Context, paymentID uuid.UUID, reference string) (sqlc.Payment, error) {
+	return r.queries.RecordProviderPaymentReference(ctx, sqlc.RecordProviderPaymentReferenceParams{
+		ID: paymentID, ProviderReference: reference,
+	})
+}
+
+func (r *Repository) SaveStripeRef(ctx context.Context, paymentID uuid.UUID, reference string) (sqlc.Payment, error) {
+	return r.queries.SaveStripeCheckoutReference(ctx, sqlc.SaveStripeCheckoutReferenceParams{
+		ID: paymentID, ProviderReference: reference,
+	})
+}
