@@ -492,7 +492,12 @@ const recordProviderPaymentReference = `-- name: RecordProviderPaymentReference 
 UPDATE payments SET provider_reference = $1::TEXT,
     status = 'pending'
 WHERE id = $2::UUID AND status = 'created'
-  AND provider_reference IS NULL RETURNING id, checkout_id, provider, attempt_key, provider_reference, amount_minor, currency, status, verified_at, wallet_transaction_id, failure_code, created_at, updated_at
+  AND provider_reference IS NULL
+  AND EXISTS (
+      SELECT 1 FROM checkouts AS c
+      WHERE c.id = payments.checkout_id AND c.status = 'pending'
+        AND c.expires_at > now()
+  ) RETURNING id, checkout_id, provider, attempt_key, provider_reference, amount_minor, currency, status, verified_at, wallet_transaction_id, failure_code, created_at, updated_at
 `
 
 type RecordProviderPaymentReferenceParams struct {
