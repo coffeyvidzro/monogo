@@ -5,11 +5,14 @@ import (
 	"fmt"
 	"time"
 
+	commercialpayments "github.com/coffeyvidzro/monogo/internal/commercial/payments"
 	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
 	"github.com/coffeyvidzro/monogo/internal/integrations/carriers/didww"
 	"github.com/coffeyvidzro/monogo/internal/integrations/freeswitch"
 	"github.com/coffeyvidzro/monogo/internal/integrations/minio"
 	natsintegration "github.com/coffeyvidzro/monogo/internal/integrations/nats"
+	"github.com/coffeyvidzro/monogo/internal/integrations/payments/paystack"
+	"github.com/coffeyvidzro/monogo/internal/integrations/payments/stripe"
 	"github.com/coffeyvidzro/monogo/internal/integrations/postgres"
 	redisintegration "github.com/coffeyvidzro/monogo/internal/integrations/redis"
 	"github.com/coffeyvidzro/monogo/internal/platform/config"
@@ -42,6 +45,7 @@ type modules struct {
 	idempotencyCleanup      *idempotency.CleanupJob
 	trunkHealth             *trunks.HealthCheckJob
 	numberReconciliation    *numbers.ReconciliationJob
+	paymentRecovery         *commercialpayments.RecoveryJob
 }
 
 func newModules(ctx context.Context, cfg config.Config) (*modules, error) {
@@ -94,6 +98,37 @@ func newModules(ctx context.Context, cfg config.Config) (*modules, error) {
 	}
 
 	queries := sqlc.New(postgresClient.Pool())
+	var stripeClient *stripe.Client
+	if cfg.Stripe.SecretKey != "" && cfg.Stripe.WebhookSecret != "" {
+		stripeCfg := stripe.DefaultConfig(cfg.Stripe.SecretKey, cfg.Stripe.WebhookSecret)
+		stripeCfg.BaseURL = cfg.Stripe.APIBaseURL
+		stripeClient, err = stripe.New(stripeCfg)
+		if err != nil {
+			closeDependencies()
+			return nil, fmt.Errorf("initialize Stripe payment recovery: %w", err)
+		}
+	}
+	var paystackClient *paystack.Client
+	if cfg.Paystack.SecretKey != "" {
+		paystackCfg := paystack.DefaultConfig(cfg.Paystack.SecretKey)
+		paystackCfg.BaseURL = cfg.Paystack.APIBaseURL
+		paystackClient, err = paystack.New(paystackCfg)
+		if err != nil {
+			closeDependencies()
+			return nil, fmt.Errorf("initialize Paystack payment recovery: %w", err)
+		}
+	}
+	verifiers := paymentVerifiers(stripeClient, paystackClient)
+	var paymentRecovery *commercialpayments.RecoveryJob
+	if len(verifiers) > 0 {
+		paymentRepository := commercialpayments.NewRepository(postgresClient.Pool())
+		paymentRecovery, err = commercialpayments.NewRecoveryJob(paymentRepository,
+			commercialpayments.NewService(postgresClient.Pool()), verifiers, 100, 30*time.Second)
+		if err != nil {
+			closeDependencies()
+			return nil, fmt.Errorf("initialize payment recovery: %w", err)
+		}
+	}
 
 	routingRepository := routing.NewRepository(queries)
 	routingService := routing.NewService(routingRepository, nil)
@@ -223,6 +258,7 @@ func newModules(ctx context.Context, cfg config.Config) (*modules, error) {
 		idempotencyCleanup:      idempotencyCleanup,
 		trunkHealth:             trunkHealth,
 		numberReconciliation:    numberReconciliation,
+		paymentRecovery:         paymentRecovery,
 	}, nil
 }
 

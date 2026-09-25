@@ -67,7 +67,7 @@ func (s *Service) Settle(ctx context.Context, req VerifiedSettlement) (Settlemen
 		}
 		return SettlementResult{Payment: payment, Checkout: checkoutRow, Transaction: entry}, nil
 	}
-	if (payment.Status != "created" && payment.Status != "pending") || checkoutRow.Status != "pending" {
+	if (payment.Status != "created" && payment.Status != "pending" && payment.Status != "succeeded") || checkoutRow.Status != "pending" {
 		return SettlementResult{}, apperror.NewConflict("payment or checkout cannot be settled")
 	}
 	if payment.ProviderReference != nil && *payment.ProviderReference != req.ProviderReference {
@@ -80,9 +80,11 @@ func (s *Service) Settle(ctx context.Context, req VerifiedSettlement) (Settlemen
 	if wallet.Currency != payment.Currency || wallet.BalanceMinor > math.MaxInt64-payment.AmountMinor {
 		return SettlementResult{}, apperror.NewConflict("wallet cannot accept settlement")
 	}
-	payment, err = repo.Succeed(ctx, payment.ID, req.ProviderReference, req.VerifiedAt)
-	if err != nil {
-		return SettlementResult{}, apperror.NewInternal("mark payment succeeded", err)
+	if payment.Status != "succeeded" {
+		payment, err = repo.Succeed(ctx, payment.ID, req.ProviderReference, req.VerifiedAt)
+		if err != nil {
+			return SettlementResult{}, apperror.NewInternal("mark payment succeeded", err)
+		}
 	}
 	next := wallet.BalanceMinor + payment.AmountMinor
 	if _, err = walletRepo.SetBalance(ctx, wallet, req.OrganizationID, next); err != nil {

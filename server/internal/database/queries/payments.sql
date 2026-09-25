@@ -97,3 +97,16 @@ UPDATE payment_events SET status = sqlc.arg(status)::TEXT,
     processed_at = now(), error_code = sqlc.narg(error_code)::TEXT
 WHERE id = sqlc.arg(id)::UUID AND status = 'received'
   AND sqlc.arg(status)::TEXT IN ('processed', 'ignored', 'failed') RETURNING *;
+
+-- name: ListPaymentsDueForRecovery :many
+SELECT p.*, w.organization_id
+FROM payments AS p
+JOIN checkouts AS c ON c.id = p.checkout_id
+JOIN wallets AS w ON w.id = c.wallet_id
+WHERE p.provider_reference IS NOT NULL
+  AND (
+      p.status = 'pending'
+      OR (p.status = 'succeeded' AND p.wallet_transaction_id IS NULL)
+  )
+ORDER BY p.updated_at, p.id
+LIMIT sqlc.arg(row_limit);

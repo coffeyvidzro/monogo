@@ -12,6 +12,42 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const createUsageCharge = `-- name: CreateUsageCharge :one
+INSERT INTO usage_charges (
+    usage_event_id, wallet_transaction_id, amount_minor, currency
+) VALUES (
+    $1::UUID, $2::UUID,
+    $3::BIGINT, $4::TEXT
+)
+RETURNING id, usage_event_id, wallet_transaction_id, amount_minor, currency, created_at
+`
+
+type CreateUsageChargeParams struct {
+	UsageEventID        uuid.UUID `db:"usage_event_id" json:"usage_event_id"`
+	WalletTransactionID uuid.UUID `db:"wallet_transaction_id" json:"wallet_transaction_id"`
+	AmountMinor         int64     `db:"amount_minor" json:"amount_minor"`
+	Currency            string    `db:"currency" json:"currency"`
+}
+
+func (q *Queries) CreateUsageCharge(ctx context.Context, arg CreateUsageChargeParams) (UsageCharge, error) {
+	row := q.db.QueryRow(ctx, createUsageCharge,
+		arg.UsageEventID,
+		arg.WalletTransactionID,
+		arg.AmountMinor,
+		arg.Currency,
+	)
+	var i UsageCharge
+	err := row.Scan(
+		&i.ID,
+		&i.UsageEventID,
+		&i.WalletTransactionID,
+		&i.AmountMinor,
+		&i.Currency,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const createUsageEvent = `-- name: CreateUsageEvent :one
 INSERT INTO usage_events (
     organization_id, meter_id, quantity, source_type, source_id,
@@ -120,6 +156,33 @@ func (q *Queries) GetMatchingUsageEventByKey(ctx context.Context, arg GetMatchin
 		&i.IdempotencyKey,
 		&i.Dimensions,
 		&i.OccurredAt,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const getUsageChargeByEvent = `-- name: GetUsageChargeByEvent :one
+SELECT uc.id, uc.usage_event_id, uc.wallet_transaction_id, uc.amount_minor, uc.currency, uc.created_at FROM usage_charges AS uc
+JOIN usage_events AS ue ON ue.id = uc.usage_event_id
+WHERE ue.organization_id = $1::UUID
+  AND uc.usage_event_id = $2::UUID
+LIMIT 1
+`
+
+type GetUsageChargeByEventParams struct {
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	UsageEventID   uuid.UUID `db:"usage_event_id" json:"usage_event_id"`
+}
+
+func (q *Queries) GetUsageChargeByEvent(ctx context.Context, arg GetUsageChargeByEventParams) (UsageCharge, error) {
+	row := q.db.QueryRow(ctx, getUsageChargeByEvent, arg.OrganizationID, arg.UsageEventID)
+	var i UsageCharge
+	err := row.Scan(
+		&i.ID,
+		&i.UsageEventID,
+		&i.WalletTransactionID,
+		&i.AmountMinor,
+		&i.Currency,
 		&i.CreatedAt,
 	)
 	return i, err

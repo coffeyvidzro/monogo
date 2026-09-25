@@ -100,3 +100,19 @@ func (r *Repository) EventByIdentity(ctx context.Context, event Event) (sqlc.Pay
 		ProviderEventID: event.ProviderEventID,
 	})
 }
+
+func (r *Repository) ListRecovery(ctx context.Context, limit int32) ([]RecoveryCandidate, error) {
+	rows, err := r.queries.ListPaymentsDueForRecovery(ctx, limit)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]RecoveryCandidate, 0, len(rows))
+	for _, row := range rows {
+		if row.ProviderReference == nil {
+			continue
+		}
+		result = append(result, RecoveryCandidate{OrganizationID: row.OrganizationID, PaymentID: row.ID,
+			Provider: row.Provider, ProviderReference: *row.ProviderReference, AmountMinor: row.AmountMinor, Currency: row.Currency})
+	}
+	return result, nil
+}

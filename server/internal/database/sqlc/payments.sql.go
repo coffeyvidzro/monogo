@@ -272,6 +272,72 @@ func (q *Queries) LinkPaymentWalletTransaction(ctx context.Context, arg LinkPaym
 	return i, err
 }
 
+const listPaymentsDueForRecovery = `-- name: ListPaymentsDueForRecovery :many
+SELECT p.id, p.checkout_id, p.provider, p.attempt_key, p.provider_reference, p.amount_minor, p.currency, p.status, p.verified_at, p.wallet_transaction_id, p.failure_code, p.created_at, p.updated_at, w.organization_id
+FROM payments AS p
+JOIN checkouts AS c ON c.id = p.checkout_id
+JOIN wallets AS w ON w.id = c.wallet_id
+WHERE p.provider_reference IS NOT NULL
+  AND (
+      p.status = 'pending'
+      OR (p.status = 'succeeded' AND p.wallet_transaction_id IS NULL)
+  )
+ORDER BY p.updated_at, p.id
+LIMIT $1
+`
+
+type ListPaymentsDueForRecoveryRow struct {
+	ID                  uuid.UUID          `db:"id" json:"id"`
+	CheckoutID          uuid.UUID          `db:"checkout_id" json:"checkout_id"`
+	Provider            string             `db:"provider" json:"provider"`
+	AttemptKey          string             `db:"attempt_key" json:"attempt_key"`
+	ProviderReference   *string            `db:"provider_reference" json:"provider_reference"`
+	AmountMinor         int64              `db:"amount_minor" json:"amount_minor"`
+	Currency            string             `db:"currency" json:"currency"`
+	Status              string             `db:"status" json:"status"`
+	VerifiedAt          pgtype.Timestamptz `db:"verified_at" json:"verified_at"`
+	WalletTransactionID *uuid.UUID         `db:"wallet_transaction_id" json:"wallet_transaction_id"`
+	FailureCode         *string            `db:"failure_code" json:"failure_code"`
+	CreatedAt           pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	UpdatedAt           pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+	OrganizationID      uuid.UUID          `db:"organization_id" json:"organization_id"`
+}
+
+func (q *Queries) ListPaymentsDueForRecovery(ctx context.Context, rowLimit int32) ([]ListPaymentsDueForRecoveryRow, error) {
+	rows, err := q.db.Query(ctx, listPaymentsDueForRecovery, rowLimit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListPaymentsDueForRecoveryRow{}
+	for rows.Next() {
+		var i ListPaymentsDueForRecoveryRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.CheckoutID,
+			&i.Provider,
+			&i.AttemptKey,
+			&i.ProviderReference,
+			&i.AmountMinor,
+			&i.Currency,
+			&i.Status,
+			&i.VerifiedAt,
+			&i.WalletTransactionID,
+			&i.FailureCode,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.OrganizationID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const lockCheckoutPayment = `-- name: LockCheckoutPayment :one
 SELECT p.id, p.checkout_id, p.provider, p.attempt_key, p.provider_reference, p.amount_minor, p.currency, p.status, p.verified_at, p.wallet_transaction_id, p.failure_code, p.created_at, p.updated_at FROM payments AS p
 JOIN checkouts AS c ON c.id = p.checkout_id

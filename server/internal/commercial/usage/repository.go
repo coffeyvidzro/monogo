@@ -6,19 +6,30 @@ import (
 	"github.com/coffeyvidzro/monogo/internal/database/pgconv"
 	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type Repository struct {
+	db      *pgxpool.Pool
 	queries *sqlc.Queries
 }
 
-func NewRepository(queries *sqlc.Queries) *Repository {
-	return &Repository{queries: queries}
+func NewRepository(queries *sqlc.Queries, databases ...*pgxpool.Pool) *Repository {
+	var db *pgxpool.Pool
+	if len(databases) > 0 {
+		db = databases[0]
+	}
+	return &Repository{db: db, queries: queries}
 }
 
 func (r *Repository) Available() bool {
 	return r != nil && r.queries != nil
 }
+
+func (r *Repository) Begin(ctx context.Context) (pgx.Tx, error) { return r.db.Begin(ctx) }
+
+func (r *Repository) WithTx(tx pgx.Tx) *Repository { return &Repository{queries: r.queries.WithTx(tx)} }
 
 func (r *Repository) Record(ctx context.Context, req RecordRequest) (sqlc.UsageEvent, error) {
 	return r.queries.CreateUsageEvent(ctx, sqlc.CreateUsageEventParams{
@@ -58,4 +69,13 @@ func (r *Repository) Get(ctx context.Context, organizationID, eventID uuid.UUID)
 		OrganizationID: organizationID,
 		ID:             eventID,
 	})
+}
+
+func (r *Repository) ChargeByEvent(ctx context.Context, organizationID, eventID uuid.UUID) (sqlc.UsageCharge, error) {
+	return r.queries.GetUsageChargeByEvent(ctx, sqlc.GetUsageChargeByEventParams{OrganizationID: organizationID, UsageEventID: eventID})
+}
+
+func (r *Repository) CreateCharge(ctx context.Context, eventID, transactionID uuid.UUID, amount int64, currency string) (sqlc.UsageCharge, error) {
+	return r.queries.CreateUsageCharge(ctx, sqlc.CreateUsageChargeParams{UsageEventID: eventID,
+		WalletTransactionID: transactionID, AmountMinor: amount, Currency: currency})
 }

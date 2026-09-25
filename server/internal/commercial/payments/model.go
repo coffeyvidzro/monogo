@@ -74,3 +74,19 @@ type SettlementResult struct {
 	Checkout    sqlc.Checkout
 	Transaction sqlc.WalletTransaction
 }
+
+type RecoveryCandidate struct {
+	OrganizationID    uuid.UUID
+	PaymentID         uuid.UUID
+	Provider          string
+	ProviderReference string
+	AmountMinor       int64
+	Currency          string
+}
+
+type Verification struct {
+	Succeeded   bool
+	AmountMinor int64
+	Currency    string
+	VerifiedAt  time.Time
+}
