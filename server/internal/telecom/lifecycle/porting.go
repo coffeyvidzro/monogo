@@ -205,7 +205,9 @@ func (s *Service) reconcilePortIn(ctx context.Context, operation sqlc.NumberLife
 				ctx,
 				operation.ID,
 			)
-			return errors.Join(providerErr, err)
+			// The operation is quarantined. A carrier error must not stop the
+			// reconciliation worker or trigger an automatic second submission.
+			return err
 		}
 
 		// Both local references must commit together. On an uncertain DB
