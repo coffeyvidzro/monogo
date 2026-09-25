@@ -29,9 +29,6 @@ BEFORE UPDATE ON meters
 FOR EACH ROW
 EXECUTE FUNCTION set_updated_at();
 
-COMMENT ON TABLE meters IS
-    'Organization-owned meter definitions identified by a globally unique key; no pricing or billability is implied.';
-
 CREATE TABLE IF NOT EXISTS usage_events (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE RESTRICT,
@@ -62,9 +59,6 @@ CREATE TABLE IF NOT EXISTS usage_events (
         jsonb_typeof(dimensions) = 'object'
     )
 );
-
-COMMENT ON TABLE usage_events IS
-    'Immutable usage observations. Recording usage does not by itself make that usage billable.';
 
 CREATE INDEX IF NOT EXISTS idx_usage_events_organization_meter_occurred
     ON usage_events (organization_id, meter_id, occurred_at);
