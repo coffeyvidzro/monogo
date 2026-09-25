@@ -45,9 +45,9 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Location", "/v1/payments/"+result.Payment.ID.String())
 	httputil.Created(w, InitiationResponse{
-		Response: response(result.Payment),
-		ClientSecret: result.ClientSecret,
-		DisplayText: result.DisplayText,
+		Response:       response(result.Payment),
+		ClientSecret:   result.ClientSecret,
+		DisplayText:    result.DisplayText,
 		ProviderStatus: result.ProviderStatus,
 	})
 }

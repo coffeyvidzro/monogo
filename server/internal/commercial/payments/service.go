@@ -16,10 +16,10 @@ import (
 )
 
 type Service struct {
-	repo       *Repository
-	walletRepo *wallets.Repository
-	verifiers  map[string]ProviderVerifier
-	stripeClient *stripe.Client
+	repo           *Repository
+	walletRepo     *wallets.Repository
+	verifiers      map[string]ProviderVerifier
+	stripeClient   *stripe.Client
 	paystackClient *paystack.Client
 }
 

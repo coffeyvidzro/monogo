@@ -1,4 +1,4 @@
-h1:m6KTphp0GL9cwZLWd8X6Zuv+4YHk+qeRfwv14kuXq5c=
+h1:6kI5Bkxs7CIliy0qnFF0UCvEegaMLOYFUjLgJwl0MEI=
 001_extensions.sql h1:V12FA/dbb8clPffRf/1QJRpbB/S0eECkElwvfOVRda4=
 002_create_users.sql h1:w8z6z5sqnmtExCGa63iYl2ssG9rgXX8m3VPqvb1z4jo=
 003_create_authentication.sql h1:6R8fm0zInr9A/OW74oYTBLpPYHRf3dpVjw13qyjdd7E=
@@ -30,3 +30,4 @@ h1:m6KTphp0GL9cwZLWd8X6Zuv+4YHk+qeRfwv14kuXq5c=
 029_create_checkouts.sql h1:AvCrVPteyeDR9G7VXbqZ9R9fLM6U4h/OG7LKrpqKUQ0=
 030_create_payments.sql h1:lhzJq2YxJ9arifdINbAyJpixBeHp38x6D4vwOhcBgPk=
 031_create_usage_events.sql h1:QR3peIyPMqYtg7ahjw+GZaJu5fRfjjnbRy1NwS3k5CQ=
+032_guard_active_payment_attempts.sql h1:tDcAAaU/UFcGqw7mH70b+gP09dtzQYQFiwODjLSAbjA=

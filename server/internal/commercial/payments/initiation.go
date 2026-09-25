@@ -16,9 +16,9 @@ import (
 )
 
 type InitiationResult struct {
-	Payment       sqlc.Payment
-	ClientSecret  string
-	DisplayText   string
+	Payment        sqlc.Payment
+	ClientSecret   string
+	DisplayText    string
 	ProviderStatus string
 }
 
@@ -56,10 +56,10 @@ func (s *Service) Initiate(
 			return InitiationResult{}, apperror.NewServiceUnavailable("paystack is not configured", nil)
 		}
 		if err := (paystack.ChargeRequest{
-			Email: input.Email,
+			Email:       input.Email,
 			AmountMinor: 1,
 			MobileMoney: paystack.MobileMoney{
-				Phone: input.Phone,
+				Phone:   input.Phone,
 				Network: paystack.MobileMoneyNetwork(input.Network),
 			},
 		}).Validate(); err != nil {
@@ -92,8 +92,8 @@ func (s *Service) initiateStripe(ctx context.Context, payment sqlc.Payment) (Ini
 	}
 	session, err := s.stripeClient.CreateCheckoutSession(ctx, stripe.CreateCheckoutSessionRequest{
 		AmountMinor: payment.AmountMinor,
-		Currency: payment.Currency,
-		PaymentID: payment.ID.String(),
+		Currency:    payment.Currency,
+		PaymentID:   payment.ID.String(),
 	})
 	if err != nil {
 		return InitiationResult{}, apperror.NewServiceUnavailable(
@@ -122,12 +122,12 @@ func (s *Service) initiatePaystack(ctx context.Context, payment sqlc.Payment, in
 		return InitiationResult{}, initiationClaimError(err)
 	}
 	charge, err := s.paystackClient.ChargeMobileMoney(ctx, paystack.ChargeRequest{
-		Email: input.Email,
+		Email:       input.Email,
 		AmountMinor: payment.AmountMinor,
-		Currency: payment.Currency,
-		Reference: reference,
+		Currency:    payment.Currency,
+		Reference:   reference,
 		MobileMoney: paystack.MobileMoney{
-			Phone: input.Phone,
+			Phone:   input.Phone,
 			Network: paystack.MobileMoneyNetwork(input.Network),
 		},
 	})
