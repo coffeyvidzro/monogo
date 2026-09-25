@@ -90,6 +90,17 @@ func (s *Service) Create(ctx context.Context, organizationID uuid.UUID, req Crea
 		return sqlc.Call{}, apperror.NewNotFound("no eligible outbound route")
 	}
 
+	// Until an atomic prepaid reservation and final settlement are wired,
+	// managed carrier origination must not create unbacked wholesale exposure.
+	if decision.ID != uuid.Nil {
+		reason := "prepaid_authorization_unavailable"
+		_, _ = s.repo.MarkFailed(ctx, organizationID, call.ID, &reason)
+		return sqlc.Call{}, apperror.NewServiceUnavailable(
+			"managed outbound calls require prepaid authorization",
+			nil,
+		)
+	}
+
 	result, selected, err := executeRoutePlan(ctx, decision.Routes, func(
 		attemptCtx context.Context,
 		route routing.OutboundRoute,
