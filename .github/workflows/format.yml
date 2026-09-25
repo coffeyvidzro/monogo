@@ -1,9 +1,6 @@
 name: Format and Generate
 
 on:
-  push:
-    branches:
-      - feat/number-lifecycle-carrier-orchestration-safety
   pull_request:
     branches:
       - main
