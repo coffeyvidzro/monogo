@@ -4,7 +4,6 @@ on:
   pull_request:
     branches:
       - main
-      - feat/managed-number-purchase-intents
     paths:
       - "server/**"
       - ".github/workflows/format.yml"
