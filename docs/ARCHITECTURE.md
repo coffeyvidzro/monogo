@@ -1,155 +1,36 @@
-# Leamout Architecture
+# Leamout architecture
 
-Leamout is a managed communications cloud. Leamout operates its control plane,
-runtime cells, telecom edges, and the infrastructure that supports them.
+Leamout Cloud provides identity, tenancy, programmable voice, BYOC carrier
+connections, carrier routing, number inventory, and runtime media control.
 
-Customers can connect their own carrier (BYOC), or use connectivity managed by
-Leamout. The deployment model remains the same in both cases: customer traffic
-is served by Leamout Cloud.
+## Commercial functionality removed
 
-## Product model
+The commercial implementation (wallets, checkouts, payment attempts,
+pay-as-you-go pricing, and usage charging) and its source migrations have
+been removed. This repository currently does not provide an active payment
+gateway, prepaid billing, or a telecom usage charging service.
 
-Leamout supports two connectivity modes:
+BYOC calling remains supported through customer-owned carrier connections;
+upstream carrier costs remain between the customer and their carrier.
+Managed outbound calls are disabled until a new commercial authorization and
+settlement system has been implemented and verified. Managed DID purchasing is
+also disabled to prevent new unapproved wholesale obligations. Existing managed
+resources and provider reconciliation records remain in the telecom control
+plane and require operator oversight.
 
-| Connectivity mode | Platform | Telecom relationship |
-| --- | --- | --- |
-| Cloud + BYOC | Prepaid PAYG | The customer selects a carrier and supplies its credentials; carrier charges remain outside Leamout-managed telecom usage |
-| Cloud + Managed | Prepaid PAYG | Leamout selects and provisions connectivity; telecom usage is included in prepaid PAYG charging |
+## Control plane
 
-```text
-                         Leamout Control Plane
-                                   |
-             +---------------------+---------------------+
-             |                     |                     |
-          Identity             Commercial              Fleet
-             |                     |                     |
-             +---------------------+---------------------+
-                                   |
-                             Organizations
-                                   |
-                    Communications Resources
-                                   |
-          +------------------------+------------------------+
-          |                        |                        |
-        Voice                    Messaging               Numbers
-          |                        |                        |
-          +------------------------+------------------------+
-                                   |
-                              Applications
-                                   |
-                    +--------------+--------------+
-                    |              |              |
-                  Calls         Messages       Number Flows
-                    |              |              |
-                    +--------------+--------------+
-                                   |
-                           Routing / Policy Engine
-                                   |
-                                   v
-                         Leamout Cloud Runtime
-                                   |
-                          +--------+--------+
-                          |                 |
-                         BYOC            Managed
-                          |                 |
-                    customer carrier   Leamout supplies
-```
+Identity and tenancy own users, organizations, authentication, and access
+control. Telecom owns routing, calling, number provisioning, provider
+integrations, and call lifecycle. Platform owns events, webhooks, audit events,
+and infrastructure.
 
-## Control-plane domains
+## Migration history and existing installations
 
-### Identity
-
-Identity owns users, authentication, sessions, API credentials, organization
-membership, roles, and permissions. Support access requires auditable, scoped
-authorization.
-
-### Commercial
-
-Commercial owns plans, entitlements, prices, prepaid wallets, credit
-reservations, rating, invoices, and payment-provider integration. Stripe and
-Paystack are payment rails; Leamout's append-only ledger remains the source of
-truth for prepaid credit.
-
-Commercial is authoritative for Cloud PAYG. BYOC carrier costs remain between
-the customer and the selected carrier, while Leamout rates Cloud platform
-usage. Managed connectivity includes telecom usage in Leamout's rating and
-charging path.
-
-### Fleet
-
-Fleet owns runtime-cell registration, identity, version, health, entitlement
-synchronization, and revocation. Runtime cells use short-lived credentials and
-are operated as part of Leamout Cloud.
-
-## Communications model
-
-Organizations own communications resources. Voice, messaging, and numbers are
-capabilities used by applications. Applications create calls, messages, and
-number flows. The routing and policy engine resolves those operations onto an
-eligible runtime and connectivity route.
-
-Routing decisions must consider:
-
-- organization and application policy;
-- resource ownership and entitlement;
-- BYOC versus managed connectivity;
-- destination, capability, health, priority, and capacity;
-- prepaid authorization for platform and managed telecom usage; and
-- regional and regulatory constraints.
-
-The routing engine consumes commercial authorization; it does not calculate or
-mutate balances itself.
-
-## Connectivity boundaries
-
-### BYOC
-
-The organization selects the carrier and supplies the connection credentials.
-The carrier may be a third party or Leamout Carrier. Credentials are encrypted
-inside the Cloud secret boundary and scoped to the serving runtime.
-
-Leamout rates Cloud platform usage, but upstream telecom cost remains between
-the customer and its selected carrier and is excluded from Leamout-managed
-telecom usage.
-
-### Managed Carrier
-
-Leamout selects and provisions connectivity, is the commercial counterparty,
-and includes telecom usage in prepaid PAYG charging. Upstream provider
-selection, routing identifiers, and credentials are platform-internal and are
-never exposed through customer APIs.
-
-## Deployment boundaries
-
-The Cloud platform includes the public communications API, routing, SIP and
-media control, event production, webhooks, commercial services,
-provider-orchestration, usage-ingestion, reconciliation, fraud control, and
-fleet management.
-
-The Docker Compose model in `deploy/compose.yaml` defines the Leamout Cloud
-runtime and its telecom edge. Leamout operates this deployment and supplies its
-production secrets, public addresses, DNS, and SIP/TURN certificates.
-
-## Availability rules
-
-- Cloud + BYOC depends on Leamout Cloud, but not managed-carrier telecom
-  authorization; customer carrier charges remain external.
-- Cloud + Managed requires current entitlement and prepaid commercial
-  authorization for managed telecom usage.
-- Usage delivery is idempotent and retryable. Managed usage is reconciled with
-  carrier records before financial settlement is considered final.
-
-## Implementation direction
-
-1. Keep identity, tenancy, communications, routing, and runtime packages as the
-   runtime-cell foundation.
-2. Compose commercial, fleet, usage, and provider orchestration as explicit
-   Cloud modules with separate configuration and deployment permissions.
-3. Keep Stripe, Paystack, DIDWW, and CommPeak credentials in Cloud secret
-   boundaries.
-4. Model Cloud usage events, the append-only wallet ledger, credit reservations,
-   and managed-resource assignments as distinct commercial concerns.
-5. Deliver Cloud + BYOC before enabling Cloud + Managed.
-
-The multi-carrier ranking and number lifecycle safety boundaries are described
-in [Multi-carrier routing and number lifecycle](multi-carrier-and-number-lifecycle.md).
+Commercial source migrations 028–031 have been removed. Later control-plane
+and telecom migrations retain their existing filenames and versions. Removing
+migration source files from Git does not drop existing database tables, erase
+financial records, or refund customers. A database that already applied
+migrations 028–031 requires a separate reviewed upgrade and financial record
+retention/reconciliation plan. Use the revised migration set only for a new
+database until such a plan is available.
