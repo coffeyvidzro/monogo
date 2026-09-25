@@ -2,8 +2,6 @@ package numbers
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 	"strings"
 	"time"
@@ -201,135 +199,11 @@ func (s *Service) Purchase(
 	key string,
 	req ManagedPurchaseRequest,
 ) (ManagedOrder, error) {
-	key = strings.TrimSpace(key)
-	if err := normalizeManagedPurchase(organizationID, key, &req); err != nil {
-		return ManagedOrder{}, err
-	}
-	digest := sha256.Sum256([]byte(req.Number + "\n" + req.CountryCode))
-	requestHash := hex.EncodeToString(digest[:])
-	existing, err := s.repo.GetManagedOrderByKey(ctx, organizationID, key)
-	if err == nil {
-		if existing.RequestHash != requestHash {
-			return ManagedOrder{}, apperror.NewConflict(
-				"idempotency key was used with a different purchase",
-			)
-		}
-		return existing, nil
-	}
-	if !errors.Is(err, pgx.ErrNoRows) {
-		return ManagedOrder{}, apperror.NewInternal("read managed number order", err)
-	}
-	if s.inventory == nil {
-		return ManagedOrder{}, apperror.NewServiceUnavailable("managed number purchasing is not configured", nil)
-	}
-	_, targets, err := s.repo.ManagedRoutingTargets(ctx)
-	if err != nil {
-		return ManagedOrder{}, apperror.NewInternal("resolve managed inbound route", err)
-	}
-	if len(targets) != 1 {
-		return ManagedOrder{}, apperror.NewServiceUnavailable(
-			"managed inbound route is not configured unambiguously",
-			nil,
-		)
-	}
-
-	// Resolve the provider identity again at purchase time. Search results are
-	// display-only and are never treated as proof that inventory is still valid.
-	inventoryResult, err := s.inventory.SearchAvailableDIDs(
-		ctx,
-		didww.AvailableDIDFilter{
-			NumberContains: strings.TrimPrefix(req.Number, "+"),
-		},
+	// Without commercial authorization, do not incur a new wholesale order.
+	return ManagedOrder{}, apperror.NewServiceUnavailable(
+		"managed number purchasing is disabled without commercial authorization",
+		nil,
 	)
-	if err != nil {
-		return ManagedOrder{}, apperror.NewConflict("number is no longer available")
-	}
-	var inventory didww.AvailableDID
-	for _, candidate := range inventoryResult.Data {
-		if normalizeProviderNumber(candidate.Attributes.Number) == req.Number {
-			if inventory.ID != "" {
-				return ManagedOrder{}, apperror.NewServiceUnavailable(
-					"provider returned ambiguous inventory",
-					nil,
-				)
-			}
-			inventory = candidate
-		}
-	}
-	if inventory.ID == "" {
-		return ManagedOrder{}, apperror.NewConflict("number is no longer available")
-	}
-	providerNumber := normalizeProviderNumber(inventory.Attributes.Number)
-	if providerNumber != req.Number {
-		return ManagedOrder{}, apperror.NewConflict("provider inventory does not match requested number")
-	}
-	skuID, err := availableDIDSKU(inventory)
-	if err != nil {
-		return ManagedOrder{}, apperror.NewServiceUnavailable("provider inventory is incomplete", err)
-	}
-
-	order, created, err := s.repo.CreateManagedOrder(
-		ctx,
-		organizationID,
-		key,
-		requestHash,
-		req,
-		inventory.ID,
-		skuID,
-	)
-	if err != nil {
-		return ManagedOrder{}, managedWriteError(err)
-	}
-	if !created {
-		if order.RequestHash != requestHash {
-			return ManagedOrder{}, apperror.NewConflict("idempotency key was used with a different purchase")
-		}
-		return order, nil
-	}
-	return s.submit(ctx, order)
-}
-
-func (s *Service) submit(ctx context.Context, order ManagedOrder) (ManagedOrder, error) {
-	claimed, err := s.repo.ClaimManagedSubmission(ctx, order.ID)
-	if err != nil {
-		return ManagedOrder{}, managedWriteError(err)
-	}
-	providerOrder, err := s.inventory.OrderDID(ctx, didww.OrderDIDRequest{
-		SKUID:               claimed.SKUID,
-		AvailableDIDID:      claimed.AvailableDIDID,
-		ExternalReferenceID: claimed.ID.String(),
-	})
-	if err != nil {
-		// Once the request starts, even a timeout or 4xx can hide a committed
-		// provider order. Reconciliation, never resubmission, resolves it.
-		unknown, updateErr := s.repo.MarkManagedOutcomeUnknown(
-			ctx,
-			claimed.ID,
-			"provider_response_unknown",
-			err.Error(),
-			s.now().Add(managedReconcileDelay),
-		)
-		if updateErr != nil {
-			return ManagedOrder{}, apperror.NewInternal("persist uncertain provider outcome", updateErr)
-		}
-		return unknown, nil
-	}
-	if providerOrder.ID == "" ||
-		providerOrder.Attributes.ExternalReferenceID == nil ||
-		*providerOrder.Attributes.ExternalReferenceID != claimed.ID.String() {
-		unknown, updateErr := s.repo.MarkManagedOutcomeUnknown(
-			ctx,
-			claimed.ID,
-			"provider_identity_mismatch",
-			"provider order identity could not be verified",
-			s.now(),
-		)
-		if updateErr != nil {
-			return ManagedOrder{}, apperror.NewInternal("persist uncertain provider outcome", updateErr)
-		}
-		return unknown, nil
-	}
-	return s.repo.RecordManagedProviderOrder(ctx, claimed.ID, providerOrder.ID, s.now())
 }
 
 func (s *Service) GetManagedOrder(

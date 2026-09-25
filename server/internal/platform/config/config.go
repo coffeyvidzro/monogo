@@ -20,17 +20,6 @@ type CommPeakConfig struct {
 	APIBaseURL    string `env:"API_BASE_URL" envDefault:"https://api.commpeak.com"`
 }
 
-type StripeConfig struct {
-	SecretKey     string `env:"SECRET_KEY,required"`
-	WebhookSecret string `env:"WEBHOOK_SECRET,required"`
-	APIBaseURL    string `env:"API_BASE_URL" envDefault:"https://api.stripe.com/v1"`
-}
-
-type PaystackConfig struct {
-	SecretKey  string `env:"SECRET_KEY"`
-	APIBaseURL string `env:"API_BASE_URL" envDefault:"https://api.paystack.co"`
-}
-
 type MinIOConfig struct {
 	AccessKey string `env:"APP_ACCESS_KEY,required"`
 	SecretKey string `env:"APP_SECRET_KEY,required"`
@@ -47,8 +36,6 @@ type Config struct {
 	EncryptionKey         string         `env:"ENCRYPTION_KEY,required"`
 	DIDWW                 DIDWWConfig    `envPrefix:"DIDWW_"`
 	CommPeak              CommPeakConfig `envPrefix:"COMMPEAK_"`
-	Stripe                StripeConfig   `envPrefix:"STRIPE_"`
-	Paystack              PaystackConfig `envPrefix:"PAYSTACK_"`
 	MinIO                 MinIOConfig    `envPrefix:"MINIO_"`
 	TURNAuthSecret        string         `env:"TURN_AUTH_SECRET,required"`
 	TURNPublicURLs        []string       `env:"TURN_PUBLIC_URLS" envSeparator:"," envDefault:"stun:localhost:3478,turn:localhost:3478?transport=udp,turn:localhost:3478?transport=tcp"`
@@ -87,11 +74,6 @@ func (c *Config) normalize() {
 	c.DIDWW.APIBaseURL = strings.TrimRight(strings.TrimSpace(c.DIDWW.APIBaseURL), "/")
 	c.CommPeak.Authorization = strings.TrimSpace(c.CommPeak.Authorization)
 	c.CommPeak.APIBaseURL = strings.TrimRight(strings.TrimSpace(c.CommPeak.APIBaseURL), "/")
-	c.Stripe.SecretKey = strings.TrimSpace(c.Stripe.SecretKey)
-	c.Stripe.WebhookSecret = strings.TrimSpace(c.Stripe.WebhookSecret)
-	c.Stripe.APIBaseURL = strings.TrimRight(strings.TrimSpace(c.Stripe.APIBaseURL), "/")
-	c.Paystack.SecretKey = strings.TrimSpace(c.Paystack.SecretKey)
-	c.Paystack.APIBaseURL = strings.TrimRight(strings.TrimSpace(c.Paystack.APIBaseURL), "/")
 	c.MinIO.AccessKey = strings.TrimSpace(c.MinIO.AccessKey)
 	c.MinIO.SecretKey = strings.TrimSpace(c.MinIO.SecretKey)
 	c.TURNAuthSecret = strings.TrimSpace(c.TURNAuthSecret)

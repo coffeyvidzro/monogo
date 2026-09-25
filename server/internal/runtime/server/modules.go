@@ -4,15 +4,12 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/coffeyvidzro/monogo/internal/commercial"
 	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
 	"github.com/coffeyvidzro/monogo/internal/identity"
 	"github.com/coffeyvidzro/monogo/internal/integrations/carriers/didww"
 	"github.com/coffeyvidzro/monogo/internal/integrations/coturn"
 	"github.com/coffeyvidzro/monogo/internal/integrations/freeswitch"
 	"github.com/coffeyvidzro/monogo/internal/integrations/minio"
-	"github.com/coffeyvidzro/monogo/internal/integrations/payments/paystack"
-	"github.com/coffeyvidzro/monogo/internal/integrations/payments/stripe"
 	"github.com/coffeyvidzro/monogo/internal/integrations/postgres"
 	redisintegration "github.com/coffeyvidzro/monogo/internal/integrations/redis"
 	"github.com/coffeyvidzro/monogo/internal/platform"
@@ -34,7 +31,6 @@ type modules struct {
 	postgres             *postgres.Client
 	redis                *redisintegration.Client
 	freeSwitch           *freeswitch.Client
-	commercial           *commercial.Module
 	identity             *identity.Module
 	tenancy              *tenancy.Module
 	platform             *platform.Module
@@ -125,23 +121,6 @@ func newModules(ctx context.Context, cfg config.Config) (*modules, error) {
 		cfg.Domain,
 	)
 	tenancyModule := tenancy.New(queries)
-	stripeConfig := stripe.DefaultConfig(cfg.Stripe.SecretKey, cfg.Stripe.WebhookSecret)
-	stripeConfig.BaseURL = cfg.Stripe.APIBaseURL
-	stripeClient, err := stripe.New(stripeConfig)
-	if err != nil {
-		closeDependencies()
-		return nil, fmt.Errorf("initialize Stripe payment provider: %w", err)
-	}
-
-	paystackConfig := paystack.DefaultConfig(cfg.Paystack.SecretKey)
-	paystackConfig.BaseURL = cfg.Paystack.APIBaseURL
-	paystackClient, err := paystack.New(paystackConfig)
-	if err != nil {
-		closeDependencies()
-		return nil, fmt.Errorf("initialize Paystack payment provider: %w", err)
-	}
-
-	commercialModule := commercial.New(postgresClient.Pool(), queries, stripeClient, paystackClient)
 	platformModule := platform.New(postgresClient.Pool(), queries)
 	metricsRegistry := metrics.New(redisClient)
 	telecomModule, err := telecom.New(telecom.Dependencies{
@@ -181,7 +160,6 @@ func newModules(ctx context.Context, cfg config.Config) (*modules, error) {
 		postgres:             postgresClient,
 		redis:                redisClient,
 		freeSwitch:           freeSwitch,
-		commercial:           commercialModule,
 		identity:             identityModule,
 		tenancy:              tenancyModule,
 		platform:             platformModule,

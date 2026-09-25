@@ -17,9 +17,6 @@ export MINIO_APP_SECRET_KEY="$MINIO_ROOT_PASSWORD"
 # are made by these suites. Never reuse these values for real deployments.
 export DIDWW_API_KEY="${DIDWW_API_KEY:-acceptance-didww-not-live}"
 export COMMPEAK_API_AUTHORIZATION="${COMMPEAK_API_AUTHORIZATION:-acceptance-commpeak-not-live}"
-export STRIPE_SECRET_KEY="${STRIPE_SECRET_KEY:-sk_test_acceptance_not_live}"
-export STRIPE_WEBHOOK_SECRET="${STRIPE_WEBHOOK_SECRET:-whsec_acceptance_not_live}"
-export PAYSTACK_SECRET_KEY="${PAYSTACK_SECRET_KEY:-sk_test_acceptance_not_live}"
 
 
 export GRACEFUL_DRAIN_SUITE_DIR="$SCRIPT_DIR"
