@@ -45,7 +45,6 @@ func (q *Queries) ClaimStripeCheckoutPayment(ctx context.Context, id uuid.UUID) 
 	)
 	return i, err
 }
-}
 
 const createCheckoutPayment = `-- name: CreateCheckoutPayment :one
 WITH payment_checkout AS MATERIALIZED (
@@ -593,5 +592,4 @@ func (q *Queries) SaveStripeCheckoutReference(ctx context.Context, arg SaveStrip
 		&i.UpdatedAt,
 	)
 	return i, err
-}
 }
