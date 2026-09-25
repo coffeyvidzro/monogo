@@ -12,6 +12,41 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const claimStripeCheckoutPayment = `-- name: ClaimStripeCheckoutPayment :one
+UPDATE payments SET status = 'pending'
+WHERE id = $1::UUID
+  AND provider = 'stripe' AND status = 'created'
+  AND provider_reference IS NULL
+  AND EXISTS (
+      SELECT 1 FROM checkouts AS c
+      WHERE c.id = payments.checkout_id
+        AND c.status = 'pending' AND c.expires_at > now()
+  )
+RETURNING id, checkout_id, provider, attempt_key, provider_reference, amount_minor, currency, status, verified_at, wallet_transaction_id, failure_code, created_at, updated_at
+`
+
+func (q *Queries) ClaimStripeCheckoutPayment(ctx context.Context, id uuid.UUID) (Payment, error) {
+	row := q.db.QueryRow(ctx, claimStripeCheckoutPayment, id)
+	var i Payment
+	err := row.Scan(
+		&i.ID,
+		&i.CheckoutID,
+		&i.Provider,
+		&i.AttemptKey,
+		&i.ProviderReference,
+		&i.AmountMinor,
+		&i.Currency,
+		&i.Status,
+		&i.VerifiedAt,
+		&i.WalletTransactionID,
+		&i.FailureCode,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+}
+
 const createCheckoutPayment = `-- name: CreateCheckoutPayment :one
 WITH payment_checkout AS MATERIALIZED (
     SELECT c.id, c.amount_minor, c.currency
@@ -524,4 +559,39 @@ func (q *Queries) RecordProviderPaymentReference(ctx context.Context, arg Record
 		&i.UpdatedAt,
 	)
 	return i, err
+}
+
+const saveStripeCheckoutReference = `-- name: SaveStripeCheckoutReference :one
+UPDATE payments SET provider_reference = $1::TEXT
+WHERE id = $2::UUID
+  AND provider = 'stripe' AND status IN ('pending', 'succeeded')
+  AND (provider_reference IS NULL OR provider_reference = $1::TEXT)
+RETURNING id, checkout_id, provider, attempt_key, provider_reference, amount_minor, currency, status, verified_at, wallet_transaction_id, failure_code, created_at, updated_at
+`
+
+type SaveStripeCheckoutReferenceParams struct {
+	ProviderReference string    `db:"provider_reference" json:"provider_reference"`
+	ID                uuid.UUID `db:"id" json:"id"`
+}
+
+func (q *Queries) SaveStripeCheckoutReference(ctx context.Context, arg SaveStripeCheckoutReferenceParams) (Payment, error) {
+	row := q.db.QueryRow(ctx, saveStripeCheckoutReference, arg.ProviderReference, arg.ID)
+	var i Payment
+	err := row.Scan(
+		&i.ID,
+		&i.CheckoutID,
+		&i.Provider,
+		&i.AttemptKey,
+		&i.ProviderReference,
+		&i.AmountMinor,
+		&i.Currency,
+		&i.Status,
+		&i.VerifiedAt,
+		&i.WalletTransactionID,
+		&i.FailureCode,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
 }
