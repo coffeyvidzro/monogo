@@ -2,10 +2,10 @@ package lifecycle
 
 import (
 	"context"
-	"time"
 	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
 	"github.com/coffeyvidzro/monogo/internal/platform/outbox"
 	"github.com/google/uuid"
+	"time"
 )
 
 func insertNumberEvent(ctx context.Context, queries *sqlc.Queries, subject string, organizationID, aggregateID uuid.UUID, resource any) error {
@@ -16,4 +16,3 @@ func insertNumberEvent(ctx context.Context, queries *sqlc.Queries, subject strin
 	})
 	return err
 }
-

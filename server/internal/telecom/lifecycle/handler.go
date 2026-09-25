@@ -2,13 +2,13 @@ package lifecycle
 
 import (
 	"encoding/json"
-	"net/http"
 	"github.com/coffeyvidzro/monogo/internal/platform/middleware"
 	"github.com/coffeyvidzro/monogo/pkg/apperror"
 	"github.com/coffeyvidzro/monogo/pkg/helper"
 	"github.com/coffeyvidzro/monogo/pkg/httputil"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	"net/http"
 )
 
 type Handler struct {

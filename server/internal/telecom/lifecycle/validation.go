@@ -2,12 +2,12 @@ package lifecycle
 
 import (
 	"errors"
-	"regexp"
-	"strings"
 	"github.com/coffeyvidzro/monogo/pkg/apperror"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
+	"regexp"
+	"strings"
 )
 
 var e164 = regexp.MustCompile(`^\+[1-9][0-9]{6,14}$`)
@@ -64,5 +64,3 @@ func writeError(err error) error {
 	}
 	return apperror.NewInternal("update number", err)
 }
-
-

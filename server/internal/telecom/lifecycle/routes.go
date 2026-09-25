@@ -1,8 +1,8 @@
 package lifecycle
 
 import (
-	"net/http"
 	"github.com/go-chi/chi/v5"
+	"net/http"
 )
 
 // RegisterRoutes attaches lifecycle endpoints to the authenticated /numbers router.

@@ -7,8 +7,8 @@ import (
 )
 
 type ReconciliationJob struct {
-	service *Service
-	batch int
+	service  *Service
+	batch    int
 	interval time.Duration
 }
 
@@ -58,4 +58,3 @@ func (j *ReconciliationJob) Run(ctx context.Context) error {
 		}
 	}
 }
-

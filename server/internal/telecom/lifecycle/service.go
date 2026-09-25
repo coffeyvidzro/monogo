@@ -3,21 +3,21 @@ package lifecycle
 import (
 	"context"
 	"errors"
-	"time"
 	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
 	"github.com/coffeyvidzro/monogo/pkg/apperror"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"time"
 )
 
 const managedReconcileDelay = 30 * time.Second
 
 type Service struct {
-	repo *Repository
-	db *pgxpool.Pool
+	repo      *Repository
+	db        *pgxpool.Pool
 	lifecycle NumberLifecycleProvider
-	now func() time.Time
+	now       func() time.Time
 }
 
 func NewService(repo *Repository, db *pgxpool.Pool, provider NumberLifecycleProvider) *Service {
@@ -45,4 +45,3 @@ func (s *Service) ReconcileLifecycle(ctx context.Context, operation sqlc.NumberL
 		return nil
 	}
 }
-
