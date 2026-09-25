@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/coffeyvidzro/monogo/internal/commercial/checkout"
 	"github.com/coffeyvidzro/monogo/internal/database/pgconv"
 	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
 	"github.com/google/uuid"
@@ -49,8 +50,13 @@ func (r *Repository) LinkTransaction(ctx context.Context, id, transactionID uuid
 	return r.queries.LinkPaymentWalletTransaction(ctx, sqlc.LinkPaymentWalletTransactionParams{ID: id, WalletTransactionID: transactionID})
 }
 
-func (r *Repository) CompleteCheckout(ctx context.Context, id, transactionID uuid.UUID) (sqlc.Checkout, error) {
-	return r.queries.CompleteWalletCheckout(ctx, sqlc.CompleteWalletCheckoutParams{ID: id, CreditedTransactionID: transactionID})
+func (r *Repository) CompleteCheckout(
+	ctx context.Context,
+	current sqlc.Checkout,
+	payment sqlc.Payment,
+	entry sqlc.WalletTransaction,
+) (sqlc.Checkout, error) {
+	return checkout.CompleteWithCredit(ctx, r.queries, current, payment, entry)
 }
 
 func (r *Repository) Create(ctx context.Context, req Attempt) (sqlc.Payment, error) {
