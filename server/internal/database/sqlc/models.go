@@ -375,6 +375,19 @@ type PaymentEvent struct {
 	ProcessedAt     pgtype.Timestamptz `db:"processed_at" json:"processed_at"`
 }
 
+type PaymentInitiation struct {
+	PaymentID         uuid.UUID          `db:"payment_id" json:"payment_id"`
+	CheckoutID        uuid.UUID          `db:"checkout_id" json:"checkout_id"`
+	RequestHash       string             `db:"request_hash" json:"request_hash"`
+	State             string             `db:"state" json:"state"`
+	ProviderReference *string            `db:"provider_reference" json:"provider_reference"`
+	ClientSecret      *string            `db:"client_secret" json:"client_secret"`
+	DisplayText       *string            `db:"display_text" json:"display_text"`
+	UpstreamStatus    *string            `db:"upstream_status" json:"upstream_status"`
+	StartedAt         pgtype.Timestamptz `db:"started_at" json:"started_at"`
+	UpdatedAt         pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+}
+
 type PhoneNumber struct {
 	ID                  uuid.UUID          `db:"id" json:"id"`
 	OrganizationID      uuid.UUID          `db:"organization_id" json:"organization_id"`
