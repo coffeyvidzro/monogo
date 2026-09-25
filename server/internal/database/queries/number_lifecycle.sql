@@ -31,6 +31,28 @@ WHERE status IN ('pending', 'submitted', 'in_progress')
 ORDER BY reconcile_after, created_at
 LIMIT sqlc.arg(batch_size);
 
+-- name: ClaimPortInSubmission :one
+UPDATE number_lifecycle_operations
+SET status = 'submitted',
+    submitted_at = now(),
+    reconcile_after = now() + interval '2 minutes',
+    reconcile_attempts = reconcile_attempts + 1
+WHERE id = sqlc.arg(id)
+  AND operation = 'port_in'
+  AND status = 'pending'
+  AND provider_reference IS NULL
+RETURNING *;
+
+-- name: MarkPortInSubmissionManualReview :one
+UPDATE number_lifecycle_operations
+SET status = 'manual_review',
+    reconcile_attempts = reconcile_attempts + 1
+WHERE id = sqlc.arg(id)
+  AND operation = 'port_in'
+  AND status = 'submitted'
+  AND provider_reference IS NULL
+RETURNING *;
+
 -- name: MarkNumberLifecycleSubmitted :one
 UPDATE number_lifecycle_operations
 SET status = 'submitted',
@@ -44,9 +66,7 @@ RETURNING *;
 
 -- name: ScheduleNumberLifecycleReconciliation :one
 UPDATE number_lifecycle_operations
-SET status = CASE WHEN status = 'pending' THEN 'submitted' ELSE status END,
-    submitted_at = COALESCE(submitted_at, now()),
-    reconcile_after = sqlc.arg(reconcile_after),
+SET reconcile_after = sqlc.arg(reconcile_after),
     reconcile_attempts = reconcile_attempts + 1,
     failure_code = NULL,
     failure_message = NULL
@@ -94,14 +114,16 @@ SELECT * FROM emergency_registrations
 WHERE organization_id = sqlc.arg(organization_id)
   AND phone_number_id = sqlc.arg(phone_number_id)
   AND status IN ('pending', 'validating', 'active')
-ORDER BY created_at DESC LIMIT 1;
+ORDER BY CASE WHEN status = 'active' THEN 0 ELSE 1 END,
+         created_at DESC
+LIMIT 1;
 
 -- name: DeactivateCurrentEmergencyRegistration :exec
 UPDATE emergency_registrations
 SET status = 'deactivated', deactivated_at = now()
 WHERE organization_id = sqlc.arg(organization_id)
   AND phone_number_id = sqlc.arg(phone_number_id)
-  AND status IN ('pending', 'validating', 'active');
+  AND status = 'active';
 
 -- name: ListEmergencyRegistrationsDue :many
 SELECT * FROM emergency_registrations

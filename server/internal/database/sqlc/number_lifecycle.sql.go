@@ -130,6 +130,45 @@ func (q *Queries) AddPortInDocument(ctx context.Context, arg AddPortInDocumentPa
 	return i, err
 }
 
+const claimPortInSubmission = `-- name: ClaimPortInSubmission :one
+UPDATE number_lifecycle_operations
+SET status = 'submitted',
+    submitted_at = now(),
+    reconcile_after = now() + interval '2 minutes',
+    reconcile_attempts = reconcile_attempts + 1
+WHERE id = $1
+  AND operation = 'port_in'
+  AND status = 'pending'
+  AND provider_reference IS NULL
+RETURNING id, organization_id, phone_number_id, provider_id, idempotency_key, operation, status, provider_reference, requested_number, request_payload, failure_code, failure_message, submitted_at, completed_at, created_at, updated_at, reconcile_after, reconcile_attempts
+`
+
+func (q *Queries) ClaimPortInSubmission(ctx context.Context, id uuid.UUID) (NumberLifecycleOperation, error) {
+	row := q.db.QueryRow(ctx, claimPortInSubmission, id)
+	var i NumberLifecycleOperation
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.PhoneNumberID,
+		&i.ProviderID,
+		&i.IdempotencyKey,
+		&i.Operation,
+		&i.Status,
+		&i.ProviderReference,
+		&i.RequestedNumber,
+		&i.RequestPayload,
+		&i.FailureCode,
+		&i.FailureMessage,
+		&i.SubmittedAt,
+		&i.CompletedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ReconcileAfter,
+		&i.ReconcileAttempts,
+	)
+	return i, err
+}
+
 const completeNumberLifecycleOperation = `-- name: CompleteNumberLifecycleOperation :one
 UPDATE number_lifecycle_operations
 SET status = 'completed', completed_at = now(), failure_code = NULL, failure_message = NULL
@@ -399,7 +438,7 @@ UPDATE emergency_registrations
 SET status = 'deactivated', deactivated_at = now()
 WHERE organization_id = $1
   AND phone_number_id = $2
-  AND status IN ('pending', 'validating', 'active')
+  AND status = 'active'
 `
 
 type DeactivateCurrentEmergencyRegistrationParams struct {
@@ -457,7 +496,9 @@ SELECT id, organization_id, phone_number_id, provider_id, status, name, address_
 WHERE organization_id = $1
   AND phone_number_id = $2
   AND status IN ('pending', 'validating', 'active')
-ORDER BY created_at DESC LIMIT 1
+ORDER BY CASE WHEN status = 'active' THEN 0 ELSE 1 END,
+         created_at DESC
+LIMIT 1
 `
 
 type GetCurrentEmergencyRegistrationParams struct {
@@ -973,6 +1014,43 @@ func (q *Queries) MarkPortInFOC(ctx context.Context, arg MarkPortInFOCParams) (P
 	return i, err
 }
 
+const markPortInSubmissionManualReview = `-- name: MarkPortInSubmissionManualReview :one
+UPDATE number_lifecycle_operations
+SET status = 'manual_review',
+    reconcile_attempts = reconcile_attempts + 1
+WHERE id = $1
+  AND operation = 'port_in'
+  AND status = 'submitted'
+  AND provider_reference IS NULL
+RETURNING id, organization_id, phone_number_id, provider_id, idempotency_key, operation, status, provider_reference, requested_number, request_payload, failure_code, failure_message, submitted_at, completed_at, created_at, updated_at, reconcile_after, reconcile_attempts
+`
+
+func (q *Queries) MarkPortInSubmissionManualReview(ctx context.Context, id uuid.UUID) (NumberLifecycleOperation, error) {
+	row := q.db.QueryRow(ctx, markPortInSubmissionManualReview, id)
+	var i NumberLifecycleOperation
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.PhoneNumberID,
+		&i.ProviderID,
+		&i.IdempotencyKey,
+		&i.Operation,
+		&i.Status,
+		&i.ProviderReference,
+		&i.RequestedNumber,
+		&i.RequestPayload,
+		&i.FailureCode,
+		&i.FailureMessage,
+		&i.SubmittedAt,
+		&i.CompletedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ReconcileAfter,
+		&i.ReconcileAttempts,
+	)
+	return i, err
+}
+
 const markPortInSubmitted = `-- name: MarkPortInSubmitted :one
 UPDATE port_in_cases
 SET status = 'submitted', provider_case_reference = $1
@@ -1094,9 +1172,7 @@ func (q *Queries) RejectPortInCase(ctx context.Context, arg RejectPortInCasePara
 
 const scheduleNumberLifecycleReconciliation = `-- name: ScheduleNumberLifecycleReconciliation :one
 UPDATE number_lifecycle_operations
-SET status = CASE WHEN status = 'pending' THEN 'submitted' ELSE status END,
-    submitted_at = COALESCE(submitted_at, now()),
-    reconcile_after = $1,
+SET reconcile_after = $1,
     reconcile_attempts = reconcile_attempts + 1,
     failure_code = NULL,
     failure_message = NULL

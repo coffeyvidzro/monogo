@@ -171,23 +171,72 @@ func (s *Service) reconcilePortIn(ctx context.Context, operation sqlc.NumberLife
 		}
 	}
 	if operation.ProviderReference == nil {
+		if operation.Status != "pending" {
+			// Submission may have reached the provider. A missing reference is
+			// not evidence that a second submission is safe.
+			_, err = s.repo.queries.MarkPortInSubmissionManualReview(ctx, operation.ID)
+			return err
+		}
 		if len(documents) == 0 {
-			_, err = s.repo.ScheduleLifecycle(ctx, operation.ID, s.now().Add(managedReconcileDelay))
+			_, err = s.repo.ScheduleLifecycle(
+				ctx,
+				operation.ID,
+				s.now().Add(managedReconcileDelay),
+			)
 			return err
 		}
-		reference, providerErr := s.lifecycle.SubmitPortIn(ctx, operation.ID, request, documents)
-		if providerErr != nil {
-			_, err = s.repo.ScheduleLifecycle(ctx, operation.ID, s.now().Add(managedReconcileDelay))
+		_, err = s.repo.queries.ClaimPortInSubmission(ctx, operation.ID)
+		if errors.Is(err, pgx.ErrNoRows) {
+			// A different worker already claimed this operation.
+			return nil
+		}
+		if err != nil {
 			return err
 		}
-		if _, err = s.repo.queries.MarkPortInSubmitted(ctx, sqlc.MarkPortInSubmittedParams{
+
+		reference, providerErr := s.lifecycle.SubmitPortIn(
+			ctx,
+			operation.ID,
+			request,
+			documents,
+		)
+		if providerErr != nil || strings.TrimSpace(reference) == "" {
+			_, err = s.repo.queries.MarkPortInSubmissionManualReview(
+				ctx,
+				operation.ID,
+			)
+			// The operation is quarantined. A carrier error must not stop the
+			// reconciliation worker or trigger an automatic second submission.
+			return err
+		}
+
+		// Both local references must commit together. On an uncertain DB
+		// outcome the claim remains submitted, never eligible for a retry.
+		tx, err := s.db.BeginTx(ctx, pgx.TxOptions{
+			IsoLevel: pgx.Serializable,
+		})
+		if err != nil {
+			return err
+		}
+		defer func() { _ = tx.Rollback(ctx) }()
+		queries := sqlc.New(tx)
+		if _, err = queries.MarkPortInSubmitted(ctx, sqlc.MarkPortInSubmittedParams{
 			ID:                    portCase.ID,
 			ProviderCaseReference: &reference,
 		}); err != nil {
 			return err
 		}
-		_, err = s.repo.MarkLifecycleSubmitted(ctx, operation.ID, &reference, s.now().Add(managedReconcileDelay))
-		return err
+		if _, err = queries.MarkNumberLifecycleSubmitted(
+			ctx,
+			sqlc.MarkNumberLifecycleSubmittedParams{
+				ID:                operation.ID,
+				ProviderReference: &reference,
+				ReconcileAfter:    pgTimestamptz(s.now().Add(managedReconcileDelay)),
+			},
+		); err != nil {
+			return err
+		}
+		return tx.Commit(ctx)
 	}
 	status, providerErr := s.lifecycle.PortInStatus(ctx, *operation.ProviderReference)
 	if providerErr != nil {

@@ -44,12 +44,6 @@ func (s *Service) PutEmergency(ctx context.Context, organizationID, numberID uui
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 	queries := sqlc.New(tx)
-	if err = queries.DeactivateCurrentEmergencyRegistration(ctx, sqlc.DeactivateCurrentEmergencyRegistrationParams{
-		OrganizationID: organizationID,
-		PhoneNumberID:  numberID,
-	}); err != nil {
-		return sqlc.EmergencyRegistration{}, apperror.NewInternal("deactivate existing emergency registration", err)
-	}
 	line2 := req.AddressLine2
 	registration, err := queries.CreateEmergencyRegistration(ctx, sqlc.CreateEmergencyRegistrationParams{
 		OrganizationID: organizationID, PhoneNumberID: numberID, IdempotencyKey: &key, RequestHash: &hash,
@@ -113,6 +107,10 @@ func (s *Service) ReconcileEmergency(ctx context.Context, registration sqlc.Emer
 		}
 		return insertNumberEvent(ctx, s.repo.queries, "number.e911.rejected", registration.OrganizationID, registration.ID, rejected)
 	}
+	if strings.TrimSpace(reference) == "" {
+		return fmt.Errorf("emergency provider returned an empty registration reference")
+	}
+
 	tx, err := s.db.BeginTx(ctx, pgx.TxOptions{
 		IsoLevel: pgx.Serializable,
 	})
@@ -121,6 +119,16 @@ func (s *Service) ReconcileEmergency(ctx context.Context, registration sqlc.Emer
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 	queries := sqlc.New(tx)
+	if err := queries.DeactivateCurrentEmergencyRegistration(
+		ctx,
+		sqlc.DeactivateCurrentEmergencyRegistrationParams{
+			OrganizationID: registration.OrganizationID,
+			PhoneNumberID:  registration.PhoneNumberID,
+		},
+	); err != nil {
+		return fmt.Errorf("deactivate previously active emergency registration: %w", err)
+	}
+
 	activated, err := queries.ActivateEmergencyRegistration(ctx, sqlc.ActivateEmergencyRegistrationParams{
 		ID:                registration.ID,
 		ProviderReference: &reference,

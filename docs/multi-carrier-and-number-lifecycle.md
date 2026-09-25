@@ -124,3 +124,31 @@ lifecycle completion, and outbox event are committed together.
    verified provider contracts.
 5. Add explicit manual-review and operator-recovery paths for uncertain
    release, port-in, and assignment outcomes.
+
+## Next increment: provider submissions, address continuity, and commercial admission
+
+The port-in worker claims a pending operation in the database before submitting it
+to a provider. Only one worker can claim the operation. A submission error or a
+submitted operation without a saved provider reference enters manual review
+instead of being submitted a second time. Provider case recovery by a verified
+provider-side idempotency contract is still required before port-ins can be
+enabled in production. The default DIDWW adapter still does not implement
+porting.
+
+Emergency replacement now keeps the previously active registration available
+while a new registration is pending or validating. After provider validation
+returns a nonempty reference, the old registration is deactivated and the new
+one is activated in one local transaction. This does not establish provider-side
+cutover guarantees; confirm the external provider's replacement behavior before
+enabling emergency registration.
+
+Managed outbound calls fail closed until prepaid authorization and settlement
+can be enforced for the entire call lifetime. This avoids creating wholesale
+exposure while a wallet reservation could expire before final charging.
+BYOC outbound routing is not subject to this managed-carrier gate.
+
+Live carrier rate feeds and endpoint-health collection remain unimplemented:
+neither DIDWW's number-inventory API nor CommPeak's raw CDR response is a
+verified wholesale rate and SIP/RTP quality feed. Carrier-specific rate-sheet
+formats, endpoint probe contracts, sampling windows, and credentials must be
+validated before a production collector can populate routing snapshots.
