@@ -261,9 +261,9 @@ func (s *Service) activatePortIn(ctx context.Context, operation sqlc.NumberLifec
 		return err
 	}
 	if err = insertNumberEvent(ctx, queries, "number.port_in.activated", operation.OrganizationID, portCase.ID, map[string]any{
-			"operation": completed,
-			"number":    number,
-		}); err != nil {
+		"operation": completed,
+		"number":    number,
+	}); err != nil {
 		return err
 	}
 	return tx.Commit(ctx)
@@ -275,7 +275,7 @@ func stringPointer(value string) *string {
 
 func pgTimestamptz(value time.Time) pgtype.Timestamptz {
 	return pgtype.Timestamptz{
-		Time: value,
+		Time:  value,
 		Valid: true,
 	}
 }

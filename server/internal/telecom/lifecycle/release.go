@@ -43,8 +43,8 @@ func (s *Service) ReleaseManaged(ctx context.Context, organizationID, numberID u
 	}
 	op, err := queries.CreateManagedReleaseOperation(ctx, sqlc.CreateManagedReleaseOperationParams{
 		OrganizationID: organizationID,
-		PhoneNumberID:   numberID,
-		IdempotencyKey:  key,
+		PhoneNumberID:  numberID,
+		IdempotencyKey: key,
 	})
 	if err != nil {
 		return sqlc.NumberLifecycleOperation{}, writeError(err)

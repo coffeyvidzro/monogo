@@ -82,8 +82,8 @@ func TestExecuteRoutePlanCapsAttemptBudgetAtThree(t *testing.T) {
 
 func TestExecuteRoutePlanStopsAfterAmbiguousOrigination(t *testing.T) {
 	tests := []struct {
-		name       string
-		result     calling.OriginateResult
+		name         string
+		result       calling.OriginateResult
 		originateErr error
 	}{
 		{
@@ -94,7 +94,7 @@ func TestExecuteRoutePlanStopsAfterAmbiguousOrigination(t *testing.T) {
 			},
 		},
 		{
-			name:   "channel exists even after a retryable SIP response",
+			name: "channel exists even after a retryable SIP response",
 			result: calling.OriginateResult{
 				ChannelID: "possible-live-channel",
 			},
