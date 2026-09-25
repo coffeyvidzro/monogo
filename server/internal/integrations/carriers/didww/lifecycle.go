@@ -8,8 +8,6 @@ import (
 	"github.com/google/uuid"
 )
 
-var lifecycle.ErrProviderCapabilityUnavailable = errors.New("provider lifecycle capability is unavailable")
-
 type LifecycleProvider struct{ client *Client }
 
 func NewLifecycleProvider(client *Client) *LifecycleProvider {
