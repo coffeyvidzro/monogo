@@ -22,6 +22,9 @@ func TestCreateCheckoutSession(t *testing.T) {
 		if got := r.Header.Get("Authorization"); got != "Bearer sk_test" {
 			t.Fatalf("authorization = %q", got)
 		}
+		if got := r.Header.Get("Idempotency-Key"); got != "leamout-123e4567-e89b-12d3-a456-426614174000" {
+			t.Fatalf("idempotency key = %q", got)
+		}
 		if got := r.Header.Get("Stripe-Version"); got != DefaultAPIVersion {
 			t.Fatalf("Stripe-Version = %q", got)
 		}
@@ -78,6 +81,7 @@ func TestCreateCheckoutSession(t *testing.T) {
 	session, err := client.CreateCheckoutSession(context.Background(), CreateCheckoutSessionRequest{
 		AmountMinor: 5000,
 		Currency:    "USD",
+		PaymentID:   "123e4567-e89b-12d3-a456-426614174000",
 	})
 	if err != nil {
 		t.Fatal(err)
