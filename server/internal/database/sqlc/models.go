@@ -189,6 +189,27 @@ type ConferenceParticipant struct {
 	UpdatedAt         pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 }
 
+type EmergencyRegistration struct {
+	ID                uuid.UUID          `db:"id" json:"id"`
+	OrganizationID    uuid.UUID          `db:"organization_id" json:"organization_id"`
+	PhoneNumberID     uuid.UUID          `db:"phone_number_id" json:"phone_number_id"`
+	ProviderID        uuid.UUID          `db:"provider_id" json:"provider_id"`
+	Status            string             `db:"status" json:"status"`
+	Name              string             `db:"name" json:"name"`
+	AddressLine1      string             `db:"address_line1" json:"address_line1"`
+	AddressLine2      *string            `db:"address_line2" json:"address_line2"`
+	Locality          string             `db:"locality" json:"locality"`
+	Region            string             `db:"region" json:"region"`
+	PostalCode        string             `db:"postal_code" json:"postal_code"`
+	CountryCode       string             `db:"country_code" json:"country_code"`
+	ProviderReference *string            `db:"provider_reference" json:"provider_reference"`
+	ValidationMessage *string            `db:"validation_message" json:"validation_message"`
+	ActivatedAt       pgtype.Timestamptz `db:"activated_at" json:"activated_at"`
+	DeactivatedAt     pgtype.Timestamptz `db:"deactivated_at" json:"deactivated_at"`
+	CreatedAt         pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	UpdatedAt         pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+}
+
 type Idempotency struct {
 	Scope               string             `db:"scope" json:"scope"`
 	IdempotencyKey      string             `db:"idempotency_key" json:"idempotency_key"`
@@ -243,6 +264,25 @@ type Meter struct {
 	Active         bool               `db:"active" json:"active"`
 	CreatedAt      pgtype.Timestamptz `db:"created_at" json:"created_at"`
 	UpdatedAt      pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+}
+
+type NumberLifecycleOperation struct {
+	ID                uuid.UUID          `db:"id" json:"id"`
+	OrganizationID    uuid.UUID          `db:"organization_id" json:"organization_id"`
+	PhoneNumberID     *uuid.UUID         `db:"phone_number_id" json:"phone_number_id"`
+	ProviderID        uuid.UUID          `db:"provider_id" json:"provider_id"`
+	IdempotencyKey    string             `db:"idempotency_key" json:"idempotency_key"`
+	Operation         string             `db:"operation" json:"operation"`
+	Status            string             `db:"status" json:"status"`
+	ProviderReference *string            `db:"provider_reference" json:"provider_reference"`
+	RequestedNumber   string             `db:"requested_number" json:"requested_number"`
+	RequestPayload    []byte             `db:"request_payload" json:"request_payload"`
+	FailureCode       *string            `db:"failure_code" json:"failure_code"`
+	FailureMessage    *string            `db:"failure_message" json:"failure_message"`
+	SubmittedAt       pgtype.Timestamptz `db:"submitted_at" json:"submitted_at"`
+	CompletedAt       pgtype.Timestamptz `db:"completed_at" json:"completed_at"`
+	CreatedAt         pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	UpdatedAt         pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 }
 
 type OpensipsCarrierDigestCredential struct {
