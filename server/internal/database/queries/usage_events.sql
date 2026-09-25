@@ -13,7 +13,7 @@ FROM meters AS m
 JOIN organizations AS o ON o.id = m.organization_id
 WHERE m.id = sqlc.arg(meter_id)::UUID
   AND m.organization_id = sqlc.arg(organization_id)::UUID
-  AND m.status = 'active'
+  AND m.active = true
   AND o.status = 'active'
   AND o.deleted_at IS NULL
 ON CONFLICT (organization_id, idempotency_key) DO NOTHING
