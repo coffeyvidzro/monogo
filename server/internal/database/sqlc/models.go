@@ -238,7 +238,6 @@ type ManagedNumberOrder struct {
 	UpdatedAt           pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 }
 
-// Organization-owned meter definitions identified by a globally unique key; no pricing or billability is implied.
 type Meter struct {
 	ID             uuid.UUID          `db:"id" json:"id"`
 	OrganizationID uuid.UUID          `db:"organization_id" json:"organization_id"`
@@ -512,7 +511,6 @@ type TrunkEndpoint struct {
 	UpdatedAt           pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 }
 
-// Immutable usage observations. Recording usage does not by itself make that usage billable.
 type UsageEvent struct {
 	ID             uuid.UUID          `db:"id" json:"id"`
 	OrganizationID uuid.UUID          `db:"organization_id" json:"organization_id"`
