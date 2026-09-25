@@ -206,49 +206,6 @@ func (s *Service) Purchase(
 	)
 }
 
-func (s *Service) submit(ctx context.Context, order ManagedOrder) (ManagedOrder, error) {
-	claimed, err := s.repo.ClaimManagedSubmission(ctx, order.ID)
-	if err != nil {
-		return ManagedOrder{}, managedWriteError(err)
-	}
-	providerOrder, err := s.inventory.OrderDID(ctx, didww.OrderDIDRequest{
-		SKUID:               claimed.SKUID,
-		AvailableDIDID:      claimed.AvailableDIDID,
-		ExternalReferenceID: claimed.ID.String(),
-	})
-	if err != nil {
-		// Once the request starts, even a timeout or 4xx can hide a committed
-		// provider order. Reconciliation, never resubmission, resolves it.
-		unknown, updateErr := s.repo.MarkManagedOutcomeUnknown(
-			ctx,
-			claimed.ID,
-			"provider_response_unknown",
-			err.Error(),
-			s.now().Add(managedReconcileDelay),
-		)
-		if updateErr != nil {
-			return ManagedOrder{}, apperror.NewInternal("persist uncertain provider outcome", updateErr)
-		}
-		return unknown, nil
-	}
-	if providerOrder.ID == "" ||
-		providerOrder.Attributes.ExternalReferenceID == nil ||
-		*providerOrder.Attributes.ExternalReferenceID != claimed.ID.String() {
-		unknown, updateErr := s.repo.MarkManagedOutcomeUnknown(
-			ctx,
-			claimed.ID,
-			"provider_identity_mismatch",
-			"provider order identity could not be verified",
-			s.now(),
-		)
-		if updateErr != nil {
-			return ManagedOrder{}, apperror.NewInternal("persist uncertain provider outcome", updateErr)
-		}
-		return unknown, nil
-	}
-	return s.repo.RecordManagedProviderOrder(ctx, claimed.ID, providerOrder.ID, s.now())
-}
-
 func (s *Service) GetManagedOrder(
 	ctx context.Context,
 	organizationID uuid.UUID,
