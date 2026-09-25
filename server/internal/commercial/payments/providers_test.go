@@ -54,13 +54,13 @@ func TestStripeVerifierChecksReferenceAndFinancialTerms(t *testing.T) {
 
 func TestPaystackVerifierChecksReferenceAndFinancialTerms(t *testing.T) {
 	tests := []struct {
-		name    string
-		ref     string
-		status  string
-		amount  int64
+		name     string
+		ref      string
+		status   string
+		amount   int64
 		currency string
 		wantPaid bool
-		wantErr bool
+		wantErr  bool
 	}{
 		{name: "paid", ref: "ref_123", status: "success", amount: 500, currency: "GHS", wantPaid: true},
 		{name: "pending", ref: "ref_123", status: "pending", amount: 500, currency: "GHS"},

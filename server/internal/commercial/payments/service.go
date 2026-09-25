@@ -16,7 +16,7 @@ import (
 type Service struct {
 	repo       *Repository
 	walletRepo *wallets.Repository
-	verifiers map[string]ProviderVerifier
+	verifiers  map[string]ProviderVerifier
 }
 
 func NewService(db *pgxpool.Pool) *Service {
@@ -50,12 +50,12 @@ func (s *Service) VerifyAndSettle(
 		return SettlementResult{}, apperror.NewServiceUnavailable("payment provider verification is not configured", nil)
 	}
 	verification, err := verifier.Verify(ctx, RecoveryCandidate{
-		OrganizationID: organizationID,
-		PaymentID: paymentID,
-		Provider: payment.Provider,
+		OrganizationID:    organizationID,
+		PaymentID:         paymentID,
+		Provider:          payment.Provider,
 		ProviderReference: *payment.ProviderReference,
-		AmountMinor: payment.AmountMinor,
-		Currency: payment.Currency,
+		AmountMinor:       payment.AmountMinor,
+		Currency:          payment.Currency,
 	})
 	if err != nil {
 		return SettlementResult{}, apperror.NewServiceUnavailable("payment provider verification failed", err)
@@ -64,13 +64,13 @@ func (s *Service) VerifyAndSettle(
 		return SettlementResult{}, apperror.NewConflict("payment is not verified as settled")
 	}
 	return s.Settle(ctx, VerifiedSettlement{
-		OrganizationID: organizationID,
-		PaymentID: paymentID,
-		Provider: payment.Provider,
+		OrganizationID:    organizationID,
+		PaymentID:         paymentID,
+		Provider:          payment.Provider,
 		ProviderReference: *payment.ProviderReference,
-		AmountMinor: verification.AmountMinor,
-		Currency: verification.Currency,
-		VerifiedAt: verification.VerifiedAt,
+		AmountMinor:       verification.AmountMinor,
+		Currency:          verification.Currency,
+		VerifiedAt:        verification.VerifiedAt,
 	})
 }
 
