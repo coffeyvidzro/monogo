@@ -13,7 +13,10 @@ import (
 func TestSIPFailoverAcceptancePrimarySecondaryTertiary(t *testing.T) {
 	routes := testRoutes(3)
 	responses := []error{
-		&calling.OriginateError{Class: calling.OriginateFailureTransport, Err: errors.New("TCP reset")},
+		&calling.OriginateError{
+			Class: calling.OriginateFailureTransport,
+			Err:   errors.New("TCP reset"),
+		},
 		calling.NewSIPOriginateError(503, errors.New("carrier unavailable")),
 		nil,
 	}
@@ -26,7 +29,9 @@ func TestSIPFailoverAcceptancePrimarySecondaryTertiary(t *testing.T) {
 		if responses[index] != nil {
 			return calling.OriginateResult{}, responses[index]
 		}
-		return calling.OriginateResult{ChannelID: "channel-tertiary"}, nil
+		return calling.OriginateResult{
+			ChannelID: "channel-tertiary",
+		}, nil
 	}, func(_ context.Context, outcome routeAttemptOutcome) {
 		outcomes = append(outcomes, outcome)
 	})
@@ -90,7 +95,9 @@ func TestExecuteRoutePlanStopsAfterAmbiguousOrigination(t *testing.T) {
 		},
 		{
 			name:   "channel exists even after a retryable SIP response",
-			result: calling.OriginateResult{ChannelID: "possible-live-channel"},
+			result: calling.OriginateResult{
+				ChannelID: "possible-live-channel",
+			},
 			originateErr: calling.NewSIPOriginateError(
 				503,
 				errors.New("response received after channel creation"),
@@ -132,14 +139,42 @@ func TestClassifyOriginateFailure(t *testing.T) {
 			name: "timeout",
 			err: &calling.OriginateError{
 				Class: calling.OriginateFailureTimeout,
-				Err: context.DeadlineExceeded,
+				Err:   context.DeadlineExceeded,
 			},
 			retryable: false,
 		},
-		{name: "capacity", err: &calling.OriginateError{Class: calling.OriginateFailureCapacity, Err: errors.New("CPS")}, retryable: true},
-		{name: "server response", err: calling.NewSIPOriginateError(500, errors.New("server error")), retryable: true},
-		{name: "client response", err: calling.NewSIPOriginateError(486, errors.New("busy")), retryable: false},
-		{name: "validation", err: &calling.OriginateError{Class: calling.OriginateFailureValidation, Err: errors.New("bad route")}, retryable: false},
+		{
+			name: "capacity",
+			err: &calling.OriginateError{
+				Class: calling.OriginateFailureCapacity,
+				Err:   errors.New("CPS"),
+			},
+			retryable: true,
+		},
+		{
+			name: "server response",
+			err: calling.NewSIPOriginateError(
+				500,
+				errors.New("server error"),
+			),
+			retryable: true,
+		},
+		{
+			name: "client response",
+			err: calling.NewSIPOriginateError(
+				486,
+				errors.New("busy"),
+			),
+			retryable: false,
+		},
+		{
+			name: "validation",
+			err: &calling.OriginateError{
+				Class: calling.OriginateFailureValidation,
+				Err:   errors.New("bad route"),
+			},
+			retryable: false,
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {

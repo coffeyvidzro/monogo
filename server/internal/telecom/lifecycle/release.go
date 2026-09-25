@@ -26,7 +26,9 @@ func (s *Service) ReleaseManaged(ctx context.Context, organizationID, numberID u
 	if s.db == nil || s.lifecycle == nil {
 		return sqlc.NumberLifecycleOperation{}, apperror.NewServiceUnavailable("managed number lifecycle is not configured", nil)
 	}
-	tx, err := s.db.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.Serializable})
+	tx, err := s.db.BeginTx(ctx, pgx.TxOptions{
+		IsoLevel: pgx.Serializable,
+	})
 	if err != nil {
 		return sqlc.NumberLifecycleOperation{}, apperror.NewInternal("begin managed release", err)
 	}
@@ -104,7 +106,9 @@ func (s *Service) reconcileRelease(ctx context.Context, operation sqlc.NumberLif
 		_, err = s.repo.ScheduleLifecycle(ctx, operation.ID, s.now().Add(managedReconcileDelay))
 		return err
 	}
-	tx, err := s.db.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.Serializable})
+	tx, err := s.db.BeginTx(ctx, pgx.TxOptions{
+		IsoLevel: pgx.Serializable,
+	})
 	if err != nil {
 		return err
 	}
