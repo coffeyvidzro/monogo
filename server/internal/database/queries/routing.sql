@@ -135,3 +135,37 @@ INSERT INTO routing_decision_candidates (
     sqlc.arg(metrics_observed_at),
     sqlc.arg(score_micros)
 );
+
+-- name: CreateRoutingAttempt :one
+INSERT INTO routing_attempts (
+    routing_decision_id,
+    call_id,
+    attempt,
+    carrier_connection_id,
+    trunk_id,
+    trunk_endpoint_id,
+    outcome,
+    failure_class,
+    sip_status,
+    duration_milliseconds
+) VALUES (
+    sqlc.arg(routing_decision_id),
+    sqlc.arg(call_id),
+    sqlc.arg(attempt),
+    sqlc.arg(carrier_connection_id),
+    sqlc.arg(trunk_id),
+    sqlc.arg(trunk_endpoint_id),
+    sqlc.arg(outcome),
+    sqlc.narg(failure_class),
+    sqlc.narg(sip_status),
+    sqlc.arg(duration_milliseconds)
+)
+RETURNING *;
+
+-- name: SetRoutingDecisionSelectedRoute :execrows
+UPDATE routing_decisions
+SET selected_carrier_connection_id = sqlc.arg(carrier_connection_id),
+    selected_trunk_id = sqlc.arg(trunk_id),
+    selected_trunk_endpoint_id = sqlc.arg(trunk_endpoint_id)
+WHERE id = sqlc.arg(id)
+  AND organization_id = sqlc.arg(organization_id);

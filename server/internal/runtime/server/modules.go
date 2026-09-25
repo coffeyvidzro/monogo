@@ -143,6 +143,7 @@ func newModules(ctx context.Context, cfg config.Config) (*modules, error) {
 
 	commercialModule := commercial.New(postgresClient.Pool(), queries, stripeClient, paystackClient)
 	platformModule := platform.New(postgresClient.Pool(), queries)
+	metricsRegistry := metrics.New(redisClient)
 	telecomModule, err := telecom.New(telecom.Dependencies{
 		DB:                   postgresClient.Pool(),
 		Queries:              queries,
@@ -154,6 +155,7 @@ func newModules(ctx context.Context, cfg config.Config) (*modules, error) {
 		DIDWWInventory:       didwwInventory,
 		RealtimeService:      turnService,
 		RecordingStorage:     recordingStorage,
+		Metrics:              metricsRegistry,
 	})
 	if err != nil {
 		closeDependencies()
@@ -187,7 +189,7 @@ func newModules(ctx context.Context, cfg config.Config) (*modules, error) {
 		authn:                authMiddleware,
 		organizationsContext: organizationMiddleware,
 		rateLimit:            rateLimitMiddleware,
-		metrics:              metrics.New(redisClient),
+		metrics:              metricsRegistry,
 	}, nil
 }
 

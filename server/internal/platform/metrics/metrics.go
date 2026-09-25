@@ -3,6 +3,7 @@ package metrics
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
 	"sync/atomic"
 
@@ -50,6 +51,16 @@ func (r *Registry) EndpointSelection(ctx context.Context, carrier, trunk, endpoi
 		result = "failover"
 	}
 	r.increment(ctx, series("endpoint_selections_total", carrier, trunk, endpoint, result))
+}
+
+func (r *Registry) RouteAttempt(
+	ctx context.Context,
+	carrier, trunk, endpoint uuid.UUID,
+	outcome, failureClass string,
+	attempt int,
+) {
+	result := strings.Join([]string{outcome, failureClass, strconv.Itoa(attempt)}, ":")
+	r.increment(ctx, series("route_attempts_total", carrier, trunk, endpoint, result))
 }
 
 func (r *Registry) Probe(ctx context.Context, trunk, endpoint uuid.UUID, healthy bool, latencySeconds float64) {

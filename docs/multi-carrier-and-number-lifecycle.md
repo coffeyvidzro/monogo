@@ -39,10 +39,18 @@ regulatory history in place.
 
 ## Next integration slices
 
+The outbound executor consumes at most the first three ranked routes. Transport
+errors, timeouts, carrier-capacity rejection, and SIP `5xx` responses advance
+to the next route; validation failures, internal failures, and non-`5xx` SIP
+responses stop immediately. Every attempt is stored with its route, duration,
+classification, and outcome and increments a route-attempt metric. Successful
+failover updates both the call attribution and the decision's selected route.
+
 1. Add carrier-specific collectors that populate the normalized rate and
    telemetry tables.
-2. Feed the returned ranked alternatives to the SIP transaction layer and restrict failover
-   to transport errors, timeouts, and configured retryable `5xx` responses.
+2. Feed asynchronous carrier SIP responses from the SIP transaction layer into
+   the typed originate-result boundary so carrier-generated `5xx` outcomes use
+   the same classifier without string parsing.
 3. Add provider adapters and authenticated APIs for porting, release, and E911
    validation, using lifecycle operation idempotency keys for every mutation.
 4. Add messaging provider capability/rate snapshots to the same policy model;

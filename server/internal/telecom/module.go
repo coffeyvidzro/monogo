@@ -5,6 +5,7 @@ import (
 
 	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
 	"github.com/coffeyvidzro/monogo/internal/integrations/carriers/didww"
+	"github.com/coffeyvidzro/monogo/internal/platform/metrics"
 	"github.com/coffeyvidzro/monogo/internal/runtime/calling"
 	"github.com/coffeyvidzro/monogo/internal/security/encryption"
 	"github.com/coffeyvidzro/monogo/internal/telecom/calls"
@@ -31,6 +32,7 @@ type Dependencies struct {
 	DIDWWInventory       *didww.Client
 	RealtimeService      *realtime.Service
 	RecordingStorage     recordings.Storage
+	Metrics              *metrics.Registry
 }
 
 type Module struct {
@@ -122,6 +124,7 @@ func New(deps Dependencies) (*Module, error) {
 		deps.CallsController,
 		deps.CallsChannelStore,
 		deps.CallsAdmission,
+		deps.Metrics,
 	)
 
 	numbersRepository := numbers.NewRepository(deps.Queries)

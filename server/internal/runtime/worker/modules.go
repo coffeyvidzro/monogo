@@ -16,6 +16,7 @@ import (
 	"github.com/coffeyvidzro/monogo/internal/platform/config"
 	"github.com/coffeyvidzro/monogo/internal/platform/idempotency"
 	"github.com/coffeyvidzro/monogo/internal/platform/logging"
+	"github.com/coffeyvidzro/monogo/internal/platform/metrics"
 	"github.com/coffeyvidzro/monogo/internal/platform/outbox"
 	"github.com/coffeyvidzro/monogo/internal/platform/webhooks"
 	"github.com/coffeyvidzro/monogo/internal/runtime/calling"
@@ -119,6 +120,7 @@ func newModules(ctx context.Context, cfg config.Config) (*modules, error) {
 		callController,
 		calling.NewChannelStore(redisClient),
 		admissionLimiter,
+		metrics.New(redisClient),
 	)
 	callConsumer := calls.NewConsumer(callsService)
 	callReconciliation, err := calls.NewReconciliationJob(

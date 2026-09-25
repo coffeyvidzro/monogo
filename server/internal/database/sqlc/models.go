@@ -486,6 +486,21 @@ type Recording struct {
 	UpdatedAt       pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 }
 
+type RoutingAttempt struct {
+	ID                   uuid.UUID          `db:"id" json:"id"`
+	RoutingDecisionID    uuid.UUID          `db:"routing_decision_id" json:"routing_decision_id"`
+	CallID               uuid.UUID          `db:"call_id" json:"call_id"`
+	Attempt              int32              `db:"attempt" json:"attempt"`
+	CarrierConnectionID  uuid.UUID          `db:"carrier_connection_id" json:"carrier_connection_id"`
+	TrunkID              uuid.UUID          `db:"trunk_id" json:"trunk_id"`
+	TrunkEndpointID      uuid.UUID          `db:"trunk_endpoint_id" json:"trunk_endpoint_id"`
+	Outcome              string             `db:"outcome" json:"outcome"`
+	FailureClass         *string            `db:"failure_class" json:"failure_class"`
+	SipStatus            *int32             `db:"sip_status" json:"sip_status"`
+	DurationMilliseconds int64              `db:"duration_milliseconds" json:"duration_milliseconds"`
+	CreatedAt            pgtype.Timestamptz `db:"created_at" json:"created_at"`
+}
+
 type RoutingDecision struct {
 	ID                          uuid.UUID          `db:"id" json:"id"`
 	OrganizationID              uuid.UUID          `db:"organization_id" json:"organization_id"`

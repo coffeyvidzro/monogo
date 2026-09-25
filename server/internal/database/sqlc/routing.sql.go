@@ -63,6 +63,77 @@ func (q *Queries) CreateCarrierRate(ctx context.Context, arg CreateCarrierRatePa
 	return i, err
 }
 
+const createRoutingAttempt = `-- name: CreateRoutingAttempt :one
+INSERT INTO routing_attempts (
+    routing_decision_id,
+    call_id,
+    attempt,
+    carrier_connection_id,
+    trunk_id,
+    trunk_endpoint_id,
+    outcome,
+    failure_class,
+    sip_status,
+    duration_milliseconds
+) VALUES (
+    $1,
+    $2,
+    $3,
+    $4,
+    $5,
+    $6,
+    $7,
+    $8,
+    $9,
+    $10
+)
+RETURNING id, routing_decision_id, call_id, attempt, carrier_connection_id, trunk_id, trunk_endpoint_id, outcome, failure_class, sip_status, duration_milliseconds, created_at
+`
+
+type CreateRoutingAttemptParams struct {
+	RoutingDecisionID    uuid.UUID `db:"routing_decision_id" json:"routing_decision_id"`
+	CallID               uuid.UUID `db:"call_id" json:"call_id"`
+	Attempt              int32     `db:"attempt" json:"attempt"`
+	CarrierConnectionID  uuid.UUID `db:"carrier_connection_id" json:"carrier_connection_id"`
+	TrunkID              uuid.UUID `db:"trunk_id" json:"trunk_id"`
+	TrunkEndpointID      uuid.UUID `db:"trunk_endpoint_id" json:"trunk_endpoint_id"`
+	Outcome              string    `db:"outcome" json:"outcome"`
+	FailureClass         *string   `db:"failure_class" json:"failure_class"`
+	SipStatus            *int32    `db:"sip_status" json:"sip_status"`
+	DurationMilliseconds int64     `db:"duration_milliseconds" json:"duration_milliseconds"`
+}
+
+func (q *Queries) CreateRoutingAttempt(ctx context.Context, arg CreateRoutingAttemptParams) (RoutingAttempt, error) {
+	row := q.db.QueryRow(ctx, createRoutingAttempt,
+		arg.RoutingDecisionID,
+		arg.CallID,
+		arg.Attempt,
+		arg.CarrierConnectionID,
+		arg.TrunkID,
+		arg.TrunkEndpointID,
+		arg.Outcome,
+		arg.FailureClass,
+		arg.SipStatus,
+		arg.DurationMilliseconds,
+	)
+	var i RoutingAttempt
+	err := row.Scan(
+		&i.ID,
+		&i.RoutingDecisionID,
+		&i.CallID,
+		&i.Attempt,
+		&i.CarrierConnectionID,
+		&i.TrunkID,
+		&i.TrunkEndpointID,
+		&i.Outcome,
+		&i.FailureClass,
+		&i.SipStatus,
+		&i.DurationMilliseconds,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const createRoutingDecision = `-- name: CreateRoutingDecision :one
 INSERT INTO routing_decisions (
     organization_id,
@@ -281,6 +352,37 @@ func (q *Queries) ListManagedRouteCandidates(ctx context.Context, arg ListManage
 		return nil, err
 	}
 	return items, nil
+}
+
+const setRoutingDecisionSelectedRoute = `-- name: SetRoutingDecisionSelectedRoute :execrows
+UPDATE routing_decisions
+SET selected_carrier_connection_id = $1,
+    selected_trunk_id = $2,
+    selected_trunk_endpoint_id = $3
+WHERE id = $4
+  AND organization_id = $5
+`
+
+type SetRoutingDecisionSelectedRouteParams struct {
+	CarrierConnectionID uuid.UUID `db:"carrier_connection_id" json:"carrier_connection_id"`
+	TrunkID             uuid.UUID `db:"trunk_id" json:"trunk_id"`
+	TrunkEndpointID     uuid.UUID `db:"trunk_endpoint_id" json:"trunk_endpoint_id"`
+	ID                  uuid.UUID `db:"id" json:"id"`
+	OrganizationID      uuid.UUID `db:"organization_id" json:"organization_id"`
+}
+
+func (q *Queries) SetRoutingDecisionSelectedRoute(ctx context.Context, arg SetRoutingDecisionSelectedRouteParams) (int64, error) {
+	result, err := q.db.Exec(ctx, setRoutingDecisionSelectedRoute,
+		arg.CarrierConnectionID,
+		arg.TrunkID,
+		arg.TrunkEndpointID,
+		arg.ID,
+		arg.OrganizationID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const upsertCarrierRouteMetrics = `-- name: UpsertCarrierRouteMetrics :one
