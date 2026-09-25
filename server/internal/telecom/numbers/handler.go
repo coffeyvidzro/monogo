@@ -1,6 +1,7 @@
 package numbers
 
 import (
+	"encoding/json"
 	"net/http"
 
 	"github.com/coffeyvidzro/monogo/internal/platform/middleware"
@@ -19,6 +20,55 @@ func NewHandler(service *Service) *Handler {
 	return &Handler{service: service}
 }
 
+func (h *Handler) PurchaseNumber(w http.ResponseWriter, r *http.Request) {
+	organizationID, err := requestOrganizationID(r)
+	if err != nil {
+		httputil.Error(w, err)
+		return
+	}
+	req, err := helper.DecodeJSON[ManagedPurchaseRequest](r)
+	if err != nil {
+		httputil.Error(w, err)
+		return
+	}
+	order, err := h.service.Purchase(r.Context(), organizationID, r.Header.Get("Idempotency-Key"), req)
+	if err != nil {
+		httputil.Error(w, err)
+		return
+	}
+	if order.Status == "completed" {
+		httputil.OK(w, order)
+		return
+	}
+	w.Header().Set("Location", "/v1/numbers/orders/"+order.ID.String())
+	writeAccepted(w, order)
+}
+
+func (h *Handler) GetManagedOrder(w http.ResponseWriter, r *http.Request) {
+	organizationID, err := requestOrganizationID(r)
+	if err != nil {
+		httputil.Error(w, err)
+		return
+	}
+	id, err := uuid.Parse(chi.URLParam(r, "order_id"))
+	if err != nil || id == uuid.Nil {
+		httputil.Error(w, apperror.NewBadRequest("invalid order id"))
+		return
+	}
+	order, err := h.service.GetManagedOrder(r.Context(), organizationID, id)
+	if err != nil {
+		httputil.Error(w, err)
+		return
+	}
+	httputil.OK(w, order)
+}
+
+func writeAccepted(w http.ResponseWriter, value any) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusAccepted)
+	_ = json.NewEncoder(w).Encode(value)
+}
+
 // SearchAvailable exposes display-only DIDWW inventory. Purchasing and
 // provisioning are deliberately not implemented by this endpoint.
 func (h *Handler) SearchAvailable(w http.ResponseWriter, r *http.Request) {
@@ -35,7 +85,7 @@ func (h *Handler) SearchAvailable(w http.ResponseWriter, r *http.Request) {
 	httputil.OK(w, map[string]any{"numbers": numbers})
 }
 
-func (h *Handler) CreateBYOC(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) CreateNumber(w http.ResponseWriter, r *http.Request) {
 	organizationID, err := requestOrganizationID(r)
 	if err != nil {
 		httputil.Error(w, err)

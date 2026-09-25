@@ -28,7 +28,7 @@ export LEAMOUT_API_URL="${LEAMOUT_API_URL:-http://127.0.0.1:8080}"
 export LEAMOUT_API_TOKEN="${LEAMOUT_API_TOKEN:-lm_org_v1smoke0_v1smoke0abcdefghijklmnopqrstuvwx}"
 export LEAMOUT_WSS_URL="${LEAMOUT_WSS_URL:-wss://127.0.0.1:5062}"
 
-COMPOSE="docker compose -f deploy/compose.yaml -f tests/webrtc-v1/compose.yaml"
+COMPOSE="docker compose -f deploy/compose.yaml -f tests/webrtc-v1/compose.yaml -f tests/acceptance-minio.yaml"
 
 cleanup() {
     status=$?

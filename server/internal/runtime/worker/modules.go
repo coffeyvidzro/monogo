@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
+	"github.com/coffeyvidzro/monogo/internal/integrations/carriers/didww"
 	"github.com/coffeyvidzro/monogo/internal/integrations/freeswitch"
 	"github.com/coffeyvidzro/monogo/internal/integrations/minio"
 	natsintegration "github.com/coffeyvidzro/monogo/internal/integrations/nats"
@@ -18,6 +19,7 @@ import (
 	"github.com/coffeyvidzro/monogo/internal/platform/webhooks"
 	"github.com/coffeyvidzro/monogo/internal/runtime/calling"
 	"github.com/coffeyvidzro/monogo/internal/telecom/calls"
+	"github.com/coffeyvidzro/monogo/internal/telecom/numbers"
 	"github.com/coffeyvidzro/monogo/internal/telecom/recordings"
 	"github.com/coffeyvidzro/monogo/internal/telecom/routing"
 	"github.com/coffeyvidzro/monogo/internal/telecom/trunks"
@@ -39,6 +41,7 @@ type modules struct {
 	recordingIngestion      *recordings.IngestionJob
 	idempotencyCleanup      *idempotency.CleanupJob
 	trunkHealth             *trunks.HealthCheckJob
+	numberReconciliation    *numbers.ReconciliationJob
 }
 
 func newModules(ctx context.Context, cfg config.Config) (*modules, error) {
@@ -184,6 +187,25 @@ func newModules(ctx context.Context, cfg config.Config) (*modules, error) {
 		return nil, fmt.Errorf("initialize webhook delivery worker: %w", err)
 	}
 
+	var numberReconciliation *numbers.ReconciliationJob
+	if cfg.DIDWW.APIKey != "" {
+		provider, providerErr := didww.New(didww.Config{
+			APIKey:  cfg.DIDWW.APIKey,
+			BaseURL: cfg.DIDWW.APIBaseURL,
+		})
+		if providerErr != nil {
+			closeDependencies()
+			return nil, fmt.Errorf("initialize DIDWW managed numbers: %w", providerErr)
+		}
+		numberService := numbers.NewService(numbers.NewRepository(queries), provider)
+		numberService.ConfigureManaged(postgresClient.Pool())
+		numberReconciliation, err = numbers.NewReconciliationJob(numberService, 50)
+		if err != nil {
+			closeDependencies()
+			return nil, fmt.Errorf("initialize managed number reconciliation: %w", err)
+		}
+	}
+
 	return &modules{
 		postgres:                postgresClient,
 		redis:                   redisClient,
@@ -200,6 +222,7 @@ func newModules(ctx context.Context, cfg config.Config) (*modules, error) {
 		recordingIngestion:      recordingIngestion,
 		idempotencyCleanup:      idempotencyCleanup,
 		trunkHealth:             trunkHealth,
+		numberReconciliation:    numberReconciliation,
 	}, nil
 }
 

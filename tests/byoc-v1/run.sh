@@ -27,7 +27,7 @@ export TURN_AUTH_SECRET="${TURN_AUTH_SECRET:-byoc-v1-turn-secret-0123456789abcde
 export TURN_EXTERNAL_IP="${TURN_EXTERNAL_IP:-127.0.0.1}"
 export TURN_PUBLIC_URLS="${TURN_PUBLIC_URLS:-turn:127.0.0.1:3478}"
 export RTPENGINE_PUBLIC_IP="${RTPENGINE_PUBLIC_IP:-172.31.0.10}"
-COMPOSE="docker compose -f deploy/compose.yaml -f tests/byoc-v1/compose.yaml"
+COMPOSE="docker compose -f deploy/compose.yaml -f tests/byoc-v1/compose.yaml -f tests/acceptance-minio.yaml"
 
 cleanup() {
     status=$?

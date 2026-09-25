@@ -1,29 +1,56 @@
-# Managed DID acquisition: initial scope
+# Managed DID acquisition
 
-DIDWW is the initial Leamout-managed DID inventory, acquisition, and inbound
-provider. CommPeak supplies Leamout-managed outbound termination and optional
-origination; it is not the DID acquisition provider. BYOC remains independent
-of both Leamout-managed providers.
+DIDWW is the initial Monogo-managed DID inventory, acquisition, and inbound
+provider. CommPeak remains independent outbound termination infrastructure.
+Managed-number purchasing intentionally has **no wallet, stored-value balance,
+or prepaid PAYG ledger** in this phase.
 
-## Implemented in this PR
+## API workflow
 
-`GET /v1/numbers/available?contains=5551234` searches DIDWW using
-Leamout-owned credentials when `DIDWW_API_KEY` is configured. `contains` is
-required and must contain 3–15 ASCII digits. Responses include only displayable
-E.164 numbers, not DIDWW IDs, SKUs, carrier connections, prices, or reservations.
-An unconfigured or unavailable provider returns an error rather than fake
-inventory. This is a read-only inventory endpoint, **not a purchasable offer**.
-Country filtering and pricing are not implemented in this slice.
+`POST /v1/numbers/` creates a BYOC number. `POST /v1/numbers/purchase`
+initiates a managed DIDWW acquisition. Both POST routes require an idempotency
+key; they are distinct operations and must not be conflated.
 
-## Not yet implemented
 
-No managed-number purchase, prepaid reservation/capture, selection token,
-provider order, inbound trunk assignment, activation, renewal, or provider release
-is enabled by this PR. The existing BYOC API and managed-number release guard
-are unchanged.
+1. `GET /v1/numbers/available?contains=5551234` returns display-only E.164
+   inventory. Provider resource and SKU identifiers are never exposed.
+2. `POST /v1/numbers/purchase` accepts `number` and `country_code` and requires
+   an `Idempotency-Key`. The server re-resolves exact DIDWW inventory and its
+   SKU immediately before creating a durable order. A global partial unique
+   index prevents a second live order for either the E.164 number or provider
+   inventory item.
+3. The API atomically claims the order before the provider request. Once a
+   request may have reached DIDWW, any error becomes `outcome_unknown`; the
+   request is never blindly repeated. The response is `202 Accepted` and its
+   `Location` points at `GET /v1/numbers/orders/{order_id}`.
+4. Reconciliation locates the existing order by its provider ID or the durable
+   Monogo order UUID used as DIDWW's external reference. It verifies that
+   reference, waits for completion, then independently resolves the exact
+   owned DID.
+5. The reconciler resolves the single active, inbound-enabled DIDWW platform
+   connection and its database-backed `voice_in_trunk` provider resource. It
+   assigns the DID to that trunk and reads the DID back. Only a matching number,
+   DID identity, and `voice_in_trunk` relationship permit activation.
+6. Activation creates the managed `phone_numbers` row and completes the order
+   in one serializable transaction. Normal inbound routing then uses the
+   existing active-number and voice-binding lookup; an unbound number cannot
+   route to an arbitrary destination.
 
-Before enabling purchases, implement customer pricing and prepaid funding,
-a tenant-bound expiring selection, a durable unique purchase intent, reconciliation
-of uncertain DIDWW order outcomes without blind retries, provider ownership and
-inbound routing verification, and activation only after confirmation. CommPeak
-termination must not be required for DIDWW number activation.
+## Durable lifecycle
+
+`ready -> submitting -> provider_pending -> configuring -> completed` is the
+normal path. `outcome_unknown` is reconciliation-only. Identity contradictions
+move the order to `manual_review`; only a confirmed failure before submission
+may release a number claim with `failed`.
+
+The order stores verification timestamps, reconciliation scheduling and attempt
+counts, provider identities, inbound trunk identity, and the activated phone
+number. Completed acquisitions continue to hold their uniqueness claims.
+
+## Configuration
+
+Set the platform-owned `DIDWW_API_KEY`. The future backoffice must persist one
+active, inbound-enabled DIDWW platform carrier connection and associate its
+approved DIDWW Voice In Trunk through `carrier_connection_provider_resources`.
+Missing or ambiguous database routing configuration fails managed purchases
+closed while BYOC remains available.

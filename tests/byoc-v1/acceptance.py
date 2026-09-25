@@ -241,7 +241,7 @@ def trunk():
 def number_and_app():
     number = api(
         "POST",
-        "/v1/numbers/byoc",
+        "/v1/numbers/",
         {
             "number": DID,
             "country_code": "US",
@@ -258,7 +258,7 @@ def number_and_app():
 
     caller = api(
         "POST",
-        "/v1/numbers/byoc",
+        "/v1/numbers/",
         {
             "number": CALLER,
             "country_code": "US",

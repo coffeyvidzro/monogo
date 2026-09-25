@@ -251,7 +251,7 @@ def provision():
 
     number = api(
         "POST",
-        "/v1/numbers/byoc",
+        "/v1/numbers/",
         {
             "number": DID,
             "country_code": "US",

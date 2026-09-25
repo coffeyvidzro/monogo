@@ -1,0 +1,14 @@
+# Acceptance-only override: quay.io/minio/minio is unavailable to the
+# GitHub-hosted acceptance runners. Use a public community-built mirror in
+# disposable test stacks; the production Compose image remains unchanged.
+services:
+  minio:
+    image: docker.io/coollabsio/minio:latest
+    environment:
+      MC_HOST_local: "http://${MINIO_ROOT_USER:?MINIO_ROOT_USER is required}:${MINIO_ROOT_PASSWORD:?MINIO_ROOT_PASSWORD is required}@127.0.0.1:9000"
+    # The image contains mc, whereas curl may be absent from its minimal base.
+    healthcheck:
+      test: ["CMD", "/usr/bin/mc", "ready", "local"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
