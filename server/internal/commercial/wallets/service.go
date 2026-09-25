@@ -152,23 +152,24 @@ func (s *Service) Extend(ctx context.Context, req ExtendRequest) (sqlc.WalletRes
 }
 
 func (s *Service) Release(ctx context.Context, organizationID, reservationID uuid.UUID) (sqlc.WalletReservation, error) {
-	return s.release(ctx, organizationID, reservationID, "released")
+	return s.release(ctx, organizationID, reservationID, "released", false)
 }
 
 func (s *Service) Expire(ctx context.Context, organizationID, reservationID uuid.UUID) (sqlc.WalletReservation, error) {
-	return s.release(ctx, organizationID, reservationID, "expired")
+	return s.release(ctx, organizationID, reservationID, "expired", false)
 }
 
-func (s *Service) release(ctx context.Context, organizationID, reservationID uuid.UUID, status string) (sqlc.WalletReservation, error) {
+func (s *Service) release(ctx context.Context, organizationID, reservationID uuid.UUID, status string, verifiedManagedSettlement bool) (sqlc.WalletReservation, error) {
 	if organizationID == uuid.Nil || reservationID == uuid.Nil {
 		return sqlc.WalletReservation{}, apperror.NewBadRequest("organization and reservation are required")
 	}
 	return s.mutateReservation(ctx, organizationID, reservationID, func(repo *Repository, wallet sqlc.Wallet, reservation sqlc.WalletReservation) (sqlc.WalletReservation, error) {
 		// A managed call can remain billable after its reservation expiry.
 		// Only verified settlement may release these funds, never a timer.
-		if status == "expired" && reservation.OperationType == "managed_call" {
+		if reservation.OperationType == "managed_call" &&
+			(status == "expired" || !verifiedManagedSettlement) {
 			return sqlc.WalletReservation{}, apperror.NewConflict(
-				"managed call authorization requires explicit settlement",
+				"managed call authorization requires verified settlement",
 			)
 		}
 		if reservation.Status == status {

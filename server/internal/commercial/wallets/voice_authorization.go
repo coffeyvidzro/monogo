@@ -157,10 +157,12 @@ func (s *Service) SettleManagedCall(
 		)
 	}
 	if settlement.AmountMinor == 0 {
-		released, err := s.Release(
+		released, err := s.release(
 			ctx,
 			settlement.OrganizationID,
 			reservation.ID,
+			"released",
+			true,
 		)
 		if err != nil {
 			return ReservationResult{}, err
