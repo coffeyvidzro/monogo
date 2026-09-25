@@ -45,8 +45,9 @@ CREATE TRIGGER set_number_lifecycle_operations_updated_at
 BEFORE UPDATE ON number_lifecycle_operations
 FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
--- Emergency addresses are versioned instead of overwritten. Only one current
--- registration can exist for a number, while old rows provide an audit trail.
+-- Emergency addresses are versioned instead of overwritten. A number may
+-- retain one active registration while one replacement is pending or validating.
+-- Historical rows remain available for the audit trail.
 CREATE TABLE emergency_registrations (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE RESTRICT,
@@ -74,9 +75,15 @@ CREATE TABLE emergency_registrations (
     CHECK (status <> 'deactivated' OR deactivated_at IS NOT NULL)
 );
 
-CREATE UNIQUE INDEX uq_emergency_registrations_current
+-- Separate partial uniqueness rules permit one active registration and one
+-- in-flight replacement for the same number without admitting duplicates.
+CREATE UNIQUE INDEX uq_emergency_registrations_active
     ON emergency_registrations (phone_number_id)
-    WHERE status IN ('pending', 'validating', 'active');
+    WHERE status = 'active';
+
+CREATE UNIQUE INDEX uq_emergency_registrations_pending
+    ON emergency_registrations (phone_number_id)
+    WHERE status IN ('pending', 'validating');
 CREATE UNIQUE INDEX uq_emergency_registrations_provider_reference
     ON emergency_registrations (provider_id, provider_reference)
     WHERE provider_reference IS NOT NULL;
