@@ -1,6 +1,9 @@
 name: Format and Generate
 
 on:
+  push:
+    branches:
+      - feat/carrier-ops-lifecycle-commercial-guard
   pull_request:
     branches:
       - main
