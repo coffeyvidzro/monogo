@@ -238,13 +238,14 @@ type ManagedNumberOrder struct {
 	UpdatedAt           pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 }
 
-// Organization-scoped measurement definitions; neither prices nor makes usage billable.
+// Organization-owned meter definitions identified by a globally unique key; no pricing or billability is implied.
 type Meter struct {
 	ID             uuid.UUID          `db:"id" json:"id"`
 	OrganizationID uuid.UUID          `db:"organization_id" json:"organization_id"`
+	Key            string             `db:"key" json:"key"`
 	Name           string             `db:"name" json:"name"`
 	Unit           string             `db:"unit" json:"unit"`
-	Status         string             `db:"status" json:"status"`
+	Active         bool               `db:"active" json:"active"`
 	CreatedAt      pgtype.Timestamptz `db:"created_at" json:"created_at"`
 	UpdatedAt      pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 }

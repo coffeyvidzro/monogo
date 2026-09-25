@@ -25,7 +25,7 @@ FROM meters AS m
 JOIN organizations AS o ON o.id = m.organization_id
 WHERE m.id = $7::UUID
   AND m.organization_id = $8::UUID
-  AND m.status = 'active'
+  AND m.active = true
   AND o.status = 'active'
   AND o.deleted_at IS NULL
 ON CONFLICT (organization_id, idempotency_key) DO NOTHING
