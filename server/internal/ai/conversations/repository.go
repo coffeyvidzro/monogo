@@ -50,7 +50,7 @@ func (r *Repository) CreateTurn(ctx context.Context, identity Identity, req Crea
 		Metadata:        []byte(req.Metadata),
 		SpeechStartedAt: pgconv.NullableTimestamptz(req.SpeechStartedAt),
 		SpeechEndedAt:   pgconv.NullableTimestamptz(req.SpeechEndedAt),
-		STTLatencyMs:    req.STTLatencyMS,
+		SttLatencyMs:    req.STTLatencyMS,
 		LlmTtftMs:       req.LLMTTFTMS,
 		TtsTtfbMs:       req.TTSTTFBMS,
 		TurnLatencyMs:   req.TurnLatencyMS,
