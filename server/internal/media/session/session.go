@@ -13,9 +13,9 @@ import (
 type Engine string
 
 const (
-	EngineEcho           Engine = "echo"
-	EngineComposable     Engine = "composable"
-	EngineOpenAIRealtime Engine = "openai_realtime"
+	EngineEcho       Engine = "echo"
+	EngineComposable Engine = "composable"
+	EngineIntegrated Engine = "integrated"
 )
 
 // AudioFormat describes an uncompressed PCM stream.
