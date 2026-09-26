@@ -1,0 +1,87 @@
+package conversations
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"strings"
+	"time"
+
+	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
+	"github.com/coffeyvidzro/monogo/pkg/apperror"
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
+)
+
+type Service struct{ repo *Repository }
+
+func NewService(repo *Repository) *Service { return &Service{repo: repo} }
+
+func (s *Service) Create(ctx context.Context, organizationID, callID, agentID uuid.UUID) (sqlc.VoiceAgentSession, error) {
+	if organizationID == uuid.Nil { return sqlc.VoiceAgentSession{}, apperror.NewBadRequest("organization_id is required") }
+	if callID == uuid.Nil { return sqlc.VoiceAgentSession{}, apperror.NewBadRequest("call id is required") }
+	if agentID == uuid.Nil { return sqlc.VoiceAgentSession{}, apperror.NewBadRequest("voice agent id is required") }
+	session, err := s.repo.Create(ctx, organizationID, callID, agentID)
+	if conflict(err) { return sqlc.VoiceAgentSession{}, apperror.NewConflict("call already has an active voice agent session") }
+	return session, dbError(err, "create voice agent session")
+}
+
+func (s *Service) GetActiveByCall(ctx context.Context, organizationID, callID uuid.UUID) (sqlc.VoiceAgentSession, error) {
+	if organizationID == uuid.Nil { return sqlc.VoiceAgentSession{}, apperror.NewBadRequest("organization_id is required") }
+	if callID == uuid.Nil { return sqlc.VoiceAgentSession{}, apperror.NewBadRequest("call id is required") }
+	session, err := s.repo.GetActiveByCall(ctx, organizationID, callID)
+	return session, dbError(err, "active voice agent session not found")
+}
+
+func (s *Service) Complete(ctx context.Context, organizationID, id uuid.UUID, req CompleteRequest) (sqlc.VoiceAgentSession, error) {
+	if organizationID == uuid.Nil { return sqlc.VoiceAgentSession{}, apperror.NewBadRequest("organization_id is required") }
+	if id == uuid.Nil { return sqlc.VoiceAgentSession{}, apperror.NewBadRequest("session id is required") }
+	if req.State != "completed" && req.State != "failed" && req.State != "cancelled" {
+		return sqlc.VoiceAgentSession{}, apperror.NewBadRequest("session state must be completed, failed, or cancelled")
+	}
+	if req.TurnCount < 0 || req.InterruptionCount < 0 {
+		return sqlc.VoiceAgentSession{}, apperror.NewBadRequest("session counters cannot be negative")
+	}
+	if req.EndedAt.IsZero() { req.EndedAt = time.Now().UTC() }
+	session, err := s.repo.Complete(ctx, organizationID, id, req)
+	return session, dbError(err, "active voice agent session not found")
+}
+
+func (s *Service) CreateTurn(ctx context.Context, identity Identity, req CreateTurnRequest) (sqlc.VoiceAgentTurn, error) {
+	if identity.OrganizationID == uuid.Nil { return sqlc.VoiceAgentTurn{}, apperror.NewBadRequest("organization_id is required") }
+	if identity.SessionID == uuid.Nil { return sqlc.VoiceAgentTurn{}, apperror.NewBadRequest("session id is required") }
+	if req.Sequence <= 0 { return sqlc.VoiceAgentTurn{}, apperror.NewBadRequest("turn sequence must be positive") }
+	if req.Role != "user" && req.Role != "assistant" && req.Role != "tool" && req.Role != "system" {
+		return sqlc.VoiceAgentTurn{}, apperror.NewBadRequest("turn role is invalid")
+	}
+	req.Content = strings.TrimSpace(req.Content)
+	if req.Content == "" { return sqlc.VoiceAgentTurn{}, apperror.NewBadRequest("turn content is required") }
+	if len(req.Metadata) == 0 { req.Metadata = json.RawMessage(`{}`) }
+	var metadata map[string]any
+	if !json.Valid(req.Metadata) || json.Unmarshal(req.Metadata, &metadata) != nil {
+		return sqlc.VoiceAgentTurn{}, apperror.NewBadRequest("turn metadata must be a JSON object")
+	}
+	turn, err := s.repo.CreateTurn(ctx, identity, req)
+	if conflict(err) { return sqlc.VoiceAgentTurn{}, apperror.NewConflict("turn sequence already exists") }
+	return turn, dbError(err, "create voice agent turn")
+}
+
+func (s *Service) ListTurns(ctx context.Context, identity Identity) ([]sqlc.VoiceAgentTurn, error) {
+	if identity.OrganizationID == uuid.Nil { return nil, apperror.NewBadRequest("organization_id is required") }
+	if identity.SessionID == uuid.Nil { return nil, apperror.NewBadRequest("session id is required") }
+	turns, err := s.repo.ListTurns(ctx, identity)
+	if err != nil { return nil, apperror.NewInternal("list voice agent turns", err) }
+	return turns, nil
+}
+
+func dbError(err error, message string) error {
+	if err == nil { return nil }
+	if errors.Is(err, pgx.ErrNoRows) { return apperror.NewNotFound(message) }
+	return apperror.NewInternal(message, err)
+}
+
+func conflict(err error) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) && pgErr.Code == "23505"
+}
