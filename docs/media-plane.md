@@ -57,6 +57,20 @@ an immutable commit and loads it with low-latency buffering. Run the
 `tests/media-v1` acceptance suite to verify generated FreeSWITCH audio travels
 through the Go worker and returns to FreeSWITCH playback.
 
-External AI providers are not connected yet. Silero VAD and the composable and
-OpenAI engines will be introduced behind the tested session boundary after the
-transport foundation is stable.
+Provider transports are implemented independently of orchestration:
+
+- Deepgram opens authenticated Nova-3 live-transcription WebSockets, sends
+  PCM16 frames, and normalizes interim/final transcript events.
+- Groq uses the OpenAI-compatible chat-completions endpoint and parses streamed
+  SSE text, tool-call argument fragments, finish reasons, and usage.
+- Cartesia opens authenticated Sonic 3.5 synthesis WebSockets and converts
+  base64 raw PCM chunks into media frames.
+- OpenAI Realtime sends and receives 24 kHz PCM over an authenticated
+  server-to-server WebSocket and maps speech, transcript, response, tool, audio,
+  and error events into the provider-neutral session contract.
+
+These adapters intentionally establish one provider stream per media session;
+live recognition and synthesis WebSockets are stateful and are not reused by a
+different call. The reusable clients share HTTP transports and configuration.
+Silero VAD and composable-engine orchestration remain the next layer to connect
+these provider streams to the session manager.
