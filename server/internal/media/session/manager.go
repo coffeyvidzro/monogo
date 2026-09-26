@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -298,6 +299,8 @@ func pump(parent, sessionCtx context.Context, connection Connection, stream Stre
 	ctx, cancel := context.WithCancel(parent)
 	defer cancel()
 	group, groupCtx := errgroup.WithContext(ctx)
+	var playbackActive atomic.Bool
+
 	group.Go(func() error {
 		for {
 			frame, err := connection.ReceiveAudio(groupCtx)
@@ -316,6 +319,7 @@ func pump(parent, sessionCtx context.Context, connection Connection, stream Stre
 				if !ok {
 					return io.EOF
 				}
+				playbackActive.Store(true)
 				if err := connection.SendAudio(groupCtx, frame); err != nil {
 					return err
 				}
@@ -329,9 +333,24 @@ func pump(parent, sessionCtx context.Context, connection Connection, stream Stre
 	group.Go(func() error {
 		for {
 			select {
-			case _, ok := <-stream.Events():
+			case event, ok := <-stream.Events():
 				if !ok {
 					return io.EOF
+				}
+				switch event.Type {
+				case EventResponseStarted:
+					playbackActive.Store(true)
+				case EventResponseStopped:
+					playbackActive.Store(false)
+				case EventSpeechStarted:
+					if playbackActive.Swap(false) {
+						if err := stream.Interrupt(groupCtx); err != nil {
+							return err
+						}
+						if err := connection.ClearPlayback(groupCtx); err != nil {
+							return err
+						}
+					}
 				}
 			case <-sessionCtx.Done():
 				return sessionCtx.Err()
