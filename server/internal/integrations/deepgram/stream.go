@@ -51,7 +51,7 @@ func (s *stream) SendAudio(ctx context.Context, frame session.AudioFrame) error 
 }
 
 func (s *stream) Finalize(ctx context.Context) error {
-	return s.writeJSON(ctx, map[string]string{"type": "Finalize"})
+	return s.writeJSON(ctx, map[string]string{"type": "ForceEndTurn"})
 }
 
 func (s *stream) Events() <-chan Event {
@@ -113,23 +113,27 @@ func (s *stream) readLoop() {
 			s.emit(Event{Err: fmt.Errorf("decode Deepgram event: %w", err)})
 			return
 		}
-		if message.Type != "Results" || len(message.Channel.Alternatives) == 0 {
+		if message.Type != "TurnInfo" {
 			continue
 		}
-		alternative := message.Channel.Alternatives[0]
-		requestID := message.RequestID
-		if requestID == "" {
-			requestID = message.Metadata.RequestID
+		start := durationSeconds(message.AudioWindowStart)
+		end := durationSeconds(message.AudioWindowEnd)
+		duration := end - start
+		if duration < 0 {
+			duration = 0
 		}
 		s.emit(Event{
-			RequestID: requestID,
+			TurnEvent: message.Event,
+			TurnIndex: message.TurnIndex,
+			Trigger:   message.Trigger,
+			RequestID: message.RequestID,
 			Transcript: Transcript{
-				Text:        alternative.Transcript,
-				Confidence:  alternative.Confidence,
-				IsFinal:     message.IsFinal,
-				SpeechFinal: message.SpeechFinal,
-				Start:       durationSeconds(message.Start),
-				Duration:    durationSeconds(message.Duration),
+				Text:        message.Transcript,
+				IsFinal:     message.Event == "EndOfTurn",
+				SpeechFinal: message.Event == "EndOfTurn",
+				Confidence:  message.EndOfTurnConfidence,
+				Start:       start,
+				Duration:    duration,
 			},
 		})
 	}
