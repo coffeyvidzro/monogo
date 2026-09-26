@@ -18,5 +18,10 @@ func RegisterRoutes(router chi.Router, handler *Handler, auth func(http.Handler)
 		r.Post("/{voice_agent_id}/bindings", handler.CreateBinding)
 		r.Get("/{voice_agent_id}/bindings", handler.ListBindings)
 		r.Delete("/{voice_agent_id}/bindings/{binding_id}", handler.DeleteBinding)
+
+		r.Post("/{voice_agent_id}/tools", handler.CreateTool)
+		r.Get("/{voice_agent_id}/tools", handler.ListTools)
+		r.Patch("/{voice_agent_id}/tools/{tool_id}", handler.UpdateTool)
+		r.Delete("/{voice_agent_id}/tools/{tool_id}", handler.DeleteTool)
 	})
 }
