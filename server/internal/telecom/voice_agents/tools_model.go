@@ -50,17 +50,17 @@ type ToolResponse struct {
 
 func toolResponse(tool sqlc.VoiceAgentTool) ToolResponse {
 	return ToolResponse{
-		ID: tool.ID,
+		ID:             tool.ID,
 		OrganizationID: tool.OrganizationID,
-		VoiceAgentID: tool.VoiceAgentID,
-		Type: tool.Type,
-		Name: tool.Name,
-		Description: tool.Description,
-		Parameters: json.RawMessage(tool.Parameters),
-		EndpointURL: tool.EndpointUrl,
-		TimeoutMS: tool.TimeoutMs,
-		Enabled: tool.Enabled,
-		CreatedAt: pgconv.TimestamptzToTime(tool.CreatedAt),
-		UpdatedAt: pgconv.TimestamptzToTime(tool.UpdatedAt),
+		VoiceAgentID:   tool.VoiceAgentID,
+		Type:           tool.Type,
+		Name:           tool.Name,
+		Description:    tool.Description,
+		Parameters:     json.RawMessage(tool.Parameters),
+		EndpointURL:    tool.EndpointUrl,
+		TimeoutMS:      tool.TimeoutMs,
+		Enabled:        tool.Enabled,
+		CreatedAt:      pgconv.TimestamptzToTime(tool.CreatedAt),
+		UpdatedAt:      pgconv.TimestamptzToTime(tool.UpdatedAt),
 	}
 }
