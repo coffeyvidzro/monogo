@@ -634,6 +634,7 @@ type VoiceAgentSession struct {
 	VoiceAgentID           uuid.UUID          `db:"voice_agent_id" json:"voice_agent_id"`
 	Engine                 string             `db:"engine" json:"engine"`
 	InstructionsSnapshot   string             `db:"instructions_snapshot" json:"instructions_snapshot"`
+	EngineConfigSnapshot   []byte             `db:"engine_config_snapshot" json:"engine_config_snapshot"`
 	Voice                  *string            `db:"voice" json:"voice"`
 	Language               *string            `db:"language" json:"language"`
 	State                  string             `db:"state" json:"state"`

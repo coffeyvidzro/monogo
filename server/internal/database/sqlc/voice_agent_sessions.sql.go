@@ -25,7 +25,7 @@ SET
 WHERE id = $7
   AND organization_id = $8
   AND state = 'active'
-RETURNING id, organization_id, call_id, voice_agent_id, engine, instructions_snapshot, voice, language, state, turn_count, interruption_count, first_response_latency_ms, avg_turn_latency_ms, started_at, ended_at, created_at, updated_at
+RETURNING id, organization_id, call_id, voice_agent_id, engine, instructions_snapshot, engine_config_snapshot, voice, language, state, turn_count, interruption_count, first_response_latency_ms, avg_turn_latency_ms, started_at, ended_at, created_at, updated_at
 `
 
 type CompleteVoiceAgentSessionParams struct {
@@ -58,6 +58,7 @@ func (q *Queries) CompleteVoiceAgentSession(ctx context.Context, arg CompleteVoi
 		&i.VoiceAgentID,
 		&i.Engine,
 		&i.InstructionsSnapshot,
+		&i.EngineConfigSnapshot,
 		&i.Voice,
 		&i.Language,
 		&i.State,
@@ -98,7 +99,7 @@ JOIN calls AS c
 WHERE agent.id = $3
   AND agent.organization_id = $1
   AND agent.status = 'active'
-RETURNING id, organization_id, call_id, voice_agent_id, engine, instructions_snapshot, voice, language, state, turn_count, interruption_count, first_response_latency_ms, avg_turn_latency_ms, started_at, ended_at, created_at, updated_at
+RETURNING id, organization_id, call_id, voice_agent_id, engine, instructions_snapshot, engine_config_snapshot, voice, language, state, turn_count, interruption_count, first_response_latency_ms, avg_turn_latency_ms, started_at, ended_at, created_at, updated_at
 `
 
 type CreateVoiceAgentSessionParams struct {
@@ -117,6 +118,7 @@ func (q *Queries) CreateVoiceAgentSession(ctx context.Context, arg CreateVoiceAg
 		&i.VoiceAgentID,
 		&i.Engine,
 		&i.InstructionsSnapshot,
+		&i.EngineConfigSnapshot,
 		&i.Voice,
 		&i.Language,
 		&i.State,
@@ -133,7 +135,7 @@ func (q *Queries) CreateVoiceAgentSession(ctx context.Context, arg CreateVoiceAg
 }
 
 const getActiveVoiceAgentSessionByCallID = `-- name: GetActiveVoiceAgentSessionByCallID :one
-SELECT id, organization_id, call_id, voice_agent_id, engine, instructions_snapshot, voice, language, state, turn_count, interruption_count, first_response_latency_ms, avg_turn_latency_ms, started_at, ended_at, created_at, updated_at
+SELECT id, organization_id, call_id, voice_agent_id, engine, instructions_snapshot, engine_config_snapshot, voice, language, state, turn_count, interruption_count, first_response_latency_ms, avg_turn_latency_ms, started_at, ended_at, created_at, updated_at
 FROM voice_agent_sessions
 WHERE organization_id = $1
   AND call_id = $2
@@ -156,6 +158,7 @@ func (q *Queries) GetActiveVoiceAgentSessionByCallID(ctx context.Context, arg Ge
 		&i.VoiceAgentID,
 		&i.Engine,
 		&i.InstructionsSnapshot,
+		&i.EngineConfigSnapshot,
 		&i.Voice,
 		&i.Language,
 		&i.State,
@@ -172,7 +175,7 @@ func (q *Queries) GetActiveVoiceAgentSessionByCallID(ctx context.Context, arg Ge
 }
 
 const getVoiceAgentSessionByID = `-- name: GetVoiceAgentSessionByID :one
-SELECT id, organization_id, call_id, voice_agent_id, engine, instructions_snapshot, voice, language, state, turn_count, interruption_count, first_response_latency_ms, avg_turn_latency_ms, started_at, ended_at, created_at, updated_at
+SELECT id, organization_id, call_id, voice_agent_id, engine, instructions_snapshot, engine_config_snapshot, voice, language, state, turn_count, interruption_count, first_response_latency_ms, avg_turn_latency_ms, started_at, ended_at, created_at, updated_at
 FROM voice_agent_sessions
 WHERE id = $1
   AND organization_id = $2
@@ -194,6 +197,7 @@ func (q *Queries) GetVoiceAgentSessionByID(ctx context.Context, arg GetVoiceAgen
 		&i.VoiceAgentID,
 		&i.Engine,
 		&i.InstructionsSnapshot,
+		&i.EngineConfigSnapshot,
 		&i.Voice,
 		&i.Language,
 		&i.State,
