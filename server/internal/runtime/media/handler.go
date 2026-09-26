@@ -13,6 +13,7 @@ import (
 
 	"github.com/coffeyvidzro/monogo/internal/media/session"
 	"github.com/coffeyvidzro/monogo/internal/media/transport"
+	"github.com/google/uuid"
 )
 
 type handler struct {
@@ -41,6 +42,9 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.websocket.ServeHTTP(w, r)
 	case r.Method == http.MethodPost && r.URL.Path == "/internal/v1/sessions":
 		h.createSession(w, r)
+	case r.Method == http.MethodDelete &&
+		strings.HasPrefix(r.URL.Path, "/internal/v1/sessions/"):
+		h.stopSession(w, r)
 	default:
 		http.NotFound(w, r)
 	}
@@ -55,9 +59,7 @@ func (h *handler) createSession(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "media worker is draining", http.StatusServiceUnavailable)
 		return
 	}
-	want := []byte("Bearer " + h.config.ControlToken)
-	got := []byte(strings.TrimSpace(r.Header.Get("Authorization")))
-	if len(got) != len(want) || subtle.ConstantTimeCompare(got, want) != 1 {
+	if !h.authorized(r) {
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
@@ -77,8 +79,15 @@ func (h *handler) createSession(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := h.manager.Start(r.Context(), cfg); err != nil {
-		http.Error(w, err.Error(), http.StatusConflict)
-		return
+		if !errors.Is(err, session.ErrSessionAlreadyExists) {
+			http.Error(w, err.Error(), http.StatusConflict)
+			return
+		}
+		existing, ok := h.manager.Config(cfg.ID)
+		if !ok || existing != cfg {
+			http.Error(w, "media session id conflicts with another configuration", http.StatusConflict)
+			return
+		}
 	}
 	token, err := h.tokens.Issue(transport.TokenClaims{
 		SessionID: cfg.ID, CallID: cfg.CallID, ChannelID: cfg.ChannelID, OrganizationID: cfg.OrganizationID,
@@ -101,6 +110,35 @@ func (h *handler) createSession(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
 	w.WriteHeader(http.StatusCreated)
 	_ = json.NewEncoder(w).Encode(createSessionResponse{WebSocketURL: websocketURL.String()})
+}
+
+func (h *handler) stopSession(w http.ResponseWriter, r *http.Request) {
+	if !h.authorized(r) {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+	rawID := strings.TrimPrefix(r.URL.Path, "/internal/v1/sessions/")
+	if rawID == "" || strings.Contains(rawID, "/") {
+		http.Error(w, "invalid media session id", http.StatusBadRequest)
+		return
+	}
+	id, err := uuid.Parse(rawID)
+	if err != nil {
+		http.Error(w, "invalid media session id", http.StatusBadRequest)
+		return
+	}
+	if err := h.manager.Stop(r.Context(), id); err != nil &&
+		!errors.Is(err, session.ErrSessionNotFound) {
+		http.Error(w, "stop media session", http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *handler) authorized(r *http.Request) bool {
+	want := []byte("Bearer " + h.config.ControlToken)
+	got := []byte(strings.TrimSpace(r.Header.Get("Authorization")))
+	return len(got) == len(want) && subtle.ConstantTimeCompare(got, want) == 1
 }
 
 func writeText(w http.ResponseWriter, status int, value string) {

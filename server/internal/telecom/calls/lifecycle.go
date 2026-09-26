@@ -187,3 +187,27 @@ func (s *Service) transition(
 	call, err := fn(ctx, organizationID, id)
 	return call, translateMutationError(err)
 }
+
+// ResolveLifecycleCall returns the canonical call row for an internal
+// lifecycle event without requiring the worker to already know tenant context.
+// Unknown or stale event identities are ignored.
+func (s *Service) ResolveLifecycleCall(ctx context.Context, id uuid.UUID) (sqlc.Call, error) {
+	if id == uuid.Nil {
+		return sqlc.Call{}, apperror.NewBadRequest("call lifecycle event requires call id")
+	}
+	snapshot, err := s.repo.GetLifecycleSnapshot(ctx, id)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return sqlc.Call{}, nil
+	}
+	if err != nil {
+		return sqlc.Call{}, apperror.NewInternal("resolve lifecycle call", err)
+	}
+	call, err := s.repo.Get(ctx, snapshot.OrganizationID, id)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return sqlc.Call{}, nil
+	}
+	if err != nil {
+		return sqlc.Call{}, apperror.NewInternal("get lifecycle call", err)
+	}
+	return call, nil
+}

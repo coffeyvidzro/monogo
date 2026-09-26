@@ -33,6 +33,8 @@ type Config struct {
 	NATSURL               string         `env:"NATS_URL,required"`
 	FreeSWITCHESLAddress  string         `env:"FREESWITCH_ESL_ADDRESS" envDefault:"127.0.0.1:8021"`
 	FreeSWITCHESLPassword string         `env:"FREESWITCH_ESL_PASSWORD,required"`
+	MediaControlURL       string         `env:"MEDIA_CONTROL_URL" envDefault:"http://127.0.0.1:8090"`
+	MediaControlToken     string         `env:"MEDIA_CONTROL_TOKEN"`
 	EncryptionKey         string         `env:"ENCRYPTION_KEY,required"`
 	DIDWW                 DIDWWConfig    `envPrefix:"DIDWW_"`
 	CommPeak              CommPeakConfig `envPrefix:"COMMPEAK_"`
@@ -69,6 +71,8 @@ func (c *Config) normalize() {
 	c.NATSURL = strings.TrimSpace(c.NATSURL)
 	c.FreeSWITCHESLAddress = strings.TrimSpace(c.FreeSWITCHESLAddress)
 	c.FreeSWITCHESLPassword = strings.TrimSpace(c.FreeSWITCHESLPassword)
+	c.MediaControlURL = strings.TrimRight(strings.TrimSpace(c.MediaControlURL), "/")
+	c.MediaControlToken = strings.TrimSpace(c.MediaControlToken)
 	c.EncryptionKey = strings.TrimSpace(c.EncryptionKey)
 	c.DIDWW.APIKey = strings.TrimSpace(c.DIDWW.APIKey)
 	c.DIDWW.APIBaseURL = strings.TrimRight(strings.TrimSpace(c.DIDWW.APIBaseURL), "/")
