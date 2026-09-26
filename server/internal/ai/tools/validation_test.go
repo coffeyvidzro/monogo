@@ -35,7 +35,6 @@ func TestNormalizeCreateRejectsBuiltinWebhookURL(t *testing.T) {
 
 func stringPointer(value string) *string { return &value }
 
-
 func TestNormalizeCreateRejectsUnknownBuiltin(t *testing.T) {
 	_, err := normalizeCreate(CreateRequest{
 		Type:        TypeBuiltin,

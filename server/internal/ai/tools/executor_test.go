@@ -82,7 +82,6 @@ func TestRejectToolRedirect(t *testing.T) {
 	}
 }
 
-
 func TestSameJSONIgnoresObjectKeyOrder(t *testing.T) {
 	left := []byte(`{"a":1,"b":"two"}`)
 	right := []byte(`{"b":"two","a":1}`)

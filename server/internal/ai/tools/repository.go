@@ -27,7 +27,6 @@ func (r *Repository) Create(ctx context.Context, organizationID, agentID uuid.UU
 	})
 }
 
-
 func (r *Repository) CreateWebhook(
 	ctx context.Context,
 	organizationID, agentID, id uuid.UUID,
@@ -43,15 +42,15 @@ func (r *Repository) CreateWebhook(
 		enabled = *req.Enabled
 	}
 	if _, err := r.queries.CreateVoiceAgentWebhookTool(ctx, sqlc.CreateVoiceAgentWebhookToolParams{
-		ID: id,
-		OrganizationID: organizationID,
-		VoiceAgentID: agentID,
-		Name: req.Name,
-		Description: req.Description,
-		Parameters: []byte(req.Parameters),
-		EndpointUrl: *req.EndpointURL,
-		TimeoutMs: timeout,
-		Enabled: enabled,
+		ID:               id,
+		OrganizationID:   organizationID,
+		VoiceAgentID:     agentID,
+		Name:             req.Name,
+		Description:      req.Description,
+		Parameters:       []byte(req.Parameters),
+		EndpointUrl:      *req.EndpointURL,
+		TimeoutMs:        timeout,
+		Enabled:          enabled,
 		SecretCiphertext: secretCiphertext,
 	}); err != nil {
 		return sqlc.VoiceAgentTool{}, err
@@ -64,9 +63,9 @@ func (r *Repository) GetSigningSecret(
 	organizationID, agentID, toolID uuid.UUID,
 ) (string, error) {
 	return r.queries.GetVoiceAgentToolSigningSecret(ctx, sqlc.GetVoiceAgentToolSigningSecretParams{
-		ToolID: toolID,
+		ToolID:         toolID,
 		OrganizationID: organizationID,
-		VoiceAgentID: agentID,
+		VoiceAgentID:   agentID,
 	})
 }
 
@@ -77,9 +76,9 @@ func (r *Repository) RotateSigningSecret(
 ) (int64, error) {
 	return r.queries.RotateVoiceAgentToolSigningSecret(ctx, sqlc.RotateVoiceAgentToolSigningSecretParams{
 		SecretCiphertext: secretCiphertext,
-		ToolID: toolID,
-		OrganizationID: organizationID,
-		VoiceAgentID: agentID,
+		ToolID:           toolID,
+		OrganizationID:   organizationID,
+		VoiceAgentID:     agentID,
 	})
 }
 
@@ -89,12 +88,12 @@ func (r *Repository) ClaimExecution(
 ) (uuid.UUID, error) {
 	return r.queries.ClaimVoiceAgentToolExecution(ctx, sqlc.ClaimVoiceAgentToolExecutionParams{
 		OrganizationID: req.OrganizationID,
-		SessionID: req.SessionID,
-		VoiceAgentID: req.VoiceAgentID,
-		ToolID: req.ToolID,
-		CallID: req.CallID,
-		ToolCallID: req.ToolCallID,
-		Arguments: []byte(req.Arguments),
+		SessionID:      req.SessionID,
+		VoiceAgentID:   req.VoiceAgentID,
+		ToolID:         req.ToolID,
+		CallID:         req.CallID,
+		ToolCallID:     req.ToolCallID,
+		Arguments:      []byte(req.Arguments),
 	})
 }
 
@@ -105,8 +104,8 @@ func (r *Repository) GetExecution(
 ) (sqlc.VoiceAgentToolExecution, error) {
 	return r.queries.GetVoiceAgentToolExecution(ctx, sqlc.GetVoiceAgentToolExecutionParams{
 		OrganizationID: organizationID,
-		SessionID: sessionID,
-		ToolCallID: toolCallID,
+		SessionID:      sessionID,
+		ToolCallID:     toolCallID,
 	})
 }
 
@@ -118,11 +117,11 @@ func (r *Repository) MarkExecutionSucceeded(
 	status := int32(result.StatusCode)
 	contentType := result.ContentType
 	return r.queries.MarkVoiceAgentToolExecutionSucceeded(ctx, sqlc.MarkVoiceAgentToolExecutionSucceededParams{
-		ResponseStatus: &status,
+		ResponseStatus:      &status,
 		ResponseContentType: &contentType,
-		ResponseBody: result.Body,
-		ID: id,
-		OrganizationID: organizationID,
+		ResponseBody:        result.Body,
+		ID:                  id,
+		OrganizationID:      organizationID,
 	})
 }
 
@@ -132,8 +131,8 @@ func (r *Repository) MarkExecutionFailed(
 	message string,
 ) (int64, error) {
 	return r.queries.MarkVoiceAgentToolExecutionFailed(ctx, sqlc.MarkVoiceAgentToolExecutionFailedParams{
-		ErrorMessage: message,
-		ID: id,
+		ErrorMessage:   message,
+		ID:             id,
 		OrganizationID: organizationID,
 	})
 }
