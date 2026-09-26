@@ -60,6 +60,7 @@ type Connection interface {
 	Metadata() ConnectionMetadata
 	ReceiveAudio(context.Context) (AudioFrame, error)
 	SendAudio(context.Context, AudioFrame) error
+	ClearPlayback(context.Context) error
 	Close() error
 }
 
