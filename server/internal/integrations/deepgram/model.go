@@ -1,4 +1,4 @@
-// Package deepgram implements Deepgram live speech-to-text streaming.
+// Package deepgram implements Deepgram Flux conversational speech recognition.
 package deepgram
 
 import (
@@ -9,41 +9,30 @@ import (
 )
 
 const (
-	DefaultEndpoint = "wss://api.deepgram.com/v1/listen"
-	DefaultModel    = "nova-3"
+	DefaultEndpoint = "wss://api.deepgram.com/v2/listen"
+	DefaultModel    = "flux-general-en"
 )
 
 type Config struct {
-	APIKey         string
-	Endpoint       string
-	Model          string
-	Language       string
-	InterimResults bool
-	Endpointing    time.Duration
-}
-
-type Alternative struct {
-	Transcript string  `json:"transcript"`
-	Confidence float64 `json:"confidence"`
-}
-
-type Channel struct {
-	Alternatives []Alternative `json:"alternatives"`
+	APIKey             string
+	Endpoint           string
+	Model              string
+	LanguageHints      []string
+	EOTThreshold       *float64
+	EagerEOTThreshold  *float64
+	EOTTimeout         time.Duration
 }
 
 type Message struct {
-	Type        string   `json:"type"`
-	Channel     Channel  `json:"channel"`
-	IsFinal     bool     `json:"is_final"`
-	SpeechFinal bool     `json:"speech_final"`
-	Start       float64  `json:"start"`
-	Duration    float64  `json:"duration"`
-	RequestID   string   `json:"request_id"`
-	Metadata    Metadata `json:"metadata"`
-}
-
-type Metadata struct {
-	RequestID string `json:"request_id"`
+	Type                string  `json:"type"`
+	Event               string  `json:"event"`
+	RequestID           string  `json:"request_id"`
+	TurnIndex           int     `json:"turn_index"`
+	AudioWindowStart    float64 `json:"audio_window_start"`
+	AudioWindowEnd      float64 `json:"audio_window_end"`
+	Transcript          string  `json:"transcript"`
+	EndOfTurnConfidence float64 `json:"end_of_turn_confidence"`
+	Trigger             string  `json:"trigger"`
 }
 
 type Transcript struct {
@@ -56,6 +45,9 @@ type Transcript struct {
 }
 
 type Event struct {
+	TurnEvent  string
+	TurnIndex  int
+	Trigger    string
 	Transcript Transcript
 	RequestID  string
 	Err        error
