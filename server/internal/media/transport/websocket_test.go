@@ -3,6 +3,7 @@ package transport
 import (
 	"context"
 	"encoding/json"
+	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
@@ -81,6 +82,50 @@ func TestWebSocketHandlerAuthenticatesAndEchoesAudio(t *testing.T) {
 	}
 	if messageType != websocket.MessageBinary || string(got) != string(want) {
 		t.Fatalf("echo = (%v, %v), want binary %v", messageType, got, want)
+	}
+}
+
+func TestWebSocketConnectionClearPlaybackWritesControlFrame(t *testing.T) {
+	serverSide := make(chan *websocket.Conn, 1)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ws, err := websocket.Accept(w, r, nil)
+		if err != nil {
+			return
+		}
+		serverSide <- ws
+		<-r.Context().Done()
+	}))
+	defer server.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	client, response, err := websocket.Dial(ctx, "ws"+strings.TrimPrefix(server.URL, "http"), nil)
+	if response != nil && response.Body != nil {
+		defer func() { _ = response.Body.Close() }()
+	}
+	if err != nil {
+		t.Fatalf("Dial() error = %v", err)
+	}
+	defer func() { _ = client.CloseNow() }()
+
+	ws := <-serverSide
+	defer func() { _ = ws.CloseNow() }()
+	connection := &webSocketConnection{
+		connection: ws,
+		metadata: session.ConnectionMetadata{
+			Format: session.AudioFormat{SampleRateHz: 16000, Channels: 1},
+		},
+	}
+	if err := connection.ClearPlayback(ctx); err != nil {
+		t.Fatalf("ClearPlayback() error = %v", err)
+	}
+
+	messageType, payload, err := client.Read(ctx)
+	if err != nil {
+		t.Fatalf("Read() error = %v", err)
+	}
+	if messageType != websocket.MessageText || string(payload) != `{"type":"clear"}` {
+		t.Fatalf("clear frame = (%v, %q)", messageType, payload)
 	}
 }
 

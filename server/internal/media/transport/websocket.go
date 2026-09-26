@@ -167,6 +167,12 @@ func (c *webSocketConnection) SendAudio(ctx context.Context, frame session.Audio
 	return c.connection.Write(ctx, websocket.MessageBinary, frame.Data)
 }
 
+func (c *webSocketConnection) ClearPlayback(ctx context.Context) error {
+	c.writeMu.Lock()
+	defer c.writeMu.Unlock()
+	return c.connection.Write(ctx, websocket.MessageText, []byte(`{"type":"clear"}`))
+}
+
 func (c *webSocketConnection) Close() error {
 	var err error
 	c.closeOnce.Do(func() { err = c.connection.CloseNow() })
