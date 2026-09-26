@@ -48,7 +48,7 @@ func (r *Repository) CreateWebhook(
 		Name:             req.Name,
 		Description:      req.Description,
 		Parameters:       []byte(req.Parameters),
-		EndpointUrl:      *req.EndpointURL,
+		EndpointUrl:      req.EndpointURL,
 		TimeoutMs:        timeout,
 		Enabled:          enabled,
 		SecretCiphertext: secretCiphertext,
@@ -131,7 +131,7 @@ func (r *Repository) MarkExecutionFailed(
 	message string,
 ) (int64, error) {
 	return r.queries.MarkVoiceAgentToolExecutionFailed(ctx, sqlc.MarkVoiceAgentToolExecutionFailedParams{
-		ErrorMessage:   message,
+		ErrorMessage:   &message,
 		ID:             id,
 		OrganizationID: organizationID,
 	})
