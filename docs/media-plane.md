@@ -33,10 +33,16 @@ observable without allowing callers to write into an adapter's queues.
 
 ## Engine topology
 
-The composable engine connects Silero turn detection, Deepgram transcription,
-Groq generation, and Cartesia synthesis. The OpenAI realtime engine is an
-alternative end-to-end path. A media session selects exactly one of these
-engines; OpenAI realtime is not an extra stage in the composable pipeline.
+The media plane exposes two production engine topologies:
+
+- `composable`: Deepgram Flux turn-aware speech recognition, Groq generation,
+  and Cartesia synthesis. Silero VAD remains available as an optional local or
+  fallback turn detector rather than a mandatory stage.
+- `integrated`: one end-to-end realtime provider. OpenAI Realtime is the first
+  implementation.
+
+A media session selects exactly one engine. Integrated providers are alternatives
+to the composable pipeline, not additional stages inside it.
 
 The initial PCM contract is mono signed 16-bit little-endian audio at 8, 16,
 24, or 48 kHz. Provider adapters are responsible for rejecting unsupported
@@ -59,18 +65,24 @@ through the Go worker and returns to FreeSWITCH playback.
 
 Provider transports are implemented independently of orchestration:
 
-- Deepgram opens authenticated Nova-3 live-transcription WebSockets, sends
-  PCM16 frames, and normalizes interim/final transcript events.
-- Groq uses the OpenAI-compatible chat-completions endpoint and parses streamed
-  SSE text, tool-call argument fragments, finish reasons, and usage.
-- Cartesia opens authenticated Sonic 3.5 synthesis WebSockets and converts
+- Deepgram connects to Flux over `/v2/listen`, sends PCM16 frames, and
+  normalizes turn events including `StartOfTurn`, `EagerEndOfTurn`,
+  `TurnResumed`, and `EndOfTurn`. `ForceEndTurn` is available for local
+  turn-control signals such as DTMF or an optional Silero detector.
+- Groq uses the OpenAI-compatible chat-completions endpoint and defaults to
+  `qwen/qwen3.8-27b` for the composable low-latency generation path while
+  remaining model-configurable.
+- Cartesia opens authenticated Sonic 3.6 synthesis WebSockets and converts
   base64 raw PCM chunks into media frames.
-- OpenAI Realtime sends and receives 24 kHz PCM over an authenticated
-  server-to-server WebSocket and maps speech, transcript, response, tool, audio,
-  and error events into the provider-neutral session contract.
+- OpenAI Realtime is the first `integrated` engine implementation. It sends
+  and receives 24 kHz PCM over an authenticated server-to-server WebSocket and
+  maps speech, transcript, response, tool, audio, and error events into the
+  provider-neutral session contract.
 
 These adapters intentionally establish one provider stream per media session;
 live recognition and synthesis WebSockets are stateful and are not reused by a
 different call. The reusable clients share HTTP transports and configuration.
-Silero VAD and composable-engine orchestration remain the next layer to connect
-these provider streams to the session manager.
+Composable-engine orchestration and integrated-engine runtime registration
+remain the next layer to connect these provider streams to the session manager.
+Silero VAD is retained for optional local turn control rather than required in
+the default Flux path.

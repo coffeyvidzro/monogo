@@ -13,9 +13,9 @@ import (
 type Engine string
 
 const (
-	EngineEcho           Engine = "echo"
-	EngineComposable     Engine = "composable"
-	EngineOpenAIRealtime Engine = "openai_realtime"
+	EngineEcho       Engine = "echo"
+	EngineComposable Engine = "composable"
+	EngineIntegrated Engine = "integrated"
 )
 
 // AudioFormat describes an uncompressed PCM stream.
@@ -105,7 +105,7 @@ func (c Config) Validate() error {
 	if c.ChannelID == uuid.Nil {
 		return fmt.Errorf("channel id is required")
 	}
-	if c.Engine != EngineEcho && c.Engine != EngineComposable && c.Engine != EngineOpenAIRealtime {
+	if c.Engine != EngineEcho && c.Engine != EngineComposable && c.Engine != EngineIntegrated {
 		return fmt.Errorf("unsupported engine %q", c.Engine)
 	}
 	if err := c.InputFormat.Validate(); err != nil {

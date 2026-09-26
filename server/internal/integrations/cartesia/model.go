@@ -10,7 +10,7 @@ import (
 const (
 	DefaultEndpoint   = "wss://api.cartesia.ai/tts/websocket"
 	DefaultAPIVersion = "2026-08-14"
-	DefaultModel      = "sonic-3.5"
+	DefaultModel      = "sonic-3.6"
 )
 
 type Config struct {

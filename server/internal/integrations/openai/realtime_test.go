@@ -59,7 +59,7 @@ func TestRealtimeStreamsAudioAndNormalizedEvents(t *testing.T) {
 	defer cancel()
 	format := session.AudioFormat{SampleRateHz: 24000, Channels: 1}
 	stream, err := NewClient(server.Client()).Start(ctx, Config{APIKey: "secret", Endpoint: "wss" + strings.TrimPrefix(server.URL, "https"), Voice: "marin"}, session.Config{
-		ID: uuid.New(), OrganizationID: uuid.New(), CallID: uuid.New(), ChannelID: uuid.New(), Engine: session.EngineOpenAIRealtime, InputFormat: format, OutputFormat: format,
+		ID: uuid.New(), OrganizationID: uuid.New(), CallID: uuid.New(), ChannelID: uuid.New(), Engine: session.EngineIntegrated, InputFormat: format, OutputFormat: format,
 	})
 	if err != nil {
 		t.Fatalf("Start() error = %v", err)

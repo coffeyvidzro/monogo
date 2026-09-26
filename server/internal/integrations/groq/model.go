@@ -8,7 +8,7 @@ import (
 
 const (
 	DefaultEndpoint = "https://api.groq.com/openai/v1/chat/completions"
-	DefaultModel    = "llama-3.3-70b-versatile"
+	DefaultModel    = "qwen/qwen3.8-27b"
 )
 
 type Config struct {
