@@ -219,7 +219,7 @@ func (s *stream) generate(ctx context.Context, generation uint64, messages []gro
 			}
 			if event.TextDelta != "" {
 				text.WriteString(event.TextDelta)
-				s.emitCurrent(ctx, generation, session.Event{Type: session.EventTranscriptDelta, Text: event.TextDelta, ProviderID: event.CompletionID, OccurredAt: time.Now().UTC()})
+				s.emitCurrent(ctx, generation, session.Event{Type: session.EventResponseDelta, Text: event.TextDelta, ProviderID: event.CompletionID, OccurredAt: time.Now().UTC()})
 				if pending != "" {
 					if err := voice.SendText(ctx, pending, true); err != nil {
 						s.failResponse(ctx, generation, err)
