@@ -125,8 +125,10 @@ type fakeConnection struct {
 	metadata session.ConnectionMetadata
 	incoming chan session.AudioFrame
 	outgoing chan session.AudioFrame
+	cleared  chan struct{}
 	closed   chan struct{}
 	once     sync.Once
+	clearOnce sync.Once
 }
 
 func newFakeConnection(cfg session.Config) *fakeConnection {
@@ -136,7 +138,7 @@ func newFakeConnection(cfg session.Config) *fakeConnection {
 			ChannelID: cfg.ChannelID, Format: cfg.InputFormat,
 		},
 		incoming: make(chan session.AudioFrame, 1), outgoing: make(chan session.AudioFrame, 1),
-		closed: make(chan struct{}),
+		cleared: make(chan struct{}), closed: make(chan struct{}),
 	}
 }
 
@@ -159,6 +161,10 @@ func (c *fakeConnection) SendAudio(ctx context.Context, frame session.AudioFrame
 	case <-ctx.Done():
 		return ctx.Err()
 	}
+}
+func (c *fakeConnection) ClearPlayback(context.Context) error {
+	c.clearOnce.Do(func() { close(c.cleared) })
+	return nil
 }
 func (c *fakeConnection) Close() error { c.once.Do(func() { close(c.closed) }); return nil }
 func (c *fakeConnection) closeInput()  { close(c.incoming) }
