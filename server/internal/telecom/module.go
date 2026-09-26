@@ -20,6 +20,7 @@ import (
 	"github.com/coffeyvidzro/monogo/internal/telecom/subscribers"
 	"github.com/coffeyvidzro/monogo/internal/telecom/trunks"
 	"github.com/coffeyvidzro/monogo/internal/telecom/voice"
+	"github.com/coffeyvidzro/monogo/internal/telecom/voice_agents"
 )
 
 type Dependencies struct {
@@ -49,6 +50,7 @@ type Module struct {
 	Subscribers SubscribersModule
 	Trunks      TrunksModule
 	Voice       VoiceModule
+	VoiceAgents VoiceAgentsModule
 }
 
 type CallsModule struct {
@@ -121,6 +123,12 @@ type VoiceModule struct {
 	Handler    *voice.Handler
 }
 
+type VoiceAgentsModule struct {
+	Repository *voice_agents.Repository
+	Service    *voice_agents.Service
+	Handler    *voice_agents.Handler
+}
+
 func New(deps Dependencies) (*Module, error) {
 	routingRepository := routing.NewRepository(deps.Queries, deps.DB)
 	routingService := routing.NewService(routingRepository, nil)
@@ -143,6 +151,8 @@ func New(deps Dependencies) (*Module, error) {
 
 	voiceRepository := voice.NewRepository(deps.Queries)
 	voiceService := voice.NewService(voiceRepository)
+	voiceAgentsRepository := voice_agents.NewRepository(deps.Queries)
+	voiceAgentsService := voice_agents.NewService(voiceAgentsRepository)
 
 	recordingsRepository := recordings.NewRepository(deps.DB)
 	recordingsService := recordings.NewService(recordingsRepository, deps.RecordingStorage)
@@ -188,6 +198,11 @@ func New(deps Dependencies) (*Module, error) {
 			Repository: voiceRepository,
 			Service:    voiceService,
 			Handler:    voice.NewHandler(voiceService),
+		},
+		VoiceAgents: VoiceAgentsModule{
+			Repository: voiceAgentsRepository,
+			Service:    voiceAgentsService,
+			Handler:    voice_agents.NewHandler(voiceAgentsService),
 		},
 		Recordings: RecordingsModule{
 			Repository: recordingsRepository,
