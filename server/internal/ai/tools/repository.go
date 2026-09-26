@@ -27,6 +27,12 @@ func (r *Repository) Create(ctx context.Context, organizationID, agentID uuid.UU
 	})
 }
 
+func (r *Repository) Get(ctx context.Context, organizationID, agentID, id uuid.UUID) (sqlc.VoiceAgentTool, error) {
+	return r.queries.GetVoiceAgentToolByID(ctx, sqlc.GetVoiceAgentToolByIDParams{
+		ID: id, OrganizationID: organizationID, VoiceAgentID: agentID,
+	})
+}
+
 func (r *Repository) List(ctx context.Context, organizationID, agentID uuid.UUID) ([]sqlc.VoiceAgentTool, error) {
 	return r.queries.ListVoiceAgentToolsByAgentID(ctx, sqlc.ListVoiceAgentToolsByAgentIDParams{
 		OrganizationID: organizationID, VoiceAgentID: agentID,

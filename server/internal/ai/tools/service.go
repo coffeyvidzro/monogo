@@ -33,6 +33,17 @@ func (s *Service) Create(ctx context.Context, organizationID, agentID uuid.UUID,
 	return tool, nil
 }
 
+func (s *Service) Get(ctx context.Context, organizationID, agentID, id uuid.UUID) (sqlc.VoiceAgentTool, error) {
+	if err := validateIDs(organizationID, agentID); err != nil {
+		return sqlc.VoiceAgentTool{}, err
+	}
+	if id == uuid.Nil {
+		return sqlc.VoiceAgentTool{}, apperror.NewBadRequest("tool id is required")
+	}
+	tool, err := s.repo.Get(ctx, organizationID, agentID, id)
+	return tool, dbError(err, "voice agent tool not found")
+}
+
 func (s *Service) List(ctx context.Context, organizationID, agentID uuid.UUID) ([]sqlc.VoiceAgentTool, error) {
 	if err := validateIDs(organizationID, agentID); err != nil {
 		return nil, err
