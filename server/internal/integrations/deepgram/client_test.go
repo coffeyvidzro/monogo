@@ -49,7 +49,7 @@ func TestClientStreamsAudioAndTurnTranscript(t *testing.T) {
 	defer cancel()
 	format := session.AudioFormat{SampleRateHz: 16000, Channels: 1}
 	stream, err := NewClient(server.Client()).Start(ctx, Config{
-		APIKey: "secret",
+		APIKey:   "secret",
 		Endpoint: "wss" + strings.TrimPrefix(server.URL, "https") + "/v2/listen",
 	}, format)
 	if err != nil {

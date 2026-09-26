@@ -14,13 +14,13 @@ const (
 )
 
 type Config struct {
-	APIKey             string
-	Endpoint           string
-	Model              string
-	LanguageHints      []string
-	EOTThreshold       *float64
-	EagerEOTThreshold  *float64
-	EOTTimeout         time.Duration
+	APIKey            string
+	Endpoint          string
+	Model             string
+	LanguageHints     []string
+	EOTThreshold      *float64
+	EagerEOTThreshold *float64
+	EOTTimeout        time.Duration
 }
 
 type Message struct {
