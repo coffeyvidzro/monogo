@@ -36,7 +36,11 @@ func TestClientStreamsAudioAndTranscript(t *testing.T) {
 		}
 		received <- audio
 		_ = ws.Write(r.Context(), websocket.MessageText, []byte(`{"type":"Results","channel":{"alternatives":[{"transcript":"hello","confidence":0.9}]},"is_final":true,"speech_final":true,"metadata":{"request_id":"req-1"}}`))
-		<-r.Context().Done()
+		kind, payload, err := ws.Read(r.Context())
+		if err != nil || kind != websocket.MessageText || string(payload) != `{"type":"CloseStream"}` {
+			return
+		}
+		_ = ws.Close(websocket.StatusNormalClosure, "complete")
 	}))
 	defer server.Close()
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
