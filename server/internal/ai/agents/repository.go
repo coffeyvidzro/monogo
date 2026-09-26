@@ -14,11 +14,11 @@ func NewRepository(queries *sqlc.Queries) *Repository { return &Repository{queri
 func (r *Repository) Create(ctx context.Context, organizationID uuid.UUID, req CreateRequest) (sqlc.VoiceAgent, error) {
 	return r.queries.CreateVoiceAgent(ctx, sqlc.CreateVoiceAgentParams{
 		OrganizationID: organizationID,
-		Name: req.Name,
-		Engine: req.Engine,
-		Instructions: req.Instructions,
-		Voice: req.Voice,
-		Language: req.Language,
+		Name:           req.Name,
+		Engine:         req.Engine,
+		Instructions:   req.Instructions,
+		Voice:          req.Voice,
+		Language:       req.Language,
 	})
 }
 
@@ -32,12 +32,12 @@ func (r *Repository) Get(ctx context.Context, organizationID, id uuid.UUID) (sql
 
 func (r *Repository) Update(ctx context.Context, organizationID, id uuid.UUID, req UpdateRequest) (sqlc.VoiceAgent, error) {
 	return r.queries.UpdateVoiceAgent(ctx, sqlc.UpdateVoiceAgentParams{
-		Name: req.Name,
-		Engine: req.Engine,
-		Instructions: req.Instructions,
-		Voice: req.Voice,
-		Language: req.Language,
-		ID: id,
+		Name:           req.Name,
+		Engine:         req.Engine,
+		Instructions:   req.Instructions,
+		Voice:          req.Voice,
+		Language:       req.Language,
+		ID:             id,
 		OrganizationID: organizationID,
 	})
 }
@@ -48,7 +48,7 @@ func (r *Repository) Disable(ctx context.Context, organizationID, id uuid.UUID) 
 
 func (r *Repository) ResolveByApplication(ctx context.Context, organizationID, applicationID uuid.UUID) (sqlc.VoiceAgent, error) {
 	return r.queries.GetVoiceAgentByApplicationID(ctx, sqlc.GetVoiceAgentByApplicationIDParams{
-		OrganizationID: organizationID,
+		OrganizationID:     organizationID,
 		VoiceApplicationID: applicationID,
 	})
 }

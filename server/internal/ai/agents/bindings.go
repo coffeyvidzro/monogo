@@ -26,8 +26,8 @@ type BindingResponse struct {
 
 func (r *Repository) CreateBinding(ctx context.Context, organizationID, agentID uuid.UUID, req CreateBindingRequest) (sqlc.VoiceAgentBinding, error) {
 	return r.queries.CreateVoiceAgentBinding(ctx, sqlc.CreateVoiceAgentBindingParams{
-		OrganizationID: organizationID,
-		VoiceAgentID: agentID,
+		OrganizationID:     organizationID,
+		VoiceAgentID:       agentID,
 		VoiceApplicationID: req.VoiceApplicationID,
 	})
 }
@@ -35,7 +35,7 @@ func (r *Repository) CreateBinding(ctx context.Context, organizationID, agentID 
 func (r *Repository) ListBindings(ctx context.Context, organizationID, agentID uuid.UUID) ([]sqlc.VoiceAgentBinding, error) {
 	return r.queries.ListVoiceAgentBindingsByAgentID(ctx, sqlc.ListVoiceAgentBindingsByAgentIDParams{
 		OrganizationID: organizationID,
-		VoiceAgentID: agentID,
+		VoiceAgentID:   agentID,
 	})
 }
 
@@ -91,10 +91,10 @@ func (s *Service) DeleteBinding(ctx context.Context, organizationID, agentID, id
 
 func bindingResponse(binding sqlc.VoiceAgentBinding) BindingResponse {
 	return BindingResponse{
-		ID: binding.ID,
-		OrganizationID: binding.OrganizationID,
-		VoiceAgentID: binding.VoiceAgentID,
+		ID:                 binding.ID,
+		OrganizationID:     binding.OrganizationID,
+		VoiceAgentID:       binding.VoiceAgentID,
 		VoiceApplicationID: binding.VoiceApplicationID,
-		CreatedAt: pgconv.TimestamptzToTime(binding.CreatedAt),
+		CreatedAt:          pgconv.TimestamptzToTime(binding.CreatedAt),
 	}
 }

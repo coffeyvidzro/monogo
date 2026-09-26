@@ -13,9 +13,13 @@ func NewRepository(queries *sqlc.Queries) *Repository { return &Repository{queri
 
 func (r *Repository) Create(ctx context.Context, organizationID, agentID uuid.UUID, req CreateRequest) (sqlc.VoiceAgentTool, error) {
 	timeout := int32(3000)
-	if req.TimeoutMS != nil { timeout = *req.TimeoutMS }
+	if req.TimeoutMS != nil {
+		timeout = *req.TimeoutMS
+	}
 	enabled := true
-	if req.Enabled != nil { enabled = *req.Enabled }
+	if req.Enabled != nil {
+		enabled = *req.Enabled
+	}
 	return r.queries.CreateVoiceAgentTool(ctx, sqlc.CreateVoiceAgentToolParams{
 		OrganizationID: organizationID, VoiceAgentID: agentID, Type: req.Type,
 		Name: req.Name, Description: req.Description, Parameters: []byte(req.Parameters),
@@ -31,7 +35,9 @@ func (r *Repository) List(ctx context.Context, organizationID, agentID uuid.UUID
 
 func (r *Repository) Update(ctx context.Context, organizationID, agentID, id uuid.UUID, req UpdateRequest) (sqlc.VoiceAgentTool, error) {
 	var parameters []byte
-	if req.Parameters != nil { parameters = []byte(*req.Parameters) }
+	if req.Parameters != nil {
+		parameters = []byte(*req.Parameters)
+	}
 	return r.queries.UpdateVoiceAgentTool(ctx, sqlc.UpdateVoiceAgentToolParams{
 		Name: req.Name, Description: req.Description, Parameters: parameters,
 		EndpointUrl: req.EndpointURL, TimeoutMs: req.TimeoutMS, Enabled: req.Enabled,

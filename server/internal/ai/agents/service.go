@@ -77,15 +77,25 @@ func (s *Service) ResolveByApplication(ctx context.Context, organizationID, appl
 }
 
 func readError(err error, message string) error {
-	if err == nil { return nil }
-	if errors.Is(err, pgx.ErrNoRows) { return apperror.NewNotFound(message) }
+	if err == nil {
+		return nil
+	}
+	if errors.Is(err, pgx.ErrNoRows) {
+		return apperror.NewNotFound(message)
+	}
 	return apperror.NewInternal(message, err)
 }
 
 func writeError(err error, message string) error {
-	if err == nil { return nil }
-	if errors.Is(err, pgx.ErrNoRows) { return apperror.NewNotFound(message) }
-	if conflict(err) { return apperror.NewConflict("voice agent already exists") }
+	if err == nil {
+		return nil
+	}
+	if errors.Is(err, pgx.ErrNoRows) {
+		return apperror.NewNotFound(message)
+	}
+	if conflict(err) {
+		return apperror.NewConflict("voice agent already exists")
+	}
 	return apperror.NewInternal(message, err)
 }
 

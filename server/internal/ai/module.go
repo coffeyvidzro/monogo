@@ -49,18 +49,18 @@ func New(queries *sqlc.Queries) *Module {
 	return &Module{
 		Agents: AgentsModule{
 			Repository: agentsRepository,
-			Service: agentsService,
-			Handler: agents.NewHandler(agentsService),
+			Service:    agentsService,
+			Handler:    agents.NewHandler(agentsService),
 		},
 		Tools: ToolsModule{
 			Repository: toolsRepository,
-			Service: toolsService,
-			Handler: tools.NewHandler(toolsService),
-			Executor: toolsExecutor,
+			Service:    toolsService,
+			Handler:    tools.NewHandler(toolsService),
+			Executor:   toolsExecutor,
 		},
 		Conversations: ConversationsModule{
 			Repository: conversationsRepository,
-			Service: conversationsService,
+			Service:    conversationsService,
 		},
 		Orchestration: orchestrator,
 	}

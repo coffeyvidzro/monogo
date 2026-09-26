@@ -26,34 +26,34 @@ func (r *Repository) GetActiveByCall(ctx context.Context, organizationID, callID
 
 func (r *Repository) Complete(ctx context.Context, organizationID, id uuid.UUID, req CompleteRequest) (sqlc.VoiceAgentSession, error) {
 	return r.queries.CompleteVoiceAgentSession(ctx, sqlc.CompleteVoiceAgentSessionParams{
-		State: req.State,
-		TurnCount: req.TurnCount,
-		InterruptionCount: req.InterruptionCount,
+		State:                  req.State,
+		TurnCount:              req.TurnCount,
+		InterruptionCount:      req.InterruptionCount,
 		FirstResponseLatencyMs: req.FirstResponseLatencyMS,
-		AvgTurnLatencyMs: req.AverageTurnLatencyMS,
-		EndedAt: pgconv.TimeToTimestamptz(req.EndedAt),
-		ID: id,
-		OrganizationID: organizationID,
+		AvgTurnLatencyMs:       req.AverageTurnLatencyMS,
+		EndedAt:                pgconv.TimeToTimestamptz(req.EndedAt),
+		ID:                     id,
+		OrganizationID:         organizationID,
 	})
 }
 
 func (r *Repository) CreateTurn(ctx context.Context, identity Identity, req CreateTurnRequest) (sqlc.VoiceAgentTurn, error) {
 	return r.queries.CreateVoiceAgentTurn(ctx, sqlc.CreateVoiceAgentTurnParams{
-		OrganizationID: identity.OrganizationID,
-		SessionID: identity.SessionID,
-		Sequence: req.Sequence,
-		Role: req.Role,
-		Content: req.Content,
-		ProviderID: req.ProviderID,
-		ToolName: req.ToolName,
-		ToolCallID: req.ToolCallID,
-		Metadata: []byte(req.Metadata),
+		OrganizationID:  identity.OrganizationID,
+		SessionID:       identity.SessionID,
+		Sequence:        req.Sequence,
+		Role:            req.Role,
+		Content:         req.Content,
+		ProviderID:      req.ProviderID,
+		ToolName:        req.ToolName,
+		ToolCallID:      req.ToolCallID,
+		Metadata:        []byte(req.Metadata),
 		SpeechStartedAt: pgconv.NullableTimestamptz(req.SpeechStartedAt),
-		SpeechEndedAt: pgconv.NullableTimestamptz(req.SpeechEndedAt),
-		STTLatencyMs: req.STTLatencyMS,
-		LlmTtftMs: req.LLMTTFTMS,
-		TtsTtfbMs: req.TTSTTFBMS,
-		TurnLatencyMs: req.TurnLatencyMS,
+		SpeechEndedAt:   pgconv.NullableTimestamptz(req.SpeechEndedAt),
+		STTLatencyMs:    req.STTLatencyMS,
+		LlmTtftMs:       req.LLMTTFTMS,
+		TtsTtfbMs:       req.TTSTTFBMS,
+		TurnLatencyMs:   req.TurnLatencyMS,
 	})
 }
 
