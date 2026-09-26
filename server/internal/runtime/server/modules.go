@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/coffeyvidzro/monogo/internal/ai"
 	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
 	"github.com/coffeyvidzro/monogo/internal/identity"
 	"github.com/coffeyvidzro/monogo/internal/integrations/carriers/didww"
@@ -34,6 +35,7 @@ type modules struct {
 	identity             *identity.Module
 	tenancy              *tenancy.Module
 	platform             *platform.Module
+	ai                   *ai.Module
 	telecom              *telecom.Module
 	authn                *middleware.AuthnMiddleware
 	organizationsContext *middleware.OrganizationMiddleware
@@ -122,6 +124,7 @@ func newModules(ctx context.Context, cfg config.Config) (*modules, error) {
 	)
 	tenancyModule := tenancy.New(queries)
 	platformModule := platform.New(postgresClient.Pool(), queries)
+	aiModule := ai.New(queries)
 	metricsRegistry := metrics.New(redisClient)
 	telecomModule, err := telecom.New(telecom.Dependencies{
 		DB:                   postgresClient.Pool(),
@@ -163,6 +166,7 @@ func newModules(ctx context.Context, cfg config.Config) (*modules, error) {
 		identity:             identityModule,
 		tenancy:              tenancyModule,
 		platform:             platformModule,
+		ai:                   aiModule,
 		telecom:              telecomModule,
 		authn:                authMiddleware,
 		organizationsContext: organizationMiddleware,
