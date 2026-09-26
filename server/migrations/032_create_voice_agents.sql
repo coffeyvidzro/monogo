@@ -21,7 +21,8 @@ CREATE TABLE IF NOT EXISTS voice_agents (
     CONSTRAINT chk_voice_agents_instructions CHECK (length(btrim(instructions)) BETWEEN 1 AND 20000),
     CONSTRAINT chk_voice_agents_voice CHECK (voice IS NULL OR length(btrim(voice)) BETWEEN 1 AND 255),
     CONSTRAINT chk_voice_agents_language CHECK (language IS NULL OR length(btrim(language)) BETWEEN 1 AND 64),
-    CONSTRAINT chk_voice_agents_status CHECK (status IN ('active', 'disabled'))
+    CONSTRAINT chk_voice_agents_status CHECK (status IN ('active', 'disabled')),
+    CONSTRAINT chk_voice_agents_engine_config CHECK (jsonb_typeof(engine_config) = 'object')
 );
 
 CREATE INDEX IF NOT EXISTS idx_voice_agents_organization_status
@@ -54,8 +55,6 @@ CREATE TABLE IF NOT EXISTS voice_agent_bindings (
 CREATE INDEX IF NOT EXISTS idx_voice_agent_bindings_agent
     ON voice_agent_bindings (organization_id, voice_agent_id);
 
-CREATE INDEX IF NOT EXISTS idx_voice_agent_bindings_application
-    ON voice_agent_bindings (voice_application_id);
 
 -- 4. Trigger for Updated At
 CREATE TRIGGER set_voice_agents_updated_at
