@@ -13,7 +13,7 @@ import (
 )
 
 const completeVoiceAgentSession = `-- name: CompleteVoiceAgentSession :one
-UPDATE voice_agent_sessions
+UPDATE voice_agent_sessions AS session
 SET
     state = $1,
     turn_count = $2,
@@ -22,10 +22,10 @@ SET
     avg_turn_latency_ms = $5,
     ended_at = $6,
     updated_at = NOW()
-WHERE id = $7
-  AND organization_id = $8
-  AND state = 'active'
-RETURNING id, organization_id, call_id, voice_agent_id, engine, instructions_snapshot, engine_config_snapshot, voice, language, state, turn_count, interruption_count, first_response_latency_ms, avg_turn_latency_ms, started_at, ended_at, created_at, updated_at
+WHERE session.id = $7
+  AND session.organization_id = $8
+  AND session.state = 'active'
+RETURNING session.id, session.organization_id, session.call_id, session.voice_agent_id, session.engine, session.instructions_snapshot, session.engine_config_snapshot, session.voice, session.language, session.state, session.turn_count, session.interruption_count, session.first_response_latency_ms, session.avg_turn_latency_ms, session.started_at, session.ended_at, session.created_at, session.updated_at
 `
 
 type CompleteVoiceAgentSessionParams struct {
@@ -81,24 +81,40 @@ INSERT INTO voice_agent_sessions (
     voice_agent_id,
     engine,
     instructions_snapshot,
+    engine_config_snapshot,
     voice,
     language
 )
 SELECT
     $1,
-    $2,
+    c.id,
     agent.id,
     agent.engine,
     agent.instructions,
+    agent.engine_config,
     agent.voice,
     agent.language
-FROM voice_agents AS agent
-JOIN calls AS c
-  ON c.id = $2
- AND c.organization_id = $1
-WHERE agent.id = $3
-  AND agent.organization_id = $1
+FROM calls AS c
+JOIN organizations AS o
+  ON o.id = c.organization_id
+JOIN voice_applications AS app
+  ON app.id = c.application_id
+ AND app.organization_id = c.organization_id
+JOIN voice_agent_bindings AS binding
+  ON binding.voice_application_id = app.id
+ AND binding.organization_id = app.organization_id
+JOIN voice_agents AS agent
+  ON agent.id = binding.voice_agent_id
+ AND agent.organization_id = binding.organization_id
+WHERE c.id = $2
+  AND c.organization_id = $1
+  AND agent.id = $3
+  AND c.state IN ('answered', 'active')
+  AND c.ended_at IS NULL
+  AND app.status = 'active'
   AND agent.status = 'active'
+  AND o.status = 'active'
+  AND o.deleted_at IS NULL
 RETURNING id, organization_id, call_id, voice_agent_id, engine, instructions_snapshot, engine_config_snapshot, voice, language, state, turn_count, interruption_count, first_response_latency_ms, avg_turn_latency_ms, started_at, ended_at, created_at, updated_at
 `
 
@@ -135,11 +151,14 @@ func (q *Queries) CreateVoiceAgentSession(ctx context.Context, arg CreateVoiceAg
 }
 
 const getActiveVoiceAgentSessionByCallID = `-- name: GetActiveVoiceAgentSessionByCallID :one
-SELECT id, organization_id, call_id, voice_agent_id, engine, instructions_snapshot, engine_config_snapshot, voice, language, state, turn_count, interruption_count, first_response_latency_ms, avg_turn_latency_ms, started_at, ended_at, created_at, updated_at
-FROM voice_agent_sessions
-WHERE organization_id = $1
-  AND call_id = $2
-  AND state = 'active'
+SELECT session.id, session.organization_id, session.call_id, session.voice_agent_id, session.engine, session.instructions_snapshot, session.engine_config_snapshot, session.voice, session.language, session.state, session.turn_count, session.interruption_count, session.first_response_latency_ms, session.avg_turn_latency_ms, session.started_at, session.ended_at, session.created_at, session.updated_at
+FROM voice_agent_sessions AS session
+JOIN organizations AS o ON o.id = session.organization_id
+WHERE session.organization_id = $1
+  AND session.call_id = $2
+  AND session.state = 'active'
+  AND o.status = 'active'
+  AND o.deleted_at IS NULL
 LIMIT 1
 `
 
@@ -175,10 +194,10 @@ func (q *Queries) GetActiveVoiceAgentSessionByCallID(ctx context.Context, arg Ge
 }
 
 const getVoiceAgentSessionByID = `-- name: GetVoiceAgentSessionByID :one
-SELECT id, organization_id, call_id, voice_agent_id, engine, instructions_snapshot, engine_config_snapshot, voice, language, state, turn_count, interruption_count, first_response_latency_ms, avg_turn_latency_ms, started_at, ended_at, created_at, updated_at
-FROM voice_agent_sessions
-WHERE id = $1
-  AND organization_id = $2
+SELECT session.id, session.organization_id, session.call_id, session.voice_agent_id, session.engine, session.instructions_snapshot, session.engine_config_snapshot, session.voice, session.language, session.state, session.turn_count, session.interruption_count, session.first_response_latency_ms, session.avg_turn_latency_ms, session.started_at, session.ended_at, session.created_at, session.updated_at
+FROM voice_agent_sessions AS session
+WHERE session.id = $1
+  AND session.organization_id = $2
 LIMIT 1
 `
 

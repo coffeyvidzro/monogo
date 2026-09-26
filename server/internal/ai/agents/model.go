@@ -16,35 +16,35 @@ const (
 )
 
 type CreateRequest struct {
-	Name         string  `json:"name"`
-	Engine       string  `json:"engine"`
-	Instructions string  `json:"instructions"`
-	Voice        *string `json:"voice,omitempty"`
+	Name         string          `json:"name"`
+	Engine       string          `json:"engine"`
+	Instructions string          `json:"instructions"`
+	Voice        *string         `json:"voice,omitempty"`
 	Language     *string         `json:"language,omitempty"`
 	EngineConfig json.RawMessage `json:"engine_config,omitempty"`
 }
 
 type UpdateRequest struct {
-	Name         *string `json:"name,omitempty"`
-	Engine       *string `json:"engine,omitempty"`
-	Instructions *string `json:"instructions,omitempty"`
-	Voice        *string `json:"voice,omitempty"`
+	Name         *string          `json:"name,omitempty"`
+	Engine       *string          `json:"engine,omitempty"`
+	Instructions *string          `json:"instructions,omitempty"`
+	Voice        *string          `json:"voice,omitempty"`
 	Language     *string          `json:"language,omitempty"`
 	EngineConfig *json.RawMessage `json:"engine_config,omitempty"`
 }
 
 type Response struct {
-	ID             uuid.UUID `json:"id"`
-	OrganizationID uuid.UUID `json:"organization_id"`
-	Name           string    `json:"name"`
-	Engine         string    `json:"engine"`
-	Instructions   string    `json:"instructions"`
-	Voice          *string   `json:"voice,omitempty"`
-	Language       *string   `json:"language,omitempty"`
+	ID             uuid.UUID       `json:"id"`
+	OrganizationID uuid.UUID       `json:"organization_id"`
+	Name           string          `json:"name"`
+	Engine         string          `json:"engine"`
+	Instructions   string          `json:"instructions"`
+	Voice          *string         `json:"voice,omitempty"`
+	Language       *string         `json:"language,omitempty"`
 	Status         string          `json:"status"`
 	EngineConfig   json.RawMessage `json:"engine_config"`
 	CreatedAt      time.Time       `json:"created_at"`
-	UpdatedAt      time.Time `json:"updated_at"`
+	UpdatedAt      time.Time       `json:"updated_at"`
 }
 
 func response(agent sqlc.VoiceAgent) Response {

@@ -47,8 +47,12 @@ SELECT
     $13,
     $14
 FROM voice_agent_sessions AS session
+JOIN organizations AS o ON o.id = session.organization_id
 WHERE session.id = $15
   AND session.organization_id = $1
+  AND session.state = 'active'
+  AND o.status = 'active'
+  AND o.deleted_at IS NULL
 RETURNING id, organization_id, session_id, sequence, role, content, provider_id, tool_name, tool_call_id, metadata, speech_started_at, speech_ended_at, stt_latency_ms, llm_ttft_ms, tts_ttfb_ms, turn_latency_ms, created_at
 `
 
@@ -112,11 +116,14 @@ func (q *Queries) CreateVoiceAgentTurn(ctx context.Context, arg CreateVoiceAgent
 }
 
 const listVoiceAgentTurnsBySessionID = `-- name: ListVoiceAgentTurnsBySessionID :many
-SELECT id, organization_id, session_id, sequence, role, content, provider_id, tool_name, tool_call_id, metadata, speech_started_at, speech_ended_at, stt_latency_ms, llm_ttft_ms, tts_ttfb_ms, turn_latency_ms, created_at
-FROM voice_agent_turns
-WHERE organization_id = $1
-  AND session_id = $2
-ORDER BY sequence ASC
+SELECT turn.id, turn.organization_id, turn.session_id, turn.sequence, turn.role, turn.content, turn.provider_id, turn.tool_name, turn.tool_call_id, turn.metadata, turn.speech_started_at, turn.speech_ended_at, turn.stt_latency_ms, turn.llm_ttft_ms, turn.tts_ttfb_ms, turn.turn_latency_ms, turn.created_at
+FROM voice_agent_turns AS turn
+JOIN voice_agent_sessions AS session
+  ON session.id = turn.session_id
+ AND session.organization_id = turn.organization_id
+WHERE turn.organization_id = $1
+  AND turn.session_id = $2
+ORDER BY turn.sequence ASC
 `
 
 type ListVoiceAgentTurnsBySessionIDParams struct {

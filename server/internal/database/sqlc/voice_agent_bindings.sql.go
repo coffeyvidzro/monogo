@@ -19,20 +19,20 @@ INSERT INTO voice_agent_bindings (
 )
 SELECT
     $1,
-    $2,
-    $3
-FROM voice_agents AS agent
+    agent.id,
+    app.id
+FROM organizations AS o
+JOIN voice_agents AS agent
+  ON agent.organization_id = o.id
+ AND agent.id = $2
 JOIN voice_applications AS app
-  ON app.id = $3
- AND app.organization_id = $1
-JOIN organizations AS o
-  ON o.id = $1
-WHERE agent.id = $2
-  AND agent.organization_id = $1
-  AND agent.status = 'active'
-  AND app.status = 'active'
+  ON app.organization_id = o.id
+ AND app.id = $3
+WHERE o.id = $1
   AND o.status = 'active'
   AND o.deleted_at IS NULL
+  AND agent.status = 'active'
+  AND app.status = 'active'
 RETURNING id, organization_id, voice_agent_id, voice_application_id, created_at
 `
 
@@ -56,10 +56,20 @@ func (q *Queries) CreateVoiceAgentBinding(ctx context.Context, arg CreateVoiceAg
 }
 
 const deleteVoiceAgentBinding = `-- name: DeleteVoiceAgentBinding :exec
-DELETE FROM voice_agent_bindings
-WHERE id = $1
-  AND organization_id = $2
-  AND voice_agent_id = $3
+DELETE FROM voice_agent_bindings AS vab
+USING voice_agents AS agent, voice_applications AS app, organizations AS o
+WHERE vab.id = $1
+  AND vab.organization_id = $2
+  AND vab.voice_agent_id = $3
+  AND agent.id = vab.voice_agent_id
+  AND agent.organization_id = vab.organization_id
+  AND agent.status = 'active'
+  AND app.id = vab.voice_application_id
+  AND app.organization_id = vab.organization_id
+  AND app.status = 'active'
+  AND o.id = vab.organization_id
+  AND o.status = 'active'
+  AND o.deleted_at IS NULL
 `
 
 type DeleteVoiceAgentBindingParams struct {
@@ -82,10 +92,14 @@ JOIN voice_agents AS agent
 JOIN voice_applications AS app
   ON app.id = vab.voice_application_id
  AND app.organization_id = vab.organization_id
+JOIN organizations AS o
+  ON o.id = vab.organization_id
 WHERE vab.organization_id = $1
   AND vab.voice_application_id = $2
   AND agent.status = 'active'
   AND app.status = 'active'
+  AND o.status = 'active'
+  AND o.deleted_at IS NULL
 LIMIT 1
 `
 
@@ -116,10 +130,20 @@ func (q *Queries) GetVoiceAgentByApplicationID(ctx context.Context, arg GetVoice
 const listVoiceAgentBindingsByAgentID = `-- name: ListVoiceAgentBindingsByAgentID :many
 SELECT vab.id, vab.organization_id, vab.voice_agent_id, vab.voice_application_id, vab.created_at
 FROM voice_agent_bindings AS vab
-JOIN voice_agents AS agent ON agent.id = vab.voice_agent_id
+JOIN voice_agents AS agent
+  ON agent.id = vab.voice_agent_id
+ AND agent.organization_id = vab.organization_id
+JOIN voice_applications AS app
+  ON app.id = vab.voice_application_id
+ AND app.organization_id = vab.organization_id
+JOIN organizations AS o
+  ON o.id = vab.organization_id
 WHERE vab.organization_id = $1
   AND vab.voice_agent_id = $2
   AND agent.status = 'active'
+  AND app.status = 'active'
+  AND o.status = 'active'
+  AND o.deleted_at IS NULL
 ORDER BY vab.created_at DESC
 `
 

@@ -18,7 +18,8 @@ INSERT INTO voice_agents (
     engine,
     instructions,
     voice,
-    language
+    language,
+    engine_config
 )
 SELECT
     $1,
@@ -26,7 +27,8 @@ SELECT
     $3,
     $4,
     $5,
-    $6
+    $6,
+    COALESCE($7::jsonb, '{}'::jsonb)
 FROM organizations AS o
 WHERE o.id = $1
   AND o.status = 'active'
@@ -41,6 +43,7 @@ type CreateVoiceAgentParams struct {
 	Instructions   string    `db:"instructions" json:"instructions"`
 	Voice          *string   `db:"voice" json:"voice"`
 	Language       *string   `db:"language" json:"language"`
+	EngineConfig   []byte    `db:"engine_config" json:"engine_config"`
 }
 
 func (q *Queries) CreateVoiceAgent(ctx context.Context, arg CreateVoiceAgentParams) (VoiceAgent, error) {
@@ -51,6 +54,7 @@ func (q *Queries) CreateVoiceAgent(ctx context.Context, arg CreateVoiceAgentPara
 		arg.Instructions,
 		arg.Voice,
 		arg.Language,
+		arg.EngineConfig,
 	)
 	var i VoiceAgent
 	err := row.Scan(
@@ -70,13 +74,17 @@ func (q *Queries) CreateVoiceAgent(ctx context.Context, arg CreateVoiceAgentPara
 }
 
 const disableVoiceAgent = `-- name: DisableVoiceAgent :exec
-UPDATE voice_agents
+UPDATE voice_agents AS va
 SET
     status = 'disabled',
     updated_at = NOW()
-WHERE id = $1
-  AND organization_id = $2
-  AND status = 'active'
+FROM organizations AS o
+WHERE va.id = $1
+  AND va.organization_id = $2
+  AND va.status = 'active'
+  AND o.id = va.organization_id
+  AND o.status = 'active'
+  AND o.deleted_at IS NULL
 `
 
 type DisableVoiceAgentParams struct {
@@ -169,18 +177,23 @@ func (q *Queries) ListVoiceAgentsByOrganizationID(ctx context.Context, organizat
 }
 
 const updateVoiceAgent = `-- name: UpdateVoiceAgent :one
-UPDATE voice_agents
+UPDATE voice_agents AS va
 SET
-    name = COALESCE($1, name),
-    engine = COALESCE($2, engine),
-    instructions = COALESCE($3, instructions),
-    voice = COALESCE($4, voice),
-    language = COALESCE($5, language),
+    name = COALESCE($1, va.name),
+    engine = COALESCE($2, va.engine),
+    instructions = COALESCE($3, va.instructions),
+    voice = COALESCE($4, va.voice),
+    language = COALESCE($5, va.language),
+    engine_config = COALESCE($6::jsonb, va.engine_config),
     updated_at = NOW()
-WHERE id = $6
-  AND organization_id = $7
-  AND status = 'active'
-RETURNING id, organization_id, name, engine, instructions, voice, language, status, engine_config, created_at, updated_at
+FROM organizations AS o
+WHERE va.id = $7
+  AND va.organization_id = $8
+  AND va.status = 'active'
+  AND o.id = va.organization_id
+  AND o.status = 'active'
+  AND o.deleted_at IS NULL
+RETURNING va.id, va.organization_id, va.name, va.engine, va.instructions, va.voice, va.language, va.status, va.engine_config, va.created_at, va.updated_at
 `
 
 type UpdateVoiceAgentParams struct {
@@ -189,6 +202,7 @@ type UpdateVoiceAgentParams struct {
 	Instructions   *string   `db:"instructions" json:"instructions"`
 	Voice          *string   `db:"voice" json:"voice"`
 	Language       *string   `db:"language" json:"language"`
+	EngineConfig   []byte    `db:"engine_config" json:"engine_config"`
 	ID             uuid.UUID `db:"id" json:"id"`
 	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
 }
@@ -200,6 +214,7 @@ func (q *Queries) UpdateVoiceAgent(ctx context.Context, arg UpdateVoiceAgentPara
 		arg.Instructions,
 		arg.Voice,
 		arg.Language,
+		arg.EngineConfig,
 		arg.ID,
 		arg.OrganizationID,
 	)
