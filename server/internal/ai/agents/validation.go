@@ -1,6 +1,7 @@
 package agents
 
 import (
+	"encoding/json"
 	"strconv"
 	"strings"
 
@@ -29,13 +30,19 @@ func normalizeCreate(req CreateRequest) (CreateRequest, error) {
 	if err != nil {
 		return CreateRequest{}, err
 	}
+	if len(req.EngineConfig) == 0 {
+		req.EngineConfig = json.RawMessage(`{}`)
+	}
+	if err := validateEngineConfig(req.EngineConfig); err != nil {
+		return CreateRequest{}, err
+	}
 	req.Name, req.Engine, req.Instructions = name, engine, instructions
 	req.Voice, req.Language = voice, language
 	return req, nil
 }
 
 func normalizeUpdate(req UpdateRequest) (UpdateRequest, error) {
-	if req.Name == nil && req.Engine == nil && req.Instructions == nil && req.Voice == nil && req.Language == nil {
+	if req.Name == nil && req.Engine == nil && req.Instructions == nil && req.Voice == nil && req.Language == nil && req.EngineConfig == nil {
 		return UpdateRequest{}, apperror.NewBadRequest("at least one field is required")
 	}
 	if req.Name != nil {
@@ -66,7 +73,23 @@ func normalizeUpdate(req UpdateRequest) (UpdateRequest, error) {
 	if req.Language, err = normalizeOptional(req.Language, "language", 64); err != nil {
 		return UpdateRequest{}, err
 	}
+	if req.EngineConfig != nil {
+		if err := validateEngineConfig(*req.EngineConfig); err != nil {
+			return UpdateRequest{}, err
+		}
+	}
 	return req, nil
+}
+
+func validateEngineConfig(value json.RawMessage) error {
+	if !json.Valid(value) {
+		return apperror.NewBadRequest("engine_config must be valid JSON")
+	}
+	var object map[string]any
+	if err := json.Unmarshal(value, &object); err != nil {
+		return apperror.NewBadRequest("engine_config must be a JSON object")
+	}
+	return nil
 }
 
 func validateIDs(organizationID, agentID uuid.UUID) error {
