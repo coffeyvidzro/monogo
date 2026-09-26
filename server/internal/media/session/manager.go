@@ -300,6 +300,7 @@ func pump(parent, sessionCtx context.Context, connection Connection, stream Stre
 	defer cancel()
 	group, groupCtx := errgroup.WithContext(ctx)
 	var playbackActive atomic.Bool
+	var suppressPlayback atomic.Bool
 
 	group.Go(func() error {
 		for {
@@ -318,6 +319,9 @@ func pump(parent, sessionCtx context.Context, connection Connection, stream Stre
 			case frame, ok := <-stream.Audio():
 				if !ok {
 					return io.EOF
+				}
+				if suppressPlayback.Load() {
+					continue
 				}
 				playbackActive.Store(true)
 				if err := connection.SendAudio(groupCtx, frame); err != nil {
@@ -339,11 +343,13 @@ func pump(parent, sessionCtx context.Context, connection Connection, stream Stre
 				}
 				switch event.Type {
 				case EventResponseStarted:
+					suppressPlayback.Store(false)
 					playbackActive.Store(true)
 				case EventResponseStopped:
 					playbackActive.Store(false)
 				case EventSpeechStarted:
 					if playbackActive.Swap(false) {
+						suppressPlayback.Store(true)
 						if err := stream.Interrupt(groupCtx); err != nil {
 							return err
 						}
