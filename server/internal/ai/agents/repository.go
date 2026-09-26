@@ -19,6 +19,7 @@ func (r *Repository) Create(ctx context.Context, organizationID uuid.UUID, req C
 		Instructions:   req.Instructions,
 		Voice:          req.Voice,
 		Language:       req.Language,
+		EngineConfig:   []byte(req.EngineConfig),
 	})
 }
 
@@ -31,12 +32,17 @@ func (r *Repository) Get(ctx context.Context, organizationID, id uuid.UUID) (sql
 }
 
 func (r *Repository) Update(ctx context.Context, organizationID, id uuid.UUID, req UpdateRequest) (sqlc.VoiceAgent, error) {
+	var engineConfig []byte
+	if req.EngineConfig != nil {
+		engineConfig = []byte(*req.EngineConfig)
+	}
 	return r.queries.UpdateVoiceAgent(ctx, sqlc.UpdateVoiceAgentParams{
 		Name:           req.Name,
 		Engine:         req.Engine,
 		Instructions:   req.Instructions,
 		Voice:          req.Voice,
 		Language:       req.Language,
+		EngineConfig:   engineConfig,
 		ID:             id,
 		OrganizationID: organizationID,
 	})
