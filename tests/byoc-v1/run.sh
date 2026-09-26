@@ -17,6 +17,8 @@ export MINIO_APP_SECRET_KEY="$MINIO_ROOT_PASSWORD"
 # are made by these suites. Never reuse these values for real deployments.
 export DIDWW_API_KEY="${DIDWW_API_KEY:-acceptance-didww-not-live}"
 export COMMPEAK_API_AUTHORIZATION="${COMMPEAK_API_AUTHORIZATION:-acceptance-commpeak-not-live}"
+export MEDIA_TOKEN_SECRET="${MEDIA_TOKEN_SECRET:-acceptance-media-token-secret-0123456789abcdef}"
+export MEDIA_CONTROL_TOKEN="${MEDIA_CONTROL_TOKEN:-acceptance-media-control-token-0123456789abcdef}"
 
 CERT_DIR=$(mktemp -d "${TMPDIR:-/tmp}/leamout-byoc-v1.XXXXXX")
 
