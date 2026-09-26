@@ -87,6 +87,13 @@ func TestManagerBargeInInterruptsAndClearsPlayback(t *testing.T) {
 		t.Fatal("playback was not cleared on barge-in")
 	}
 
+	stream.audio <- session.AudioFrame{Data: []byte{9, 0}, Format: format}
+	select {
+	case frame := <-connection.outgoing:
+		t.Fatalf("stale playback frame forwarded after barge-in: %v", frame.Data)
+	case <-time.After(50 * time.Millisecond):
+	}
+
 	connection.closeInput()
 	select {
 	case err := <-done:
