@@ -74,7 +74,7 @@ func (q *Queries) DeleteVoiceAgentBinding(ctx context.Context, arg DeleteVoiceAg
 }
 
 const getVoiceAgentByApplicationID = `-- name: GetVoiceAgentByApplicationID :one
-SELECT agent.id, agent.organization_id, agent.name, agent.engine, agent.instructions, agent.voice, agent.language, agent.status, agent.created_at, agent.updated_at
+SELECT agent.id, agent.organization_id, agent.name, agent.engine, agent.instructions, agent.voice, agent.language, agent.status, agent.engine_config, agent.created_at, agent.updated_at
 FROM voice_agent_bindings AS vab
 JOIN voice_agents AS agent
   ON agent.id = vab.voice_agent_id
@@ -106,6 +106,7 @@ func (q *Queries) GetVoiceAgentByApplicationID(ctx context.Context, arg GetVoice
 		&i.Voice,
 		&i.Language,
 		&i.Status,
+		&i.EngineConfig,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)

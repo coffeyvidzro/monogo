@@ -31,7 +31,7 @@ FROM organizations AS o
 WHERE o.id = $1
   AND o.status = 'active'
   AND o.deleted_at IS NULL
-RETURNING id, organization_id, name, engine, instructions, voice, language, status, created_at, updated_at
+RETURNING id, organization_id, name, engine, instructions, voice, language, status, engine_config, created_at, updated_at
 `
 
 type CreateVoiceAgentParams struct {
@@ -62,6 +62,7 @@ func (q *Queries) CreateVoiceAgent(ctx context.Context, arg CreateVoiceAgentPara
 		&i.Voice,
 		&i.Language,
 		&i.Status,
+		&i.EngineConfig,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -89,7 +90,7 @@ func (q *Queries) DisableVoiceAgent(ctx context.Context, arg DisableVoiceAgentPa
 }
 
 const getVoiceAgentByID = `-- name: GetVoiceAgentByID :one
-SELECT va.id, va.organization_id, va.name, va.engine, va.instructions, va.voice, va.language, va.status, va.created_at, va.updated_at
+SELECT va.id, va.organization_id, va.name, va.engine, va.instructions, va.voice, va.language, va.status, va.engine_config, va.created_at, va.updated_at
 FROM voice_agents AS va
 JOIN organizations AS o ON o.id = va.organization_id
 WHERE va.id = $1
@@ -117,6 +118,7 @@ func (q *Queries) GetVoiceAgentByID(ctx context.Context, arg GetVoiceAgentByIDPa
 		&i.Voice,
 		&i.Language,
 		&i.Status,
+		&i.EngineConfig,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -124,7 +126,7 @@ func (q *Queries) GetVoiceAgentByID(ctx context.Context, arg GetVoiceAgentByIDPa
 }
 
 const listVoiceAgentsByOrganizationID = `-- name: ListVoiceAgentsByOrganizationID :many
-SELECT va.id, va.organization_id, va.name, va.engine, va.instructions, va.voice, va.language, va.status, va.created_at, va.updated_at
+SELECT va.id, va.organization_id, va.name, va.engine, va.instructions, va.voice, va.language, va.status, va.engine_config, va.created_at, va.updated_at
 FROM voice_agents AS va
 JOIN organizations AS o ON o.id = va.organization_id
 WHERE va.organization_id = $1
@@ -152,6 +154,7 @@ func (q *Queries) ListVoiceAgentsByOrganizationID(ctx context.Context, organizat
 			&i.Voice,
 			&i.Language,
 			&i.Status,
+			&i.EngineConfig,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 		); err != nil {
@@ -177,7 +180,7 @@ SET
 WHERE id = $6
   AND organization_id = $7
   AND status = 'active'
-RETURNING id, organization_id, name, engine, instructions, voice, language, status, created_at, updated_at
+RETURNING id, organization_id, name, engine, instructions, voice, language, status, engine_config, created_at, updated_at
 `
 
 type UpdateVoiceAgentParams struct {
@@ -210,6 +213,7 @@ func (q *Queries) UpdateVoiceAgent(ctx context.Context, arg UpdateVoiceAgentPara
 		&i.Voice,
 		&i.Language,
 		&i.Status,
+		&i.EngineConfig,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)

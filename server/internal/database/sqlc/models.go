@@ -614,6 +614,7 @@ type VoiceAgent struct {
 	Voice          *string            `db:"voice" json:"voice"`
 	Language       *string            `db:"language" json:"language"`
 	Status         string             `db:"status" json:"status"`
+	EngineConfig   []byte             `db:"engine_config" json:"engine_config"`
 	CreatedAt      pgtype.Timestamptz `db:"created_at" json:"created_at"`
 	UpdatedAt      pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 }
