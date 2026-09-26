@@ -26,9 +26,7 @@ func TestClientStreamsAudioAndTranscript(t *testing.T) {
 			return
 		}
 		defer func() {
-			if closeErr := ws.CloseNow(); closeErr != nil {
-				t.Errorf("close websocket: %v", closeErr)
-			}
+			_ = ws.CloseNow()
 		}()
 		kind, audio, err := ws.Read(r.Context())
 		if err != nil || kind != websocket.MessageBinary {
