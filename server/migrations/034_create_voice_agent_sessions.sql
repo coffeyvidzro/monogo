@@ -6,6 +6,7 @@ CREATE TABLE IF NOT EXISTS voice_agent_sessions (
 
     engine TEXT NOT NULL,
     instructions_snapshot TEXT NOT NULL,
+    engine_config_snapshot JSONB NOT NULL DEFAULT '{}'::jsonb,
     voice TEXT,
     language TEXT,
     state TEXT NOT NULL DEFAULT 'active',
@@ -20,15 +21,20 @@ CREATE TABLE IF NOT EXISTS voice_agent_sessions (
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
 
+    -- Constraints & Multi-Tenant Scoping
     CONSTRAINT uq_voice_agent_sessions_id_organization UNIQUE (id, organization_id),
+    
     CONSTRAINT fk_voice_agent_sessions_call_scope
         FOREIGN KEY (call_id, organization_id)
         REFERENCES calls(id, organization_id)
         ON DELETE CASCADE,
+
     CONSTRAINT fk_voice_agent_sessions_agent_scope
         FOREIGN KEY (voice_agent_id, organization_id)
         REFERENCES voice_agents(id, organization_id)
         ON DELETE RESTRICT,
+
+    -- Data Validation Constraints
     CONSTRAINT chk_voice_agent_sessions_engine CHECK (engine IN ('composable', 'integrated')),
     CONSTRAINT chk_voice_agent_sessions_instructions CHECK (length(btrim(instructions_snapshot)) BETWEEN 1 AND 20000),
     CONSTRAINT chk_voice_agent_sessions_voice CHECK (voice IS NULL OR length(btrim(voice)) BETWEEN 1 AND 255),
@@ -52,16 +58,22 @@ CREATE TABLE IF NOT EXISTS voice_agent_sessions (
     )
 );
 
+-- Partial Index: Enforce One Active Session Per Call
 CREATE UNIQUE INDEX IF NOT EXISTS uq_voice_agent_sessions_active_call
     ON voice_agent_sessions (call_id)
     WHERE state = 'active';
 
+-- High-Frequency Query Indexes
 CREATE INDEX IF NOT EXISTS idx_voice_agent_sessions_organization_agent
     ON voice_agent_sessions (organization_id, voice_agent_id, started_at DESC);
 
 CREATE INDEX IF NOT EXISTS idx_voice_agent_sessions_call
     ON voice_agent_sessions (call_id, started_at DESC);
 
+CREATE INDEX IF NOT EXISTS idx_voice_agent_sessions_call_scope
+    ON voice_agent_sessions (call_id, organization_id);
+
+-- Trigger for Updated At
 CREATE TRIGGER set_voice_agent_sessions_updated_at
 BEFORE UPDATE ON voice_agent_sessions
 FOR EACH ROW
