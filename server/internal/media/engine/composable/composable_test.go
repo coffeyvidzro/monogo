@@ -15,7 +15,7 @@ import (
 
 func TestComposableRunsFluxTurnThroughGroqAndCartesia(t *testing.T) {
 	transcriber := newFakeTranscriber()
-	generator := &fakeGenerator{text: "hello caller"}
+	generator := &fakeGenerator{deltas: []string{"hello ", "caller"}}
 	synthesizer := &fakeSynthesizer{audio: []byte{1, 0, 2, 0}}
 	stream := startTestStream(t, transcriber, generator, synthesizer)
 
@@ -43,13 +43,16 @@ func TestComposableRunsFluxTurnThroughGroqAndCartesia(t *testing.T) {
 	if synthesizer.lastText() != "hello caller" {
 		t.Fatalf("Cartesia text = %q", synthesizer.lastText())
 	}
+	if got := synthesizer.continuations(); len(got) != 2 || !got[0] || got[1] {
+		t.Fatalf("Cartesia continuation flags = %v", got)
+	}
 	closeTestStream(t, stream)
 }
 
 func TestComposableBargeInCancelsResponseAndDropsStaleAudio(t *testing.T) {
 	transcriber := newFakeTranscriber()
 	synthesizer := &fakeSynthesizer{audio: []byte{7, 0}, waitForCancel: true}
-	stream := startTestStream(t, transcriber, &fakeGenerator{text: "first response"}, synthesizer)
+	stream := startTestStream(t, transcriber, &fakeGenerator{deltas: []string{"first response"}}, synthesizer)
 	transcriber.events <- deepgram.Event{TurnEvent: "EndOfTurn", Transcript: deepgram.Transcript{Text: "first"}}
 
 	select {
@@ -130,7 +133,7 @@ func (f *fakeTranscriber) Close(context.Context) error {
 }
 
 type fakeGenerator struct {
-	text     string
+	deltas   []string
 	mu       sync.Mutex
 	messages []groq.Message
 }
@@ -139,8 +142,10 @@ func (f *fakeGenerator) Generate(_ context.Context, _ groq.Config, messages []gr
 	f.mu.Lock()
 	f.messages = append([]groq.Message(nil), messages...)
 	f.mu.Unlock()
-	events := make(chan groq.Event, 2)
-	events <- groq.Event{CompletionID: "groq-1", TextDelta: f.text}
+	events := make(chan groq.Event, len(f.deltas)+1)
+	for _, delta := range f.deltas {
+		events <- groq.Event{CompletionID: "groq-1", TextDelta: delta}
+	}
 	events <- groq.Event{Done: true}
 	close(events)
 	return &fakeGroqStream{events: events}, nil
@@ -168,11 +173,11 @@ type fakeSynthesizer struct {
 	cancelled     chan struct{}
 	mu            sync.Mutex
 	text          string
+	more          []bool
 }
 
-func (f *fakeSynthesizer) Synthesize(ctx context.Context, _ cartesia.Config, text string, format session.AudioFormat) (cartesia.Stream, error) {
+func (f *fakeSynthesizer) StartSynthesis(ctx context.Context, _ cartesia.Config, format session.AudioFormat) (cartesia.TextStream, error) {
 	f.mu.Lock()
-	f.text = text
 	if f.started == nil {
 		f.started = make(chan struct{})
 	}
@@ -183,6 +188,18 @@ func (f *fakeSynthesizer) Synthesize(ctx context.Context, _ cartesia.Config, tex
 	f.mu.Unlock()
 	events := make(chan cartesia.Event, 2)
 	close(started)
+	result := &fakeCartesiaStream{events: events}
+	result.onText = func(text string, more bool) {
+		f.mu.Lock()
+		f.text += text
+		f.more = append(f.more, more)
+		f.mu.Unlock()
+		if !more && !f.waitForCancel {
+			events <- cartesia.Event{Audio: session.AudioFrame{Data: f.audio, Format: format}}
+			events <- cartesia.Event{Done: true}
+			close(events)
+		}
+	}
 	if f.waitForCancel {
 		go func() {
 			<-ctx.Done()
@@ -191,12 +208,13 @@ func (f *fakeSynthesizer) Synthesize(ctx context.Context, _ cartesia.Config, tex
 			events <- cartesia.Event{Audio: session.AudioFrame{Data: f.audio, Format: format}}
 			close(events)
 		}()
-	} else {
-		events <- cartesia.Event{Audio: session.AudioFrame{Data: f.audio, Format: format}}
-		events <- cartesia.Event{Done: true}
-		close(events)
 	}
-	return &fakeCartesiaStream{events: events}, nil
+	return result, nil
+}
+func (f *fakeSynthesizer) continuations() []bool {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return append([]bool(nil), f.more...)
 }
 func (f *fakeSynthesizer) lastText() string {
 	f.mu.Lock()
@@ -204,7 +222,14 @@ func (f *fakeSynthesizer) lastText() string {
 	return f.text
 }
 
-type fakeCartesiaStream struct{ events chan cartesia.Event }
+type fakeCartesiaStream struct {
+	events chan cartesia.Event
+	onText func(string, bool)
+}
 
 func (f *fakeCartesiaStream) Events() <-chan cartesia.Event { return f.events }
 func (f *fakeCartesiaStream) Close() error                  { return nil }
+func (f *fakeCartesiaStream) SendText(_ context.Context, text string, more bool) error {
+	f.onText(text, more)
+	return nil
+}

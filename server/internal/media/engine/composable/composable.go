@@ -18,7 +18,7 @@ import (
 type Engine struct {
 	Transcriber deepgram.Transcriber
 	Generator   groq.Generator
-	Synthesizer cartesia.Synthesizer
+	Synthesizer cartesia.StreamingSynthesizer
 	Deepgram    deepgram.Config
 	Groq        groq.Config
 	Cartesia    cartesia.Config
@@ -77,7 +77,7 @@ type stream struct {
 	cancel      context.CancelFunc
 	transcriber deepgram.Stream
 	generator   groq.Generator
-	synthesizer cartesia.Synthesizer
+	synthesizer cartesia.StreamingSynthesizer
 	groq        groq.Config
 	cartesia    cartesia.Config
 	config      session.Config
@@ -188,13 +188,30 @@ func (s *stream) generate(ctx context.Context, generation uint64, messages []gro
 		return
 	}
 	defer func() { _ = completion.Close() }()
+	voice, err := s.synthesizer.StartSynthesis(ctx, s.cartesia, s.config.OutputFormat)
+	if err != nil {
+		s.failResponse(ctx, generation, err)
+		return
+	}
+	defer func() { _ = voice.Close() }()
 	var text strings.Builder
+	var pending string
+	completionEvents := completion.Events()
 	for {
 		select {
-		case event, ok := <-completion.Events():
+		case event, ok := <-completionEvents:
 			if !ok || event.Done {
-				s.synthesize(ctx, generation, strings.TrimSpace(text.String()))
-				return
+				if pending == "" {
+					s.stopResponse(generation, "")
+					return
+				}
+				if err := voice.SendText(ctx, pending, false); err != nil {
+					s.failResponse(ctx, generation, err)
+					return
+				}
+				pending = ""
+				completionEvents = nil
+				continue
 			}
 			if event.Err != nil {
 				s.failResponse(ctx, generation, event.Err)
@@ -203,32 +220,22 @@ func (s *stream) generate(ctx context.Context, generation uint64, messages []gro
 			if event.TextDelta != "" {
 				text.WriteString(event.TextDelta)
 				s.emitCurrent(ctx, generation, session.Event{Type: session.EventTranscriptDelta, Text: event.TextDelta, ProviderID: event.CompletionID, OccurredAt: time.Now().UTC()})
+				if pending != "" {
+					if err := voice.SendText(ctx, pending, true); err != nil {
+						s.failResponse(ctx, generation, err)
+						return
+					}
+				}
+				pending = event.TextDelta
 			}
 			if event.ToolName != "" {
 				s.emitCurrent(ctx, generation, session.Event{Type: session.EventToolCall, Text: event.ToolName, ProviderID: event.ToolCallID, ProviderPayload: event.ToolArguments, OccurredAt: time.Now().UTC()})
 			}
 		case <-ctx.Done():
 			return
-		}
-	}
-}
-
-func (s *stream) synthesize(ctx context.Context, generation uint64, text string) {
-	if text == "" || !s.isCurrent(generation) {
-		s.stopResponse(generation, "")
-		return
-	}
-	voice, err := s.synthesizer.Synthesize(ctx, s.cartesia, text, s.config.OutputFormat)
-	if err != nil {
-		s.failResponse(ctx, generation, err)
-		return
-	}
-	defer func() { _ = voice.Close() }()
-	for {
-		select {
 		case event, ok := <-voice.Events():
 			if !ok || event.Done {
-				s.stopResponse(generation, text)
+				s.stopResponse(generation, strings.TrimSpace(text.String()))
 				return
 			}
 			if event.Err != nil {
@@ -244,8 +251,6 @@ func (s *stream) synthesize(ctx context.Context, generation uint64, text string)
 					return
 				}
 			}
-		case <-ctx.Done():
-			return
 		}
 	}
 }
