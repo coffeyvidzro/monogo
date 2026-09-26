@@ -68,68 +68,6 @@ func (q *Queries) CreateVoiceAgent(ctx context.Context, arg CreateVoiceAgentPara
 	return i, err
 }
 
-const createVoiceAgentBinding = `-- name: CreateVoiceAgentBinding :one
-INSERT INTO voice_agent_bindings (
-    organization_id,
-    voice_agent_id,
-    voice_application_id
-)
-SELECT
-    $1,
-    $2,
-    $3
-FROM voice_agents AS agent
-JOIN voice_applications AS app
-  ON app.id = $3
- AND app.organization_id = $1
-JOIN organizations AS o
-  ON o.id = $1
-WHERE agent.id = $2
-  AND agent.organization_id = $1
-  AND agent.status = 'active'
-  AND app.status = 'active'
-  AND o.status = 'active'
-  AND o.deleted_at IS NULL
-RETURNING id, organization_id, voice_agent_id, voice_application_id, created_at
-`
-
-type CreateVoiceAgentBindingParams struct {
-	OrganizationID     uuid.UUID `db:"organization_id" json:"organization_id"`
-	VoiceAgentID       uuid.UUID `db:"voice_agent_id" json:"voice_agent_id"`
-	VoiceApplicationID uuid.UUID `db:"voice_application_id" json:"voice_application_id"`
-}
-
-func (q *Queries) CreateVoiceAgentBinding(ctx context.Context, arg CreateVoiceAgentBindingParams) (VoiceAgentBinding, error) {
-	row := q.db.QueryRow(ctx, createVoiceAgentBinding, arg.OrganizationID, arg.VoiceAgentID, arg.VoiceApplicationID)
-	var i VoiceAgentBinding
-	err := row.Scan(
-		&i.ID,
-		&i.OrganizationID,
-		&i.VoiceAgentID,
-		&i.VoiceApplicationID,
-		&i.CreatedAt,
-	)
-	return i, err
-}
-
-const deleteVoiceAgentBinding = `-- name: DeleteVoiceAgentBinding :exec
-DELETE FROM voice_agent_bindings
-WHERE id = $1
-  AND organization_id = $2
-  AND voice_agent_id = $3
-`
-
-type DeleteVoiceAgentBindingParams struct {
-	ID             uuid.UUID `db:"id" json:"id"`
-	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
-	VoiceAgentID   uuid.UUID `db:"voice_agent_id" json:"voice_agent_id"`
-}
-
-func (q *Queries) DeleteVoiceAgentBinding(ctx context.Context, arg DeleteVoiceAgentBindingParams) error {
-	_, err := q.db.Exec(ctx, deleteVoiceAgentBinding, arg.ID, arg.OrganizationID, arg.VoiceAgentID)
-	return err
-}
-
 const disableVoiceAgent = `-- name: DisableVoiceAgent :exec
 UPDATE voice_agents
 SET
@@ -148,45 +86,6 @@ type DisableVoiceAgentParams struct {
 func (q *Queries) DisableVoiceAgent(ctx context.Context, arg DisableVoiceAgentParams) error {
 	_, err := q.db.Exec(ctx, disableVoiceAgent, arg.ID, arg.OrganizationID)
 	return err
-}
-
-const getVoiceAgentByApplicationID = `-- name: GetVoiceAgentByApplicationID :one
-SELECT agent.id, agent.organization_id, agent.name, agent.engine, agent.instructions, agent.voice, agent.language, agent.status, agent.created_at, agent.updated_at
-FROM voice_agent_bindings AS vab
-JOIN voice_agents AS agent
-  ON agent.id = vab.voice_agent_id
- AND agent.organization_id = vab.organization_id
-JOIN voice_applications AS app
-  ON app.id = vab.voice_application_id
- AND app.organization_id = vab.organization_id
-WHERE vab.organization_id = $1
-  AND vab.voice_application_id = $2
-  AND agent.status = 'active'
-  AND app.status = 'active'
-LIMIT 1
-`
-
-type GetVoiceAgentByApplicationIDParams struct {
-	OrganizationID     uuid.UUID `db:"organization_id" json:"organization_id"`
-	VoiceApplicationID uuid.UUID `db:"voice_application_id" json:"voice_application_id"`
-}
-
-func (q *Queries) GetVoiceAgentByApplicationID(ctx context.Context, arg GetVoiceAgentByApplicationIDParams) (VoiceAgent, error) {
-	row := q.db.QueryRow(ctx, getVoiceAgentByApplicationID, arg.OrganizationID, arg.VoiceApplicationID)
-	var i VoiceAgent
-	err := row.Scan(
-		&i.ID,
-		&i.OrganizationID,
-		&i.Name,
-		&i.Engine,
-		&i.Instructions,
-		&i.Voice,
-		&i.Language,
-		&i.Status,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-	)
-	return i, err
 }
 
 const getVoiceAgentByID = `-- name: GetVoiceAgentByID :one
@@ -222,47 +121,6 @@ func (q *Queries) GetVoiceAgentByID(ctx context.Context, arg GetVoiceAgentByIDPa
 		&i.UpdatedAt,
 	)
 	return i, err
-}
-
-const listVoiceAgentBindingsByAgentID = `-- name: ListVoiceAgentBindingsByAgentID :many
-SELECT vab.id, vab.organization_id, vab.voice_agent_id, vab.voice_application_id, vab.created_at
-FROM voice_agent_bindings AS vab
-JOIN voice_agents AS agent ON agent.id = vab.voice_agent_id
-WHERE vab.organization_id = $1
-  AND vab.voice_agent_id = $2
-  AND agent.status = 'active'
-ORDER BY vab.created_at DESC
-`
-
-type ListVoiceAgentBindingsByAgentIDParams struct {
-	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
-	VoiceAgentID   uuid.UUID `db:"voice_agent_id" json:"voice_agent_id"`
-}
-
-func (q *Queries) ListVoiceAgentBindingsByAgentID(ctx context.Context, arg ListVoiceAgentBindingsByAgentIDParams) ([]VoiceAgentBinding, error) {
-	rows, err := q.db.Query(ctx, listVoiceAgentBindingsByAgentID, arg.OrganizationID, arg.VoiceAgentID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []VoiceAgentBinding{}
-	for rows.Next() {
-		var i VoiceAgentBinding
-		if err := rows.Scan(
-			&i.ID,
-			&i.OrganizationID,
-			&i.VoiceAgentID,
-			&i.VoiceApplicationID,
-			&i.CreatedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
 }
 
 const listVoiceAgentsByOrganizationID = `-- name: ListVoiceAgentsByOrganizationID :many
