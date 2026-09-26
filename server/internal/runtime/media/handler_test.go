@@ -31,7 +31,7 @@ func TestHandlerCreatesAuthenticatedSessionAndUpdatesReadiness(t *testing.T) {
 	handler := newHandler(cfg, manager, tokens, http.NotFoundHandler())
 
 	ready := httptest.NewRecorder()
-	handler.ServeHTTP(ready, httptest.NewRequest(http.MethodGet, "/readyz", nil))
+	handler.ServeHTTP(ready, httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/readyz", nil))
 	if ready.Code != http.StatusOK {
 		t.Fatalf("initial readiness status = %d", ready.Code)
 	}
@@ -43,12 +43,22 @@ func TestHandlerCreatesAuthenticatedSessionAndUpdatesReadiness(t *testing.T) {
 	}
 	payload, _ := json.Marshal(sessionConfig)
 	unauthorized := httptest.NewRecorder()
-	handler.ServeHTTP(unauthorized, httptest.NewRequest(http.MethodPost, "/internal/v1/sessions", bytes.NewReader(payload)))
+	handler.ServeHTTP(unauthorized, httptest.NewRequestWithContext(
+		context.Background(),
+		http.MethodPost,
+		"/internal/v1/sessions",
+		bytes.NewReader(payload),
+	))
 	if unauthorized.Code != http.StatusUnauthorized {
 		t.Fatalf("unauthorized status = %d", unauthorized.Code)
 	}
 
-	request := httptest.NewRequest(http.MethodPost, "/internal/v1/sessions", bytes.NewReader(payload))
+	request := httptest.NewRequestWithContext(
+		context.Background(),
+		http.MethodPost,
+		"/internal/v1/sessions",
+		bytes.NewReader(payload),
+	)
 	request.Header.Set("Authorization", "Bearer "+cfg.ControlToken)
 	response := httptest.NewRecorder()
 	handler.ServeHTTP(response, request)
@@ -64,7 +74,7 @@ func TestHandlerCreatesAuthenticatedSessionAndUpdatesReadiness(t *testing.T) {
 	}
 
 	notReady := httptest.NewRecorder()
-	handler.ServeHTTP(notReady, httptest.NewRequest(http.MethodGet, "/readyz", nil))
+	handler.ServeHTTP(notReady, httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/readyz", nil))
 	if notReady.Code != http.StatusServiceUnavailable {
 		t.Fatalf("capacity readiness status = %d", notReady.Code)
 	}

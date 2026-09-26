@@ -26,7 +26,11 @@ func TestClientStreamsPCM(t *testing.T) {
 		if err != nil {
 			return
 		}
-		defer ws.CloseNow()
+		defer func() {
+			if closeErr := ws.CloseNow(); closeErr != nil {
+				t.Errorf("close websocket: %v", closeErr)
+			}
+		}()
 		_, payload, err := ws.Read(r.Context())
 		if err != nil {
 			return

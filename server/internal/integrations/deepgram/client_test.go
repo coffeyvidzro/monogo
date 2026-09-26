@@ -25,7 +25,11 @@ func TestClientStreamsAudioAndTranscript(t *testing.T) {
 		if err != nil {
 			return
 		}
-		defer ws.CloseNow()
+		defer func() {
+			if closeErr := ws.CloseNow(); closeErr != nil {
+				t.Errorf("close websocket: %v", closeErr)
+			}
+		}()
 		kind, audio, err := ws.Read(r.Context())
 		if err != nil || kind != websocket.MessageBinary {
 			return
@@ -42,7 +46,11 @@ func TestClientStreamsAudioAndTranscript(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Start() error = %v", err)
 	}
-	defer stream.Close(context.Background())
+	defer func() {
+		if closeErr := stream.Close(context.Background()); closeErr != nil {
+			t.Errorf("close stream: %v", closeErr)
+		}
+	}()
 	want := []byte{1, 0, 2, 0}
 	if err := stream.SendAudio(ctx, session.AudioFrame{Data: want, Format: format}); err != nil {
 		t.Fatalf("SendAudio() error = %v", err)

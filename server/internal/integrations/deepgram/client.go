@@ -12,7 +12,9 @@ import (
 	"github.com/coffeyvidzro/monogo/internal/media/session"
 )
 
-type Client struct{ httpClient *http.Client }
+type Client struct {
+	httpClient *http.Client
+}
 
 func NewClient(httpClient *http.Client) *Client {
 	if httpClient == nil {
@@ -23,13 +25,13 @@ func NewClient(httpClient *http.Client) *Client {
 
 func (c *Client) Start(ctx context.Context, cfg Config, format session.AudioFormat) (Stream, error) {
 	if ctx == nil {
-		return nil, fmt.Errorf("Deepgram context is required")
+		return nil, fmt.Errorf("deepgram context is required")
 	}
 	if err := format.Validate(); err != nil {
-		return nil, fmt.Errorf("Deepgram audio format: %w", err)
+		return nil, fmt.Errorf("deepgram audio format: %w", err)
 	}
 	if strings.TrimSpace(cfg.APIKey) == "" {
-		return nil, fmt.Errorf("Deepgram API key is required")
+		return nil, fmt.Errorf("deepgram API key is required")
 	}
 	endpoint := strings.TrimSpace(cfg.Endpoint)
 	if endpoint == "" {
@@ -37,7 +39,7 @@ func (c *Client) Start(ctx context.Context, cfg Config, format session.AudioForm
 	}
 	parsed, err := url.Parse(endpoint)
 	if err != nil || parsed.Scheme != "wss" || parsed.Host == "" {
-		return nil, fmt.Errorf("Deepgram endpoint must be an absolute wss URL")
+		return nil, fmt.Errorf("deepgram endpoint must be an absolute wss URL")
 	}
 	model := strings.TrimSpace(cfg.Model)
 	if model == "" {
@@ -56,10 +58,19 @@ func (c *Client) Start(ctx context.Context, cfg Config, format session.AudioForm
 		query.Set("endpointing", strconv.FormatInt(cfg.Endpointing.Milliseconds(), 10))
 	}
 	parsed.RawQuery = query.Encode()
-	header := http.Header{"Authorization": []string{"Token " + strings.TrimSpace(cfg.APIKey)}}
+	header := http.Header{
+		"Authorization": []string{"Token " + strings.TrimSpace(cfg.APIKey)},
+	}
 	connection, response, err := websocket.Dial(ctx, parsed.String(), &websocket.DialOptions{
-		HTTPClient: c.httpClient, HTTPHeader: header, CompressionMode: websocket.CompressionDisabled,
+		HTTPClient:      c.httpClient,
+		HTTPHeader:      header,
+		CompressionMode: websocket.CompressionDisabled,
 	})
+	if response != nil && response.Body != nil {
+		defer func() {
+			_ = response.Body.Close()
+		}()
+	}
 	if err != nil {
 		if response != nil {
 			return nil, fmt.Errorf("connect Deepgram: HTTP %d: %w", response.StatusCode, err)

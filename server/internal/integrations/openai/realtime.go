@@ -16,7 +16,9 @@ import (
 	"github.com/google/uuid"
 )
 
-type Client struct{ httpClient *http.Client }
+type Client struct {
+	httpClient *http.Client
+}
 
 func NewClient(httpClient *http.Client) *Client {
 	if httpClient == nil {
@@ -35,7 +37,12 @@ func (c *Client) Start(ctx context.Context, cfg Config, sessionConfig session.Co
 	if err := sessionConfig.Validate(); err != nil {
 		return nil, err
 	}
-	if sessionConfig.InputFormat.SampleRateHz != 24000 || sessionConfig.OutputFormat.SampleRateHz != 24000 || sessionConfig.InputFormat.Channels != 1 || sessionConfig.OutputFormat.Channels != 1 {
+	inputFormat := sessionConfig.InputFormat
+	outputFormat := sessionConfig.OutputFormat
+	if inputFormat.SampleRateHz != 24000 ||
+		outputFormat.SampleRateHz != 24000 ||
+		inputFormat.Channels != 1 ||
+		outputFormat.Channels != 1 {
 		return nil, fmt.Errorf("OpenAI Realtime requires mono 24 kHz PCM input and output")
 	}
 	endpoint := strings.TrimSpace(cfg.Endpoint)
@@ -53,11 +60,22 @@ func (c *Client) Start(ctx context.Context, cfg Config, sessionConfig session.Co
 	query := parsed.Query()
 	query.Set("model", model)
 	parsed.RawQuery = query.Encode()
-	header := http.Header{"Authorization": []string{"Bearer " + strings.TrimSpace(cfg.APIKey)}}
+	header := http.Header{
+		"Authorization": []string{"Bearer " + strings.TrimSpace(cfg.APIKey)},
+	}
 	if safety := strings.TrimSpace(cfg.SafetyIdentifier); safety != "" {
 		header.Set("OpenAI-Safety-Identifier", safety)
 	}
-	connection, response, err := websocket.Dial(ctx, parsed.String(), &websocket.DialOptions{HTTPClient: c.httpClient, HTTPHeader: header, CompressionMode: websocket.CompressionDisabled})
+	connection, response, err := websocket.Dial(ctx, parsed.String(), &websocket.DialOptions{
+		HTTPClient:      c.httpClient,
+		HTTPHeader:      header,
+		CompressionMode: websocket.CompressionDisabled,
+	})
+	if response != nil && response.Body != nil {
+		defer func() {
+			_ = response.Body.Close()
+		}()
+	}
 	if err != nil {
 		if response != nil {
 			return nil, fmt.Errorf("connect OpenAI Realtime: HTTP %d: %w", response.StatusCode, err)
@@ -65,11 +83,33 @@ func (c *Client) Start(ctx context.Context, cfg Config, sessionConfig session.Co
 		return nil, fmt.Errorf("connect OpenAI Realtime: %w", err)
 	}
 	streamCtx, cancel := context.WithCancel(ctx)
-	result := &realtimeStream{ctx: streamCtx, cancel: cancel, connection: connection, format: sessionConfig.OutputFormat,
-		events: make(chan session.Event, 64), audio: make(chan session.AudioFrame, 32)}
-	update := ClientEvent{Type: "session.update", EventID: uuid.NewString(), Session: &SessionUpdate{Type: "realtime", Instructions: sessionConfig.Instructions,
-		OutputModalities: []string{"audio"}, Audio: AudioConfig{Input: AudioInput{Format: AudioFormat{Type: "audio/pcm", Rate: 24000}},
-			Output: AudioOutput{Format: AudioFormat{Type: "audio/pcm", Rate: 24000}, Voice: strings.TrimSpace(cfg.Voice)}}, Tools: cfg.Tools}}
+	result := &realtimeStream{
+		ctx:        streamCtx,
+		cancel:     cancel,
+		connection: connection,
+		format:     sessionConfig.OutputFormat,
+		events:     make(chan session.Event, 64),
+		audio:      make(chan session.AudioFrame, 32),
+	}
+	update := ClientEvent{
+		Type:    "session.update",
+		EventID: uuid.NewString(),
+		Session: &SessionUpdate{
+			Type:             "realtime",
+			Instructions:     sessionConfig.Instructions,
+			OutputModalities: []string{"audio"},
+			Audio: AudioConfig{
+				Input: AudioInput{
+					Format: AudioFormat{Type: "audio/pcm", Rate: 24000},
+				},
+				Output: AudioOutput{
+					Format: AudioFormat{Type: "audio/pcm", Rate: 24000},
+					Voice:  strings.TrimSpace(cfg.Voice),
+				},
+			},
+			Tools: cfg.Tools,
+		},
+	}
 	if err := result.writeJSON(ctx, update); err != nil {
 		_ = result.Close(context.Background())
 		return nil, fmt.Errorf("configure OpenAI Realtime session: %w", err)
@@ -96,18 +136,37 @@ func (s *realtimeStream) SendAudio(ctx context.Context, frame session.AudioFrame
 	if frame.Format != s.format {
 		return fmt.Errorf("OpenAI Realtime audio format changed during stream")
 	}
-	return s.writeJSON(ctx, ClientEvent{Type: "input_audio_buffer.append", EventID: uuid.NewString(), Audio: base64.StdEncoding.EncodeToString(frame.Data)})
+	return s.writeJSON(ctx, ClientEvent{
+		Type:    "input_audio_buffer.append",
+		EventID: uuid.NewString(),
+		Audio:   base64.StdEncoding.EncodeToString(frame.Data),
+	})
 }
+
 func (s *realtimeStream) Interrupt(ctx context.Context) error {
-	return s.writeJSON(ctx, ClientEvent{Type: "response.cancel", EventID: uuid.NewString()})
+	return s.writeJSON(ctx, ClientEvent{
+		Type:    "response.cancel",
+		EventID: uuid.NewString(),
+	})
 }
-func (s *realtimeStream) Audio() <-chan session.AudioFrame { return s.audio }
-func (s *realtimeStream) Events() <-chan session.Event     { return s.events }
+
+func (s *realtimeStream) Audio() <-chan session.AudioFrame {
+	return s.audio
+}
+
+func (s *realtimeStream) Events() <-chan session.Event {
+	return s.events
+}
+
 func (s *realtimeStream) Close(context.Context) error {
 	var err error
-	s.closeOnce.Do(func() { s.cancel(); err = s.connection.CloseNow() })
+	s.closeOnce.Do(func() {
+		s.cancel()
+		err = s.connection.CloseNow()
+	})
 	return err
 }
+
 func (s *realtimeStream) writeJSON(ctx context.Context, value any) error {
 	payload, err := json.Marshal(value)
 	if err != nil {
@@ -121,22 +180,36 @@ func (s *realtimeStream) writeJSON(ctx context.Context, value any) error {
 func (s *realtimeStream) readLoop() {
 	defer close(s.events)
 	defer close(s.audio)
-	defer s.Close(context.Background())
+	defer func() {
+		_ = s.Close(context.Background())
+	}()
 	for {
 		kind, payload, err := s.connection.Read(s.ctx)
 		if err != nil {
 			if s.ctx.Err() == nil && websocket.CloseStatus(err) != websocket.StatusNormalClosure {
-				s.emitEvent(session.Event{Type: session.EventError, Text: fmt.Sprintf("read OpenAI Realtime: %v", err), OccurredAt: time.Now().UTC()})
+				s.emitEvent(session.Event{
+					Type:       session.EventError,
+					Text:       fmt.Sprintf("read OpenAI Realtime: %v", err),
+					OccurredAt: time.Now().UTC(),
+				})
 			}
 			return
 		}
 		if kind != websocket.MessageText {
-			s.emitEvent(session.Event{Type: session.EventError, Text: "OpenAI Realtime returned a non-text event", OccurredAt: time.Now().UTC()})
+			s.emitEvent(session.Event{
+				Type:       session.EventError,
+				Text:       "OpenAI Realtime returned a non-text event",
+				OccurredAt: time.Now().UTC(),
+			})
 			return
 		}
 		var event ServerEvent
 		if err := json.Unmarshal(payload, &event); err != nil {
-			s.emitEvent(session.Event{Type: session.EventError, Text: fmt.Sprintf("decode OpenAI Realtime event: %v", err), OccurredAt: time.Now().UTC()})
+			s.emitEvent(session.Event{
+				Type:       session.EventError,
+				Text:       fmt.Sprintf("decode OpenAI Realtime event: %v", err),
+				OccurredAt: time.Now().UTC(),
+			})
 			return
 		}
 		s.handle(event)
@@ -147,33 +220,70 @@ func (s *realtimeStream) handle(event ServerEvent) {
 	providerID := event.EventID
 	switch event.Type {
 	case "input_audio_buffer.speech_started":
-		s.emitEvent(session.Event{Type: session.EventSpeechStarted, ProviderID: providerID, OccurredAt: now})
+		s.emitEvent(session.Event{
+			Type:       session.EventSpeechStarted,
+			ProviderID: providerID,
+			OccurredAt: now,
+		})
 	case "input_audio_buffer.speech_stopped":
-		s.emitEvent(session.Event{Type: session.EventSpeechStopped, ProviderID: providerID, OccurredAt: now})
+		s.emitEvent(session.Event{
+			Type:       session.EventSpeechStopped,
+			ProviderID: providerID,
+			OccurredAt: now,
+		})
 	case "conversation.item.input_audio_transcription.delta":
-		s.emitEvent(session.Event{Type: session.EventTranscriptDelta, Text: event.Delta, ProviderID: providerID, OccurredAt: now})
+		s.emitEvent(session.Event{
+			Type:       session.EventTranscriptDelta,
+			Text:       event.Delta,
+			ProviderID: providerID,
+			OccurredAt: now,
+		})
 	case "conversation.item.input_audio_transcription.completed":
-		s.emitEvent(session.Event{Type: session.EventTranscriptFinal, Text: event.Transcript, ProviderID: providerID, OccurredAt: now})
+		s.emitEvent(session.Event{
+			Type:       session.EventTranscriptFinal,
+			Text:       event.Transcript,
+			ProviderID: providerID,
+			OccurredAt: now,
+		})
 	case "response.created":
 		s.emitEvent(session.Event{Type: session.EventResponseStarted, ProviderID: providerID, OccurredAt: now})
 	case "response.done":
-		s.emitEvent(session.Event{Type: session.EventResponseStopped, ProviderID: providerID, ProviderPayload: marshalRaw(event.Response), OccurredAt: now})
+		s.emitEvent(session.Event{
+			Type:            session.EventResponseStopped,
+			ProviderID:      providerID,
+			ProviderPayload: marshalRaw(event.Response),
+			OccurredAt:      now,
+		})
 	case "response.audio.delta", "response.output_audio.delta":
 		audio, err := base64.StdEncoding.DecodeString(event.Delta)
 		if err != nil {
 			s.emitEvent(session.Event{Type: session.EventError, Text: err.Error(), OccurredAt: now})
 			return
 		}
-		frame := session.AudioFrame{Data: audio, Format: s.format, CapturedAt: now}
+		frame := session.AudioFrame{
+			Data:       audio,
+			Format:     s.format,
+			CapturedAt: now,
+		}
 		select {
 		case s.audio <- frame:
 		case <-s.ctx.Done():
 		}
 	case "response.function_call_arguments.delta", "response.function_call_arguments.done":
-		s.emitEvent(session.Event{Type: session.EventToolCall, Text: event.Arguments + event.Delta, ProviderID: event.CallID, OccurredAt: now})
+		s.emitEvent(session.Event{
+			Type:       session.EventToolCall,
+			Text:       event.Arguments + event.Delta,
+			ProviderID: event.CallID,
+			OccurredAt: now,
+		})
 	case "error":
 		if event.Error != nil {
-			s.emitEvent(session.Event{Type: session.EventError, Text: event.Error.Code + ": " + event.Error.Message, ProviderID: providerID, OccurredAt: now})
+			s.emitEvent(session.Event{
+				Type:       session.EventError,
+				Text:       event.Error.Code + ": " + event.Error.Message,
+				ProviderID: providerID,
+				OccurredAt: now,
+			})
 		}
 	}
 }
@@ -183,4 +293,7 @@ func (s *realtimeStream) emitEvent(event session.Event) {
 	case <-s.ctx.Done():
 	}
 }
-func marshalRaw(value any) []byte { payload, _ := json.Marshal(value); return payload }
+func marshalRaw(value any) []byte {
+	payload, _ := json.Marshal(value)
+	return payload
+}

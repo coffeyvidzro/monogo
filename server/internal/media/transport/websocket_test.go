@@ -50,11 +50,20 @@ func TestWebSocketHandlerAuthenticatesAndEchoesAudio(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	address := "ws" + strings.TrimPrefix(server.URL, "http") + "?token=" + token
-	connection, _, err := websocket.Dial(ctx, address, nil)
+	connection, response, err := websocket.Dial(ctx, address, nil)
+	if response != nil && response.Body != nil {
+		defer func() {
+			_ = response.Body.Close()
+		}()
+	}
 	if err != nil {
 		t.Fatalf("Dial() error = %v", err)
 	}
-	defer connection.CloseNow()
+	defer func() {
+		if closeErr := connection.CloseNow(); closeErr != nil {
+			t.Errorf("close websocket: %v", closeErr)
+		}
+	}()
 	hello, _ := json.Marshal(map[string]any{
 		"type": "hello", "callSid": cfg.ChannelID.String(), "rate": 16000,
 		"channels": 1, "encoding": "L16",
@@ -86,6 +95,11 @@ func TestWebSocketHandlerRejectsInvalidToken(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 	_, response, err := websocket.Dial(ctx, "ws"+strings.TrimPrefix(server.URL, "http")+"?token=invalid", nil)
+	if response != nil && response.Body != nil {
+		defer func() {
+			_ = response.Body.Close()
+		}()
+	}
 	if err == nil {
 		t.Fatal("Dial() error = nil")
 	}

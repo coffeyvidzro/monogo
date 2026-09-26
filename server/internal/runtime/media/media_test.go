@@ -24,7 +24,8 @@ func TestRunStopsWithContext(t *testing.T) {
 }
 
 func TestRunRejectsNilContext(t *testing.T) {
-	if err := Run(nil); err == nil {
+	var nilContext context.Context
+	if err := Run(nilContext); err == nil {
 		t.Fatal("Run() error = nil")
 	}
 }

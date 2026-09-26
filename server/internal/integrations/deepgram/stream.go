@@ -21,8 +21,19 @@ type stream struct {
 	closeOnce  sync.Once
 }
 
-func newStream(ctx context.Context, cancel context.CancelFunc, connection *websocket.Conn, format session.AudioFormat) *stream {
-	return &stream{ctx: ctx, cancel: cancel, connection: connection, format: format, events: make(chan Event, 32)}
+func newStream(
+	ctx context.Context,
+	cancel context.CancelFunc,
+	connection *websocket.Conn,
+	format session.AudioFormat,
+) *stream {
+	return &stream{
+		ctx:        ctx,
+		cancel:     cancel,
+		connection: connection,
+		format:     format,
+		events:     make(chan Event, 32),
+	}
 }
 
 func (s *stream) SendAudio(ctx context.Context, frame session.AudioFrame) error {
@@ -30,7 +41,7 @@ func (s *stream) SendAudio(ctx context.Context, frame session.AudioFrame) error 
 		return err
 	}
 	if frame.Format != s.format {
-		return fmt.Errorf("Deepgram audio format changed during stream")
+		return fmt.Errorf("deepgram audio format changed during stream")
 	}
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
@@ -41,7 +52,9 @@ func (s *stream) Finalize(ctx context.Context) error {
 	return s.writeJSON(ctx, map[string]string{"type": "Finalize"})
 }
 
-func (s *stream) Events() <-chan Event { return s.events }
+func (s *stream) Events() <-chan Event {
+	return s.events
+}
 
 func (s *stream) Close(ctx context.Context) error {
 	var closeErr error
@@ -74,7 +87,7 @@ func (s *stream) readLoop() {
 			return
 		}
 		if messageType != websocket.MessageText {
-			s.emit(Event{Err: fmt.Errorf("Deepgram returned a non-text event")})
+			s.emit(Event{Err: fmt.Errorf("deepgram returned a non-text event")})
 			return
 		}
 		var message Message
@@ -90,11 +103,17 @@ func (s *stream) readLoop() {
 		if requestID == "" {
 			requestID = message.Metadata.RequestID
 		}
-		s.emit(Event{RequestID: requestID, Transcript: Transcript{
-			Text: alternative.Transcript, Confidence: alternative.Confidence,
-			IsFinal: message.IsFinal, SpeechFinal: message.SpeechFinal,
-			Start: durationSeconds(message.Start), Duration: durationSeconds(message.Duration),
-		}})
+		s.emit(Event{
+			RequestID: requestID,
+			Transcript: Transcript{
+				Text:        alternative.Transcript,
+				Confidence:  alternative.Confidence,
+				IsFinal:     message.IsFinal,
+				SpeechFinal: message.SpeechFinal,
+				Start:       durationSeconds(message.Start),
+				Duration:    durationSeconds(message.Duration),
+			},
+		})
 	}
 }
 
@@ -105,4 +124,6 @@ func (s *stream) emit(event Event) {
 	}
 }
 
-func durationSeconds(value float64) time.Duration { return time.Duration(value * float64(time.Second)) }
+func durationSeconds(value float64) time.Duration {
+	return time.Duration(value * float64(time.Second))
+}

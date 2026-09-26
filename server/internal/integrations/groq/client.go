@@ -11,7 +11,9 @@ import (
 	"strings"
 )
 
-type Client struct{ httpClient *http.Client }
+type Client struct {
+	httpClient *http.Client
+}
 
 func NewClient(httpClient *http.Client) *Client {
 	if httpClient == nil {
@@ -22,13 +24,13 @@ func NewClient(httpClient *http.Client) *Client {
 
 func (c *Client) Generate(ctx context.Context, cfg Config, messages []Message) (Stream, error) {
 	if ctx == nil {
-		return nil, fmt.Errorf("Groq context is required")
+		return nil, fmt.Errorf("groq context is required")
 	}
 	if strings.TrimSpace(cfg.APIKey) == "" {
-		return nil, fmt.Errorf("Groq API key is required")
+		return nil, fmt.Errorf("groq API key is required")
 	}
 	if len(messages) == 0 {
-		return nil, fmt.Errorf("Groq messages are required")
+		return nil, fmt.Errorf("groq messages are required")
 	}
 	endpoint := strings.TrimSpace(cfg.Endpoint)
 	if endpoint == "" {
@@ -36,14 +38,20 @@ func (c *Client) Generate(ctx context.Context, cfg Config, messages []Message) (
 	}
 	parsed, err := url.Parse(endpoint)
 	if err != nil || parsed.Scheme != "https" || parsed.Host == "" {
-		return nil, fmt.Errorf("Groq endpoint must be an absolute HTTPS URL")
+		return nil, fmt.Errorf("groq endpoint must be an absolute HTTPS URL")
 	}
 	model := strings.TrimSpace(cfg.Model)
 	if model == "" {
 		model = DefaultModel
 	}
-	payload, err := json.Marshal(CompletionRequest{Model: model, Messages: messages, Stream: true,
-		Temperature: cfg.Temperature, MaxCompletionTokens: cfg.MaxCompletionTokens, Tools: cfg.Tools})
+	payload, err := json.Marshal(CompletionRequest{
+		Model:               model,
+		Messages:            messages,
+		Stream:              true,
+		Temperature:         cfg.Temperature,
+		MaxCompletionTokens: cfg.MaxCompletionTokens,
+		Tools:               cfg.Tools,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("encode Groq request: %w", err)
 	}
@@ -59,7 +67,9 @@ func (c *Client) Generate(ctx context.Context, cfg Config, messages []Message) (
 		return nil, fmt.Errorf("start Groq stream: %w", err)
 	}
 	if response.StatusCode != http.StatusOK {
-		defer response.Body.Close()
+		defer func() {
+			_ = response.Body.Close()
+		}()
 		body, _ := io.ReadAll(io.LimitReader(response.Body, 64<<10))
 		return nil, fmt.Errorf("start Groq stream: HTTP %d: %s", response.StatusCode, strings.TrimSpace(string(body)))
 	}

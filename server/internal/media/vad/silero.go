@@ -71,28 +71,28 @@ func NewSilero(cfg SileroConfig) (*Silero, error) {
 	}
 	state, err := ort.NewEmptyTensor[float32](ort.NewShape(2, 1, 128))
 	if err != nil {
-		input.Destroy()
+		_ = input.Destroy()
 		return nil, fmt.Errorf("create Silero state: %w", err)
 	}
 	sampleRate, err := ort.NewTensor(ort.NewShape(), []int64{SampleRate})
 	if err != nil {
-		input.Destroy()
-		state.Destroy()
+		_ = input.Destroy()
+		_ = state.Destroy()
 		return nil, fmt.Errorf("create Silero sample rate: %w", err)
 	}
 	output, err := ort.NewEmptyTensor[float32](ort.NewShape(1, 1))
 	if err != nil {
-		input.Destroy()
-		state.Destroy()
-		sampleRate.Destroy()
+		_ = input.Destroy()
+		_ = state.Destroy()
+		_ = sampleRate.Destroy()
 		return nil, fmt.Errorf("create Silero output: %w", err)
 	}
 	nextState, err := ort.NewEmptyTensor[float32](ort.NewShape(2, 1, 128))
 	if err != nil {
-		input.Destroy()
-		state.Destroy()
-		sampleRate.Destroy()
-		output.Destroy()
+		_ = input.Destroy()
+		_ = state.Destroy()
+		_ = sampleRate.Destroy()
+		_ = output.Destroy()
 		return nil, fmt.Errorf("create Silero next state: %w", err)
 	}
 	options, err := ort.NewSessionOptions()
@@ -100,7 +100,9 @@ func NewSilero(cfg SileroConfig) (*Silero, error) {
 		destroyValues(input, state, sampleRate, output, nextState)
 		return nil, fmt.Errorf("create Silero session options: %w", err)
 	}
-	defer options.Destroy()
+	defer func() {
+		_ = options.Destroy()
+	}()
 	if err := options.SetIntraOpNumThreads(cfg.Threads); err != nil {
 		destroyValues(input, state, sampleRate, output, nextState)
 		return nil, fmt.Errorf("configure ONNX intra-op threads: %w", err)
@@ -109,13 +111,27 @@ func NewSilero(cfg SileroConfig) (*Silero, error) {
 		destroyValues(input, state, sampleRate, output, nextState)
 		return nil, fmt.Errorf("configure ONNX inter-op threads: %w", err)
 	}
-	sess, err := ort.NewAdvancedSession(cfg.ModelPath, []string{"input", "state", "sr"}, []string{"output", "stateN"},
-		[]ort.Value{input, state, sampleRate}, []ort.Value{output, nextState}, options)
+	sess, err := ort.NewAdvancedSession(
+		cfg.ModelPath,
+		[]string{"input", "state", "sr"},
+		[]string{"output", "stateN"},
+		[]ort.Value{input, state, sampleRate},
+		[]ort.Value{output, nextState},
+		options,
+	)
 	if err != nil {
 		destroyValues(input, state, sampleRate, output, nextState)
 		return nil, fmt.Errorf("load Silero model: %w", err)
 	}
-	return &Silero{session: sess, input: input, state: state, sampleRate: sampleRate, output: output, nextState: nextState, context: make([]float32, contextSamples)}, nil
+	return &Silero{
+		session:    sess,
+		input:      input,
+		state:      state,
+		sampleRate: sampleRate,
+		output:     output,
+		nextState:  nextState,
+		context:    make([]float32, contextSamples),
+	}, nil
 }
 
 func initializeEnvironment(libraryPath string) error {
@@ -184,7 +200,14 @@ func (s *Silero) Close() error {
 		return nil
 	}
 	s.closed = true
-	return errors.Join(s.session.Destroy(), s.input.Destroy(), s.state.Destroy(), s.sampleRate.Destroy(), s.output.Destroy(), s.nextState.Destroy())
+	return errors.Join(
+		s.session.Destroy(),
+		s.input.Destroy(),
+		s.state.Destroy(),
+		s.sampleRate.Destroy(),
+		s.output.Destroy(),
+		s.nextState.Destroy(),
+	)
 }
 
 func destroyValues(values ...ort.Value) {

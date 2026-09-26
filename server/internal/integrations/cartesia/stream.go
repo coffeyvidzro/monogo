@@ -23,10 +23,27 @@ type stream struct {
 	closeOnce  sync.Once
 }
 
-func newStream(ctx context.Context, cancel context.CancelFunc, connection *websocket.Conn, format session.AudioFormat, contextID string) *stream {
-	return &stream{ctx: ctx, cancel: cancel, connection: connection, format: format, contextID: contextID, events: make(chan Event, 32)}
+func newStream(
+	ctx context.Context,
+	cancel context.CancelFunc,
+	connection *websocket.Conn,
+	format session.AudioFormat,
+	contextID string,
+) *stream {
+	return &stream{
+		ctx:        ctx,
+		cancel:     cancel,
+		connection: connection,
+		format:     format,
+		contextID:  contextID,
+		events:     make(chan Event, 32),
+	}
 }
-func (s *stream) Events() <-chan Event { return s.events }
+
+func (s *stream) Events() <-chan Event {
+	return s.events
+}
+
 func (s *stream) Close() error {
 	var err error
 	s.closeOnce.Do(func() {
@@ -49,7 +66,9 @@ func (s *stream) writeJSON(ctx context.Context, value any) error {
 }
 func (s *stream) readLoop() {
 	defer close(s.events)
-	defer s.Close()
+	defer func() {
+		_ = s.Close()
+	}()
 	for {
 		kind, payload, err := s.connection.Read(s.ctx)
 		if err != nil {
@@ -59,7 +78,7 @@ func (s *stream) readLoop() {
 			return
 		}
 		if kind != websocket.MessageText {
-			s.emit(Event{Err: fmt.Errorf("Cartesia returned a non-text event")})
+			s.emit(Event{Err: fmt.Errorf("cartesia returned a non-text event")})
 			return
 		}
 		var response Response
@@ -68,7 +87,10 @@ func (s *stream) readLoop() {
 			return
 		}
 		if response.Type == "error" || response.StatusCode >= 400 {
-			s.emit(Event{RequestID: response.RequestID, Err: fmt.Errorf("Cartesia %s: %s", response.ErrorCode, response.Message)})
+			s.emit(Event{
+				RequestID: response.RequestID,
+				Err:       fmt.Errorf("cartesia %s: %s", response.ErrorCode, response.Message),
+			})
 			return
 		}
 		switch response.Type {
@@ -78,7 +100,11 @@ func (s *stream) readLoop() {
 				s.emit(Event{Err: fmt.Errorf("decode Cartesia audio: %w", err)})
 				return
 			}
-			frame := session.AudioFrame{Data: audio, Format: s.format, CapturedAt: time.Now().UTC()}
+			frame := session.AudioFrame{
+				Data:       audio,
+				Format:     s.format,
+				CapturedAt: time.Now().UTC(),
+			}
 			if err := frame.Validate(); err != nil {
 				s.emit(Event{Err: err})
 				return

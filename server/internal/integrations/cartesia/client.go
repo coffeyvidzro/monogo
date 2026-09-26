@@ -12,7 +12,9 @@ import (
 	"github.com/google/uuid"
 )
 
-type Client struct{ httpClient *http.Client }
+type Client struct {
+	httpClient *http.Client
+}
 
 func NewClient(httpClient *http.Client) *Client {
 	if httpClient == nil {
@@ -23,19 +25,19 @@ func NewClient(httpClient *http.Client) *Client {
 
 func (c *Client) Synthesize(ctx context.Context, cfg Config, text string, format session.AudioFormat) (Stream, error) {
 	if ctx == nil {
-		return nil, fmt.Errorf("Cartesia context is required")
+		return nil, fmt.Errorf("cartesia context is required")
 	}
 	if strings.TrimSpace(cfg.APIKey) == "" {
-		return nil, fmt.Errorf("Cartesia API key is required")
+		return nil, fmt.Errorf("cartesia API key is required")
 	}
 	if strings.TrimSpace(cfg.VoiceID) == "" {
-		return nil, fmt.Errorf("Cartesia voice ID is required")
+		return nil, fmt.Errorf("cartesia voice ID is required")
 	}
 	if strings.TrimSpace(text) == "" {
-		return nil, fmt.Errorf("Cartesia transcript is required")
+		return nil, fmt.Errorf("cartesia transcript is required")
 	}
 	if err := format.Validate(); err != nil {
-		return nil, fmt.Errorf("Cartesia audio format: %w", err)
+		return nil, fmt.Errorf("cartesia audio format: %w", err)
 	}
 	endpoint := strings.TrimSpace(cfg.Endpoint)
 	if endpoint == "" {
@@ -43,7 +45,7 @@ func (c *Client) Synthesize(ctx context.Context, cfg Config, text string, format
 	}
 	parsed, err := url.Parse(endpoint)
 	if err != nil || parsed.Scheme != "wss" || parsed.Host == "" {
-		return nil, fmt.Errorf("Cartesia endpoint must be an absolute wss URL")
+		return nil, fmt.Errorf("cartesia endpoint must be an absolute wss URL")
 	}
 	version := strings.TrimSpace(cfg.APIVersion)
 	if version == "" {
@@ -52,13 +54,24 @@ func (c *Client) Synthesize(ctx context.Context, cfg Config, text string, format
 	query := parsed.Query()
 	query.Set("cartesia_version", version)
 	parsed.RawQuery = query.Encode()
-	header := http.Header{"X-API-Key": []string{strings.TrimSpace(cfg.APIKey)}}
-	connection, response, err := websocket.Dial(ctx, parsed.String(), &websocket.DialOptions{HTTPClient: c.httpClient, HTTPHeader: header, CompressionMode: websocket.CompressionDisabled})
+	header := http.Header{
+		"X-API-Key": []string{strings.TrimSpace(cfg.APIKey)},
+	}
+	connection, response, err := websocket.Dial(ctx, parsed.String(), &websocket.DialOptions{
+		HTTPClient:      c.httpClient,
+		HTTPHeader:      header,
+		CompressionMode: websocket.CompressionDisabled,
+	})
+	if response != nil && response.Body != nil {
+		defer func() {
+			_ = response.Body.Close()
+		}()
+	}
 	if err != nil {
 		if response != nil {
-			return nil, fmt.Errorf("connect Cartesia: HTTP %d: %w", response.StatusCode, err)
+			return nil, fmt.Errorf("connect cartesia: HTTP %d: %w", response.StatusCode, err)
 		}
-		return nil, fmt.Errorf("connect Cartesia: %w", err)
+		return nil, fmt.Errorf("connect cartesia: %w", err)
 	}
 	model := strings.TrimSpace(cfg.Model)
 	if model == "" {
@@ -66,11 +79,21 @@ func (c *Client) Synthesize(ctx context.Context, cfg Config, text string, format
 	}
 	streamCtx, cancel := context.WithCancel(ctx)
 	result := newStream(streamCtx, cancel, connection, format, uuid.NewString())
-	request := GenerationRequest{ModelID: model, Transcript: text, Voice: strings.TrimSpace(cfg.VoiceID), Language: strings.TrimSpace(cfg.Language),
-		ContextID: result.contextID, OutputFormat: OutputFormat{Container: "raw", Encoding: "pcm_s16le", SampleRate: format.SampleRateHz}}
+	request := GenerationRequest{
+		ModelID:    model,
+		Transcript: text,
+		Voice:      strings.TrimSpace(cfg.VoiceID),
+		Language:   strings.TrimSpace(cfg.Language),
+		ContextID:  result.contextID,
+		OutputFormat: OutputFormat{
+			Container:  "raw",
+			Encoding:   "pcm_s16le",
+			SampleRate: format.SampleRateHz,
+		},
+	}
 	if err := result.writeJSON(ctx, request); err != nil {
 		_ = result.Close()
-		return nil, fmt.Errorf("start Cartesia synthesis: %w", err)
+		return nil, fmt.Errorf("start cartesia synthesis: %w", err)
 	}
 	go result.readLoop()
 	return result, nil

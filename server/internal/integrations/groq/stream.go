@@ -15,8 +15,17 @@ type stream struct {
 	closeOnce sync.Once
 }
 
-func newStream(body io.ReadCloser) *stream { return &stream{body: body, events: make(chan Event, 32)} }
-func (s *stream) Events() <-chan Event     { return s.events }
+func newStream(body io.ReadCloser) *stream {
+	return &stream{
+		body:   body,
+		events: make(chan Event, 32),
+	}
+}
+
+func (s *stream) Events() <-chan Event {
+	return s.events
+}
+
 func (s *stream) Close() error {
 	var err error
 	s.closeOnce.Do(func() { err = s.body.Close() })
@@ -25,7 +34,9 @@ func (s *stream) Close() error {
 
 func (s *stream) readLoop() {
 	defer close(s.events)
-	defer s.Close()
+	defer func() {
+		_ = s.Close()
+	}()
 	scanner := bufio.NewScanner(s.body)
 	scanner.Buffer(make([]byte, 64<<10), 1<<20)
 	for scanner.Scan() {
@@ -48,7 +59,12 @@ func (s *stream) readLoop() {
 			continue
 		}
 		for _, choice := range chunk.Choices {
-			base := Event{CompletionID: chunk.ID, TextDelta: choice.Delta.Content, FinishReason: choice.FinishReason, Usage: chunk.Usage}
+			base := Event{
+				CompletionID: chunk.ID,
+				TextDelta:    choice.Delta.Content,
+				FinishReason: choice.FinishReason,
+				Usage:        chunk.Usage,
+			}
 			if len(choice.Delta.ToolCalls) == 0 {
 				s.events <- base
 				continue
@@ -57,8 +73,14 @@ func (s *stream) readLoop() {
 				s.events <- base
 			}
 			for _, call := range choice.Delta.ToolCalls {
-				s.events <- Event{CompletionID: chunk.ID, ToolCallID: call.ID,
-					ToolIndex: call.Index, ToolName: call.Function.Name, ToolArguments: []byte(call.Function.Arguments), FinishReason: choice.FinishReason}
+				s.events <- Event{
+					CompletionID:  chunk.ID,
+					ToolCallID:    call.ID,
+					ToolIndex:     call.Index,
+					ToolName:      call.Function.Name,
+					ToolArguments: []byte(call.Function.Arguments),
+					FinishReason:  choice.FinishReason,
+				}
 			}
 		}
 	}
