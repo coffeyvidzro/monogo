@@ -108,7 +108,10 @@ RUN apt-get update \
          -DBUILD_TESTING=OFF \
          -DAUDIOFORK_BUILD_MODULE=ON \
     && cmake --build build --parallel "$(nproc)" --target mod_audio_fork \
-    && install -m 0644 build/module/mod_audio_fork.so /usr/local/freeswitch/mod/mod_audio_fork.so \
+    && module_dir="$(PKG_CONFIG_PATH=/usr/local/freeswitch/lib/pkgconfig pkg-config --variable=modulesdir freeswitch)" \
+    && test -n "$module_dir" \
+    && install -d "$module_dir" \
+    && install -m 0644 build/module/mod_audio_fork.so "$module_dir/mod_audio_fork.so" \
     && install -d /usr/local/share/licenses \
     && install -m 0644 LICENSE /usr/local/share/licenses/mod_audio_fork-LICENSE
 
