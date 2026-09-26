@@ -9,7 +9,9 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/coffeyvidzro/monogo/internal/integrations/openai"
 	"github.com/coffeyvidzro/monogo/internal/media/engine/echo"
+	"github.com/coffeyvidzro/monogo/internal/media/engine/integrated"
 	"github.com/coffeyvidzro/monogo/internal/media/session"
 	"github.com/coffeyvidzro/monogo/internal/media/transport"
 	"github.com/coffeyvidzro/monogo/internal/platform/logging"
@@ -34,9 +36,7 @@ func RunWithConfig(ctx context.Context, cfg Config) error {
 		return err
 	}
 	logger := logging.New().With("process", "media")
-	manager, err := session.NewManager(cfg.MaxSessions, cfg.TokenTTL, map[session.Engine]session.Starter{
-		session.EngineEcho: echo.Engine{},
-	})
+	manager, err := session.NewManager(cfg.MaxSessions, cfg.TokenTTL, mediaEngines(cfg))
 	if err != nil {
 		return fmt.Errorf("initialize media session manager: %w", err)
 	}
@@ -86,4 +86,18 @@ func RunWithConfig(ctx context.Context, cfg Config) error {
 	}
 	logger.Info(context.Background(), "media worker stopped")
 	return result
+}
+
+
+func mediaEngines(cfg Config) map[session.Engine]session.Starter {
+	engines := map[session.Engine]session.Starter{
+		session.EngineEcho: echo.Engine{},
+	}
+	if cfg.OpenAIAPIKey != "" {
+		engines[session.EngineIntegrated] = integrated.Engine{
+			Client: openai.NewClient(nil),
+			Config: openai.Config{APIKey: cfg.OpenAIAPIKey},
+		}
+	}
+	return engines
 }
