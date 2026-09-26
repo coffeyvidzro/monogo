@@ -9,6 +9,8 @@ func TestValidateScopesAcceptsAPIResourceScopes(t *testing.T) {
 		"numbers:read",
 		"carriers:write",
 		"webhooks:read",
+		"voice-agents:read",
+		"voice-agents:write",
 	}
 	if err := ValidateScopes(scopes); err != nil {
 		t.Fatalf("expected API resource scopes to be valid: %v", err)
