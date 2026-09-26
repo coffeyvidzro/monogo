@@ -37,6 +37,7 @@ CREATE TABLE IF NOT EXISTS voice_agent_sessions (
     -- Data Validation Constraints
     CONSTRAINT chk_voice_agent_sessions_engine CHECK (engine IN ('composable', 'integrated')),
     CONSTRAINT chk_voice_agent_sessions_instructions CHECK (length(btrim(instructions_snapshot)) BETWEEN 1 AND 20000),
+    CONSTRAINT chk_voice_agent_sessions_engine_config CHECK (jsonb_typeof(engine_config_snapshot) = 'object'),
     CONSTRAINT chk_voice_agent_sessions_voice CHECK (voice IS NULL OR length(btrim(voice)) BETWEEN 1 AND 255),
     CONSTRAINT chk_voice_agent_sessions_language CHECK (language IS NULL OR length(btrim(language)) BETWEEN 1 AND 64),
     CONSTRAINT chk_voice_agent_sessions_state CHECK (state IN ('active', 'completed', 'failed', 'cancelled')),
@@ -70,8 +71,6 @@ CREATE INDEX IF NOT EXISTS idx_voice_agent_sessions_organization_agent
 CREATE INDEX IF NOT EXISTS idx_voice_agent_sessions_call
     ON voice_agent_sessions (call_id, started_at DESC);
 
-CREATE INDEX IF NOT EXISTS idx_voice_agent_sessions_call_scope
-    ON voice_agent_sessions (call_id, organization_id);
 
 -- Trigger for Updated At
 CREATE TRIGGER set_voice_agent_sessions_updated_at
