@@ -88,7 +88,6 @@ func RunWithConfig(ctx context.Context, cfg Config) error {
 	return result
 }
 
-
 func mediaEngines(cfg Config) map[session.Engine]session.Starter {
 	engines := map[session.Engine]session.Starter{
 		session.EngineEcho: echo.Engine{},
