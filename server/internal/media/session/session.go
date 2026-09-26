@@ -105,7 +105,7 @@ func (c Config) Validate() error {
 	if c.ChannelID == uuid.Nil {
 		return fmt.Errorf("channel id is required")
 	}
-	if c.Engine != EngineEcho && c.Engine != EngineComposable && c.Engine != EngineOpenAIRealtime {
+	if c.Engine != EngineEcho && c.Engine != EngineComposable && c.Engine != EngineIntegrated {
 		return fmt.Errorf("unsupported engine %q", c.Engine)
 	}
 	if err := c.InputFormat.Validate(); err != nil {
