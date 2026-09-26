@@ -270,7 +270,7 @@ func (r lifecycleRow) Scan(dest ...interface{}) error {
 	}
 	for i := range dest {
 		target := reflect.ValueOf(dest[i])
-		if !target.IsValid() || target.Kind() != reflect.Ptr || target.IsNil() {
+		if !target.IsValid() || target.Kind() != reflect.Pointer || target.IsNil() {
 			return fmt.Errorf("scan destination %d is not a writable pointer", i)
 		}
 		value := reflect.ValueOf(r.values[i])
@@ -391,7 +391,7 @@ type lifecycleFreeSWITCHServer struct {
 
 func newLifecycleFreeSWITCHServer(t *testing.T, failAudioFork bool) *lifecycleFreeSWITCHServer {
 	t.Helper()
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	listener, err := (&net.ListenConfig{}).Listen(t.Context(), "tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("listen fake FreeSWITCH: %v", err)
 	}
