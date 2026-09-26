@@ -24,7 +24,7 @@ func (e *Executor) executeBuiltin(
 	req ExecuteRequest,
 ) (ExecuteResult, error) {
 	if e.calls == nil {
-		return ExecuteResult{}, fmt.Errorf("Voice Agent built-in call controls are unavailable")
+		return ExecuteResult{}, fmt.Errorf("voice agent built-in call controls are unavailable")
 	}
 
 	switch tool.Name {
