@@ -17,7 +17,6 @@ func MediaConfig(agent sqlc.VoiceAgent, config session.Config) session.Config {
 	return config
 }
 
-
 // MediaConfigFromSession builds live media configuration only from the durable
 // session snapshot. Editing an agent after answer must not change an active call.
 func MediaConfigFromSession(record sqlc.VoiceAgentSession, config session.Config) session.Config {

@@ -188,7 +188,6 @@ func (s *Service) transition(
 	return call, translateMutationError(err)
 }
 
-
 // ResolveLifecycleCall returns the canonical call row for an internal
 // lifecycle event without requiring the worker to already know tenant context.
 // Unknown or stale event identities are ignored.
