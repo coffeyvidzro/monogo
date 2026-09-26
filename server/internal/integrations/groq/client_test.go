@@ -36,7 +36,6 @@ func TestClientStreamsTextAndToolCalls(t *testing.T) {
 	}
 }
 
-
 func TestStreamCloseUnblocksFullEventBuffer(t *testing.T) {
 	reader, writer := io.Pipe()
 	stream := newStream(context.Background(), reader)

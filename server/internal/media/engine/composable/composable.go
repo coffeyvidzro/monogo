@@ -340,7 +340,6 @@ func (s *stream) emit(event session.Event) {
 	}
 }
 
-
 func shouldFlushSpeechChunk(text string) bool {
 	trimmed := strings.TrimSpace(text)
 	if trimmed == "" {

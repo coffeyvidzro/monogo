@@ -56,8 +56,8 @@ func (s *stream) readLoop() {
 		data := strings.TrimSpace(strings.TrimPrefix(line, "data:"))
 		if data == "[DONE]" {
 			if !s.emit(Event{Done: true}) {
-			return
-		}
+				return
+			}
 			return
 		}
 		var chunk CompletionChunk
