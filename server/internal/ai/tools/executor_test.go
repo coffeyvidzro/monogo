@@ -3,6 +3,7 @@ package tools
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/netip"
 	"strings"
@@ -75,7 +76,7 @@ func TestReadBoundedToolResponseRejectsOversizedBody(t *testing.T) {
 }
 
 func TestRejectToolRedirect(t *testing.T) {
-	if err := rejectToolRedirect(&http.Request{}, nil); err != http.ErrUseLastResponse {
+	if err := rejectToolRedirect(&http.Request{}, nil); !errors.Is(err, http.ErrUseLastResponse) {
 		t.Fatalf("rejectToolRedirect() = %v", err)
 	}
 }
