@@ -1,4 +1,4 @@
-h1:NEmQtOg3R0A/RadTDBVXQrF9ZcL7Df7HKfTtl78y0ik=
+h1:q1kqZzVX+NBkNt4ATxLrj8FtI0Bv9xewFS1Sj+r1nQU=
 001_extensions.sql h1:V12FA/dbb8clPffRf/1QJRpbB/S0eECkElwvfOVRda4=
 002_create_users.sql h1:w8z6z5sqnmtExCGa63iYl2ssG9rgXX8m3VPqvb1z4jo=
 003_create_authentication.sql h1:6R8fm0zInr9A/OW74oYTBLpPYHRf3dpVjw13qyjdd7E=
@@ -31,6 +31,6 @@ h1:NEmQtOg3R0A/RadTDBVXQrF9ZcL7Df7HKfTtl78y0ik=
 030_create_routing_attempts.sql h1:TYFzI5ZVO+BMlun6tKYMrS1zhUDYtO6jQ+uta1EEHVk=
 031_extend_number_lifecycle.sql h1:KHa8gTW8+eSavlgj7Zdg0WInBJv1988VEMVPIoTL2vU=
 032_create_voice_agents.sql h1:nW8Uz3Oa89ardV55X1tVXwzpIrbyR0mTobjgiCnwIVE=
-033_create_voice_agent_tools.sql h1:3VBgXLGHr7koFFomLfUG7hchItUlI5g+sv+42dEAZr4=
-034_create_voice_agent_sessions.sql h1:StXXarumcMRoF/XtP4KPx4+iFY4MQn2WxAVdFOjYtcU=
-035_create_voice_agent_turns.sql h1:GHwrEaSWPlBox8D0fgd5ytfKz6lwB5k/0xzbnBs0PJM=
+033_create_voice_agent_tools.sql h1:E6tmc1wFqv8q2+oUiR1LeBo2EVLNyXAV30rBeDebOps=
+034_create_voice_agent_sessions.sql h1:vnxO41dj7CjIs9yQAU3+9cXr5oR5en0jcUXzxeL2dwQ=
+035_create_voice_agent_turns.sql h1:XkhWBIlMtJ4Unm4qSiUF7Ql7xHZGlNyn3rNNQ9oc3f8=

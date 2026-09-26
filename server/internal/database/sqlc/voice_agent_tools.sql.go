@@ -37,7 +37,7 @@ FROM voice_agents AS agent
 WHERE agent.id = $2
   AND agent.organization_id = $1
   AND agent.status = 'active'
-RETURNING id, organization_id, voice_agent_id, type, name, description, parameters, endpoint_url, timeout_ms, enabled, created_at, updated_at
+RETURNING id, organization_id, voice_agent_id, type, name, description, parameters, endpoint_url, method, headers, timeout_ms, enabled, created_at, updated_at
 `
 
 type CreateVoiceAgentToolParams struct {
@@ -74,6 +74,8 @@ func (q *Queries) CreateVoiceAgentTool(ctx context.Context, arg CreateVoiceAgent
 		&i.Description,
 		&i.Parameters,
 		&i.EndpointUrl,
+		&i.Method,
+		&i.Headers,
 		&i.TimeoutMs,
 		&i.Enabled,
 		&i.CreatedAt,
@@ -101,7 +103,7 @@ func (q *Queries) DeleteVoiceAgentTool(ctx context.Context, arg DeleteVoiceAgent
 }
 
 const getVoiceAgentToolByID = `-- name: GetVoiceAgentToolByID :one
-SELECT tool.id, tool.organization_id, tool.voice_agent_id, tool.type, tool.name, tool.description, tool.parameters, tool.endpoint_url, tool.timeout_ms, tool.enabled, tool.created_at, tool.updated_at
+SELECT tool.id, tool.organization_id, tool.voice_agent_id, tool.type, tool.name, tool.description, tool.parameters, tool.endpoint_url, tool.method, tool.headers, tool.timeout_ms, tool.enabled, tool.created_at, tool.updated_at
 FROM voice_agent_tools AS tool
 JOIN voice_agents AS agent ON agent.id = tool.voice_agent_id
 WHERE tool.id = $1
@@ -129,6 +131,8 @@ func (q *Queries) GetVoiceAgentToolByID(ctx context.Context, arg GetVoiceAgentTo
 		&i.Description,
 		&i.Parameters,
 		&i.EndpointUrl,
+		&i.Method,
+		&i.Headers,
 		&i.TimeoutMs,
 		&i.Enabled,
 		&i.CreatedAt,
@@ -138,7 +142,7 @@ func (q *Queries) GetVoiceAgentToolByID(ctx context.Context, arg GetVoiceAgentTo
 }
 
 const listVoiceAgentToolsByAgentID = `-- name: ListVoiceAgentToolsByAgentID :many
-SELECT tool.id, tool.organization_id, tool.voice_agent_id, tool.type, tool.name, tool.description, tool.parameters, tool.endpoint_url, tool.timeout_ms, tool.enabled, tool.created_at, tool.updated_at
+SELECT tool.id, tool.organization_id, tool.voice_agent_id, tool.type, tool.name, tool.description, tool.parameters, tool.endpoint_url, tool.method, tool.headers, tool.timeout_ms, tool.enabled, tool.created_at, tool.updated_at
 FROM voice_agent_tools AS tool
 JOIN voice_agents AS agent ON agent.id = tool.voice_agent_id
 WHERE tool.organization_id = $1
@@ -170,6 +174,8 @@ func (q *Queries) ListVoiceAgentToolsByAgentID(ctx context.Context, arg ListVoic
 			&i.Description,
 			&i.Parameters,
 			&i.EndpointUrl,
+			&i.Method,
+			&i.Headers,
 			&i.TimeoutMs,
 			&i.Enabled,
 			&i.CreatedAt,
@@ -198,7 +204,7 @@ SET
 WHERE id = $7
   AND organization_id = $8
   AND voice_agent_id = $9
-RETURNING id, organization_id, voice_agent_id, type, name, description, parameters, endpoint_url, timeout_ms, enabled, created_at, updated_at
+RETURNING id, organization_id, voice_agent_id, type, name, description, parameters, endpoint_url, method, headers, timeout_ms, enabled, created_at, updated_at
 `
 
 type UpdateVoiceAgentToolParams struct {
@@ -235,6 +241,8 @@ func (q *Queries) UpdateVoiceAgentTool(ctx context.Context, arg UpdateVoiceAgent
 		&i.Description,
 		&i.Parameters,
 		&i.EndpointUrl,
+		&i.Method,
+		&i.Headers,
 		&i.TimeoutMs,
 		&i.Enabled,
 		&i.CreatedAt,

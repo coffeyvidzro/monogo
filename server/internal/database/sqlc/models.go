@@ -656,6 +656,8 @@ type VoiceAgentTool struct {
 	Description    string             `db:"description" json:"description"`
 	Parameters     []byte             `db:"parameters" json:"parameters"`
 	EndpointUrl    *string            `db:"endpoint_url" json:"endpoint_url"`
+	Method         string             `db:"method" json:"method"`
+	Headers        []byte             `db:"headers" json:"headers"`
 	TimeoutMs      int32              `db:"timeout_ms" json:"timeout_ms"`
 	Enabled        bool               `db:"enabled" json:"enabled"`
 	CreatedAt      pgtype.Timestamptz `db:"created_at" json:"created_at"`
