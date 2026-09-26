@@ -16,7 +16,6 @@ import (
 	"github.com/coffeyvidzro/monogo/internal/telecom/subscribers"
 	"github.com/coffeyvidzro/monogo/internal/telecom/trunks"
 	"github.com/coffeyvidzro/monogo/internal/telecom/voice"
-	"github.com/coffeyvidzro/monogo/internal/telecom/voice_agents"
 )
 
 func RegisterRoutes(
@@ -40,11 +39,6 @@ func RegisterRoutes(
 		router,
 		module.Voice.Handler,
 		organizationAccess("voice-applications"),
-	)
-	voice_agents.RegisterRoutes(
-		router,
-		module.VoiceAgents.Handler,
-		organizationAccess("voice-agents"),
 	)
 	carriers.RegisterRoutes(router, module.Carriers.Handler, organizationAccess("carriers"))
 
