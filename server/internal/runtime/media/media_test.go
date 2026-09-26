@@ -46,6 +46,14 @@ func TestMediaEnginesRegistersIntegratedOnlyWithOpenAIKey(t *testing.T) {
 	}
 }
 
+func TestConfigRejectsPartialComposableCredentials(t *testing.T) {
+	cfg := validRuntimeConfig()
+	cfg.DeepgramAPIKey = "deepgram"
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("Validate() error = nil")
+	}
+}
+
 func TestMediaEnginesRegistersComposableOnlyWithAllCredentials(t *testing.T) {
 	partial := validRuntimeConfig()
 	partial.DeepgramAPIKey = "deepgram"
