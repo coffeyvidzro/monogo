@@ -131,6 +131,26 @@ services:
       - recordings-data:/var/lib/freeswitch/recordings
     networks: [control]
 
+  media:
+    build:
+      context: ../server
+      dockerfile: Dockerfile
+      target: runtime
+    restart: unless-stopped
+    command: ["/leamout/media"]
+    environment:
+      MEDIA_LISTEN_ADDRESS: ":8090"
+      MEDIA_PUBLIC_WS_URL: "ws://media:8090/v1/audio-forks"
+      MEDIA_TOKEN_SECRET: ${MEDIA_TOKEN_SECRET:?MEDIA_TOKEN_SECRET is required}
+      MEDIA_CONTROL_TOKEN: ${MEDIA_CONTROL_TOKEN:?MEDIA_CONTROL_TOKEN is required}
+      MEDIA_MAX_SESSIONS: ${MEDIA_MAX_SESSIONS:-100}
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8090/readyz"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    networks: [control]
+
   caddy:
     image: caddy:2-alpine
     restart: unless-stopped
@@ -158,6 +178,9 @@ services:
     stop_grace_period: 60s
     environment:
       FREESWITCH_ESL_PASSWORD: ${FREESWITCH_ESL_PASSWORD:?FREESWITCH_ESL_PASSWORD is required}
+    depends_on:
+      media:
+        condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "fs_cli -H 127.0.0.1 -P 8021 -p \"$FREESWITCH_ESL_PASSWORD\" -x status | grep -q '^UP '"]
       interval: 3s

@@ -1,0 +1,50 @@
+name: leamout-media-v1
+
+services:
+  media:
+    build:
+      context: ../../server
+      dockerfile: Dockerfile
+      target: runtime
+    command: ["/leamout/media"]
+    environment:
+      MEDIA_LISTEN_ADDRESS: ":8090"
+      MEDIA_PUBLIC_WS_URL: "ws://media:8090/v1/audio-forks"
+      MEDIA_TOKEN_SECRET: "media-v1-token-secret-at-least-32-bytes"
+      MEDIA_CONTROL_TOKEN: "media-v1-control-token-at-least-32-bytes"
+      MEDIA_MAX_SESSIONS: "4"
+    ports:
+      - "18090:8090"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8090/readyz"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+    networks:
+      control:
+        ipv4_address: 172.32.0.30
+
+  freeswitch:
+    build:
+      context: ../../containers/freeswitch
+      dockerfile: Dockerfile
+    environment:
+      FREESWITCH_ESL_PASSWORD: "media-v1-esl-password"
+    depends_on:
+      media:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "fs_cli -H 127.0.0.1 -P 8021 -p \"$FREESWITCH_ESL_PASSWORD\" -x 'module_exists mod_audio_fork' | grep -q true"]
+      interval: 2s
+      timeout: 2s
+      retries: 60
+      start_period: 10s
+    networks:
+      control:
+        ipv4_address: 172.32.0.20
+
+networks:
+  control:
+    ipam:
+      config:
+        - subnet: 172.32.0.0/24

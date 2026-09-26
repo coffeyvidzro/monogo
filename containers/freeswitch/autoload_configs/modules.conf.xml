@@ -8,6 +8,7 @@
     <load module="mod_sofia"/>
     <load module="mod_loopback"/>
     <load module="mod_event_socket"/>
+    <load module="mod_audio_fork"/>
 
     <!-- Voice v1 call and conference control -->
     <load module="mod_commands"/>

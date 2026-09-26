@@ -18,6 +18,10 @@ install -m 0644 \
   /leamout-config/autoload_configs/event_socket.conf.xml \
   /etc/freeswitch/autoload_configs/event_socket.conf.xml
 
+install -m 0644 \
+  /leamout-config/autoload_configs/audio_fork.conf.xml \
+  /etc/freeswitch/autoload_configs/audio_fork.conf.xml
+
 # The sample configuration provides useful global defaults, but Leamout owns
 # the SIP listeners. Remove sample top-level profiles before installing the
 # production internal profile so no extra SIP listener is started implicitly.

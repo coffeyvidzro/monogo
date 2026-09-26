@@ -1,6 +1,7 @@
 # syntax=docker/dockerfile:1
 
 ARG FREESWITCH_REF=3f13ad1b1d323e435757fc43a2bb829d4ea5b9a8
+ARG MOD_AUDIO_FORK_REF=91faa8a3e17e926e2c0f94cc4dad35b5ad2f2eca
 
 # SignalWire's public CI image provides the maintained Bookworm build
 # toolchain and native development dependencies. It is not a FreeSWITCH
@@ -8,6 +9,7 @@ ARG FREESWITCH_REF=3f13ad1b1d323e435757fc43a2bb829d4ea5b9a8
 FROM signalwire/freeswitch-public-ci-base:bookworm-amd64@sha256:4f77a9baa0fb253d810e1139238fb75f01d06f6d41b538dcb1c3e8f7cfaa75f6
 
 ARG FREESWITCH_REF
+ARG MOD_AUDIO_FORK_REF
 ARG DEP_BUILD_NUMBER=42
 
 USER root
@@ -87,6 +89,31 @@ RUN printf '%s\n' \
     && make -j"$(nproc)" \
     && make install \
     && make samples
+
+# Build the MIT-licensed, bidirectional audio fork module at an immutable
+# revision. It vendors its WebSocket implementation with verified source
+# hashes and links against the FreeSWITCH headers installed above.
+WORKDIR /usr/src
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends cmake libssl-dev pkg-config \
+    && rm -rf /var/lib/apt/lists/* \
+    && git init mod_audio_fork \
+    && cd mod_audio_fork \
+    && git remote add origin https://github.com/lazyboson/mod_audio_fork.git \
+    && git fetch --depth 1 origin "${MOD_AUDIO_FORK_REF}" \
+    && git checkout --detach FETCH_HEAD \
+    && PKG_CONFIG_PATH=/usr/local/freeswitch/lib/pkgconfig \
+       cmake -S . -B build \
+         -DCMAKE_BUILD_TYPE=Release \
+         -DBUILD_TESTING=OFF \
+         -DAUDIOFORK_BUILD_MODULE=ON \
+    && cmake --build build --parallel "$(nproc)" --target mod_audio_fork \
+    && module_dir="$(PKG_CONFIG_PATH=/usr/local/freeswitch/lib/pkgconfig pkg-config --variable=modulesdir freeswitch)" \
+    && test -n "$module_dir" \
+    && install -d "$module_dir" \
+    && install -m 0644 build/module/mod_audio_fork.so "$module_dir/mod_audio_fork.so" \
+    && install -d /usr/local/share/licenses \
+    && install -m 0644 LICENSE /usr/local/share/licenses/mod_audio_fork-LICENSE
 
 # Keep Leamout configuration in the image and overlay it onto the complete
 # FreeSWITCH sample configuration at container start.

@@ -9,11 +9,14 @@ The first supported production path is Cloud + BYOC. See the
 authentication, health-check, and acceptance-test procedures.
 Recording deployment, retries, playback, deletion, and recovery are covered in
 the [recording storage guide](docs/recording-storage.md).
+The provider-neutral package boundaries for live AI audio are documented in
+the [realtime media-plane guide](docs/media-plane.md).
 
 ## Services
 
 - `server`: HTTP control-plane API.
 - `worker`: asynchronous jobs, event consumers, reconciliation, and SIP endpoint health checks.
+- `media`: low-latency realtime audio and AI provider orchestration.
 - `opensips`: public SIP edge and carrier authentication.
 - `freeswitch`: call application runtime.
 - `rtpengine`: carrier/media boundary.

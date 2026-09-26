@@ -16,6 +16,8 @@ are not implemented and are not acceptance requirements.
   stack.
 - `graceful-drain`: draining active calls across core signaling and media
   services.
+- `media-v1`: authenticated bidirectional audio between FreeSWITCH
+  `mod_audio_fork` and the Go media worker.
 
 The architecture suites exercise existing runtime capabilities; they do not
 establish availability of a Cloud + Managed product model.
