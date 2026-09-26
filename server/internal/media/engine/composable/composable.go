@@ -195,21 +195,40 @@ func (s *stream) generate(ctx context.Context, generation uint64, messages []gro
 	}
 	defer func() { _ = voice.Close() }()
 	var text strings.Builder
-	var pending string
+	var pending strings.Builder
+	var heldChunk string
 	completionEvents := completion.Events()
 	for {
 		select {
 		case event, ok := <-completionEvents:
 			if !ok || event.Done {
-				if pending == "" {
+				finalChunk := strings.TrimSpace(pending.String())
+				switch {
+				case heldChunk != "" && finalChunk != "":
+					if err := voice.SendText(ctx, heldChunk, true); err != nil {
+						s.failResponse(ctx, generation, err)
+						return
+					}
+					if err := voice.SendText(ctx, finalChunk, false); err != nil {
+						s.failResponse(ctx, generation, err)
+						return
+					}
+				case heldChunk != "":
+					if err := voice.SendText(ctx, heldChunk, false); err != nil {
+						s.failResponse(ctx, generation, err)
+						return
+					}
+				case finalChunk != "":
+					if err := voice.SendText(ctx, finalChunk, false); err != nil {
+						s.failResponse(ctx, generation, err)
+						return
+					}
+				default:
 					s.stopResponse(generation, "")
 					return
 				}
-				if err := voice.SendText(ctx, pending, false); err != nil {
-					s.failResponse(ctx, generation, err)
-					return
-				}
-				pending = ""
+				pending.Reset()
+				heldChunk = ""
 				completionEvents = nil
 				continue
 			}
@@ -219,14 +238,19 @@ func (s *stream) generate(ctx context.Context, generation uint64, messages []gro
 			}
 			if event.TextDelta != "" {
 				text.WriteString(event.TextDelta)
-				s.emitCurrent(ctx, generation, session.Event{Type: session.EventTranscriptDelta, Text: event.TextDelta, ProviderID: event.CompletionID, OccurredAt: time.Now().UTC()})
-				if pending != "" {
-					if err := voice.SendText(ctx, pending, true); err != nil {
-						s.failResponse(ctx, generation, err)
-						return
+				s.emitCurrent(ctx, generation, session.Event{Type: session.EventResponseDelta, Text: event.TextDelta, ProviderID: event.CompletionID, OccurredAt: time.Now().UTC()})
+				pending.WriteString(event.TextDelta)
+				if shouldFlushSpeechChunk(pending.String()) {
+					chunk := strings.TrimSpace(pending.String())
+					pending.Reset()
+					if heldChunk != "" {
+						if err := voice.SendText(ctx, heldChunk, true); err != nil {
+							s.failResponse(ctx, generation, err)
+							return
+						}
 					}
+					heldChunk = chunk
 				}
-				pending = event.TextDelta
 			}
 			if event.ToolName != "" {
 				s.emitCurrent(ctx, generation, session.Event{Type: session.EventToolCall, Text: event.ToolName, ProviderID: event.ToolCallID, ProviderPayload: event.ToolArguments, OccurredAt: time.Now().UTC()})
@@ -314,4 +338,17 @@ func (s *stream) emit(event session.Event) {
 	case s.events <- event:
 	case <-s.ctx.Done():
 	}
+}
+
+
+func shouldFlushSpeechChunk(text string) bool {
+	trimmed := strings.TrimSpace(text)
+	if trimmed == "" {
+		return false
+	}
+	last := trimmed[len(trimmed)-1]
+	if last == '.' || last == '!' || last == '?' || last == ';' || last == ':' || last == '\n' {
+		return true
+	}
+	return len(trimmed) >= 120 && len(text) > 0 && (text[len(text)-1] == ' ' || text[len(text)-1] == '\n')
 }

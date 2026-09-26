@@ -66,5 +66,20 @@ func (c Config) Validate() error {
 	if c.MaxSessions <= 0 || c.ReadLimit <= 0 {
 		return fmt.Errorf("media limits must be positive")
 	}
+	composableValues := []string{
+		strings.TrimSpace(c.DeepgramAPIKey),
+		strings.TrimSpace(c.GroqAPIKey),
+		strings.TrimSpace(c.CartesiaAPIKey),
+		strings.TrimSpace(c.CartesiaVoiceID),
+	}
+	configured := 0
+	for _, value := range composableValues {
+		if value != "" {
+			configured++
+		}
+	}
+	if configured != 0 && configured != len(composableValues) {
+		return fmt.Errorf("composable media engine requires Deepgram, Groq, Cartesia, and Cartesia voice configuration together")
+	}
 	return nil
 }

@@ -15,7 +15,7 @@ import (
 
 func TestComposableRunsFluxTurnThroughGroqAndCartesia(t *testing.T) {
 	transcriber := newFakeTranscriber()
-	generator := &fakeGenerator{deltas: []string{"hello ", "caller"}}
+	generator := &fakeGenerator{deltas: []string{"hello. ", "caller"}}
 	synthesizer := &fakeSynthesizer{audio: []byte{1, 0, 2, 0}}
 	stream := startTestStream(t, transcriber, generator, synthesizer)
 
@@ -40,11 +40,23 @@ func TestComposableRunsFluxTurnThroughGroqAndCartesia(t *testing.T) {
 	if generator.lastUser() != "hi" {
 		t.Fatalf("Groq user message = %q", generator.lastUser())
 	}
-	if synthesizer.lastText() != "hello caller" {
+	if synthesizer.lastText() != "hello.caller" {
 		t.Fatalf("Cartesia text = %q", synthesizer.lastText())
 	}
 	if got := synthesizer.continuations(); len(got) != 2 || !got[0] || got[1] {
 		t.Fatalf("Cartesia continuation flags = %v", got)
+	}
+
+	foundResponseDelta := false
+	for !foundResponseDelta {
+		select {
+		case event := <-stream.Events():
+			if event.Type == session.EventResponseDelta {
+				foundResponseDelta = true
+			}
+		case <-time.After(time.Second):
+			t.Fatal("timed out waiting for response delta event")
+		}
 	}
 	closeTestStream(t, stream)
 }
