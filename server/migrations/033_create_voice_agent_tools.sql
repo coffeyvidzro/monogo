@@ -8,8 +8,6 @@ CREATE TABLE IF NOT EXISTS voice_agent_tools (
     description TEXT NOT NULL,
     parameters JSONB NOT NULL DEFAULT '{}'::jsonb,
     endpoint_url TEXT,
-    method TEXT NOT NULL DEFAULT 'POST',
-    headers JSONB NOT NULL DEFAULT '{}'::jsonb,
     timeout_ms INTEGER NOT NULL DEFAULT 3000,
     enabled BOOLEAN NOT NULL DEFAULT true,
 
@@ -17,7 +15,6 @@ CREATE TABLE IF NOT EXISTS voice_agent_tools (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
 
     -- Constraints & Scoping
-    CONSTRAINT uq_voice_agent_tools_id_organization UNIQUE (id, organization_id),
     CONSTRAINT uq_voice_agent_tools_agent_name UNIQUE (voice_agent_id, name),
     
     CONSTRAINT fk_voice_agent_tools_agent_scope
@@ -30,8 +27,6 @@ CREATE TABLE IF NOT EXISTS voice_agent_tools (
     CONSTRAINT chk_voice_agent_tools_name CHECK (length(btrim(name)) BETWEEN 1 AND 128),
     CONSTRAINT chk_voice_agent_tools_description CHECK (length(btrim(description)) BETWEEN 1 AND 2000),
     CONSTRAINT chk_voice_agent_tools_parameters CHECK (jsonb_typeof(parameters) = 'object'),
-    CONSTRAINT chk_voice_agent_tools_headers CHECK (jsonb_typeof(headers) = 'object'),
-    CONSTRAINT chk_voice_agent_tools_method CHECK (method IN ('GET', 'POST', 'PUT', 'PATCH', 'DELETE')),
     CONSTRAINT chk_voice_agent_tools_endpoint CHECK (
         (type = 'builtin' AND endpoint_url IS NULL)
         OR
