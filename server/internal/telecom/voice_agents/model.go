@@ -1,3 +1,4 @@
+// Package voice_agents defines durable AI voice agent configuration and bindings.
 package voice_agents
 
 import (
