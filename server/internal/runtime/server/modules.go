@@ -124,7 +124,6 @@ func newModules(ctx context.Context, cfg config.Config) (*modules, error) {
 	)
 	tenancyModule := tenancy.New(queries)
 	platformModule := platform.New(postgresClient.Pool(), queries)
-	aiModule := ai.New(queries)
 	metricsRegistry := metrics.New(redisClient)
 	telecomModule, err := telecom.New(telecom.Dependencies{
 		DB:                   postgresClient.Pool(),
@@ -143,6 +142,11 @@ func newModules(ctx context.Context, cfg config.Config) (*modules, error) {
 		closeDependencies()
 		return nil, fmt.Errorf("initialize telecom: %w", err)
 	}
+
+	aiModule := ai.New(queries, ai.Dependencies{
+		CredentialCipher: credentialCipher,
+		Calls:            telecomModule.Calls.Service,
+	})
 
 	resolver := authn.NewResolver(identityModule.Session.Service, tenancyModule.Credentials.Service)
 	authMiddleware := middleware.NewAuthnMiddleware(resolver)

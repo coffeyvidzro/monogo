@@ -12,6 +12,7 @@ func RegisterRoutes(router chi.Router, handler *Handler, auth func(http.Handler)
 		r.Post("/", handler.Create)
 		r.Get("/", handler.List)
 		r.Patch("/{tool_id}", handler.Update)
+		r.Post("/{tool_id}/rotate-signing-secret", handler.RotateSigningSecret)
 		r.Delete("/{tool_id}", handler.Delete)
 	})
 }

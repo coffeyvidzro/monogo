@@ -21,6 +21,7 @@ import (
 	"github.com/coffeyvidzro/monogo/internal/platform/webhooks"
 	"github.com/coffeyvidzro/monogo/internal/runtime/calling"
 	"github.com/coffeyvidzro/monogo/internal/runtime/voiceai"
+	"github.com/coffeyvidzro/monogo/internal/security/encryption"
 	"github.com/coffeyvidzro/monogo/internal/telecom/calls"
 	"github.com/coffeyvidzro/monogo/internal/telecom/lifecycle"
 	"github.com/coffeyvidzro/monogo/internal/telecom/numbers"
@@ -100,15 +101,10 @@ func newModules(ctx context.Context, cfg config.Config) (*modules, error) {
 	}
 
 	queries := sqlc.New(postgresClient.Pool())
-	aiModule := ai.New(queries)
-	voiceAIRuntime, err := voiceai.New(
-		aiModule.Orchestration,
-		freeSwitch,
-		voiceai.DefaultConfig(cfg.MediaControlURL, cfg.MediaControlToken),
-	)
+	credentialCipher, err := encryption.New(cfg.EncryptionKey)
 	if err != nil {
 		closeDependencies()
-		return nil, fmt.Errorf("initialize Voice Agent runtime: %w", err)
+		return nil, fmt.Errorf("initialize Voice Agent tool encryption: %w", err)
 	}
 
 	routingRepository := routing.NewRepository(queries, postgresClient.Pool())
@@ -124,6 +120,20 @@ func newModules(ctx context.Context, cfg config.Config) (*modules, error) {
 		admissionLimiter,
 		metrics.New(redisClient),
 	)
+	aiModule := ai.New(queries, ai.Dependencies{
+		CredentialCipher: credentialCipher,
+		Calls:            callsService,
+	})
+	voiceAIRuntime, err := voiceai.New(
+		aiModule.Orchestration,
+		freeSwitch,
+		voiceai.DefaultConfig(cfg.MediaControlURL, cfg.MediaControlToken),
+	)
+	if err != nil {
+		closeDependencies()
+		return nil, fmt.Errorf("initialize Voice Agent runtime: %w", err)
+	}
+
 	callConsumer := calls.NewConsumer(callsService)
 	callReconciliation, err := calls.NewReconciliationJob(
 		callsRepository,

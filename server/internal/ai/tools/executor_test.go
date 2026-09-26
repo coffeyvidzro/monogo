@@ -8,6 +8,7 @@ import (
 	"net/netip"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestValidateExecutionEndpointRequiresHTTPS(t *testing.T) {
@@ -78,5 +79,32 @@ func TestReadBoundedToolResponseRejectsOversizedBody(t *testing.T) {
 func TestRejectToolRedirect(t *testing.T) {
 	if err := rejectToolRedirect(&http.Request{}, nil); !errors.Is(err, http.ErrUseLastResponse) {
 		t.Fatalf("rejectToolRedirect() = %v", err)
+	}
+}
+
+
+func TestSameJSONIgnoresObjectKeyOrder(t *testing.T) {
+	left := []byte(`{"a":1,"b":"two"}`)
+	right := []byte(`{"b":"two","a":1}`)
+	if !sameJSON(left, right) {
+		t.Fatal("sameJSON() = false")
+	}
+}
+
+func TestSignToolRequestIsStable(t *testing.T) {
+	timestamp := time.Unix(1700000000, 0).UTC()
+	first := signToolRequest("secret", []byte(`{"ok":true}`), timestamp)
+	second := signToolRequest("secret", []byte(`{"ok":true}`), timestamp)
+	if first == "" || first != second || !strings.HasPrefix(first, "v1=") {
+		t.Fatalf("signature = %q", first)
+	}
+}
+
+func TestRequireNoBuiltinArguments(t *testing.T) {
+	if err := requireNoBuiltinArguments(json.RawMessage(`{}`)); err != nil {
+		t.Fatalf("empty arguments rejected: %v", err)
+	}
+	if err := requireNoBuiltinArguments(json.RawMessage(`{"unexpected":true}`)); err == nil {
+		t.Fatal("non-empty arguments error = nil")
 	}
 }

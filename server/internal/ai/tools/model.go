@@ -34,6 +34,10 @@ type UpdateRequest struct {
 	Enabled     *bool            `json:"enabled,omitempty"`
 }
 
+type SigningSecretResponse struct {
+	SigningSecret string `json:"signing_secret"`
+}
+
 type Response struct {
 	ID             uuid.UUID       `json:"id"`
 	OrganizationID uuid.UUID       `json:"organization_id"`
@@ -47,6 +51,7 @@ type Response struct {
 	Enabled        bool            `json:"enabled"`
 	CreatedAt      time.Time       `json:"created_at"`
 	UpdatedAt      time.Time       `json:"updated_at"`
+	SigningSecret string          `json:"signing_secret,omitempty"`
 }
 
 func response(tool sqlc.VoiceAgentTool) Response {
