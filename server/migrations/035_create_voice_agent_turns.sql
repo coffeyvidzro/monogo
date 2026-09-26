@@ -5,7 +5,7 @@ CREATE TABLE IF NOT EXISTS voice_agent_turns (
 
     sequence INTEGER NOT NULL,
     role TEXT NOT NULL,
-    content TEXT NOT NULL,
+    content TEXT NOT NULL DEFAULT '',
     provider_id TEXT,
     tool_name TEXT,
     tool_call_id TEXT,
@@ -27,7 +27,14 @@ CREATE TABLE IF NOT EXISTS voice_agent_turns (
     CONSTRAINT uq_voice_agent_turns_session_sequence UNIQUE (session_id, sequence),
     CONSTRAINT chk_voice_agent_turns_sequence CHECK (sequence > 0),
     CONSTRAINT chk_voice_agent_turns_role CHECK (role IN ('user', 'assistant', 'tool', 'system')),
-    CONSTRAINT chk_voice_agent_turns_content CHECK (length(btrim(content)) > 0),
+    CONSTRAINT chk_voice_agent_turns_content_or_tool CHECK (
+        length(btrim(content)) > 0 OR tool_call_id IS NOT NULL
+    ),
+    
+    CONSTRAINT chk_voice_agent_turns_tool_roles CHECK (
+        (role = 'tool' AND tool_call_id IS NOT NULL) OR (role <> 'tool')
+    ),
+
     CONSTRAINT chk_voice_agent_turns_metadata CHECK (jsonb_typeof(metadata) = 'object'),
     CONSTRAINT chk_voice_agent_turns_speech_timestamps CHECK (
         speech_ended_at IS NULL
@@ -40,8 +47,6 @@ CREATE TABLE IF NOT EXISTS voice_agent_turns (
     CONSTRAINT chk_voice_agent_turns_turn_latency CHECK (turn_latency_ms IS NULL OR turn_latency_ms >= 0)
 );
 
-CREATE INDEX IF NOT EXISTS idx_voice_agent_turns_session_sequence
-    ON voice_agent_turns (session_id, sequence);
-
+-- Optimize for analytics and fetching recent turns per organization
 CREATE INDEX IF NOT EXISTS idx_voice_agent_turns_organization_created
     ON voice_agent_turns (organization_id, created_at DESC);
