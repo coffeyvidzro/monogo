@@ -17,6 +17,7 @@ type stream struct {
 	connection *websocket.Conn
 	format     session.AudioFormat
 	events     chan Event
+	done       chan struct{}
 	writeMu    sync.Mutex
 	closeOnce  sync.Once
 }
@@ -33,6 +34,7 @@ func newStream(
 		connection: connection,
 		format:     format,
 		events:     make(chan Event, 32),
+		done:       make(chan struct{}),
 	}
 }
 
@@ -59,9 +61,24 @@ func (s *stream) Events() <-chan Event {
 func (s *stream) Close(ctx context.Context) error {
 	var closeErr error
 	s.closeOnce.Do(func() {
-		_ = s.writeJSON(ctx, map[string]string{"type": "CloseStream"})
+		if err := s.writeJSON(ctx, map[string]string{"type": "CloseStream"}); err != nil {
+			s.cancel()
+			_ = s.connection.CloseNow()
+			closeErr = fmt.Errorf("close Deepgram stream: %w", err)
+			return
+		}
+
+		select {
+		case <-s.done:
+		case <-ctx.Done():
+			s.cancel()
+			_ = s.connection.CloseNow()
+			closeErr = fmt.Errorf("close Deepgram stream: %w", ctx.Err())
+			return
+		}
+
 		s.cancel()
-		closeErr = s.connection.Close(websocket.StatusNormalClosure, "complete")
+		_ = s.connection.CloseNow()
 	})
 	return closeErr
 }
@@ -77,6 +94,7 @@ func (s *stream) writeJSON(ctx context.Context, value any) error {
 }
 
 func (s *stream) readLoop() {
+	defer close(s.done)
 	defer close(s.events)
 	for {
 		messageType, payload, err := s.connection.Read(s.ctx)
