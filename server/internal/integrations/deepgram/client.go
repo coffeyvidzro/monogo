@@ -49,13 +49,19 @@ func (c *Client) Start(ctx context.Context, cfg Config, format session.AudioForm
 	query.Set("model", model)
 	query.Set("encoding", "linear16")
 	query.Set("sample_rate", strconv.Itoa(format.SampleRateHz))
-	query.Set("channels", strconv.Itoa(format.Channels))
-	query.Set("interim_results", strconv.FormatBool(cfg.InterimResults))
-	if language := strings.TrimSpace(cfg.Language); language != "" {
-		query.Set("language", language)
+	for _, language := range cfg.LanguageHints {
+		if language = strings.TrimSpace(language); language != "" {
+			query.Add("language_hint", language)
+		}
 	}
-	if cfg.Endpointing > 0 {
-		query.Set("endpointing", strconv.FormatInt(cfg.Endpointing.Milliseconds(), 10))
+	if cfg.EOTThreshold != nil {
+		query.Set("eot_threshold", strconv.FormatFloat(*cfg.EOTThreshold, 'f', -1, 64))
+	}
+	if cfg.EagerEOTThreshold != nil {
+		query.Set("eager_eot_threshold", strconv.FormatFloat(*cfg.EagerEOTThreshold, 'f', -1, 64))
+	}
+	if cfg.EOTTimeout > 0 {
+		query.Set("eot_timeout_ms", strconv.FormatInt(cfg.EOTTimeout.Milliseconds(), 10))
 	}
 	parsed.RawQuery = query.Encode()
 	header := http.Header{
