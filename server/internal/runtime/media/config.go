@@ -20,6 +20,10 @@ type Config struct {
 	HandshakeTimeout time.Duration `env:"MEDIA_HANDSHAKE_TIMEOUT" envDefault:"5s"`
 	DrainTimeout     time.Duration `env:"MEDIA_DRAIN_TIMEOUT" envDefault:"30s"`
 	OpenAIAPIKey     string        `env:"OPENAI_API_KEY"`
+	DeepgramAPIKey   string        `env:"DEEPGRAM_API_KEY"`
+	GroqAPIKey       string        `env:"GROQ_API_KEY"`
+	CartesiaAPIKey   string        `env:"CARTESIA_API_KEY"`
+	CartesiaVoiceID  string        `env:"CARTESIA_VOICE_ID"`
 }
 
 func loadConfig() (Config, error) {
@@ -32,6 +36,10 @@ func loadConfig() (Config, error) {
 	cfg.TokenSecret = strings.TrimSpace(cfg.TokenSecret)
 	cfg.ControlToken = strings.TrimSpace(cfg.ControlToken)
 	cfg.OpenAIAPIKey = strings.TrimSpace(cfg.OpenAIAPIKey)
+	cfg.DeepgramAPIKey = strings.TrimSpace(cfg.DeepgramAPIKey)
+	cfg.GroqAPIKey = strings.TrimSpace(cfg.GroqAPIKey)
+	cfg.CartesiaAPIKey = strings.TrimSpace(cfg.CartesiaAPIKey)
+	cfg.CartesiaVoiceID = strings.TrimSpace(cfg.CartesiaVoiceID)
 	if err := cfg.Validate(); err != nil {
 		return Config{}, err
 	}

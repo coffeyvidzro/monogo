@@ -9,7 +9,11 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/coffeyvidzro/monogo/internal/integrations/cartesia"
+	"github.com/coffeyvidzro/monogo/internal/integrations/deepgram"
+	"github.com/coffeyvidzro/monogo/internal/integrations/groq"
 	"github.com/coffeyvidzro/monogo/internal/integrations/openai"
+	"github.com/coffeyvidzro/monogo/internal/media/engine/composable"
 	"github.com/coffeyvidzro/monogo/internal/media/engine/echo"
 	"github.com/coffeyvidzro/monogo/internal/media/engine/integrated"
 	"github.com/coffeyvidzro/monogo/internal/media/session"
@@ -96,6 +100,15 @@ func mediaEngines(cfg Config) map[session.Engine]session.Starter {
 		engines[session.EngineIntegrated] = integrated.Engine{
 			Client: openai.NewClient(nil),
 			Config: openai.Config{APIKey: cfg.OpenAIAPIKey},
+		}
+	}
+	if cfg.DeepgramAPIKey != "" && cfg.GroqAPIKey != "" && cfg.CartesiaAPIKey != "" && cfg.CartesiaVoiceID != "" {
+		engines[session.EngineComposable] = composable.Engine{
+			Deepgram: deepgram.Config{APIKey: cfg.DeepgramAPIKey},
+			Groq:     groq.Config{APIKey: cfg.GroqAPIKey},
+			Cartesia: cartesia.Config{
+				APIKey: cfg.CartesiaAPIKey, VoiceID: cfg.CartesiaVoiceID,
+			},
 		}
 	}
 	return engines
