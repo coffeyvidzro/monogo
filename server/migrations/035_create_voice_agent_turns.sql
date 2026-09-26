@@ -47,6 +47,3 @@ CREATE TABLE IF NOT EXISTS voice_agent_turns (
     CONSTRAINT chk_voice_agent_turns_turn_latency CHECK (turn_latency_ms IS NULL OR turn_latency_ms >= 0)
 );
 
--- Optimize for analytics and fetching recent turns per organization
-CREATE INDEX IF NOT EXISTS idx_voice_agent_turns_organization_created
-    ON voice_agent_turns (organization_id, created_at DESC);
