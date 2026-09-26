@@ -1,8 +1,9 @@
 package tools
 
 import (
-	"github.com/go-chi/chi/v5"
 	"net/http"
+
+	"github.com/go-chi/chi/v5"
 )
 
 func RegisterRoutes(router chi.Router, handler *Handler, auth func(http.Handler) http.Handler) {
