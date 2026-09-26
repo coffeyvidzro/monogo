@@ -51,7 +51,6 @@ func TestManagerOwnsOneAttachmentAndEchoes(t *testing.T) {
 	}
 }
 
-
 func TestManagerBargeInInterruptsAndClearsPlayback(t *testing.T) {
 	format := session.AudioFormat{SampleRateHz: 24000, Channels: 1}
 	cfg := session.Config{
@@ -114,17 +113,17 @@ func (s fakeStarter) Start(context.Context, session.Config) (session.Stream, err
 }
 
 type fakeStream struct {
-	audio       chan session.AudioFrame
-	events      chan session.Event
-	interrupted chan struct{}
+	audio         chan session.AudioFrame
+	events        chan session.Event
+	interrupted   chan struct{}
 	interruptOnce sync.Once
 	closeOnce     sync.Once
 }
 
 func newFakeStream() *fakeStream {
 	return &fakeStream{
-		audio: make(chan session.AudioFrame, 1),
-		events: make(chan session.Event, 4),
+		audio:       make(chan session.AudioFrame, 1),
+		events:      make(chan session.Event, 4),
 		interrupted: make(chan struct{}),
 	}
 }
@@ -135,7 +134,7 @@ func (s *fakeStream) Interrupt(context.Context) error {
 	return nil
 }
 func (s *fakeStream) Audio() <-chan session.AudioFrame { return s.audio }
-func (s *fakeStream) Events() <-chan session.Event { return s.events }
+func (s *fakeStream) Events() <-chan session.Event     { return s.events }
 func (s *fakeStream) Close(context.Context) error {
 	s.closeOnce.Do(func() {
 		close(s.audio)
@@ -215,12 +214,12 @@ func validConfig() session.Config {
 }
 
 type fakeConnection struct {
-	metadata session.ConnectionMetadata
-	incoming chan session.AudioFrame
-	outgoing chan session.AudioFrame
-	cleared  chan struct{}
-	closed   chan struct{}
-	once     sync.Once
+	metadata  session.ConnectionMetadata
+	incoming  chan session.AudioFrame
+	outgoing  chan session.AudioFrame
+	cleared   chan struct{}
+	closed    chan struct{}
+	once      sync.Once
 	clearOnce sync.Once
 }
 

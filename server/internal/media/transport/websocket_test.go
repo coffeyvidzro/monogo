@@ -85,7 +85,6 @@ func TestWebSocketHandlerAuthenticatesAndEchoesAudio(t *testing.T) {
 	}
 }
 
-
 func TestWebSocketConnectionClearPlaybackWritesControlFrame(t *testing.T) {
 	serverSide := make(chan *websocket.Conn, 1)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
