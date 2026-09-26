@@ -5,7 +5,8 @@ INSERT INTO voice_agents (
     engine,
     instructions,
     voice,
-    language
+    language,
+    engine_config
 )
 SELECT
     sqlc.arg(organization_id),
@@ -13,7 +14,8 @@ SELECT
     sqlc.arg(engine),
     sqlc.arg(instructions),
     sqlc.narg(voice),
-    sqlc.narg(language)
+    sqlc.narg(language),
+    COALESCE(sqlc.narg(engine_config)::jsonb, '{}'::jsonb)
 FROM organizations AS o
 WHERE o.id = sqlc.arg(organization_id)
   AND o.status = 'active'
@@ -49,6 +51,7 @@ SET
     instructions = COALESCE(sqlc.narg(instructions), va.instructions),
     voice = COALESCE(sqlc.narg(voice), va.voice),
     language = COALESCE(sqlc.narg(language), va.language),
+    engine_config = COALESCE(sqlc.narg(engine_config)::jsonb, va.engine_config),
     updated_at = NOW()
 FROM organizations AS o
 WHERE va.id = sqlc.arg(id)
