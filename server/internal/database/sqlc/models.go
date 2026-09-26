@@ -605,6 +605,84 @@ type User struct {
 	UpdatedAt       pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 }
 
+type VoiceAgent struct {
+	ID             uuid.UUID          `db:"id" json:"id"`
+	OrganizationID uuid.UUID          `db:"organization_id" json:"organization_id"`
+	Name           string             `db:"name" json:"name"`
+	Engine         string             `db:"engine" json:"engine"`
+	Instructions   string             `db:"instructions" json:"instructions"`
+	Voice          *string            `db:"voice" json:"voice"`
+	Language       *string            `db:"language" json:"language"`
+	Status         string             `db:"status" json:"status"`
+	EngineConfig   []byte             `db:"engine_config" json:"engine_config"`
+	CreatedAt      pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	UpdatedAt      pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+}
+
+type VoiceAgentBinding struct {
+	ID                 uuid.UUID          `db:"id" json:"id"`
+	OrganizationID     uuid.UUID          `db:"organization_id" json:"organization_id"`
+	VoiceAgentID       uuid.UUID          `db:"voice_agent_id" json:"voice_agent_id"`
+	VoiceApplicationID uuid.UUID          `db:"voice_application_id" json:"voice_application_id"`
+	CreatedAt          pgtype.Timestamptz `db:"created_at" json:"created_at"`
+}
+
+type VoiceAgentSession struct {
+	ID                     uuid.UUID          `db:"id" json:"id"`
+	OrganizationID         uuid.UUID          `db:"organization_id" json:"organization_id"`
+	CallID                 uuid.UUID          `db:"call_id" json:"call_id"`
+	VoiceAgentID           uuid.UUID          `db:"voice_agent_id" json:"voice_agent_id"`
+	Engine                 string             `db:"engine" json:"engine"`
+	InstructionsSnapshot   string             `db:"instructions_snapshot" json:"instructions_snapshot"`
+	EngineConfigSnapshot   []byte             `db:"engine_config_snapshot" json:"engine_config_snapshot"`
+	Voice                  *string            `db:"voice" json:"voice"`
+	Language               *string            `db:"language" json:"language"`
+	State                  string             `db:"state" json:"state"`
+	TurnCount              int32              `db:"turn_count" json:"turn_count"`
+	InterruptionCount      int32              `db:"interruption_count" json:"interruption_count"`
+	FirstResponseLatencyMs *int32             `db:"first_response_latency_ms" json:"first_response_latency_ms"`
+	AvgTurnLatencyMs       *int32             `db:"avg_turn_latency_ms" json:"avg_turn_latency_ms"`
+	StartedAt              pgtype.Timestamptz `db:"started_at" json:"started_at"`
+	EndedAt                pgtype.Timestamptz `db:"ended_at" json:"ended_at"`
+	CreatedAt              pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	UpdatedAt              pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+}
+
+type VoiceAgentTool struct {
+	ID             uuid.UUID          `db:"id" json:"id"`
+	OrganizationID uuid.UUID          `db:"organization_id" json:"organization_id"`
+	VoiceAgentID   uuid.UUID          `db:"voice_agent_id" json:"voice_agent_id"`
+	Type           string             `db:"type" json:"type"`
+	Name           string             `db:"name" json:"name"`
+	Description    string             `db:"description" json:"description"`
+	Parameters     []byte             `db:"parameters" json:"parameters"`
+	EndpointUrl    *string            `db:"endpoint_url" json:"endpoint_url"`
+	TimeoutMs      int32              `db:"timeout_ms" json:"timeout_ms"`
+	Enabled        bool               `db:"enabled" json:"enabled"`
+	CreatedAt      pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	UpdatedAt      pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+}
+
+type VoiceAgentTurn struct {
+	ID              uuid.UUID          `db:"id" json:"id"`
+	OrganizationID  uuid.UUID          `db:"organization_id" json:"organization_id"`
+	SessionID       uuid.UUID          `db:"session_id" json:"session_id"`
+	Sequence        int32              `db:"sequence" json:"sequence"`
+	Role            string             `db:"role" json:"role"`
+	Content         string             `db:"content" json:"content"`
+	ProviderID      *string            `db:"provider_id" json:"provider_id"`
+	ToolName        *string            `db:"tool_name" json:"tool_name"`
+	ToolCallID      *string            `db:"tool_call_id" json:"tool_call_id"`
+	Metadata        []byte             `db:"metadata" json:"metadata"`
+	SpeechStartedAt pgtype.Timestamptz `db:"speech_started_at" json:"speech_started_at"`
+	SpeechEndedAt   pgtype.Timestamptz `db:"speech_ended_at" json:"speech_ended_at"`
+	SttLatencyMs    *int32             `db:"stt_latency_ms" json:"stt_latency_ms"`
+	LlmTtftMs       *int32             `db:"llm_ttft_ms" json:"llm_ttft_ms"`
+	TtsTtfbMs       *int32             `db:"tts_ttfb_ms" json:"tts_ttfb_ms"`
+	TurnLatencyMs   *int32             `db:"turn_latency_ms" json:"turn_latency_ms"`
+	CreatedAt       pgtype.Timestamptz `db:"created_at" json:"created_at"`
+}
+
 type VoiceApplication struct {
 	ID                 uuid.UUID          `db:"id" json:"id"`
 	OrganizationID     uuid.UUID          `db:"organization_id" json:"organization_id"`
