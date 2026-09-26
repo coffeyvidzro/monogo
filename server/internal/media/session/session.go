@@ -127,6 +127,7 @@ const (
 	EventTranscriptDelta EventType = "transcript.delta"
 	EventTranscriptFinal EventType = "transcript.final"
 	EventResponseStarted EventType = "response.started"
+	EventResponseDelta   EventType = "response.delta"
 	EventResponseStopped EventType = "response.stopped"
 	EventToolCall        EventType = "tool.call"
 	EventUsage           EventType = "usage"
