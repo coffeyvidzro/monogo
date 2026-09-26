@@ -197,3 +197,29 @@ func (c *Client) Record(ctx context.Context, req RecordRequest) error {
 	}
 	return c.commandOK(ctx, "uuid_record "+commandWords(req.CallID, action, req.Path))
 }
+
+func (c *Client) StartAudioFork(ctx context.Context, req AudioForkRequest) error {
+	if err := req.Validate(); err != nil {
+		return err
+	}
+	arguments := []string{req.ChannelID, "start", req.WebSocketURL, req.MixType, req.SampleRate}
+	if metadata := strings.TrimSpace(req.Metadata); metadata != "" {
+		arguments = append(arguments, metadata)
+	}
+	return c.commandOK(ctx, "uuid_audio_fork "+commandWords(arguments...))
+}
+
+func (c *Client) StopAudioFork(ctx context.Context, channelID string) error {
+	channelID, err := requiredArgument("audio fork channel ID", channelID)
+	if err != nil {
+		return err
+	}
+	reply, err := c.Command(ctx, "uuid_audio_fork "+commandWords(channelID, "stop"))
+	if err != nil {
+		return err
+	}
+	if strings.Contains(strings.ToLower(reply.Body), "no fork running") {
+		return nil
+	}
+	return commandReplyError(reply)
+}

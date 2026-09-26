@@ -1,9 +1,13 @@
 package freeswitch
 
 import (
+	"encoding/json"
 	"fmt"
+	"net/url"
 	"strings"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 const (
@@ -146,6 +150,34 @@ type RecordRequest struct {
 	CallID string
 	Path   string
 	Action string
+}
+
+type AudioForkRequest struct {
+	ChannelID    string
+	WebSocketURL string
+	MixType      string
+	SampleRate   string
+	Metadata     string
+}
+
+func (r AudioForkRequest) Validate() error {
+	if _, err := uuid.Parse(strings.TrimSpace(r.ChannelID)); err != nil {
+		return fmt.Errorf("FreeSWITCH audio fork channel ID must be a UUID")
+	}
+	parsedURL, err := url.Parse(strings.TrimSpace(r.WebSocketURL))
+	if err != nil || (parsedURL.Scheme != "ws" && parsedURL.Scheme != "wss") || parsedURL.Host == "" {
+		return fmt.Errorf("FreeSWITCH audio fork URL must use ws or wss")
+	}
+	if r.MixType != "mono" && r.MixType != "mixed" && r.MixType != "stereo" {
+		return fmt.Errorf("FreeSWITCH audio fork mix type must be mono, mixed, or stereo")
+	}
+	if r.SampleRate != "8k" && r.SampleRate != "16k" && r.SampleRate != "24k" && r.SampleRate != "48k" {
+		return fmt.Errorf("FreeSWITCH audio fork sample rate is unsupported")
+	}
+	if metadata := strings.TrimSpace(r.Metadata); metadata != "" && !json.Valid([]byte(metadata)) {
+		return fmt.Errorf("FreeSWITCH audio fork metadata must be valid JSON")
+	}
+	return nil
 }
 
 func (r RecordRequest) Validate() error {

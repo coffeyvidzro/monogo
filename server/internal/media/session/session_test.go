@@ -11,6 +11,7 @@ func TestConfigValidate(t *testing.T) {
 		ID:             uuid.New(),
 		OrganizationID: uuid.New(),
 		CallID:         uuid.New(),
+		ChannelID:      uuid.New(),
 		Engine:         EngineComposable,
 		InputFormat:    AudioFormat{SampleRateHz: 16000, Channels: 1},
 		OutputFormat:   AudioFormat{SampleRateHz: 16000, Channels: 1},

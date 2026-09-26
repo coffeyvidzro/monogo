@@ -13,14 +13,15 @@ import (
 type Engine string
 
 const (
+	EngineEcho           Engine = "echo"
 	EngineComposable     Engine = "composable"
 	EngineOpenAIRealtime Engine = "openai_realtime"
 )
 
 // AudioFormat describes an uncompressed PCM stream.
 type AudioFormat struct {
-	SampleRateHz int
-	Channels     int
+	SampleRateHz int `json:"sample_rate_hz"`
+	Channels     int `json:"channels"`
 }
 
 // Validate rejects formats outside the initial media-plane contract.
@@ -43,6 +44,25 @@ type AudioFrame struct {
 	CapturedAt time.Time
 }
 
+// ConnectionMetadata binds one authenticated media socket to its tenant,
+// call, session, and negotiated PCM format.
+type ConnectionMetadata struct {
+	SessionID      uuid.UUID
+	CallID         uuid.UUID
+	ChannelID      uuid.UUID
+	OrganizationID uuid.UUID
+	RemoteAddress  string
+	Format         AudioFormat
+}
+
+// Connection is the bidirectional transport presented to a managed session.
+type Connection interface {
+	Metadata() ConnectionMetadata
+	ReceiveAudio(context.Context) (AudioFrame, error)
+	SendAudio(context.Context, AudioFrame) error
+	Close() error
+}
+
 // Validate checks framing invariants without imposing a provider frame size.
 func (f AudioFrame) Validate() error {
 	if err := f.Format.Validate(); err != nil {
@@ -59,15 +79,16 @@ func (f AudioFrame) Validate() error {
 
 // Config is the immutable configuration resolved before a media session starts.
 type Config struct {
-	ID             uuid.UUID
-	OrganizationID uuid.UUID
-	CallID         uuid.UUID
-	Engine         Engine
-	InputFormat    AudioFormat
-	OutputFormat   AudioFormat
-	Language       string
-	Instructions   string
-	Voice          string
+	ID             uuid.UUID   `json:"id"`
+	OrganizationID uuid.UUID   `json:"organization_id"`
+	CallID         uuid.UUID   `json:"call_id"`
+	ChannelID      uuid.UUID   `json:"channel_id"`
+	Engine         Engine      `json:"engine"`
+	InputFormat    AudioFormat `json:"input_format"`
+	OutputFormat   AudioFormat `json:"output_format"`
+	Language       string      `json:"language,omitempty"`
+	Instructions   string      `json:"instructions,omitempty"`
+	Voice          string      `json:"voice,omitempty"`
 }
 
 // Validate checks identity and media invariants shared by all engines.
@@ -81,7 +102,10 @@ func (c Config) Validate() error {
 	if c.CallID == uuid.Nil {
 		return fmt.Errorf("call id is required")
 	}
-	if c.Engine != EngineComposable && c.Engine != EngineOpenAIRealtime {
+	if c.ChannelID == uuid.Nil {
+		return fmt.Errorf("channel id is required")
+	}
+	if c.Engine != EngineEcho && c.Engine != EngineComposable && c.Engine != EngineOpenAIRealtime {
 		return fmt.Errorf("unsupported engine %q", c.Engine)
 	}
 	if err := c.InputFormat.Validate(); err != nil {

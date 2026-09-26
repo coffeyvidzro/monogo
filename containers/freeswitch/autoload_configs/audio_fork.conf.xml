@@ -1,0 +1,18 @@
+<configuration name="audio_fork.conf" description="Leamout realtime audio fork">
+  <settings>
+    <param name="shard-count" value="0"/>
+    <param name="send-buffer-seconds" value="2"/>
+    <param name="coalesce-max-ms" value="20"/>
+    <param name="global-memory-cap-mb" value="512"/>
+    <param name="emergency-buffer-seconds" value="1"/>
+    <param name="playback-high-watermark-ms" value="2000"/>
+    <param name="playback-low-watermark-ms" value="200"/>
+    <param name="reconnect-backoff-min-ms" value="250"/>
+    <param name="reconnect-backoff-max-ms" value="5000"/>
+    <param name="max-forks-per-call" value="1"/>
+    <param name="tls-ca-file" value=""/>
+    <param name="tls-cert-file" value=""/>
+    <param name="tls-key-file" value=""/>
+    <param name="tls-verify" value="true"/>
+  </settings>
+</configuration>

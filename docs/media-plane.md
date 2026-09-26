@@ -45,7 +45,18 @@ after successfully handing a frame to a stream.
 
 ## Runtime status
 
-The current media command establishes the package and container boundary and
-implements cancellable process lifecycle behavior. It does not yet open a
-media listener or connect to an external AI provider. Those capabilities will
-be added behind the contracts above so they can be tested independently.
+The media command exposes liveness, readiness, an authenticated internal
+session-creation endpoint, and a WebSocket endpoint for FreeSWITCH audio forks.
+Session credentials are HMAC-signed, short-lived, and single use. The runtime
+enforces a concurrent-session limit and stops accepting work before draining
+active connections during shutdown.
+
+The initial engine is a bounded echo implementation used to prove full-duplex
+PCM transport. FreeSWITCH builds the MIT-licensed `lazyboson/mod_audio_fork` at
+an immutable commit and loads it with low-latency buffering. Run the
+`tests/media-v1` acceptance suite to verify generated FreeSWITCH audio travels
+through the Go worker and returns to FreeSWITCH playback.
+
+External AI providers are not connected yet. Silero VAD and the composable and
+OpenAI engines will be introduced behind the tested session boundary after the
+transport foundation is stable.
