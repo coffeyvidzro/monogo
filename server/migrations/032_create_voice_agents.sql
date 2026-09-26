@@ -52,8 +52,6 @@ CREATE TABLE IF NOT EXISTS voice_agent_bindings (
     CONSTRAINT uq_voice_agent_bindings_agent_application UNIQUE (voice_agent_id, voice_application_id)
 );
 
-CREATE INDEX IF NOT EXISTS idx_voice_agent_bindings_agent
-    ON voice_agent_bindings (organization_id, voice_agent_id);
 
 
 -- 4. Trigger for Updated At
