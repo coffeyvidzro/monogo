@@ -347,10 +347,8 @@ func shouldFlushSpeechChunk(text string) bool {
 		return false
 	}
 	last := trimmed[len(trimmed)-1]
-	if last == '.' || last == '!' || last == '?' || last == ';' || last == ':' || last == '
-' {
+	if last == '.' || last == '!' || last == '?' || last == ';' || last == ':' || last == '\n' {
 		return true
 	}
-	return len(trimmed) >= 120 && len(text) > 0 && (text[len(text)-1] == ' ' || text[len(text)-1] == '
-')
+	return len(trimmed) >= 120 && len(text) > 0 && (text[len(text)-1] == ' ' || text[len(text)-1] == '\n')
 }
