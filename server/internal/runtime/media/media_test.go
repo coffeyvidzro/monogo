@@ -5,6 +5,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/coffeyvidzro/monogo/internal/media/session"
 )
 
 func TestRunStopsWithContext(t *testing.T) {
@@ -27,6 +29,20 @@ func TestRunRejectsNilContext(t *testing.T) {
 	var nilContext context.Context
 	if err := Run(nilContext); err == nil {
 		t.Fatal("Run() error = nil")
+	}
+}
+
+func TestMediaEnginesRegistersIntegratedOnlyWithOpenAIKey(t *testing.T) {
+	withoutKey := mediaEngines(validRuntimeConfig())
+	if _, exists := withoutKey[session.EngineIntegrated]; exists {
+		t.Fatal("integrated engine registered without OpenAI API key")
+	}
+
+	cfg := validRuntimeConfig()
+	cfg.OpenAIAPIKey = "secret"
+	withKey := mediaEngines(cfg)
+	if _, exists := withKey[session.EngineIntegrated]; !exists {
+		t.Fatal("integrated engine not registered with OpenAI API key")
 	}
 }
 
