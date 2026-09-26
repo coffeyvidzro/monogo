@@ -33,13 +33,20 @@ SELECT
     sqlc.narg(tts_ttfb_ms),
     sqlc.narg(turn_latency_ms)
 FROM voice_agent_sessions AS session
+JOIN organizations AS o ON o.id = session.organization_id
 WHERE session.id = sqlc.arg(session_id)
   AND session.organization_id = sqlc.arg(organization_id)
+  AND session.state = 'active'
+  AND o.status = 'active'
+  AND o.deleted_at IS NULL
 RETURNING *;
 
 -- name: ListVoiceAgentTurnsBySessionID :many
-SELECT *
-FROM voice_agent_turns
-WHERE organization_id = sqlc.arg(organization_id)
-  AND session_id = sqlc.arg(session_id)
-ORDER BY sequence ASC;
+SELECT turn.*
+FROM voice_agent_turns AS turn
+JOIN voice_agent_sessions AS session
+  ON session.id = turn.session_id
+ AND session.organization_id = turn.organization_id
+WHERE turn.organization_id = sqlc.arg(organization_id)
+  AND turn.session_id = sqlc.arg(session_id)
+ORDER BY turn.sequence ASC;
