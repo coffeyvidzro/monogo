@@ -46,6 +46,30 @@ func TestMediaEnginesRegistersIntegratedOnlyWithOpenAIKey(t *testing.T) {
 	}
 }
 
+func TestConfigRejectsPartialComposableCredentials(t *testing.T) {
+	cfg := validRuntimeConfig()
+	cfg.DeepgramAPIKey = "deepgram"
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("Validate() error = nil")
+	}
+}
+
+func TestMediaEnginesRegistersComposableOnlyWithAllCredentials(t *testing.T) {
+	partial := validRuntimeConfig()
+	partial.DeepgramAPIKey = "deepgram"
+	if _, exists := mediaEngines(partial)[session.EngineComposable]; exists {
+		t.Fatal("composable engine registered with partial credentials")
+	}
+
+	configured := partial
+	configured.GroqAPIKey = "groq"
+	configured.CartesiaAPIKey = "cartesia"
+	configured.CartesiaVoiceID = "voice"
+	if _, exists := mediaEngines(configured)[session.EngineComposable]; !exists {
+		t.Fatal("composable engine not registered with all credentials")
+	}
+}
+
 func validRuntimeConfig() Config {
 	return Config{
 		ListenAddress: "127.0.0.1:0", PublicWebSocket: "ws://media:8090/v1/audio-forks",

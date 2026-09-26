@@ -73,7 +73,7 @@ func (c *Client) Generate(ctx context.Context, cfg Config, messages []Message) (
 		body, _ := io.ReadAll(io.LimitReader(response.Body, 64<<10))
 		return nil, fmt.Errorf("start Groq stream: HTTP %d: %s", response.StatusCode, strings.TrimSpace(string(body)))
 	}
-	result := newStream(response.Body)
+	result := newStream(ctx, response.Body)
 	go result.readLoop()
 	return result, nil
 }

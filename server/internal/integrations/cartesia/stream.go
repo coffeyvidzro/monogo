@@ -18,9 +18,20 @@ type stream struct {
 	connection *websocket.Conn
 	format     session.AudioFormat
 	contextID  string
+	request    GenerationRequest
 	events     chan Event
 	writeMu    sync.Mutex
 	closeOnce  sync.Once
+}
+
+func (s *stream) SendText(ctx context.Context, text string, more bool) error {
+	if text == "" {
+		return fmt.Errorf("cartesia transcript is required")
+	}
+	request := s.request
+	request.Transcript = text
+	request.Continue = more
+	return s.writeJSON(ctx, request)
 }
 
 func newStream(

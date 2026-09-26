@@ -24,6 +24,21 @@ func NewClient(httpClient *http.Client) *Client {
 }
 
 func (c *Client) Synthesize(ctx context.Context, cfg Config, text string, format session.AudioFormat) (Stream, error) {
+	if strings.TrimSpace(text) == "" {
+		return nil, fmt.Errorf("cartesia transcript is required")
+	}
+	result, err := c.StartSynthesis(ctx, cfg, format)
+	if err != nil {
+		return nil, err
+	}
+	if err := result.SendText(ctx, text, false); err != nil {
+		_ = result.Close()
+		return nil, fmt.Errorf("start cartesia synthesis: %w", err)
+	}
+	return result, nil
+}
+
+func (c *Client) StartSynthesis(ctx context.Context, cfg Config, format session.AudioFormat) (TextStream, error) {
 	if ctx == nil {
 		return nil, fmt.Errorf("cartesia context is required")
 	}
@@ -32,9 +47,6 @@ func (c *Client) Synthesize(ctx context.Context, cfg Config, text string, format
 	}
 	if strings.TrimSpace(cfg.VoiceID) == "" {
 		return nil, fmt.Errorf("cartesia voice ID is required")
-	}
-	if strings.TrimSpace(text) == "" {
-		return nil, fmt.Errorf("cartesia transcript is required")
 	}
 	if err := format.Validate(); err != nil {
 		return nil, fmt.Errorf("cartesia audio format: %w", err)
@@ -79,21 +91,16 @@ func (c *Client) Synthesize(ctx context.Context, cfg Config, text string, format
 	}
 	streamCtx, cancel := context.WithCancel(ctx)
 	result := newStream(streamCtx, cancel, connection, format, uuid.NewString())
-	request := GenerationRequest{
-		ModelID:    model,
-		Transcript: text,
-		Voice:      strings.TrimSpace(cfg.VoiceID),
-		Language:   strings.TrimSpace(cfg.Language),
-		ContextID:  result.contextID,
+	result.request = GenerationRequest{
+		ModelID:   model,
+		Voice:     strings.TrimSpace(cfg.VoiceID),
+		Language:  strings.TrimSpace(cfg.Language),
+		ContextID: result.contextID,
 		OutputFormat: OutputFormat{
 			Container:  "raw",
 			Encoding:   "pcm_s16le",
 			SampleRate: format.SampleRateHz,
 		},
-	}
-	if err := result.writeJSON(ctx, request); err != nil {
-		_ = result.Close()
-		return nil, fmt.Errorf("start cartesia synthesis: %w", err)
 	}
 	go result.readLoop()
 	return result, nil

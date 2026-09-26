@@ -61,6 +61,19 @@ type Stream interface {
 	Events() <-chan Event
 	Close() error
 }
+
+// TextStream accepts ordered text fragments for one synthesis context. More
+// must be true while another fragment will follow and false for the final
+// fragment.
+type TextStream interface {
+	Stream
+	SendText(context.Context, string, bool) error
+}
+
 type Synthesizer interface {
 	Synthesize(context.Context, Config, string, session.AudioFormat) (Stream, error)
+}
+
+type StreamingSynthesizer interface {
+	StartSynthesis(context.Context, Config, session.AudioFormat) (TextStream, error)
 }
