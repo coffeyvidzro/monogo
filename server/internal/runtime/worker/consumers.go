@@ -82,6 +82,46 @@ func subscribeFreeSWITCH(
 						"event", event.Name,
 						"error", err,
 					)
+				} else {
+					call, resolveErr := modules.callsService.ResolveLifecycleCall(
+						eventCtx,
+						callEvent.CallID,
+					)
+					if resolveErr != nil {
+						logger.Error(
+							eventCtx,
+							"resolve call for Voice Agent lifecycle",
+							"call_id", callEvent.CallID,
+							"error", resolveErr,
+						)
+					} else if call.ID == callEvent.CallID {
+						if voiceErr := modules.voiceAI.HandleLifecycle(
+							eventCtx,
+							call,
+							callEvent,
+						); voiceErr != nil {
+							logger.Error(
+								eventCtx,
+								"handle Voice Agent lifecycle",
+								"call_id", callEvent.CallID,
+								"event", event.Name,
+								"error", voiceErr,
+							)
+							if callEvent.Type == calling.LifecycleAnswered {
+								if hangupErr := modules.freeSwitch.Hangup(
+									eventCtx,
+									callEvent.ChannelID,
+								); hangupErr != nil {
+									logger.Error(
+										eventCtx,
+										"hang up call after Voice Agent attachment failure",
+										"call_id", callEvent.CallID,
+										"error", hangupErr,
+									)
+								}
+							}
+						}
+					}
 				}
 			}
 

@@ -115,7 +115,10 @@ services:
       target: runtime
     restart: unless-stopped
     command: ["/leamout/worker"]
-    environment: *app-environment
+    environment:
+      <<: *app-environment
+      MEDIA_CONTROL_URL: "http://media:8090"
+      MEDIA_CONTROL_TOKEN: ${MEDIA_CONTROL_TOKEN:?MEDIA_CONTROL_TOKEN is required}
     depends_on:
       migrate:
         condition: service_completed_successfully

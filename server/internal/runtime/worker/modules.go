@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/coffeyvidzro/monogo/internal/ai"
 	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
 	"github.com/coffeyvidzro/monogo/internal/integrations/carriers/didww"
 	"github.com/coffeyvidzro/monogo/internal/integrations/freeswitch"
@@ -19,6 +20,7 @@ import (
 	"github.com/coffeyvidzro/monogo/internal/platform/outbox"
 	"github.com/coffeyvidzro/monogo/internal/platform/webhooks"
 	"github.com/coffeyvidzro/monogo/internal/runtime/calling"
+	"github.com/coffeyvidzro/monogo/internal/runtime/voiceai"
 	"github.com/coffeyvidzro/monogo/internal/telecom/calls"
 	"github.com/coffeyvidzro/monogo/internal/telecom/lifecycle"
 	"github.com/coffeyvidzro/monogo/internal/telecom/numbers"
@@ -34,6 +36,7 @@ type modules struct {
 	freeSwitch              *freeswitch.Client
 	callsService            *calls.Service
 	callConsumer            *calls.Consumer
+	voiceAI                 *voiceai.Runtime
 	callReconciliation      *calls.ReconciliationJob
 	outbox                  *outbox.PublisherJob
 	webhookConsumer         *webhooks.Consumer
@@ -97,6 +100,17 @@ func newModules(ctx context.Context, cfg config.Config) (*modules, error) {
 	}
 
 	queries := sqlc.New(postgresClient.Pool())
+	aiModule := ai.New(queries)
+	voiceAIRuntime, err := voiceai.New(
+		aiModule.Orchestration,
+		freeSwitch,
+		voiceai.DefaultConfig(cfg.MediaControlURL, cfg.MediaControlToken),
+	)
+	if err != nil {
+		closeDependencies()
+		return nil, fmt.Errorf("initialize Voice Agent runtime: %w", err)
+	}
+
 	routingRepository := routing.NewRepository(queries, postgresClient.Pool())
 	routingService := routing.NewService(routingRepository, nil)
 	callsRepository := calls.NewRepository(queries, postgresClient.Pool())
@@ -219,6 +233,7 @@ func newModules(ctx context.Context, cfg config.Config) (*modules, error) {
 		freeSwitch:              freeSwitch,
 		callsService:            callsService,
 		callConsumer:            callConsumer,
+		voiceAI:                 voiceAIRuntime,
 		callReconciliation:      callReconciliation,
 		outbox:                  outboxJob,
 		webhookConsumer:         webhooks.NewConsumer(natsClient, webhookService),

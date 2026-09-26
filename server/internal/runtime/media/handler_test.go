@@ -73,11 +73,47 @@ func TestHandlerCreatesAuthenticatedSessionAndUpdatesReadiness(t *testing.T) {
 		t.Fatalf("Cache-Control = %q", response.Header().Get("Cache-Control"))
 	}
 
+	replayRequest := httptest.NewRequestWithContext(
+		context.Background(),
+		http.MethodPost,
+		"/internal/v1/sessions",
+		bytes.NewReader(payload),
+	)
+	replayRequest.Header.Set("Authorization", "Bearer "+cfg.ControlToken)
+	replay := httptest.NewRecorder()
+	handler.ServeHTTP(replay, replayRequest)
+	if replay.Code != http.StatusCreated {
+		t.Fatalf("replayed create status = %d, body = %s", replay.Code, replay.Body.String())
+	}
+
 	notReady := httptest.NewRecorder()
 	handler.ServeHTTP(notReady, httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/readyz", nil))
 	if notReady.Code != http.StatusServiceUnavailable {
 		t.Fatalf("capacity readiness status = %d", notReady.Code)
 	}
+
+	stopRequest := httptest.NewRequestWithContext(
+		context.Background(),
+		http.MethodDelete,
+		"/internal/v1/sessions/"+sessionConfig.ID.String(),
+		nil,
+	)
+	stopRequest.Header.Set("Authorization", "Bearer "+cfg.ControlToken)
+	stopped := httptest.NewRecorder()
+	handler.ServeHTTP(stopped, stopRequest)
+	if stopped.Code != http.StatusNoContent {
+		t.Fatalf("stop status = %d, body = %s", stopped.Code, stopped.Body.String())
+	}
+	if manager.Active() != 0 {
+		t.Fatalf("active sessions after stop = %d", manager.Active())
+	}
+
+	readyAgain := httptest.NewRecorder()
+	handler.ServeHTTP(readyAgain, httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/readyz", nil))
+	if readyAgain.Code != http.StatusOK {
+		t.Fatalf("readiness after stop = %d", readyAgain.Code)
+	}
+
 	drainCtx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 	if err := manager.Drain(drainCtx); err != nil {

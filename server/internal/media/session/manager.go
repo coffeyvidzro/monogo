@@ -66,13 +66,13 @@ func (m *Manager) Start(ctx context.Context, cfg Config) error {
 		m.mu.Unlock()
 		return ErrManagerDraining
 	}
-	if len(m.sessions) >= m.capacity {
-		m.mu.Unlock()
-		return ErrCapacityExceeded
-	}
 	if _, exists := m.sessions[cfg.ID]; exists {
 		m.mu.Unlock()
 		return ErrSessionAlreadyExists
+	}
+	if len(m.sessions) >= m.capacity {
+		m.mu.Unlock()
+		return ErrCapacityExceeded
 	}
 	starter, exists := m.engines[cfg.Engine]
 	if !exists {
@@ -218,6 +218,18 @@ func (m *Manager) Active() int {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return len(m.sessions)
+}
+
+// Config returns the immutable configuration of a live session. It is used by
+// the control endpoint to make repeated create requests idempotent.
+func (m *Manager) Config(id uuid.UUID) (Config, bool) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	managed, exists := m.sessions[id]
+	if !exists {
+		return Config{}, false
+	}
+	return managed.config, true
 }
 
 func (m *Manager) remove(id uuid.UUID, managed *managedSession) {
