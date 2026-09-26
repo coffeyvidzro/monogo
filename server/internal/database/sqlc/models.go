@@ -605,6 +605,27 @@ type User struct {
 	UpdatedAt       pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 }
 
+type VoiceAgent struct {
+	ID             uuid.UUID          `db:"id" json:"id"`
+	OrganizationID uuid.UUID          `db:"organization_id" json:"organization_id"`
+	Name           string             `db:"name" json:"name"`
+	Engine         string             `db:"engine" json:"engine"`
+	Instructions   string             `db:"instructions" json:"instructions"`
+	Voice          *string            `db:"voice" json:"voice"`
+	Language       *string            `db:"language" json:"language"`
+	Status         string             `db:"status" json:"status"`
+	CreatedAt      pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	UpdatedAt      pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+}
+
+type VoiceAgentBinding struct {
+	ID                 uuid.UUID          `db:"id" json:"id"`
+	OrganizationID     uuid.UUID          `db:"organization_id" json:"organization_id"`
+	VoiceAgentID       uuid.UUID          `db:"voice_agent_id" json:"voice_agent_id"`
+	VoiceApplicationID uuid.UUID          `db:"voice_application_id" json:"voice_application_id"`
+	CreatedAt          pgtype.Timestamptz `db:"created_at" json:"created_at"`
+}
+
 type VoiceApplication struct {
 	ID                 uuid.UUID          `db:"id" json:"id"`
 	OrganizationID     uuid.UUID          `db:"organization_id" json:"organization_id"`

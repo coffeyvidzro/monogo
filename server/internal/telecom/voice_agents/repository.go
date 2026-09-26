@@ -7,7 +7,7 @@ import (
 	"github.com/google/uuid"
 )
 
-type Repository struct { queries *sqlc.Queries }
+type Repository struct{ queries *sqlc.Queries }
 
 func NewRepository(queries *sqlc.Queries) *Repository { return &Repository{queries: queries} }
 

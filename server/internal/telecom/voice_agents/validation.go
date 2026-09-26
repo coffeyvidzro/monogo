@@ -10,15 +10,25 @@ import (
 
 func normalizeCreate(req CreateRequest) (CreateRequest, error) {
 	name, err := normalizeRequired(req.Name, "name", 255)
-	if err != nil { return CreateRequest{}, err }
+	if err != nil {
+		return CreateRequest{}, err
+	}
 	engine, err := normalizeEngine(req.Engine)
-	if err != nil { return CreateRequest{}, err }
+	if err != nil {
+		return CreateRequest{}, err
+	}
 	instructions, err := normalizeRequired(req.Instructions, "instructions", 20000)
-	if err != nil { return CreateRequest{}, err }
+	if err != nil {
+		return CreateRequest{}, err
+	}
 	voice, err := normalizeOptional(req.Voice, "voice", 255)
-	if err != nil { return CreateRequest{}, err }
+	if err != nil {
+		return CreateRequest{}, err
+	}
 	language, err := normalizeOptional(req.Language, "language", 64)
-	if err != nil { return CreateRequest{}, err }
+	if err != nil {
+		return CreateRequest{}, err
+	}
 	req.Name, req.Engine, req.Instructions = name, engine, instructions
 	req.Voice, req.Language = voice, language
 	return req, nil
@@ -30,33 +40,49 @@ func normalizeUpdate(req UpdateRequest) (UpdateRequest, error) {
 	}
 	if req.Name != nil {
 		value, err := normalizeRequired(*req.Name, "name", 255)
-		if err != nil { return UpdateRequest{}, err }
+		if err != nil {
+			return UpdateRequest{}, err
+		}
 		req.Name = &value
 	}
 	if req.Engine != nil {
 		value, err := normalizeEngine(*req.Engine)
-		if err != nil { return UpdateRequest{}, err }
+		if err != nil {
+			return UpdateRequest{}, err
+		}
 		req.Engine = &value
 	}
 	if req.Instructions != nil {
 		value, err := normalizeRequired(*req.Instructions, "instructions", 20000)
-		if err != nil { return UpdateRequest{}, err }
+		if err != nil {
+			return UpdateRequest{}, err
+		}
 		req.Instructions = &value
 	}
 	var err error
-	if req.Voice, err = normalizeOptional(req.Voice, "voice", 255); err != nil { return UpdateRequest{}, err }
-	if req.Language, err = normalizeOptional(req.Language, "language", 64); err != nil { return UpdateRequest{}, err }
+	if req.Voice, err = normalizeOptional(req.Voice, "voice", 255); err != nil {
+		return UpdateRequest{}, err
+	}
+	if req.Language, err = normalizeOptional(req.Language, "language", 64); err != nil {
+		return UpdateRequest{}, err
+	}
 	return req, nil
 }
 
 func validateIDs(organizationID, agentID uuid.UUID) error {
-	if organizationID == uuid.Nil { return apperror.NewBadRequest("organization_id is required") }
-	if agentID == uuid.Nil { return apperror.NewBadRequest("voice agent id is required") }
+	if organizationID == uuid.Nil {
+		return apperror.NewBadRequest("organization_id is required")
+	}
+	if agentID == uuid.Nil {
+		return apperror.NewBadRequest("voice agent id is required")
+	}
 	return nil
 }
 
 func validateBinding(req CreateBindingRequest) error {
-	if req.VoiceApplicationID == uuid.Nil { return apperror.NewBadRequest("voice_application_id is required") }
+	if req.VoiceApplicationID == uuid.Nil {
+		return apperror.NewBadRequest("voice_application_id is required")
+	}
 	return nil
 }
 
@@ -77,8 +103,12 @@ func normalizeRequired(value, field string, max int) (string, error) {
 }
 
 func normalizeOptional(value *string, field string, max int) (*string, error) {
-	if value == nil { return nil, nil }
+	if value == nil {
+		return nil, nil
+	}
 	normalized, err := normalizeRequired(*value, field, max)
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	return &normalized, nil
 }
