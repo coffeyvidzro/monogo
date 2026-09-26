@@ -42,24 +42,32 @@ WHERE va.organization_id = sqlc.arg(organization_id)
 ORDER BY va.created_at DESC;
 
 -- name: UpdateVoiceAgent :one
-UPDATE voice_agents
+UPDATE voice_agents AS va
 SET
-    name = COALESCE(sqlc.narg(name), name),
-    engine = COALESCE(sqlc.narg(engine), engine),
-    instructions = COALESCE(sqlc.narg(instructions), instructions),
-    voice = COALESCE(sqlc.narg(voice), voice),
-    language = COALESCE(sqlc.narg(language), language),
+    name = COALESCE(sqlc.narg(name), va.name),
+    engine = COALESCE(sqlc.narg(engine), va.engine),
+    instructions = COALESCE(sqlc.narg(instructions), va.instructions),
+    voice = COALESCE(sqlc.narg(voice), va.voice),
+    language = COALESCE(sqlc.narg(language), va.language),
     updated_at = NOW()
-WHERE id = sqlc.arg(id)
-  AND organization_id = sqlc.arg(organization_id)
-  AND status = 'active'
-RETURNING *;
+FROM organizations AS o
+WHERE va.id = sqlc.arg(id)
+  AND va.organization_id = sqlc.arg(organization_id)
+  AND va.status = 'active'
+  AND o.id = va.organization_id
+  AND o.status = 'active'
+  AND o.deleted_at IS NULL
+RETURNING va.*;
 
 -- name: DisableVoiceAgent :exec
-UPDATE voice_agents
+UPDATE voice_agents AS va
 SET
     status = 'disabled',
     updated_at = NOW()
-WHERE id = sqlc.arg(id)
-  AND organization_id = sqlc.arg(organization_id)
-  AND status = 'active';
+FROM organizations AS o
+WHERE va.id = sqlc.arg(id)
+  AND va.organization_id = sqlc.arg(organization_id)
+  AND va.status = 'active'
+  AND o.id = va.organization_id
+  AND o.status = 'active'
+  AND o.deleted_at IS NULL;
