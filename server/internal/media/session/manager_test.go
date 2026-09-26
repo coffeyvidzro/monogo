@@ -51,6 +51,92 @@ func TestManagerOwnsOneAttachmentAndEchoes(t *testing.T) {
 	}
 }
 
+
+func TestManagerBargeInInterruptsAndClearsPlayback(t *testing.T) {
+	format := session.AudioFormat{SampleRateHz: 24000, Channels: 1}
+	cfg := session.Config{
+		ID: uuid.New(), OrganizationID: uuid.New(), CallID: uuid.New(), ChannelID: uuid.New(),
+		Engine: session.EngineIntegrated, InputFormat: format, OutputFormat: format,
+	}
+	stream := newFakeStream()
+	manager, err := session.NewManager(1, time.Minute, map[session.Engine]session.Starter{
+		session.EngineIntegrated: fakeStarter{stream: stream},
+	})
+	if err != nil {
+		t.Fatalf("NewManager() error = %v", err)
+	}
+	if err := manager.Start(context.Background(), cfg); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+
+	connection := newFakeConnection(cfg)
+	done := make(chan error, 1)
+	go func() { done <- manager.Attach(context.Background(), connection) }()
+
+	stream.events <- session.Event{Type: session.EventResponseStarted}
+	stream.events <- session.Event{Type: session.EventSpeechStarted}
+
+	select {
+	case <-stream.interrupted:
+	case <-time.After(time.Second):
+		t.Fatal("stream was not interrupted on barge-in")
+	}
+	select {
+	case <-connection.cleared:
+	case <-time.After(time.Second):
+		t.Fatal("playback was not cleared on barge-in")
+	}
+
+	connection.closeInput()
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("Attach() error = %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("Attach() did not stop")
+	}
+}
+
+type fakeStarter struct {
+	stream *fakeStream
+}
+
+func (s fakeStarter) Start(context.Context, session.Config) (session.Stream, error) {
+	return s.stream, nil
+}
+
+type fakeStream struct {
+	audio       chan session.AudioFrame
+	events      chan session.Event
+	interrupted chan struct{}
+	interruptOnce sync.Once
+	closeOnce     sync.Once
+}
+
+func newFakeStream() *fakeStream {
+	return &fakeStream{
+		audio: make(chan session.AudioFrame, 1),
+		events: make(chan session.Event, 4),
+		interrupted: make(chan struct{}),
+	}
+}
+
+func (s *fakeStream) SendAudio(context.Context, session.AudioFrame) error { return nil }
+func (s *fakeStream) Interrupt(context.Context) error {
+	s.interruptOnce.Do(func() { close(s.interrupted) })
+	return nil
+}
+func (s *fakeStream) Audio() <-chan session.AudioFrame { return s.audio }
+func (s *fakeStream) Events() <-chan session.Event { return s.events }
+func (s *fakeStream) Close(context.Context) error {
+	s.closeOnce.Do(func() {
+		close(s.audio)
+		close(s.events)
+	})
+	return nil
+}
+
 func TestManagerCapacityAndDrain(t *testing.T) {
 	manager := newManager(t, 1)
 	first := validConfig()
