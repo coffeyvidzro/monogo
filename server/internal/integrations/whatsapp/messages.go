@@ -33,7 +33,7 @@ func (c *Client) SendMessage(ctx context.Context, message MessageRequest) (Messa
 	if err != nil {
 		return MessageResult{}, fmt.Errorf("send WhatsApp message: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	body, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
 	if err != nil {
 		return MessageResult{}, fmt.Errorf("read WhatsApp response: %w", err)
