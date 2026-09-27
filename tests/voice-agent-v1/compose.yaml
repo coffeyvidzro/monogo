@@ -1,0 +1,72 @@
+services:
+  server:
+    ports:
+      - "127.0.0.1:8080:8080"
+
+  media:
+    environment:
+      OPENAI_API_KEY: "voice-agent-v1-not-live"
+      OPENAI_REALTIME_ENDPOINT: "wss://voice-agent-v1-openai:8444/v1/realtime"
+      SSL_CERT_FILE: /voice-agent-v1-certs/ca.crt
+    volumes:
+      - ${VOICE_AGENT_V1_CERT_DIR:?VOICE_AGENT_V1_CERT_DIR is required}/ca.crt:/voice-agent-v1-certs/ca.crt:ro
+
+  opensips:
+    environment:
+      SIP_DOMAIN: opensips
+    volumes:
+      - ${VOICE_AGENT_V1_CERT_DIR:?VOICE_AGENT_V1_CERT_DIR is required}/opensips-fullchain.pem:/etc/opensips/tls/fullchain.pem:ro
+      - ${VOICE_AGENT_V1_CERT_DIR:?VOICE_AGENT_V1_CERT_DIR is required}/opensips-privkey.pem:/etc/opensips/tls/privkey.pem:ro
+      - ${VOICE_AGENT_V1_CERT_DIR:?VOICE_AGENT_V1_CERT_DIR is required}/opensips-carrier-ca.pem:/etc/opensips/tls/carrier-ca.pem:ro
+
+  rtpengine:
+    ports: !reset []
+
+  voice-agent-v1-carrier:
+    image: leamout/voice-agent-v1-carrier:dev
+    build:
+      context: ../containers/freeswitch
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      FREESWITCH_ESL_PASSWORD: ${FREESWITCH_ESL_PASSWORD:?FREESWITCH_ESL_PASSWORD is required}
+    volumes:
+      - ${VOICE_AGENT_V1_SUITE_DIR:?VOICE_AGENT_V1_SUITE_DIR is required}/../voice-v1/carrier-dialplan.xml:/leamout-config/dialplan/leamout.xml:ro
+      - ${VOICE_AGENT_V1_SUITE_DIR:?VOICE_AGENT_V1_SUITE_DIR is required}/../voice-v1/carrier-sip-profile.xml:/leamout-config/sip_profiles/internal.xml:ro
+    networks:
+      signaling:
+        ipv4_address: 172.30.0.60
+      media:
+        ipv4_address: 172.31.0.60
+
+  voice-agent-v1-openai:
+    image: python:3.13-alpine
+    restart: unless-stopped
+    command:
+      - python
+      - /app/fake_openai.py
+      - --cert
+      - /certs/openai.crt
+      - --key
+      - /certs/openai.key
+      - --port
+      - "8444"
+    volumes:
+      - ${VOICE_AGENT_V1_SUITE_DIR:?VOICE_AGENT_V1_SUITE_DIR is required}/fake_openai.py:/app/fake_openai.py:ro
+      - ${VOICE_AGENT_V1_CERT_DIR:?VOICE_AGENT_V1_CERT_DIR is required}/ca.crt:/certs/ca.crt:ro
+      - ${VOICE_AGENT_V1_CERT_DIR:?VOICE_AGENT_V1_CERT_DIR is required}/openai.crt:/certs/openai.crt:ro
+      - ${VOICE_AGENT_V1_CERT_DIR:?VOICE_AGENT_V1_CERT_DIR is required}/openai.key:/certs/openai.key:ro
+    ports:
+      - "18444:8444"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import ssl,urllib.request; c=ssl.create_default_context(cafile='/certs/ca.crt'); urllib.request.urlopen('https://127.0.0.1:8444/healthz', context=c, timeout=2)"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+    networks: [control]
+
+networks:
+  signaling:
+    ipam:
+      config:
+        - subnet: 172.30.0.0/24

@@ -18,6 +18,9 @@ are not implemented and are not acceptance requirements.
   services.
 - `media-v1`: authenticated bidirectional audio between FreeSWITCH
   `mod_audio_fork` and the Go media worker.
+- `voice-agent-v1`: Voice Agent binding, durable live-call session attachment,
+  integrated realtime media round-trip, snapshot immutability, and tool-secret
+  lifecycle.
 
 The architecture suites exercise existing runtime capabilities; they do not
 establish availability of a Cloud + Managed product model.

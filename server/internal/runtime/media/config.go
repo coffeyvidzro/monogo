@@ -20,6 +20,7 @@ type Config struct {
 	HandshakeTimeout time.Duration `env:"MEDIA_HANDSHAKE_TIMEOUT" envDefault:"5s"`
 	DrainTimeout     time.Duration `env:"MEDIA_DRAIN_TIMEOUT" envDefault:"30s"`
 	OpenAIAPIKey     string        `env:"OPENAI_API_KEY"`
+	OpenAIEndpoint   string        `env:"OPENAI_REALTIME_ENDPOINT"`
 	DeepgramAPIKey   string        `env:"DEEPGRAM_API_KEY"`
 	GroqAPIKey       string        `env:"GROQ_API_KEY"`
 	CartesiaAPIKey   string        `env:"CARTESIA_API_KEY"`
@@ -36,6 +37,7 @@ func loadConfig() (Config, error) {
 	cfg.TokenSecret = strings.TrimSpace(cfg.TokenSecret)
 	cfg.ControlToken = strings.TrimSpace(cfg.ControlToken)
 	cfg.OpenAIAPIKey = strings.TrimSpace(cfg.OpenAIAPIKey)
+	cfg.OpenAIEndpoint = strings.TrimSpace(cfg.OpenAIEndpoint)
 	cfg.DeepgramAPIKey = strings.TrimSpace(cfg.DeepgramAPIKey)
 	cfg.GroqAPIKey = strings.TrimSpace(cfg.GroqAPIKey)
 	cfg.CartesiaAPIKey = strings.TrimSpace(cfg.CartesiaAPIKey)
@@ -59,6 +61,12 @@ func (c Config) Validate() error {
 	}
 	if len(c.ControlToken) < 32 {
 		return fmt.Errorf("media control token must contain at least 32 bytes")
+	}
+	if c.OpenAIEndpoint != "" {
+		endpoint, endpointErr := url.Parse(c.OpenAIEndpoint)
+		if endpointErr != nil || endpoint.Scheme != "wss" || endpoint.Host == "" {
+			return fmt.Errorf("OpenAI Realtime endpoint must be an absolute wss URL")
+		}
 	}
 	if c.TokenTTL <= 0 || c.HandshakeTimeout <= 0 || c.DrainTimeout <= 0 {
 		return fmt.Errorf("media timeouts must be positive")

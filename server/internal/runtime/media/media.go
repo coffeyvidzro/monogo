@@ -99,7 +99,10 @@ func mediaEngines(cfg Config) map[session.Engine]session.Starter {
 	if cfg.OpenAIAPIKey != "" {
 		engines[session.EngineIntegrated] = integrated.Engine{
 			Client: openai.NewClient(nil),
-			Config: openai.Config{APIKey: cfg.OpenAIAPIKey},
+			Config: openai.Config{
+				APIKey:   cfg.OpenAIAPIKey,
+				Endpoint: cfg.OpenAIEndpoint,
+			},
 		}
 	}
 	if cfg.DeepgramAPIKey != "" && cfg.GroqAPIKey != "" && cfg.CartesiaAPIKey != "" && cfg.CartesiaVoiceID != "" {

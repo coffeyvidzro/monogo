@@ -1,0 +1,453 @@
+#!/usr/bin/env python3
+
+import json
+import os
+import ssl
+import subprocess
+import time
+import urllib.error
+import urllib.request
+import uuid
+
+API_BASE = os.getenv("VOICE_AGENT_V1_API_BASE", "http://127.0.0.1:8080")
+TOKEN = os.getenv("VOICE_AGENT_V1_TOKEN", "lm_org_v1smoke0_v1smoke0abcdefghijklmnopqrstuvwx")
+ESL_PASSWORD = os.getenv("FREESWITCH_ESL_PASSWORD", "voice-agent-v1-esl-secret")
+DID = os.getenv("VOICE_AGENT_V1_DID", "+15551234601")
+CALLER = os.getenv("VOICE_AGENT_V1_CALLER", "+15557654601")
+ORG_ID = "00000000-0000-0000-0000-000000001101"
+INITIAL_INSTRUCTIONS = "You are the Voice Agent v1 acceptance assistant."
+COMPOSE = [
+    "docker", "compose",
+    "-f", "deploy/compose.yaml",
+    "-f", "tests/voice-agent-v1/compose.yaml",
+    "-f", "tests/acceptance-minio.yaml",
+]
+STATE = {}
+
+
+class AcceptanceError(RuntimeError):
+    pass
+
+
+def run(command, check=True):
+    completed = subprocess.run(
+        command,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        check=False,
+    )
+    if check and completed.returncode != 0:
+        raise AcceptanceError(
+            f"command failed ({completed.returncode}): {' '.join(command)}\n{completed.stdout}"
+        )
+    return completed.stdout.strip()
+
+
+def compose(*args, check=True):
+    return run(COMPOSE + list(args), check=check)
+
+
+def psql(sql):
+    return compose(
+        "exec", "-T", "postgres",
+        "psql", "-v", "ON_ERROR_STOP=1",
+        "-U", "leamout", "-d", "leamout", "-Atc", sql,
+    )
+
+
+def fs_cli(service, command):
+    return compose(
+        "exec", "-T", service,
+        "fs_cli", "-H", "127.0.0.1", "-P", "8021",
+        "-p", ESL_PASSWORD, "-x", command,
+    )
+
+
+def api(method, path, payload=None, expected=None):
+    body = None
+    headers = {
+        "Accept": "application/json",
+        "Authorization": f"Bearer {TOKEN}",
+    }
+    if payload is not None:
+        body = json.dumps(payload).encode()
+        headers["Content-Type"] = "application/json"
+    request = urllib.request.Request(
+        API_BASE + path, data=body, headers=headers, method=method,
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=10) as response:
+            status = response.status
+            raw = response.read()
+    except urllib.error.HTTPError as error:
+        status = error.code
+        raw = error.read()
+    if expected is not None and status not in expected:
+        raise AcceptanceError(
+            f"{method} {path}: HTTP {status}, body={raw.decode(errors='replace')}"
+        )
+    if not raw:
+        return status, None
+    parsed = json.loads(raw)
+    if isinstance(parsed, dict) and parsed.get("success") is True and "data" in parsed:
+        parsed = parsed["data"]
+    return status, parsed
+
+
+def wait_for(description, probe, timeout=30, interval=0.25):
+    deadline = time.monotonic() + timeout
+    last_error = None
+    while time.monotonic() < deadline:
+        try:
+            value = probe()
+            if value:
+                return value
+        except Exception as error:
+            last_error = error
+        time.sleep(interval)
+    suffix = f": {last_error}" if last_error else ""
+    raise AcceptanceError(f"timed out waiting for {description}{suffix}")
+
+
+def get_call(call_id):
+    return api("GET", f"/v1/calls/{call_id}", expected={200})[1]
+
+
+def list_calls():
+    return api("GET", "/v1/calls/?limit=100", expected={200})[1]["calls"]
+
+
+def fake_openai_state():
+    cert_dir = os.environ["VOICE_AGENT_V1_CERT_DIR"]
+    context = ssl.create_default_context(cafile=os.path.join(cert_dir, "ca.crt"))
+    with urllib.request.urlopen(
+        "https://127.0.0.1:18444/state",
+        timeout=5,
+        context=context,
+    ) as response:
+        return json.loads(response.read())
+
+
+def setup_carrier():
+    provider_id = psql(
+        "SELECT id::text FROM carrier_providers "
+        "WHERE slug='generic-sip' AND adapter='sip' AND status='active'"
+    )
+    if not provider_id:
+        raise AcceptanceError("generic SIP provider fixture is unavailable")
+
+    connection = api(
+        "POST", "/v1/carrier-connections/",
+        {
+            "provider_id": provider_id,
+            "name": "voice-agent-v1-carrier",
+            "inbound_enabled": True,
+            "codecs": ["PCMU", "PCMA"],
+        },
+        expected={201},
+    )[1]
+    STATE["connection_id"] = connection["id"]
+    api(
+        "POST",
+        f"/v1/carrier-connections/{connection['id']}/source-ips",
+        {"cidr": "172.30.0.60/32"},
+        expected={201},
+    )
+
+    trunk = api(
+        "POST", "/v1/trunks/",
+        {
+            "type": "byoc",
+            "carrier_connection_id": connection["id"],
+            "name": "voice-agent-v1-trunk",
+            "direction": "bidirectional",
+        },
+        expected={201},
+    )[1]
+    STATE["trunk_id"] = trunk["id"]
+    api(
+        "POST",
+        f"/v1/trunks/{trunk['id']}/endpoints",
+        {
+            "host": "voice-agent-v1-carrier",
+            "port": 5060,
+            "transport": "udp",
+            "direction": "bidirectional",
+        },
+        expected={201},
+    )
+
+
+def setup_voice_application():
+    number = api(
+        "POST", "/v1/numbers/",
+        {
+            "number": DID,
+            "country_code": "US",
+            "carrier_connection_id": STATE["connection_id"],
+            "voice_enabled": True,
+        },
+        expected={201},
+    )[1]
+    api(
+        "POST", "/v1/numbers/",
+        {
+            "number": CALLER,
+            "country_code": "US",
+            "carrier_connection_id": STATE["connection_id"],
+            "voice_enabled": True,
+        },
+        expected={201},
+    )
+    application = api(
+        "POST", "/v1/voice-applications/",
+        {"name": "voice-agent-v1", "caller_id": CALLER},
+        expected={201},
+    )[1]
+    STATE["application_id"] = application["id"]
+    api(
+        "POST",
+        f"/v1/voice-applications/{application['id']}/bindings",
+        {"phone_number_id": number["id"]},
+        expected={201},
+    )
+
+
+def setup_voice_agent():
+    agent = api(
+        "POST", "/v1/voice-agents/",
+        {
+            "name": "voice-agent-v1",
+            "engine": "integrated",
+            "instructions": INITIAL_INSTRUCTIONS,
+            "voice": "alloy",
+            "language": "en",
+            "engine_config": {},
+        },
+        expected={201},
+    )[1]
+    STATE["agent_id"] = agent["id"]
+    binding = api(
+        "POST",
+        f"/v1/voice-agents/{agent['id']}/bindings",
+        {"voice_application_id": STATE["application_id"]},
+        expected={201},
+    )[1]
+    if binding["voice_application_id"] != STATE["application_id"]:
+        raise AcceptanceError("Voice Agent binding was not persisted")
+
+    webhook_tool = api(
+        "POST",
+        f"/v1/voice-agents/{agent['id']}/tools/",
+        {
+            "type": "webhook",
+            "name": "lookup_customer",
+            "description": "Look up a customer.",
+            "parameters": {
+                "type": "object",
+                "properties": {"customer_id": {"type": "string"}},
+                "required": ["customer_id"],
+            },
+            "endpoint_url": "https://example.com/voice-agent-tool",
+            "timeout_ms": 1000,
+        },
+        expected={201},
+    )[1]
+    first_secret = webhook_tool.get("signing_secret", "")
+    if len(first_secret) < 32:
+        raise AcceptanceError("webhook tool did not return a signing secret")
+
+    listed = api(
+        "GET",
+        f"/v1/voice-agents/{agent['id']}/tools/",
+        expected={200},
+    )[1]["tools"]
+    created = next(item for item in listed if item["id"] == webhook_tool["id"])
+    if "signing_secret" in created:
+        raise AcceptanceError("tool signing secret leaked through list API")
+
+    rotated = api(
+        "POST",
+        f"/v1/voice-agents/{agent['id']}/tools/{webhook_tool['id']}/rotate-signing-secret",
+        expected={200},
+    )[1]["signing_secret"]
+    if rotated == first_secret or len(rotated) < 32:
+        raise AcceptanceError("webhook signing secret rotation did not produce a new secret")
+
+    api(
+        "POST",
+        f"/v1/voice-agents/{agent['id']}/tools/",
+        {
+            "type": "builtin",
+            "name": "hangup_call",
+            "description": "Hang up the current call.",
+            "parameters": {"type": "object", "properties": {}},
+        },
+        expected={201},
+    )
+
+
+def originate_call():
+    call = api(
+        "POST", "/v1/calls/",
+        {
+            "application_id": STATE["application_id"],
+            "trunk_id": STATE["trunk_id"],
+            "from_uri": CALLER,
+            "to_uri": DID,
+        },
+        expected={201},
+    )[1]
+    STATE["call_id"] = call["id"]
+
+    def answered():
+        current = get_call(call["id"])
+        return current if current["state"] in {"answered", "active"} else False
+
+    current = wait_for("answered Voice Agent call", answered)
+    channel_id = compose(
+        "exec", "-T", "redis", "redis-cli", "--raw",
+        "GET", f"telecom:calls:channel:{call['id']}",
+    ).strip()
+    try:
+        uuid.UUID(channel_id)
+    except ValueError as error:
+        raise AcceptanceError(f"invalid FreeSWITCH channel id {channel_id!r}") from error
+    STATE["channel_id"] = channel_id
+    return current
+
+
+def wait_voice_agent_session():
+    def probe():
+        row = psql(
+            "SELECT id::text || '|' || state || '|' || engine || '|' || instructions_snapshot "
+            f"FROM voice_agent_sessions WHERE call_id='{STATE['call_id']}'"
+        )
+        return row if row else False
+
+    row = wait_for("durable Voice Agent session", probe)
+    session_id, state, engine, instructions = row.split("|", 3)
+    if state != "active" or engine != "integrated":
+        raise AcceptanceError(f"unexpected Voice Agent session: {row}")
+    if instructions != INITIAL_INSTRUCTIONS:
+        raise AcceptanceError("durable session instructions snapshot is incorrect")
+    STATE["session_id"] = session_id
+
+    count = psql(
+        f"SELECT count(*) FROM voice_agent_sessions WHERE call_id='{STATE['call_id']}'"
+    )
+    if count != "1":
+        raise AcceptanceError(f"Voice Agent session count = {count}, want 1")
+
+    marker = fs_cli(
+        "freeswitch",
+        f"uuid_getvar {STATE['channel_id']} leamout_voice_agent_session_id",
+    ).strip()
+    if marker != session_id:
+        raise AcceptanceError(
+            f"FreeSWITCH session marker = {marker!r}, want {session_id!r}"
+        )
+
+
+def verify_provider_session():
+    def probe():
+        state = fake_openai_state()
+        return state if state["session_updates"] >= 1 else False
+
+    state = wait_for("OpenAI Realtime session.update", probe)
+    session = state.get("last_session") or {}
+    if session.get("instructions") != INITIAL_INSTRUCTIONS:
+        raise AcceptanceError("provider did not receive the durable instructions snapshot")
+    audio = session.get("audio") or {}
+    if (audio.get("input") or {}).get("format", {}).get("rate") != 24000:
+        raise AcceptanceError("provider input format is not 24 kHz PCM")
+
+
+def verify_snapshot_immutability():
+    api(
+        "PATCH",
+        f"/v1/voice-agents/{STATE['agent_id']}",
+        {"instructions": "This change must not affect the active call."},
+        expected={200},
+    )
+    snapshot = psql(
+        "SELECT instructions_snapshot FROM voice_agent_sessions "
+        f"WHERE id='{STATE['session_id']}'"
+    )
+    if snapshot != INITIAL_INSTRUCTIONS:
+        raise AcceptanceError("active durable session snapshot changed after agent update")
+
+
+def verify_audio_roundtrip():
+    fs_cli(
+        "freeswitch",
+        f"uuid_broadcast {STATE['channel_id']} tone_stream://%(2500,0,440) aleg",
+    )
+
+    def provider_audio():
+        state = fake_openai_state()
+        return state if state["audio_appends"] > 0 and state["responses"] > 0 else False
+
+    wait_for("provider audio input and response", provider_audio, timeout=20)
+
+    def fork_audio():
+        raw = fs_cli("freeswitch", "audio_fork status")
+        status = json.loads(raw)
+        return (
+            status
+            if status.get("sent_bytes", 0) > 0
+            and status.get("playback_bytes_played", 0) > 0
+            else False
+        )
+
+    wait_for("bidirectional audio fork bytes", fork_audio, timeout=20)
+
+
+def hangup_and_verify_completion():
+    api("POST", f"/v1/calls/{STATE['call_id']}/hangup", expected={200})
+
+    def call_ended():
+        call = get_call(STATE["call_id"])
+        return call if call["state"] in {"completed", "cancelled"} else False
+
+    wait_for("terminal call state", call_ended)
+
+    def session_ended():
+        state = psql(
+            "SELECT state FROM voice_agent_sessions "
+            f"WHERE id='{STATE['session_id']}'"
+        )
+        return state if state in {"completed", "cancelled", "failed"} else False
+
+    session_state = wait_for("terminal Voice Agent session", session_ended)
+    if session_state != "completed":
+        raise AcceptanceError(
+            f"Voice Agent session state = {session_state}, want completed"
+        )
+
+
+def main():
+    setup_carrier()
+    print("PASS 01 carrier and BYOC trunk configured")
+    setup_voice_application()
+    print("PASS 02 voice application and numbers configured")
+    setup_voice_agent()
+    print("PASS 03 Voice Agent binding and tool secret lifecycle verified")
+    originate_call()
+    print("PASS 04 outbound call reached answered state")
+    wait_voice_agent_session()
+    print("PASS 05 one durable Voice Agent session attached to FreeSWITCH")
+    verify_provider_session()
+    print("PASS 06 realtime provider received integrated session configuration")
+    verify_snapshot_immutability()
+    print("PASS 07 active call retained immutable durable agent snapshot")
+    verify_audio_roundtrip()
+    print("PASS 08 bidirectional Voice Agent audio completed through media plane")
+    hangup_and_verify_completion()
+    print("PASS 09 call hangup completed the durable Voice Agent session")
+    print("Voice Agent v1 acceptance passed")
+
+
+if __name__ == "__main__":
+    main()
