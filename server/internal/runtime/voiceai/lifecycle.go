@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/url"
 	"strings"
 	"time"
 
@@ -95,16 +96,30 @@ func (r *Runtime) attach(ctx context.Context, call sqlc.Call, channelID string) 
 		"voice_agent_session_id": record.ID.String(),
 		"call_id":                call.ID.String(),
 	})
-	if err := r.freeSwitch.StartAudioFork(ctx, freeswitch.AudioForkRequest{
+	reply, err := r.freeSwitch.StartAudioForkWithReply(ctx, freeswitch.AudioForkRequest{
 		ChannelID:    channelID,
 		WebSocketURL: websocketURL,
 		MixType:      "mono",
 		SampleRateHz: format.SampleRateHz,
 		Metadata:     string(metadata),
-	}); err != nil {
+	})
+	if err != nil {
 		stopErr := r.media.StopSession(ctx, record.ID)
 		failErr := r.failSession(ctx, call, time.Now().UTC())
 		return errors.Join(fmt.Errorf("start Voice Agent audio fork: %w", err), stopErr, failErr)
+	}
+	if r.logger != nil {
+		r.logger.Info(
+			ctx,
+			"Voice Agent audio fork start accepted",
+			"call_id", call.ID,
+			"channel_id", channelID,
+			"voice_agent_session_id", record.ID,
+			"sample_rate_hz", format.SampleRateHz,
+			"websocket_url", redactWebSocketURL(websocketURL),
+			"freeswitch_reply_text", strings.TrimSpace(reply.Text),
+			"freeswitch_reply_body", strings.TrimSpace(reply.Body),
+		)
 	}
 
 	if err := r.freeSwitch.SetVariable(ctx, channelID, voiceAgentSessionVariable, record.ID.String()); err != nil {
@@ -166,4 +181,14 @@ func mediaFormat(engine string) (session.AudioFormat, error) {
 	default:
 		return session.AudioFormat{}, fmt.Errorf("unsupported Voice Agent engine %q", engine)
 	}
+}
+
+func redactWebSocketURL(raw string) string {
+	parsed, err := url.Parse(strings.TrimSpace(raw))
+	if err != nil {
+		return "<invalid>"
+	}
+	parsed.RawQuery = ""
+	parsed.Fragment = ""
+	return parsed.String()
 }
