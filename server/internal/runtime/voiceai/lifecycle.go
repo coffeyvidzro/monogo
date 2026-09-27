@@ -71,7 +71,7 @@ func (r *Runtime) attach(ctx context.Context, call sqlc.Call, channelID string) 
 		return fmt.Errorf("FreeSWITCH channel is already attached to Voice Agent session %s", existing)
 	}
 
-	format, sampleRate, err := mediaFormat(record.Engine)
+	format, err := mediaFormat(record.Engine)
 	if err != nil {
 		_ = r.failSession(ctx, call, time.Now().UTC())
 		return err
@@ -99,7 +99,7 @@ func (r *Runtime) attach(ctx context.Context, call sqlc.Call, channelID string) 
 		ChannelID:    channelID,
 		WebSocketURL: websocketURL,
 		MixType:      "mono",
-		SampleRate:   sampleRate,
+		SampleRateHz: format.SampleRateHz,
 		Metadata:     string(metadata),
 	}); err != nil {
 		stopErr := r.media.StopSession(ctx, record.ID)
@@ -157,13 +157,13 @@ func (r *Runtime) failSession(ctx context.Context, call sqlc.Call, endedAt time.
 	return err
 }
 
-func mediaFormat(engine string) (session.AudioFormat, string, error) {
+func mediaFormat(engine string) (session.AudioFormat, error) {
 	switch session.Engine(engine) {
 	case session.EngineComposable:
-		return session.AudioFormat{SampleRateHz: 16000, Channels: 1}, "16k", nil
+		return session.AudioFormat{SampleRateHz: 16000, Channels: 1}, nil
 	case session.EngineIntegrated:
-		return session.AudioFormat{SampleRateHz: 24000, Channels: 1}, "24k", nil
+		return session.AudioFormat{SampleRateHz: 24000, Channels: 1}, nil
 	default:
-		return session.AudioFormat{}, "", fmt.Errorf("unsupported Voice Agent engine %q", engine)
+		return session.AudioFormat{}, fmt.Errorf("unsupported Voice Agent engine %q", engine)
 	}
 }
