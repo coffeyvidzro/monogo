@@ -3,6 +3,7 @@ package messaging
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -74,6 +75,23 @@ func (c *Consumer) HandleQueued(ctx context.Context, message sqlc.Message) (sqlc
 	}
 	result, err := c.runtime.Send(ctx, request)
 	if err != nil {
+		var submissionError *runtimemessaging.SubmissionError
+		if errors.As(err, &submissionError) {
+			switch submissionError.Outcome {
+			case runtimemessaging.SubmissionNotSubmitted:
+				if _, requeueErr := c.service.RequeueSubmission(ctx, message.OrganizationID, message.ID); requeueErr != nil {
+					return sqlc.Message{}, errors.Join(err, requeueErr)
+				}
+				return sqlc.Message{}, fmt.Errorf("submit %s message: %w", message.Channel, err)
+			case runtimemessaging.SubmissionRejected:
+				code := "provider_rejected"
+				detail := err.Error()
+				return c.service.MarkFailed(ctx, message.OrganizationID, message.ID, Failure{
+					Code:    &code,
+					Message: &detail,
+				})
+			}
+		}
 		code := "submission_outcome_unknown"
 		detail := fmt.Sprintf("%s submission may have reached the provider: %v", message.Channel, err)
 		return c.service.MarkSubmissionUnknown(ctx, message.OrganizationID, message.ID, Failure{

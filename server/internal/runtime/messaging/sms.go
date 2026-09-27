@@ -2,6 +2,7 @@ package messaging
 
 import (
 	"context"
+	"errors"
 
 	"github.com/coffeyvidzro/monogo/internal/integrations/smpp"
 )
@@ -22,7 +23,14 @@ func (s *SMS) Send(ctx context.Context, request Request) (Result, error) {
 		RequestDeliveryReceipt: true,
 	})
 	if err != nil {
-		return Result{}, err
+		switch {
+		case errors.Is(err, smpp.ErrNotConnected):
+			return Result{}, newSubmissionError(SubmissionNotSubmitted, err)
+		case errors.Is(err, smpp.ErrSubmitUnsupported):
+			return Result{}, newSubmissionError(SubmissionRejected, err)
+		default:
+			return Result{}, newSubmissionError(SubmissionUnknown, err)
+		}
 	}
 	return Result{
 		ExternalID: result.MessageID,

@@ -140,6 +140,18 @@ WHERE organization_id = sqlc.arg(organization_id)
   AND messaging_connection_id IS NOT NULL
 RETURNING *;
 
+-- name: RequeueMessageSubmission :one
+UPDATE messages
+SET
+    status = 'queued',
+    submitting_at = NULL,
+    updated_at = NOW()
+WHERE organization_id = sqlc.arg(organization_id)
+  AND id = sqlc.arg(id)
+  AND direction = 'outbound'
+  AND status = 'submitting'
+RETURNING *;
+
 -- name: MarkMessageSubmitted :one
 UPDATE messages
 SET
@@ -204,7 +216,7 @@ SET
 WHERE organization_id = sqlc.arg(organization_id)
   AND id = sqlc.arg(id)
   AND direction = 'outbound'
-  AND status IN ('queued', 'submitted', 'sent')
+  AND status IN ('queued', 'submitting', 'submitted', 'sent')
 RETURNING *;
 
 

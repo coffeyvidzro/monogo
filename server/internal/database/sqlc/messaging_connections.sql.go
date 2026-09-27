@@ -84,7 +84,11 @@ WHERE connection.id = $2
   AND connection.status = 'active'
   AND (
     (connection.scope = 'organization' AND connection.organization_id IS NOT NULL)
-    OR (connection.scope = 'platform' AND number.id IS NOT NULL)
+    OR (
+      connection.channel = 'sms'
+      AND connection.scope = 'platform'
+      AND number.id IS NOT NULL
+    )
   )
 LIMIT 1
 `
@@ -103,11 +107,17 @@ func (q *Queries) ResolveInboundMessagingOrganization(ctx context.Context, arg R
 
 const resolveMessagingConnection = `-- name: ResolveMessagingConnection :one
 SELECT id, organization_id, scope, channel, name, status, configuration, encrypted_secret, created_at, updated_at FROM messaging_connections
-WHERE (
-    (scope = 'organization' AND organization_id = $1)
-    OR (scope = 'platform' AND organization_id IS NULL)
+WHERE channel = $2
+  AND (
+    (channel = 'whatsapp' AND scope = 'organization' AND organization_id = $1)
+    OR (
+      channel = 'sms'
+      AND (
+        (scope = 'organization' AND organization_id = $1)
+        OR (scope = 'platform' AND organization_id IS NULL)
+      )
+    )
   )
-  AND channel = $2
   AND status = 'active'
 ORDER BY
   CASE WHEN scope = 'organization' THEN 0 ELSE 1 END,
