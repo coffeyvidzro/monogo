@@ -206,6 +206,7 @@ func (h *WebSocketHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 type audioForkHello struct {
 	Type     string         `json:"type"`
+	Version  string         `json:"version"`
 	CallID   string         `json:"callSid"`
 	Rate     int            `json:"rate"`
 	Channels int            `json:"channels"`
@@ -222,7 +223,15 @@ func parseHello(messageType websocket.MessageType, payload []byte, claims TokenC
 		return session.ConnectionMetadata{}, fmt.Errorf("decode media hello: %w", err)
 	}
 	if hello.Type != "hello" {
-		return session.ConnectionMetadata{}, fmt.Errorf("first media message must be hello")
+		return session.ConnectionMetadata{}, fmt.Errorf(
+			"first media message must be hello: type=%q version=%q callSid=%q rate=%d channels=%d encoding=%q",
+			hello.Type,
+			hello.Version,
+			hello.CallID,
+			hello.Rate,
+			hello.Channels,
+			hello.Encoding,
+		)
 	}
 	if hello.CallID != claims.ChannelID.String() {
 		return session.ConnectionMetadata{}, fmt.Errorf("media hello channel id does not match token")
