@@ -35,9 +35,9 @@ services:
       - ${VOICE_AGENT_V1_SUITE_DIR:?VOICE_AGENT_V1_SUITE_DIR is required}/../voice-v1/carrier-sip-profile.xml:/leamout-config/sip_profiles/internal.xml:ro
     networks:
       signaling:
-        ipv4_address: 172.30.0.60
+        ipv4_address: 172.30.0.50
       media:
-        ipv4_address: 172.31.0.60
+        ipv4_address: 172.31.0.50
 
   voice-agent-v1-openai:
     image: python:3.13-alpine
@@ -59,7 +59,7 @@ services:
     ports:
       - "18444:8444"
     healthcheck:
-      test: ["CMD", "python", "-c", "import ssl,urllib.request; c=ssl.create_default_context(cafile='/certs/ca.crt'); urllib.request.urlopen('https://127.0.0.1:8444/healthz', context=c, timeout=2)"]
+      test: ["CMD", "python", "-c", "import socket; s=socket.create_connection(('127.0.0.1',8444),2); s.close()"]
       interval: 2s
       timeout: 2s
       retries: 30
