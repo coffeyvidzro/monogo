@@ -25,7 +25,10 @@ func NewService(repo *Repository) *Service {
 	if repo == nil {
 		panic("billing charges: repository is required")
 	}
-	return &Service{repo: repo}
+
+	return &Service{
+		repo: repo,
+	}
 }
 
 func (s *Service) Create(
@@ -36,48 +39,73 @@ func (s *Service) Create(
 		return sqlc.Charge{}, err
 	}
 
-	charge, err := s.repo.Create(ctx, req)
+	charge, err := s.repo.Create(
+		ctx,
+		req,
+	)
 	if err == nil {
 		return charge, nil
 	}
 
 	if errors.Is(err, pgx.ErrNoRows) {
-		existing, readErr := s.repo.ByIdempotencyKey(ctx, req.OrganizationID, req.IdempotencyKey)
+		existing, readErr := s.repo.ByIdempotencyKey(
+			ctx,
+			req.OrganizationID,
+			req.IdempotencyKey,
+		)
 		if readErr != nil {
 			return sqlc.Charge{}, chargeReadError(readErr)
 		}
+
 		if !sameRequest(existing, req) {
 			return sqlc.Charge{}, apperror.NewConflict(
 				"idempotency key was used with another charge request",
 			)
 		}
+
 		return existing, nil
 	}
 
 	var pgErr *pgconn.PgError
-	if errors.As(err, &pgErr) && pgErr.Code == "23505" {
-		existing, readErr := s.repo.ByResource(
+	if errors.As(err, &pgErr) &&
+		pgErr.Code == "23505" {
+		_, readErr := s.repo.ByResource(
 			ctx,
 			req.OrganizationID,
 			req.ResourceType,
 			req.ResourceID,
 		)
 		if readErr == nil {
-			return sqlc.Charge{}, apperror.NewConflict("resource already has a charge")
+			return sqlc.Charge{}, apperror.NewConflict(
+				"resource already has a charge",
+			)
 		}
 	}
 
-	return sqlc.Charge{}, apperror.NewInternal("create billing charge", err)
+	return sqlc.Charge{}, apperror.NewInternal(
+		"create billing charge",
+		err,
+	)
 }
 
 func (s *Service) Get(
 	ctx context.Context,
-	organizationID, id uuid.UUID,
+	organizationID uuid.UUID,
+	id uuid.UUID,
 ) (sqlc.Charge, error) {
-	if organizationID == uuid.Nil || id == uuid.Nil {
-		return sqlc.Charge{}, apperror.NewBadRequest("organization and charge are required")
+	if organizationID == uuid.Nil ||
+		id == uuid.Nil {
+		return sqlc.Charge{}, apperror.NewBadRequest(
+			"organization and charge are required",
+		)
 	}
-	charge, err := s.repo.Get(ctx, organizationID, id)
+
+	charge, err := s.repo.Get(
+		ctx,
+		organizationID,
+		id,
+	)
+
 	return charge, chargeReadError(err)
 }
 
@@ -87,14 +115,27 @@ func (s *Service) ByResource(
 	resourceType string,
 	resourceID uuid.UUID,
 ) (sqlc.Charge, error) {
-	if organizationID == uuid.Nil || resourceID == uuid.Nil {
-		return sqlc.Charge{}, apperror.NewBadRequest("organization and resource are required")
+	if organizationID == uuid.Nil ||
+		resourceID == uuid.Nil {
+		return sqlc.Charge{}, apperror.NewBadRequest(
+			"organization and resource are required",
+		)
 	}
-	resourceType, err := normalizeResourceType(resourceType)
+
+	resourceType, err := normalizeResourceType(
+		resourceType,
+	)
 	if err != nil {
 		return sqlc.Charge{}, err
 	}
-	charge, err := s.repo.ByResource(ctx, organizationID, resourceType, resourceID)
+
+	charge, err := s.repo.ByResource(
+		ctx,
+		organizationID,
+		resourceType,
+		resourceID,
+	)
+
 	return charge, chargeReadError(err)
 }
 
@@ -104,47 +145,58 @@ func (s *Service) List(
 	req ListRequest,
 ) ([]sqlc.Charge, error) {
 	if organizationID == uuid.Nil {
-		return nil, apperror.NewBadRequest("organization context required")
+		return nil, apperror.NewBadRequest(
+			"organization context required",
+		)
 	}
-	if req.Offset < 0 {
-		return nil, apperror.NewBadRequest("offset cannot be negative")
+
+	if err := normalizeListRequest(&req); err != nil {
+		return nil, err
 	}
-	if req.Limit == 0 {
-		req.Limit = defaultListLimit
-	}
-	if req.Limit < 1 || req.Limit > maxListLimit {
-		return nil, apperror.NewBadRequest("limit must be between 1 and 200")
-	}
-	if req.Status != nil {
-		switch *req.Status {
-		case "pending", "active", "completed", "failed", "cancelled":
-		default:
-			return nil, apperror.NewBadRequest("invalid charge status")
-		}
-	}
-	values, err := s.repo.List(ctx, organizationID, req)
+
+	values, err := s.repo.List(
+		ctx,
+		organizationID,
+		req,
+	)
 	if err != nil {
-		return nil, apperror.NewInternal("list billing charges", err)
+		return nil, apperror.NewInternal(
+			"list billing charges",
+			err,
+		)
 	}
+
 	return values, nil
 }
 
-func sameRequest(value sqlc.Charge, req CreateRequest) bool {
+func sameRequest(
+	value sqlc.Charge,
+	req CreateRequest,
+) bool {
 	return value.WalletID == req.WalletID &&
 		value.ResourceType == req.ResourceType &&
 		value.ResourceID == req.ResourceID &&
 		value.ChargingMode == req.ChargingMode &&
 		value.Currency == req.Currency &&
 		value.RequestHash == req.RequestHash &&
-		bytes.Equal(value.PricingSnapshot, req.PricingSnapshot)
+		bytes.Equal(
+			value.PricingSnapshot,
+			req.PricingSnapshot,
+		)
 }
 
 func chargeReadError(err error) error {
 	if errors.Is(err, pgx.ErrNoRows) {
-		return apperror.NewNotFound("charge not found")
+		return apperror.NewNotFound(
+			"charge not found",
+		)
 	}
 	if err != nil {
-		return apperror.NewInternal("get billing charge", err)
+		return apperror.NewInternal(
+			"get billing charge",
+			err,
+		)
 	}
+
 	return nil
 }
