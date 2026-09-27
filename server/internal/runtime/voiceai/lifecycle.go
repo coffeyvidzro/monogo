@@ -2,7 +2,6 @@ package voiceai
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/url"
@@ -92,16 +91,11 @@ func (r *Runtime) attach(ctx context.Context, call sqlc.Call, channelID string) 
 		return fmt.Errorf("create Voice Agent media session: %w", err)
 	}
 
-	metadata, _ := json.Marshal(map[string]string{
-		"voice_agent_session_id": record.ID.String(),
-		"call_id":                call.ID.String(),
-	})
 	reply, err := r.freeSwitch.StartAudioForkWithReply(ctx, freeswitch.AudioForkRequest{
 		ChannelID:    channelID,
 		WebSocketURL: websocketURL,
 		MixType:      "mono",
 		SampleRateHz: format.SampleRateHz,
-		Metadata:     string(metadata),
 	})
 	if err != nil {
 		stopErr := r.media.StopSession(ctx, record.ID)
