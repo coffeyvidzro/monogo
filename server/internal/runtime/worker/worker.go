@@ -16,7 +16,7 @@ func Run(ctx context.Context) error {
 		return fmt.Errorf("load configuration: %w", err)
 	}
 
-	modules, err := newModules(ctx, cfg)
+	modules, err := newModules(ctx, cfg, logger)
 	if err != nil {
 		return err
 	}
