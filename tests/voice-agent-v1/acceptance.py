@@ -151,7 +151,7 @@ def setup_carrier():
     api(
         "POST",
         f"/v1/carrier-connections/{connection['id']}/source-ips",
-        {"cidr": "172.30.0.60/32"},
+        {"cidr": "172.30.0.50/32"},
         expected={201},
     )
 
