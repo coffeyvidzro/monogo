@@ -61,6 +61,9 @@ func TestLifecycleDuplicateChannelAnswerAttachesOnce(t *testing.T) {
 	if got := freeSwitch.audioForkStarts(); got != 1 {
 		t.Fatalf("audio fork starts = %d, want 1", got)
 	}
+	if got := freeSwitch.audioForkCommand(); strings.Count(got, " ") != 6 {
+		t.Fatalf("audio fork command = %q, want no metadata argument", got)
+	}
 	if got := freeSwitch.sessionVariable(); got != db.sessionID.String() {
 		t.Fatalf("Voice Agent session channel variable = %q, want %q", got, db.sessionID)
 	}
@@ -387,6 +390,7 @@ type lifecycleFreeSWITCHServer struct {
 	mu         sync.Mutex
 	variable   string
 	forkStarts int
+	lastForkCommand string
 }
 
 func newLifecycleFreeSWITCHServer(t *testing.T, failAudioFork bool) *lifecycleFreeSWITCHServer {
@@ -415,6 +419,12 @@ func (s *lifecycleFreeSWITCHServer) audioForkStarts() int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.forkStarts
+}
+
+func (s *lifecycleFreeSWITCHServer) audioForkCommand() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.lastForkCommand
 }
 
 func (s *lifecycleFreeSWITCHServer) serve() {
@@ -465,6 +475,7 @@ func (s *lifecycleFreeSWITCHServer) handle(command string) string {
 		return s.variable
 	case strings.HasPrefix(command, "api uuid_audio_fork ") && strings.Contains(command, " start "):
 		s.forkStarts++
+		s.lastForkCommand = command
 		if s.failAudioFork {
 			return "-ERR simulated audio fork failure"
 		}
