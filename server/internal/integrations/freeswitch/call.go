@@ -231,6 +231,17 @@ func (c *Client) StartAudioForkWithReply(
 	return reply, nil
 }
 
+func (c *Client) StartAudioClock(ctx context.Context, callID string) error {
+	callID, err := requiredArgument("audio clock call ID", callID)
+	if err != nil {
+		return err
+	}
+	return c.commandOK(
+		ctx,
+		"uuid_broadcast "+commandWords(callID, "silence_stream://-1", "aleg"),
+	)
+}
+
 func (c *Client) StopAudioFork(ctx context.Context, channelID string) error {
 	channelID, err := requiredArgument("audio fork channel ID", channelID)
 	if err != nil {

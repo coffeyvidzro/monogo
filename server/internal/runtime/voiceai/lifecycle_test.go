@@ -61,6 +61,12 @@ func TestLifecycleDuplicateChannelAnswerAttachesOnce(t *testing.T) {
 	if got := freeSwitch.audioForkStarts(); got != 1 {
 		t.Fatalf("audio fork starts = %d, want 1", got)
 	}
+	if got := freeSwitch.audioForkCommand(); strings.Count(got, " ") != 6 {
+		t.Fatalf("audio fork command = %q, want no metadata argument", got)
+	}
+	if got := freeSwitch.audioClockStarts(); got != 1 {
+		t.Fatalf("audio clock starts = %d, want 1", got)
+	}
 	if got := freeSwitch.sessionVariable(); got != db.sessionID.String() {
 		t.Fatalf("Voice Agent session channel variable = %q, want %q", got, db.sessionID)
 	}
@@ -384,9 +390,11 @@ type lifecycleFreeSWITCHServer struct {
 	listener      net.Listener
 	failAudioFork bool
 
-	mu         sync.Mutex
-	variable   string
-	forkStarts int
+	mu              sync.Mutex
+	variable        string
+	forkStarts      int
+	audioClocks     int
+	lastForkCommand string
 }
 
 func newLifecycleFreeSWITCHServer(t *testing.T, failAudioFork bool) *lifecycleFreeSWITCHServer {
@@ -415,6 +423,18 @@ func (s *lifecycleFreeSWITCHServer) audioForkStarts() int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.forkStarts
+}
+
+func (s *lifecycleFreeSWITCHServer) audioForkCommand() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.lastForkCommand
+}
+
+func (s *lifecycleFreeSWITCHServer) audioClockStarts() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.audioClocks
 }
 
 func (s *lifecycleFreeSWITCHServer) serve() {
@@ -465,10 +485,15 @@ func (s *lifecycleFreeSWITCHServer) handle(command string) string {
 		return s.variable
 	case strings.HasPrefix(command, "api uuid_audio_fork ") && strings.Contains(command, " start "):
 		s.forkStarts++
+		s.lastForkCommand = command
 		if s.failAudioFork {
 			return "-ERR simulated audio fork failure"
 		}
 		return "+OK"
+	case strings.HasPrefix(command, "api uuid_broadcast ") &&
+		strings.Contains(command, " silence_stream://-1 aleg"):
+		s.audioClocks++
+		return "+OK Message sent"
 	case strings.HasPrefix(command, "api uuid_setvar "):
 		fields := strings.Fields(command)
 		if len(fields) >= 5 && fields[3] == voiceAgentSessionVariable {

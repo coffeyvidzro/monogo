@@ -2,7 +2,6 @@ package voiceai
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/url"
@@ -92,21 +91,29 @@ func (r *Runtime) attach(ctx context.Context, call sqlc.Call, channelID string) 
 		return fmt.Errorf("create Voice Agent media session: %w", err)
 	}
 
-	metadata, _ := json.Marshal(map[string]string{
-		"voice_agent_session_id": record.ID.String(),
-		"call_id":                call.ID.String(),
-	})
 	reply, err := r.freeSwitch.StartAudioForkWithReply(ctx, freeswitch.AudioForkRequest{
 		ChannelID:    channelID,
 		WebSocketURL: websocketURL,
 		MixType:      "mono",
 		SampleRateHz: format.SampleRateHz,
-		Metadata:     string(metadata),
 	})
 	if err != nil {
 		stopErr := r.media.StopSession(ctx, record.ID)
 		failErr := r.failSession(ctx, call, time.Now().UTC())
 		return errors.Join(fmt.Errorf("start Voice Agent audio fork: %w", err), stopErr, failErr)
+	}
+	if err := r.freeSwitch.StartAudioClock(ctx, channelID); err != nil {
+		forkErr := r.freeSwitch.StopAudioFork(ctx, channelID)
+		clockErr := r.freeSwitch.Break(ctx, channelID)
+		stopErr := r.media.StopSession(ctx, record.ID)
+		failErr := r.failSession(ctx, call, time.Now().UTC())
+		return errors.Join(
+			fmt.Errorf("start Voice Agent audio clock: %w", err),
+			forkErr,
+			clockErr,
+			stopErr,
+			failErr,
+		)
 	}
 	if r.logger != nil {
 		r.logger.Info(
@@ -118,7 +125,7 @@ func (r *Runtime) attach(ctx context.Context, call sqlc.Call, channelID string) 
 			"sample_rate_hz", format.SampleRateHz,
 			"websocket_url", redactWebSocketURL(websocketURL),
 			"freeswitch_command", fmt.Sprintf(
-				"uuid_audio_fork %s start %s mono %d <metadata>",
+				"uuid_audio_fork %s start %s mono %d",
 				channelID,
 				redactWebSocketURL(websocketURL),
 				format.SampleRateHz,

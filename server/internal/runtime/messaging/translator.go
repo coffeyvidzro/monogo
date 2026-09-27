@@ -2,8 +2,9 @@ package messaging
 
 import (
 	"fmt"
-	"github.com/google/uuid"
 	"strings"
+
+	"github.com/google/uuid"
 )
 
 func Translate(messageID, connectionID uuid.UUID, channel Channel, from, to string, body *string) (Request, error) {

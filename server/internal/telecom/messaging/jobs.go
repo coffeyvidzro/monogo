@@ -66,9 +66,10 @@ func (j *Jobs) RunSMPP(ctx context.Context, connection sqlc.MessagingConnection,
 			}
 		case receipt := <-client.Deliveries():
 			status := DeliveryUndelivered
-			if receipt.State == smpp.DeliveryDelivered {
+			switch receipt.State {
+			case smpp.DeliveryDelivered:
 				status = DeliveryDelivered
-			} else if receipt.State == smpp.DeliveryAccepted || receipt.State == smpp.DeliveryEnroute {
+			case smpp.DeliveryAccepted, smpp.DeliveryEnroute:
 				status = DeliverySent
 			}
 			code := receipt.ErrorCode
