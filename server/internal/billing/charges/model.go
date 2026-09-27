@@ -32,7 +32,11 @@ type ListRequest struct {
 }
 
 func normalizeCreate(req *CreateRequest) error {
-	req.ResourceType = strings.ToLower(strings.TrimSpace(req.ResourceType))
+	resourceType, err := normalizeResourceType(req.ResourceType)
+	if err != nil {
+		return err
+	}
+	req.ResourceType = resourceType
 	req.ChargingMode = strings.ToLower(strings.TrimSpace(req.ChargingMode))
 	req.Currency = strings.ToUpper(strings.TrimSpace(req.Currency))
 	req.IdempotencyKey = strings.TrimSpace(req.IdempotencyKey)
@@ -40,17 +44,6 @@ func normalizeCreate(req *CreateRequest) error {
 
 	if req.OrganizationID == uuid.Nil || req.WalletID == uuid.Nil || req.ResourceID == uuid.Nil {
 		return apperror.NewBadRequest("organization, wallet, and resource are required")
-	}
-	if req.ResourceType == "" || len(req.ResourceType) > 64 {
-		return apperror.NewBadRequest("resource_type must be between 1 and 64 characters")
-	}
-	for i, r := range req.ResourceType {
-		if (r < 'a' || r > 'z') && (r < '0' || r > '9') && r != '_' {
-			return apperror.NewBadRequest("resource_type must use lowercase letters, digits, or underscores")
-		}
-		if i == 0 && (r < 'a' || r > 'z') {
-			return apperror.NewBadRequest("resource_type must start with a lowercase letter")
-		}
 	}
 	if req.ChargingMode != ModeRolling && req.ChargingMode != ModeDiscrete {
 		return apperror.NewBadRequest("charging_mode must be rolling or discrete")
@@ -82,4 +75,22 @@ func normalizeCreate(req *CreateRequest) error {
 		return apperror.NewBadRequest("pricing_snapshot must be a JSON object")
 	}
 	return nil
+}
+
+func normalizeResourceType(value string) (string, error) {
+	value = strings.ToLower(strings.TrimSpace(value))
+	if value == "" || len(value) > 64 {
+		return "", apperror.NewBadRequest("resource_type must be between 1 and 64 characters")
+	}
+	for i, r := range value {
+		if (r < 'a' || r > 'z') && (r < '0' || r > '9') && r != '_' {
+			return "", apperror.NewBadRequest(
+				"resource_type must use lowercase letters, digits, or underscores",
+			)
+		}
+		if i == 0 && (r < 'a' || r > 'z') {
+			return "", apperror.NewBadRequest("resource_type must start with a lowercase letter")
+		}
+	}
+	return value, nil
 }
