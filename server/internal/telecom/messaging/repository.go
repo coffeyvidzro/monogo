@@ -49,8 +49,8 @@ func (r *Repository) CreateOutbound(
 			ToAddress:      req.To,
 			Body:           req.Body,
 			Media:          media,
-			IdempotencyKey: idempotencyKey,
-			RequestHash:    requestHash,
+			IdempotencyKey: &idempotencyKey,
+			RequestHash:    &requestHash,
 		})
 	})
 }
@@ -63,7 +63,7 @@ func (r *Repository) CreateInbound(ctx context.Context, req InboundRequest) (sql
 	return r.mutate(ctx, EventReceived, func(repo *Repository) (sqlc.Message, error) {
 		return repo.queries.CreateInboundMessage(ctx, sqlc.CreateInboundMessageParams{
 			OrganizationID:      req.OrganizationID,
-			CarrierConnectionID: &req.CarrierConnectionID,
+			CarrierConnectionID: req.CarrierConnectionID,
 			Channel:             string(req.Channel),
 			FromAddress:         req.From,
 			ToAddress:           req.To,
@@ -105,7 +105,7 @@ func (r *Repository) List(ctx context.Context, organizationID uuid.UUID, req Lis
 
 func (r *Repository) SetProviderAttribution(ctx context.Context, organizationID, id, carrierConnectionID uuid.UUID) (sqlc.Message, error) {
 	return r.queries.SetMessageProviderAttribution(ctx, sqlc.SetMessageProviderAttributionParams{
-		CarrierConnectionID: &carrierConnectionID,
+		CarrierConnectionID: carrierConnectionID,
 		OrganizationID:      organizationID,
 		ID:                  id,
 	})

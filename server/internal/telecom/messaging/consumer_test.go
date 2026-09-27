@@ -15,15 +15,15 @@ type fakeProvider struct {
 	err    error
 }
 
-func (p *fakeProvider) Send(_ context.Context, message OutboundMessage) (Submission, error) {
+func (p *fakeProvider) Send(_ context.Context, _ Route, message OutboundMessage) (Submission, error) {
 	p.got = message
 	return p.result, p.err
 }
 
-type fakeResolver struct{ selection ProviderSelection }
+type fakeResolver struct{ route Route }
 
-func (r fakeResolver) Resolve(context.Context, sqlc.Message) (ProviderSelection, error) {
-	return r.selection, nil
+func (r fakeResolver) Resolve(context.Context, sqlc.Message) (Route, error) {
+	return r.route, nil
 }
 
 type fakeLifecycle struct {
@@ -66,10 +66,10 @@ func (f *fakeLifecycle) GetByProviderID(context.Context, uuid.UUID, string) (sql
 func TestConsumerHandleQueuedUsesProviderNeutralCommand(t *testing.T) {
 	organizationID, messageID, connectionID := uuid.New(), uuid.New(), uuid.New()
 	body := "hello"
-	queued := sqlc.Message{ID: messageID, OrganizationID: organizationID, Direction: "outbound", Status: "queued"}
+	queued := sqlc.Message{ID: messageID, OrganizationID: organizationID, Channel: "sms", Direction: "outbound", Status: "queued"}
 	lifecycle := &fakeLifecycle{attributed: sqlc.Message{ID: messageID, OrganizationID: organizationID, Channel: "sms", Direction: "outbound", Status: "queued", FromAddress: "+12025550100", ToAddress: "+12025550101", Body: &body, Media: []byte("[]")}}
 	provider := &fakeProvider{result: Submission{ProviderMessageID: " carrier-42 "}}
-	consumer := NewConsumer(lifecycle, fakeResolver{ProviderSelection{CarrierConnectionID: connectionID, Provider: provider}})
+	consumer := NewConsumer(lifecycle, fakeResolver{Route{CarrierConnectionID: connectionID}}, NewChannelRouter(ChannelTransports{SMS: provider}))
 	got, err := consumer.HandleQueued(context.Background(), queued)
 	if err != nil {
 		t.Fatalf("HandleQueued() error = %v", err)
@@ -86,8 +86,8 @@ func TestConsumerHandleQueuedReturnsProviderErrorForRetry(t *testing.T) {
 	messageID, organizationID, connectionID := uuid.New(), uuid.New(), uuid.New()
 	lifecycle := &fakeLifecycle{attributed: sqlc.Message{ID: messageID, OrganizationID: organizationID, Channel: "sms", Direction: "outbound", Status: "queued", Media: []byte("[]")}}
 	provider := &fakeProvider{err: errors.New("temporary outage")}
-	consumer := NewConsumer(lifecycle, fakeResolver{ProviderSelection{CarrierConnectionID: connectionID, Provider: provider}})
-	_, err := consumer.HandleQueued(context.Background(), sqlc.Message{ID: messageID, OrganizationID: organizationID, Direction: "outbound", Status: "queued"})
+	consumer := NewConsumer(lifecycle, fakeResolver{Route{CarrierConnectionID: connectionID}}, NewChannelRouter(ChannelTransports{SMS: provider}))
+	_, err := consumer.HandleQueued(context.Background(), sqlc.Message{ID: messageID, OrganizationID: organizationID, Channel: "sms", Direction: "outbound", Status: "queued"})
 	if err == nil {
 		t.Fatal("HandleQueued() error = nil")
 	}
@@ -105,5 +105,29 @@ func TestDeliveryAlreadyAccepted(t *testing.T) {
 		if got := deliveryAlreadyAccepted(test.current, test.incoming); got != test.want {
 			t.Errorf("deliveryAlreadyAccepted(%q, %q) = %v, want %v", test.current, test.incoming, got, test.want)
 		}
+	}
+}
+
+func TestChannelRouterSelectsCanonicalTransport(t *testing.T) {
+	sms, whatsapp, rcs := &fakeProvider{}, &fakeProvider{}, &fakeProvider{}
+	router := NewChannelRouter(ChannelTransports{SMS: sms, WhatsApp: whatsapp, RCS: rcs})
+	for _, test := range []struct {
+		channel Channel
+		want    Transport
+	}{{ChannelSMS, sms}, {ChannelMMS, sms}, {ChannelWhatsApp, whatsapp}, {ChannelRCS, rcs}} {
+		got, err := router.Transport(test.channel)
+		if err != nil {
+			t.Fatalf("Transport(%q) error = %v", test.channel, err)
+		}
+		if got != test.want {
+			t.Errorf("Transport(%q) selected the wrong adapter", test.channel)
+		}
+	}
+}
+
+func TestChannelRouterRejectsUnconfiguredTransport(t *testing.T) {
+	_, err := NewChannelRouter(ChannelTransports{}).Transport(ChannelWhatsApp)
+	if err == nil {
+		t.Fatal("Transport(whatsapp) error = nil")
 	}
 }
