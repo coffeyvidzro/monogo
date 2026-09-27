@@ -79,6 +79,8 @@ chmod 0600 "$CERT_DIR/openai.key" "$CERT_DIR/opensips-privkey.pem"
 cd "$REPO_ROOT"
 $COMPOSE config --quiet
 
+(cd "$REPO_ROOT" && sh tests/pull-acceptance-minio.sh)
+
 $COMPOSE up -d --build postgres redis nats minio voice-agent-v1-openai
 
 printf '%s\n' "Waiting for fake OpenAI Realtime fixture..."
