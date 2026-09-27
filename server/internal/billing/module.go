@@ -1,16 +1,23 @@
 package billing
 
 import (
+	"github.com/coffeyvidzro/monogo/internal/billing/charging"
 	"github.com/coffeyvidzro/monogo/internal/billing/charges"
 	"github.com/coffeyvidzro/monogo/internal/billing/ledger"
 	"github.com/coffeyvidzro/monogo/internal/billing/subscriptions"
 	"github.com/coffeyvidzro/monogo/internal/billing/wallets"
 	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
+	redisintegration "github.com/coffeyvidzro/monogo/internal/integrations/redis"
 )
+
+type Dependencies struct {
+	OCS *redisintegration.OCS
+}
 
 type Module struct {
 	Wallets       WalletsModule
 	Charges       ChargesModule
+	Charging      ChargingModule
 	Ledger        LedgerModule
 	Subscriptions SubscriptionsModule
 }
@@ -25,6 +32,10 @@ type ChargesModule struct {
 	Service    *charges.Service
 }
 
+type ChargingModule struct {
+	Service *charging.Service
+}
+
 type LedgerModule struct {
 	Repository *ledger.Repository
 	Service    *ledger.Service
@@ -35,9 +46,15 @@ type SubscriptionsModule struct {
 	Service    *subscriptions.Service
 }
 
-func New(queries *sqlc.Queries) *Module {
+func New(
+	queries *sqlc.Queries,
+	deps Dependencies,
+) *Module {
 	if queries == nil {
 		panic("billing: queries are required")
+	}
+	if deps.OCS == nil {
+		panic("billing: OCS is required")
 	}
 
 	walletRepository := wallets.NewRepository(
@@ -52,6 +69,12 @@ func New(queries *sqlc.Queries) *Module {
 	)
 	chargeService := charges.NewService(
 		chargeRepository,
+	)
+
+	chargingService := charging.NewService(
+		walletService,
+		chargeService,
+		deps.OCS,
 	)
 
 	ledgerRepository := ledger.NewRepository(
@@ -76,6 +99,9 @@ func New(queries *sqlc.Queries) *Module {
 		Charges: ChargesModule{
 			Repository: chargeRepository,
 			Service:    chargeService,
+		},
+		Charging: ChargingModule{
+			Service: chargingService,
 		},
 		Ledger: LedgerModule{
 			Repository: ledgerRepository,
