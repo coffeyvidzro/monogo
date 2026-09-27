@@ -16,10 +16,18 @@ func TestHandleDeliverSMInbound(t *testing.T) {
 	}
 	body := pdu.NewDeliverSM()
 	fields := body.Fields()
-	fields.Set(pdufield.SourceAddr, "12025550101")
-	fields.Set(pdufield.DestinationAddr, "12025550100")
-	fields.Set(pdufield.ShortMessage, []byte("hello"))
-	fields.Set(pdufield.ESMClass, byte(0))
+	if err := fields.Set(pdufield.SourceAddr, "12025550101"); err != nil {
+		t.Fatalf("set source address: %v", err)
+	}
+	if err := fields.Set(pdufield.DestinationAddr, "12025550100"); err != nil {
+		t.Fatalf("set destination address: %v", err)
+	}
+	if err := fields.Set(pdufield.ShortMessage, []byte("hello")); err != nil {
+		t.Fatalf("set short message: %v", err)
+	}
+	if err := fields.Set(pdufield.ESMClass, byte(0)); err != nil {
+		t.Fatalf("set ESM class: %v", err)
+	}
 	client.handlePDU(body)
 	select {
 	case got := <-client.Inbound():
@@ -39,7 +47,9 @@ func TestHandleDeliverSMTLVReceipt(t *testing.T) {
 	}
 	body := pdu.NewDeliverSM()
 	fields := body.Fields()
-	fields.Set(pdufield.ESMClass, byte(0x04))
+	if err := fields.Set(pdufield.ESMClass, byte(0x04)); err != nil {
+		t.Fatalf("set ESM class: %v", err)
+	}
 	_ = body.TLVFields().Set(pdutlv.TagReceiptedMessageID, pdutlv.CString("provider-42"))
 	_ = body.TLVFields().Set(pdutlv.TagMessageStateOption, byte(2))
 	_ = body.TLVFields().Set(pdutlv.TagNetworkErrorCode, []byte{0, 0, 0})
@@ -62,8 +72,12 @@ func TestHandleDeliverSMReceipt(t *testing.T) {
 	}
 	body := pdu.NewDeliverSM()
 	fields := body.Fields()
-	fields.Set(pdufield.ShortMessage, []byte("id:abc stat:DELIVRD err:000"))
-	fields.Set(pdufield.ESMClass, byte(0x04))
+	if err := fields.Set(pdufield.ShortMessage, []byte("id:abc stat:DELIVRD err:000")); err != nil {
+		t.Fatalf("set short message: %v", err)
+	}
+	if err := fields.Set(pdufield.ESMClass, byte(0x04)); err != nil {
+		t.Fatalf("set ESM class: %v", err)
+	}
 	client.handlePDU(body)
 	select {
 	case got := <-client.Deliveries():
