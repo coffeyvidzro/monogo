@@ -41,6 +41,8 @@ type modules struct {
 	organizationsContext *middleware.OrganizationMiddleware
 	rateLimit            *middleware.RateLimitMiddleware
 	metrics              *metrics.Registry
+	queries              *sqlc.Queries
+	credentialCipher     *encryption.Cipher
 }
 
 func newModules(ctx context.Context, cfg config.Config) (*modules, error) {
@@ -176,6 +178,8 @@ func newModules(ctx context.Context, cfg config.Config) (*modules, error) {
 		organizationsContext: organizationMiddleware,
 		rateLimit:            rateLimitMiddleware,
 		metrics:              metricsRegistry,
+		queries:              queries,
+		credentialCipher:     credentialCipher,
 	}, nil
 }
 
