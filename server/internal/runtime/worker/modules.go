@@ -94,7 +94,11 @@ func newModules(ctx context.Context, cfg config.Config, logger *logging.Logger) 
 		return nil, fmt.Errorf("connect FreeSWITCH: %w", err)
 	}
 
+	var messagingRuntime *messagingRuntime
 	closeDependencies := func() {
+		if messagingRuntime != nil {
+			_ = messagingRuntime.Close()
+		}
 		_ = freeSwitch.Close()
 		_ = natsClient.Close()
 		_ = redisClient.Close()
@@ -107,7 +111,7 @@ func newModules(ctx context.Context, cfg config.Config, logger *logging.Logger) 
 		closeDependencies()
 		return nil, fmt.Errorf("initialize Voice Agent tool encryption: %w", err)
 	}
-	messagingRuntime, err := newMessagingRuntime(ctx, queries, postgresClient.Pool(), natsClient, credentialCipher)
+	messagingRuntime, err = newMessagingRuntime(ctx, queries, postgresClient.Pool(), natsClient, credentialCipher)
 	if err != nil {
 		closeDependencies()
 		return nil, fmt.Errorf("initialize messaging runtime: %w", err)
@@ -269,6 +273,11 @@ func newModules(ctx context.Context, cfg config.Config, logger *logging.Logger) 
 func (m *modules) close(logger *logging.Logger) {
 	if m == nil {
 		return
+	}
+	if m.messaging != nil {
+		if err := m.messaging.Close(); err != nil {
+			logger.Warn(context.Background(), "close messaging runtime", "error", err)
+		}
 	}
 	if m.freeSwitch != nil {
 		if err := m.freeSwitch.Close(); err != nil {

@@ -9,7 +9,11 @@ import (
 )
 
 func TestHandleDeliverSMInbound(t *testing.T) {
-	client := &Client{inbound: make(chan Inbound, 1), deliveries: make(chan Delivery, 1), errors: make(chan error, 1)}
+	client := &Client{
+		inbound:    make(chan Inbound, 1),
+		deliveries: make(chan Delivery, 1),
+		errors:     make(chan error, 1),
+	}
 	body := pdu.NewDeliverSM()
 	fields := body.Fields()
 	fields.Set(pdufield.SourceAddr, "12025550101")
@@ -28,7 +32,11 @@ func TestHandleDeliverSMInbound(t *testing.T) {
 }
 
 func TestHandleDeliverSMTLVReceipt(t *testing.T) {
-	client := &Client{inbound: make(chan Inbound, 1), deliveries: make(chan Delivery, 1), errors: make(chan error, 1)}
+	client := &Client{
+		inbound:    make(chan Inbound, 1),
+		deliveries: make(chan Delivery, 1),
+		errors:     make(chan error, 1),
+	}
 	body := pdu.NewDeliverSM()
 	fields := body.Fields()
 	fields.Set(pdufield.ESMClass, byte(0x04))
@@ -47,7 +55,11 @@ func TestHandleDeliverSMTLVReceipt(t *testing.T) {
 }
 
 func TestHandleDeliverSMReceipt(t *testing.T) {
-	client := &Client{inbound: make(chan Inbound, 1), deliveries: make(chan Delivery, 1), errors: make(chan error, 1)}
+	client := &Client{
+		inbound:    make(chan Inbound, 1),
+		deliveries: make(chan Delivery, 1),
+		errors:     make(chan error, 1),
+	}
 	body := pdu.NewDeliverSM()
 	fields := body.Fields()
 	fields.Set(pdufield.ShortMessage, []byte("id:abc stat:DELIVRD err:000"))

@@ -40,9 +40,12 @@ func normalizeInboundRequest(req InboundRequest) (InboundRequest, error) {
 	if req.MessagingConnectionID == uuid.Nil {
 		return InboundRequest{}, apperror.NewBadRequest("messaging_connection_id is required")
 	}
-	req.ProviderMessageID = strings.TrimSpace(req.ProviderMessageID)
-	if req.ProviderMessageID == "" || len(req.ProviderMessageID) > 255 {
-		return InboundRequest{}, apperror.NewBadRequest("provider_message_id must be between 1 and 255 characters")
+	if req.ProviderMessageID != nil {
+		value := strings.TrimSpace(*req.ProviderMessageID)
+		if value == "" || len(value) > 255 {
+			return InboundRequest{}, apperror.NewBadRequest("provider_message_id must be between 1 and 255 characters")
+		}
+		req.ProviderMessageID = &value
 	}
 	req.Channel = Channel(strings.ToLower(strings.TrimSpace(string(req.Channel))))
 	req.From = strings.TrimSpace(req.From)
@@ -157,7 +160,7 @@ func validateListRequest(req ListRequest) error {
 
 func (s Status) IsValid() bool {
 	switch s {
-	case StatusQueued, StatusSubmitted, StatusSent, StatusDelivered, StatusUndelivered, StatusReceived, StatusFailed:
+	case StatusQueued, StatusSubmitting, StatusSubmissionUnknown, StatusSubmitted, StatusSent, StatusDelivered, StatusUndelivered, StatusReceived, StatusFailed:
 		return true
 	default:
 		return false

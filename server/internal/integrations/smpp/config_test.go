@@ -37,7 +37,11 @@ func TestReceiverBindCannotSubmit(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
-	_, err = client.Submit(t.Context(), SubmitRequest{From: "1", To: "2", Text: "hello"})
+	_, err = client.Submit(t.Context(), SubmitRequest{
+		From: "1",
+		To:   "2",
+		Text: "hello",
+	})
 	if err != ErrSubmitUnsupported {
 		t.Fatalf("Submit() error = %v", err)
 	}

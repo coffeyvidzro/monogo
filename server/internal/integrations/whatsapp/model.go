@@ -34,7 +34,8 @@ type webhookPayload struct {
 			Field string `json:"field"`
 			Value struct {
 				Metadata struct {
-					PhoneNumberID string `json:"phone_number_id"`
+					PhoneNumberID      string `json:"phone_number_id"`
+					DisplayPhoneNumber string `json:"display_phone_number"`
 				} `json:"metadata"`
 				Messages []struct {
 					From string `json:"from"`

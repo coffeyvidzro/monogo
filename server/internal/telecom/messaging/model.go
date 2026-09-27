@@ -26,25 +26,28 @@ const (
 type Status string
 
 const (
-	StatusQueued      Status = "queued"
-	StatusSubmitted   Status = "submitted"
-	StatusSent        Status = "sent"
-	StatusDelivered   Status = "delivered"
-	StatusUndelivered Status = "undelivered"
-	StatusReceived    Status = "received"
-	StatusFailed      Status = "failed"
+	StatusQueued            Status = "queued"
+	StatusSubmitting        Status = "submitting"
+	StatusSubmissionUnknown Status = "submission_unknown"
+	StatusSubmitted         Status = "submitted"
+	StatusSent              Status = "sent"
+	StatusDelivered         Status = "delivered"
+	StatusUndelivered       Status = "undelivered"
+	StatusReceived          Status = "received"
+	StatusFailed            Status = "failed"
 )
 
 type EventType string
 
 const (
-	EventQueued      EventType = "message.queued"
-	EventSubmitted   EventType = "message.submitted"
-	EventSent        EventType = "message.sent"
-	EventDelivered   EventType = "message.delivered"
-	EventUndelivered EventType = "message.undelivered"
-	EventReceived    EventType = "message.received"
-	EventFailed      EventType = "message.failed"
+	EventQueued            EventType = "message.queued"
+	EventSubmissionUnknown EventType = "message.submission_unknown"
+	EventSubmitted         EventType = "message.submitted"
+	EventSent              EventType = "message.sent"
+	EventDelivered         EventType = "message.delivered"
+	EventUndelivered       EventType = "message.undelivered"
+	EventReceived          EventType = "message.received"
+	EventFailed            EventType = "message.failed"
 )
 
 type Media struct {
@@ -63,7 +66,7 @@ type CreateRequest struct {
 type InboundRequest struct {
 	OrganizationID        uuid.UUID
 	MessagingConnectionID uuid.UUID
-	ProviderMessageID     string
+	ProviderMessageID     *string
 	Channel               Channel
 	From                  string
 	To                    string
@@ -107,6 +110,8 @@ type MessageResponse struct {
 	FailureCode           *string         `json:"failure_code,omitempty"`
 	FailureMessage        *string         `json:"failure_message,omitempty"`
 	QueuedAt              *time.Time      `json:"queued_at,omitempty"`
+	SubmittingAt          *time.Time      `json:"submitting_at,omitempty"`
+	SubmissionUnknownAt   *time.Time      `json:"submission_unknown_at,omitempty"`
 	SubmittedAt           *time.Time      `json:"submitted_at,omitempty"`
 	SentAt                *time.Time      `json:"sent_at,omitempty"`
 	DeliveredAt           *time.Time      `json:"delivered_at,omitempty"`
@@ -136,6 +141,8 @@ func messageResponse(value sqlc.Message) MessageResponse {
 		FailureCode:           value.FailureCode,
 		FailureMessage:        value.FailureMessage,
 		QueuedAt:              pgconv.TimestamptzToTimePtr(value.QueuedAt),
+		SubmittingAt:          pgconv.TimestamptzToTimePtr(value.SubmittingAt),
+		SubmissionUnknownAt:   pgconv.TimestamptzToTimePtr(value.SubmissionUnknownAt),
 		SubmittedAt:           pgconv.TimestamptzToTimePtr(value.SubmittedAt),
 		SentAt:                pgconv.TimestamptzToTimePtr(value.SentAt),
 		DeliveredAt:           pgconv.TimestamptzToTimePtr(value.DeliveredAt),

@@ -62,7 +62,10 @@ WHERE connection.id = sqlc.arg(messaging_connection_id)
   AND connection.status = 'active'
   AND organization.status = 'active'
   AND organization.deleted_at IS NULL
-  AND connection.organization_id = sqlc.arg(organization_id)
+  AND (
+    (connection.scope = 'organization' AND connection.organization_id = sqlc.arg(organization_id))
+    OR (connection.scope = 'platform' AND connection.organization_id IS NULL)
+  )
 ON CONFLICT (messaging_connection_id, provider_message_id)
 WHERE messaging_connection_id IS NOT NULL
   AND provider_message_id IS NOT NULL
@@ -117,12 +120,25 @@ WHERE message.organization_id = sqlc.arg(organization_id)
   AND connection.status = 'active'
   AND organization.status = 'active'
   AND organization.deleted_at IS NULL
-  AND connection.organization_id = message.organization_id
+  AND (
+    (connection.scope = 'organization' AND connection.organization_id = message.organization_id)
+    OR (connection.scope = 'platform' AND connection.organization_id IS NULL)
+  )
   AND (
       message.messaging_connection_id IS NULL
       OR message.messaging_connection_id = connection.id
   )
 RETURNING message.*;
+
+-- name: BeginMessageSubmission :one
+UPDATE messages
+SET status = 'submitting', submitting_at = NOW(), updated_at = NOW()
+WHERE organization_id = sqlc.arg(organization_id)
+  AND id = sqlc.arg(id)
+  AND direction = 'outbound'
+  AND status = 'queued'
+  AND messaging_connection_id IS NOT NULL
+RETURNING *;
 
 -- name: MarkMessageSubmitted :one
 UPDATE messages
@@ -134,7 +150,7 @@ SET
 WHERE organization_id = sqlc.arg(organization_id)
   AND id = sqlc.arg(id)
   AND direction = 'outbound'
-  AND status = 'queued'
+  AND status = 'submitting'
   AND messaging_connection_id IS NOT NULL
   AND provider_message_id IS NULL
 RETURNING *;
@@ -190,3 +206,23 @@ WHERE organization_id = sqlc.arg(organization_id)
   AND direction = 'outbound'
   AND status IN ('queued', 'submitted', 'sent')
 RETURNING *;
+
+
+-- name: MarkMessageSubmissionUnknown :one
+UPDATE messages
+SET
+    status = 'submission_unknown',
+    submission_unknown_at = NOW(),
+    failure_code = sqlc.narg(failure_code),
+    failure_message = sqlc.narg(failure_message),
+    updated_at = NOW()
+WHERE organization_id = sqlc.arg(organization_id)
+  AND id = sqlc.arg(id)
+  AND direction = 'outbound'
+  AND status = 'submitting'
+RETURNING *;
+
+-- name: ListStaleMessageSubmissions :many
+SELECT * FROM messages
+WHERE status = 'submitting' AND submitting_at < sqlc.arg(stale_before)
+ORDER BY submitting_at ASC;

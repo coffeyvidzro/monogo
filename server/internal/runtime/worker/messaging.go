@@ -39,6 +39,7 @@ type whatsappConnectionConfig struct {
 type whatsappSecrets struct {
 	AccessToken string `json:"access_token"`
 	AppSecret   string `json:"app_secret"`
+	VerifyToken string `json:"verify_token"`
 }
 
 func newMessagingRuntime(ctx context.Context, queries *sqlc.Queries, db *pgxpool.Pool, nats *natsintegration.Client, cipher *encryption.Cipher) (*messagingRuntime, error) {
@@ -48,6 +49,15 @@ func newMessagingRuntime(ctx context.Context, queries *sqlc.Queries, db *pgxpool
 	}
 	controller := runtimemessaging.NewController()
 	clients := make(map[string]*smpp.Client)
+	initialized := false
+	defer func() {
+		if initialized {
+			return
+		}
+		for _, client := range clients {
+			_ = client.Close()
+		}
+	}()
 	for _, connection := range connections {
 		secret, err := cipher.Decrypt(connection.EncryptedSecret)
 		if err != nil {
@@ -80,7 +90,13 @@ func newMessagingRuntime(ctx context.Context, queries *sqlc.Queries, db *pgxpool
 			if err := json.Unmarshal([]byte(secret), &secrets); err != nil {
 				return nil, err
 			}
-			client, err := whatsapp.New(whatsapp.Config{BaseURL: value.BaseURL, PhoneNumberID: value.PhoneNumberID, AccessToken: secrets.AccessToken, AppSecret: secrets.AppSecret, Timeout: 10 * time.Second}, nil)
+			client, err := whatsapp.New(whatsapp.Config{
+				BaseURL:       value.BaseURL,
+				PhoneNumberID: value.PhoneNumberID,
+				AccessToken:   secrets.AccessToken,
+				AppSecret:     secrets.AppSecret,
+				Timeout:       10 * time.Second,
+			}, nil)
 			if err != nil {
 				return nil, err
 			}
@@ -89,10 +105,28 @@ func newMessagingRuntime(ctx context.Context, queries *sqlc.Queries, db *pgxpool
 	}
 	repo := domain.NewRepository(db)
 	service := domain.NewService(repo)
-	return &messagingRuntime{nats: nats, consumer: domain.NewConsumer(service, repo, controller), jobs: domain.NewJobs(service), connections: connections, smpp: clients}, nil
+	initialized = true
+	return &messagingRuntime{
+		nats:        nats,
+		consumer:    domain.NewConsumer(service, repo, controller),
+		jobs:        domain.NewJobs(service, repo),
+		connections: connections,
+		smpp:        clients,
+	}, nil
 }
 func (m *messagingRuntime) RunOutbound(ctx context.Context) error {
-	consumer, err := m.nats.CreateOrUpdateConsumer(ctx, natsintegration.EventsStreamName, natsjs.ConsumerConfig{Name: "messaging-outbound", Durable: "messaging-outbound", FilterSubject: natsintegration.EventsSubjectPrefix + string(domain.EventQueued), AckPolicy: natsjs.AckExplicitPolicy, AckWait: 30 * time.Second, MaxDeliver: 20})
+	consumer, err := m.nats.CreateOrUpdateConsumer(
+		ctx,
+		natsintegration.EventsStreamName,
+		natsjs.ConsumerConfig{
+			Name:          "messaging-outbound",
+			Durable:       "messaging-outbound",
+			FilterSubject: natsintegration.EventsSubjectPrefix + string(domain.EventQueued),
+			AckPolicy:     natsjs.AckExplicitPolicy,
+			AckWait:       30 * time.Second,
+			MaxDeliver:    20,
+		},
+	)
 	if err != nil {
 		return err
 	}
@@ -101,7 +135,11 @@ func (m *messagingRuntime) RunOutbound(ctx context.Context) error {
 		if err := json.Unmarshal(message.Data(), &event); err != nil {
 			return natsintegration.Term, err
 		}
-		value, err := m.consumer.HandleQueued(messageCtx, responseMessage(event.Resource))
+		value, err := m.consumer.HandleQueuedByID(
+			messageCtx,
+			event.OrganizationID,
+			event.MessageID,
+		)
 		if err != nil {
 			return natsintegration.Nak, err
 		}
@@ -114,26 +152,41 @@ func (m *messagingRuntime) RunOutbound(ctx context.Context) error {
 	return err
 }
 func (m *messagingRuntime) RunInbound(ctx context.Context) error {
-	errCh := make(chan error, len(m.smpp))
 	for _, connection := range m.connections {
 		client := m.smpp[connection.ID.String()]
 		if client != nil {
-			go func(connection sqlc.MessagingConnection, client *smpp.Client) {
-				errCh <- m.jobs.RunSMPP(ctx, connection, client)
-			}(connection, client)
+			go m.superviseSMPP(ctx, connection, client)
 		}
 	}
-	if len(m.smpp) == 0 {
-		<-ctx.Done()
-		return nil
-	}
-	select {
-	case <-ctx.Done():
-		return nil
-	case err := <-errCh:
-		return err
+	<-ctx.Done()
+	return nil
+}
+
+func (m *messagingRuntime) superviseSMPP(
+	ctx context.Context,
+	connection sqlc.MessagingConnection,
+	client *smpp.Client,
+) {
+	for ctx.Err() == nil {
+		if err := m.jobs.RunSMPP(ctx, connection, client); err == nil {
+			return
+		}
+		timer := time.NewTimer(5 * time.Second)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return
+		case <-timer.C:
+		}
 	}
 }
-func responseMessage(value domain.MessageResponse) sqlc.Message {
-	return sqlc.Message{ID: value.ID, OrganizationID: value.OrganizationID, MessagingConnectionID: value.MessagingConnectionID, Channel: value.Channel, Direction: value.Direction, Status: value.Status, FromAddress: value.From, ToAddress: value.To, Body: value.Body, Media: value.Media}
+
+func (m *messagingRuntime) Close() error {
+	var result error
+	for id, client := range m.smpp {
+		if err := client.Close(); err != nil {
+			result = errors.Join(result, fmt.Errorf("close SMPP connection %s: %w", id, err))
+		}
+	}
+	return result
 }

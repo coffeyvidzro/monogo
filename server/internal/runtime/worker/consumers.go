@@ -179,6 +179,7 @@ func runWorkloads(ctx context.Context, logger *logging.Logger, modules *modules)
 	if modules.messaging != nil {
 		run("messaging outbound consumer", modules.messaging.RunOutbound)
 		run("messaging inbound consumer", modules.messaging.RunInbound)
+		run("messaging submission reconciliation", modules.messaging.jobs.RunSubmissionReconciliation)
 	}
 	if modules.numberReconciliation != nil {
 		run("managed number reconciliation", modules.numberReconciliation.Run)

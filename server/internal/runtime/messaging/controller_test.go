@@ -12,12 +12,22 @@ import (
 )
 
 func TestControllerUsesSelectedWhatsAppConnection(t *testing.T) {
-	selected := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { fmt.Fprint(w, `{"messages":[{"id":"selected"}]}`) }))
+	selected := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = fmt.Fprint(w, `{"messages":[{"id":"selected"}]}`)
+	}))
 	defer selected.Close()
-	other := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { fmt.Fprint(w, `{"messages":[{"id":"other"}]}`) }))
+	other := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = fmt.Fprint(w, `{"messages":[{"id":"other"}]}`)
+	}))
 	defer other.Close()
 	newClient := func(server *httptest.Server) *whatsapp.Client {
-		client, err := whatsapp.New(whatsapp.Config{BaseURL: server.URL, AccessToken: "token", PhoneNumberID: "phone", AppSecret: "secret", Timeout: time.Second}, server.Client())
+		client, err := whatsapp.New(whatsapp.Config{
+			BaseURL:       server.URL,
+			AccessToken:   "token",
+			PhoneNumberID: "phone",
+			AppSecret:     "secret",
+			Timeout:       time.Second,
+		}, server.Client())
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -27,7 +37,13 @@ func TestControllerUsesSelectedWhatsAppConnection(t *testing.T) {
 	controller := NewController()
 	controller.RegisterWhatsApp(selectedID, newClient(selected))
 	controller.RegisterWhatsApp(otherID, newClient(other))
-	result, err := controller.Send(t.Context(), Request{MessageID: uuid.New(), ConnectionID: selectedID, Channel: ChannelWhatsApp, To: "15550001", Text: "hello"})
+	result, err := controller.Send(t.Context(), Request{
+		MessageID:    uuid.New(),
+		ConnectionID: selectedID,
+		Channel:      ChannelWhatsApp,
+		To:           "15550001",
+		Text:         "hello",
+	})
 	if err != nil {
 		t.Fatal(err)
 	}

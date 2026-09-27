@@ -26,7 +26,16 @@ func TestParseDeliveryReceiptRejectsMalformed(t *testing.T) {
 }
 
 func TestNormalizeDeliveryStates(t *testing.T) {
-	for input, want := range map[string]DeliveryState{"ENROUTE": DeliveryEnroute, "DELIVRD": DeliveryDelivered, "EXPIRED": DeliveryExpired, "DELETED": DeliveryDeleted, "UNDELIV": DeliveryUndeliverable, "ACCEPTD": DeliveryAccepted, "UNKNOWN": DeliveryUnknown, "REJECTD": DeliveryRejected} {
+	for input, want := range map[string]DeliveryState{
+		"ENROUTE": DeliveryEnroute,
+		"DELIVRD": DeliveryDelivered,
+		"EXPIRED": DeliveryExpired,
+		"DELETED": DeliveryDeleted,
+		"UNDELIV": DeliveryUndeliverable,
+		"ACCEPTD": DeliveryAccepted,
+		"UNKNOWN": DeliveryUnknown,
+		"REJECTD": DeliveryRejected,
+	} {
 		if got := normalizeDeliveryState(input); got != want {
 			t.Errorf("normalizeDeliveryState(%q) = %q, want %q", input, got, want)
 		}

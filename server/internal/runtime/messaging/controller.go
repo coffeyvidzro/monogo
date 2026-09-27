@@ -18,7 +18,10 @@ type Controller struct {
 }
 
 func NewController() *Controller {
-	return &Controller{sms: make(map[uuid.UUID]*SMS), whatsapp: make(map[uuid.UUID]*WhatsApp)}
+	return &Controller{
+		sms:      make(map[uuid.UUID]*SMS),
+		whatsapp: make(map[uuid.UUID]*WhatsApp),
+	}
 }
 func (c *Controller) RegisterSMS(id uuid.UUID, client *smpp.Client) {
 	c.mu.Lock()

@@ -26,7 +26,14 @@ func ParseDeliveryReceipt(raw string) (Delivery, error) {
 	if id == "" || state == "" {
 		return Delivery{}, fmt.Errorf("%w: id and stat are required", ErrMalformedReceipt)
 	}
-	return Delivery{MessageID: id, State: state, ErrorCode: values["err"], SubmittedAt: parseReceiptTime(values["submit date"]), DoneAt: parseReceiptTime(values["done date"]), Raw: raw}, nil
+	return Delivery{
+		MessageID:   id,
+		State:       state,
+		ErrorCode:   values["err"],
+		SubmittedAt: parseReceiptTime(values["submit date"]),
+		DoneAt:      parseReceiptTime(values["done date"]),
+		Raw:         raw,
+	}, nil
 }
 
 func normalizeDeliveryState(value string) DeliveryState {

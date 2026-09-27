@@ -47,16 +47,21 @@ func TestNormalizeCreateRequestRejectsSMSMedia(t *testing.T) {
 		From:    "+233200000001",
 		To:      "+233200000002",
 		Body:    &body,
-		Media:   []Media{{URL: "https://example.com/image.jpg", ContentType: "image/jpeg"}},
+		Media: []Media{
+			{
+				URL:         "https://example.com/image.jpg",
+				ContentType: "image/jpeg",
+			},
+		},
 	})
 	if err == nil {
 		t.Fatal("normalizeCreateRequest() error = nil")
 	}
 }
 
-func TestNormalizeInboundRequestRequiresProviderIdentity(t *testing.T) {
+func TestNormalizeInboundRequestAllowsMissingProviderIdentity(t *testing.T) {
 	body := "hello"
-	_, err := normalizeInboundRequest(InboundRequest{
+	request, err := normalizeInboundRequest(InboundRequest{
 		OrganizationID:        uuid.New(),
 		MessagingConnectionID: uuid.New(),
 		Channel:               ChannelSMS,
@@ -64,8 +69,11 @@ func TestNormalizeInboundRequestRequiresProviderIdentity(t *testing.T) {
 		To:                    "+233200000002",
 		Body:                  &body,
 	})
-	if err == nil {
-		t.Fatal("normalizeInboundRequest() error = nil")
+	if err != nil {
+		t.Fatalf("normalizeInboundRequest() error = %v", err)
+	}
+	if request.ProviderMessageID != nil {
+		t.Fatalf("provider message ID = %q", *request.ProviderMessageID)
 	}
 }
 
@@ -90,11 +98,21 @@ func TestNormalizeListRequest(t *testing.T) {
 func TestRequestHashChangesWithPayload(t *testing.T) {
 	bodyA := "one"
 	bodyB := "two"
-	a, err := requestHash(CreateRequest{Channel: ChannelSMS, From: "a", To: "b", Body: &bodyA})
+	a, err := requestHash(CreateRequest{
+		Channel: ChannelSMS,
+		From:    "a",
+		To:      "b",
+		Body:    &bodyA,
+	})
 	if err != nil {
 		t.Fatalf("requestHash(a) error = %v", err)
 	}
-	b, err := requestHash(CreateRequest{Channel: ChannelSMS, From: "a", To: "b", Body: &bodyB})
+	b, err := requestHash(CreateRequest{
+		Channel: ChannelSMS,
+		From:    "a",
+		To:      "b",
+		Body:    &bodyB,
+	})
 	if err != nil {
 		t.Fatalf("requestHash(b) error = %v", err)
 	}

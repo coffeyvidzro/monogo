@@ -11,7 +11,14 @@ import (
 
 // SendMessage exposes WhatsApp-owned types; canonical translation belongs to runtime/messaging.
 func (c *Client) SendMessage(ctx context.Context, message MessageRequest) (MessageResult, error) {
-	payload, err := json.Marshal(sendRequest{MessagingProduct: "whatsapp", To: message.To, Type: "text", Text: textPayload{Body: message.Text}})
+	payload, err := json.Marshal(sendRequest{
+		MessagingProduct: "whatsapp",
+		To:               message.To,
+		Type:             "text",
+		Text: textPayload{
+			Body: message.Text,
+		},
+	})
 	if err != nil {
 		return MessageResult{}, fmt.Errorf("encode WhatsApp message: %w", err)
 	}
@@ -32,11 +39,16 @@ func (c *Client) SendMessage(ctx context.Context, message MessageRequest) (Messa
 		return MessageResult{}, fmt.Errorf("read WhatsApp response: %w", err)
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return MessageResult{}, &APIError{Status: resp.StatusCode, Message: string(body)}
+		return MessageResult{}, &APIError{
+			Status:  resp.StatusCode,
+			Message: string(body),
+		}
 	}
 	var result sendResponse
 	if err := json.Unmarshal(body, &result); err != nil || len(result.Messages) == 0 || result.Messages[0].ID == "" {
 		return MessageResult{}, fmt.Errorf("invalid WhatsApp message response")
 	}
-	return MessageResult{MessageID: result.Messages[0].ID}, nil
+	return MessageResult{
+		MessageID: result.Messages[0].ID,
+	}, nil
 }

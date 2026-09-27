@@ -16,8 +16,13 @@ func New(config Config, client *http.Client) (*Client, error) {
 		return nil, err
 	}
 	if client == nil {
-		client = &http.Client{Timeout: config.Timeout}
+		client = &http.Client{
+			Timeout: config.Timeout,
+		}
 	}
 	config.BaseURL = strings.TrimRight(config.BaseURL, "/")
-	return &Client{config: config, http: client}, nil
+	return &Client{
+		config: config,
+		http:   client,
+	}, nil
 }

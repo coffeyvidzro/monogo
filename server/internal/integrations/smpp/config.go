@@ -31,7 +31,18 @@ type Config struct {
 }
 
 func DefaultConfig(host string, port int, systemID, password string) Config {
-	return Config{Host: host, Port: port, SystemID: systemID, Password: password, BindMode: BindTransceiver, EnquireLink: 30 * time.Second, EnquireLinkTimeout: 90 * time.Second, ResponseTimeout: 5 * time.Second, ReconnectInterval: 5 * time.Second, WindowSize: 10}
+	return Config{
+		Host:               host,
+		Port:               port,
+		SystemID:           systemID,
+		Password:           password,
+		BindMode:           BindTransceiver,
+		EnquireLink:        30 * time.Second,
+		EnquireLinkTimeout: 90 * time.Second,
+		ResponseTimeout:    5 * time.Second,
+		ReconnectInterval:  5 * time.Second,
+		WindowSize:         10,
+	}
 }
 func (c Config) Address() string {
 	return net.JoinHostPort(strings.TrimSpace(c.Host), strconv.Itoa(c.Port))

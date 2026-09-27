@@ -42,18 +42,55 @@ func New(config Config) (*Client, error) {
 	if err := config.Validate(); err != nil {
 		return nil, err
 	}
-	c := &Client{config: config, state: StateDisconnected, states: make(chan StateChange, 16), inbound: make(chan Inbound, 64), deliveries: make(chan Delivery, 64), errors: make(chan error, 16)}
+	c := &Client{
+		config:     config,
+		state:      StateDisconnected,
+		states:     make(chan StateChange, 16),
+		inbound:    make(chan Inbound, 64),
+		deliveries: make(chan Delivery, 64),
+		errors:     make(chan error, 16),
+	}
 	handler := func(body pdu.Body) { c.handlePDU(body) }
 	switch config.BindMode {
 	case BindTransmitter:
-		tx := &gosmpp.Transmitter{Addr: config.Address(), User: config.SystemID, Passwd: config.Password, SystemType: config.SystemType, EnquireLink: config.EnquireLink, EnquireLinkTimeout: config.EnquireLinkTimeout, RespTimeout: config.ResponseTimeout, BindInterval: config.ReconnectInterval, WindowSize: config.WindowSize}
+		tx := &gosmpp.Transmitter{
+			Addr:               config.Address(),
+			User:               config.SystemID,
+			Passwd:             config.Password,
+			SystemType:         config.SystemType,
+			EnquireLink:        config.EnquireLink,
+			EnquireLinkTimeout: config.EnquireLinkTimeout,
+			RespTimeout:        config.ResponseTimeout,
+			BindInterval:       config.ReconnectInterval,
+			WindowSize:         config.WindowSize,
+		}
 		c.session = tx
 		c.submitter = tx
 	case BindReceiver:
-		rx := &gosmpp.Receiver{Addr: config.Address(), User: config.SystemID, Passwd: config.Password, SystemType: config.SystemType, EnquireLink: config.EnquireLink, EnquireLinkTimeout: config.EnquireLinkTimeout, BindInterval: config.ReconnectInterval, Handler: handler}
+		rx := &gosmpp.Receiver{
+			Addr:               config.Address(),
+			User:               config.SystemID,
+			Passwd:             config.Password,
+			SystemType:         config.SystemType,
+			EnquireLink:        config.EnquireLink,
+			EnquireLinkTimeout: config.EnquireLinkTimeout,
+			BindInterval:       config.ReconnectInterval,
+			Handler:            handler,
+		}
 		c.session = rx
 	case BindTransceiver:
-		tc := &gosmpp.Transceiver{Addr: config.Address(), User: config.SystemID, Passwd: config.Password, SystemType: config.SystemType, EnquireLink: config.EnquireLink, EnquireLinkTimeout: config.EnquireLinkTimeout, RespTimeout: config.ResponseTimeout, BindInterval: config.ReconnectInterval, WindowSize: config.WindowSize, Handler: handler}
+		tc := &gosmpp.Transceiver{
+			Addr:               config.Address(),
+			User:               config.SystemID,
+			Passwd:             config.Password,
+			SystemType:         config.SystemType,
+			EnquireLink:        config.EnquireLink,
+			EnquireLinkTimeout: config.EnquireLinkTimeout,
+			RespTimeout:        config.ResponseTimeout,
+			BindInterval:       config.ReconnectInterval,
+			WindowSize:         config.WindowSize,
+			Handler:            handler,
+		}
 		c.session = tc
 		c.submitter = tc
 	}
@@ -120,7 +157,11 @@ func (c *Client) setState(state ConnectionState, err error) {
 	c.lastErr = err
 	c.mu.Unlock()
 	select {
-	case c.states <- StateChange{State: state, Err: err, At: time.Now().UTC()}:
+	case c.states <- StateChange{
+		State: state,
+		Err:   err,
+		At:    time.Now().UTC(),
+	}:
 	default:
 	}
 }

@@ -43,10 +43,23 @@ func ParseWebhook(body []byte) ([]WebhookEvent, error) {
 				if message.Type != "text" {
 					continue
 				}
-				events = append(events, WebhookEvent{Kind: EventMessage, PhoneNumberID: v.Metadata.PhoneNumberID, MessageID: message.ID, From: message.From, To: v.Metadata.PhoneNumberID, Text: message.Text.Body})
+				events = append(events, WebhookEvent{
+					Kind:          EventMessage,
+					PhoneNumberID: v.Metadata.PhoneNumberID,
+					MessageID:     message.ID,
+					From:          message.From,
+					To:            normalizeDisplayPhoneNumber(v.Metadata.DisplayPhoneNumber),
+					Text:          message.Text.Body,
+				})
 			}
 			for _, status := range v.Statuses {
-				event := WebhookEvent{Kind: EventStatus, PhoneNumberID: v.Metadata.PhoneNumberID, MessageID: status.ID, To: status.RecipientID, Status: status.Status}
+				event := WebhookEvent{
+					Kind:          EventStatus,
+					PhoneNumberID: v.Metadata.PhoneNumberID,
+					MessageID:     status.ID,
+					To:            status.RecipientID,
+					Status:        status.Status,
+				}
 				if len(status.Errors) > 0 {
 					event.ErrorCode = strconv.Itoa(status.Errors[0].Code)
 					event.ErrorMessage = status.Errors[0].Message
@@ -56,4 +69,17 @@ func ParseWebhook(body []byte) ([]WebhookEvent, error) {
 		}
 	}
 	return events, nil
+}
+
+func normalizeDisplayPhoneNumber(value string) string {
+	value = strings.TrimSpace(value)
+	if value == "" || strings.HasPrefix(value, "+") {
+		return value
+	}
+	for _, character := range value {
+		if character < '0' || character > '9' {
+			return value
+		}
+	}
+	return "+" + value
 }

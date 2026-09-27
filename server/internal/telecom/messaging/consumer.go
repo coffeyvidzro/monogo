@@ -8,6 +8,7 @@ import (
 
 	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
 	runtimemessaging "github.com/coffeyvidzro/monogo/internal/runtime/messaging"
+	"github.com/google/uuid"
 )
 
 // Consumer owns canonical state transitions and delegates execution to the runtime.
@@ -21,8 +22,29 @@ func NewConsumer(service *Service, repo *Repository, runtime *runtimemessaging.C
 	if service == nil || repo == nil || runtime == nil {
 		panic("messaging: service, repository, and runtime are required")
 	}
-	return &Consumer{service: service, repo: repo, runtime: runtime}
+	return &Consumer{
+		service: service,
+		repo:    repo,
+		runtime: runtime,
+	}
 }
+
+// HandleQueuedByID reloads current durable state. Outbox payloads are
+// historical snapshots and must never drive an external side effect directly.
+func (c *Consumer) HandleQueuedByID(
+	ctx context.Context,
+	organizationID, messageID uuid.UUID,
+) (sqlc.Message, error) {
+	message, err := c.service.Get(ctx, organizationID, messageID)
+	if err != nil {
+		return sqlc.Message{}, err
+	}
+	if message.Status != string(StatusQueued) {
+		return message, nil
+	}
+	return c.HandleQueued(ctx, message)
+}
+
 func (c *Consumer) HandleQueued(ctx context.Context, message sqlc.Message) (sqlc.Message, error) {
 	if message.Direction != string(DirectionOutbound) || message.Status != string(StatusQueued) {
 		return sqlc.Message{}, fmt.Errorf("message %s is not queued outbound", message.ID)
@@ -31,22 +53,42 @@ func (c *Consumer) HandleQueued(ctx context.Context, message sqlc.Message) (sqlc
 	if err != nil {
 		return sqlc.Message{}, fmt.Errorf("resolve messaging connection: %w", err)
 	}
-	attributed, err := c.service.SetProviderAttribution(ctx, message.OrganizationID, message.ID, connection.ID)
+	_, err = c.service.SetProviderAttribution(ctx, message.OrganizationID, message.ID, connection.ID)
 	if err != nil {
 		return sqlc.Message{}, err
 	}
-	request, err := runtimemessaging.Translate(attributed.ID, connection.ID, runtimemessaging.Channel(attributed.Channel), attributed.FromAddress, attributed.ToAddress, attributed.Body)
+	submitting, err := c.service.BeginSubmission(ctx, message.OrganizationID, message.ID)
+	if err != nil {
+		return sqlc.Message{}, err
+	}
+	request, err := runtimemessaging.Translate(
+		submitting.ID,
+		connection.ID,
+		runtimemessaging.Channel(submitting.Channel),
+		submitting.FromAddress,
+		submitting.ToAddress,
+		submitting.Body,
+	)
 	if err != nil {
 		return sqlc.Message{}, err
 	}
 	result, err := c.runtime.Send(ctx, request)
 	if err != nil {
-		return sqlc.Message{}, fmt.Errorf("submit %s message: %w", message.Channel, err)
+		code := "submission_outcome_unknown"
+		detail := fmt.Sprintf("%s submission may have reached the provider: %v", message.Channel, err)
+		return c.service.MarkSubmissionUnknown(ctx, message.OrganizationID, message.ID, Failure{
+			Code:    &code,
+			Message: &detail,
+		})
 	}
 	providerID := strings.TrimSpace(result.ExternalID)
 	if providerID == "" {
-		code, detail := "invalid_provider_response", "transport accepted message without an id"
-		return c.service.MarkFailed(ctx, message.OrganizationID, message.ID, Failure{Code: &code, Message: &detail})
+		code := "submission_outcome_unknown"
+		detail := "transport accepted message without returning a provider message id"
+		return c.service.MarkSubmissionUnknown(ctx, message.OrganizationID, message.ID, Failure{
+			Code:    &code,
+			Message: &detail,
+		})
 	}
 	return c.service.MarkSubmitted(ctx, message.OrganizationID, message.ID, providerID)
 }

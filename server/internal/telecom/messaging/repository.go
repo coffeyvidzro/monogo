@@ -9,6 +9,7 @@ import (
 	"github.com/coffeyvidzro/monogo/internal/platform/outbox"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -23,12 +24,20 @@ func NewRepository(db *pgxpool.Pool) *Repository {
 		panic("messaging: database is required")
 	}
 	queries := sqlc.New(db)
-	return &Repository{db: db, queries: queries, outbox: outbox.NewRepository(queries)}
+	return &Repository{
+		db:      db,
+		queries: queries,
+		outbox:  outbox.NewRepository(queries),
+	}
 }
 
 func (r *Repository) WithTx(tx pgx.Tx) *Repository {
 	queries := r.queries.WithTx(tx)
-	return &Repository{db: r.db, queries: queries, outbox: outbox.NewRepository(queries)}
+	return &Repository{
+		db:      r.db,
+		queries: queries,
+		outbox:  outbox.NewRepository(queries),
+	}
 }
 
 func (r *Repository) CreateOutbound(
@@ -69,13 +78,16 @@ func (r *Repository) CreateInbound(ctx context.Context, req InboundRequest) (sql
 			ToAddress:             req.To,
 			Body:                  req.Body,
 			Media:                 media,
-			ProviderMessageID:     &req.ProviderMessageID,
+			ProviderMessageID:     req.ProviderMessageID,
 		})
 	})
 }
 
 func (r *Repository) Get(ctx context.Context, organizationID, id uuid.UUID) (sqlc.Message, error) {
-	return r.queries.GetMessage(ctx, sqlc.GetMessageParams{OrganizationID: organizationID, ID: id})
+	return r.queries.GetMessage(ctx, sqlc.GetMessageParams{
+		OrganizationID: organizationID,
+		ID:             id,
+	})
 }
 
 func (r *Repository) GetByIdempotencyKey(ctx context.Context, organizationID uuid.UUID, key string) (sqlc.Message, error) {
@@ -104,9 +116,22 @@ func (r *Repository) List(ctx context.Context, organizationID uuid.UUID, req Lis
 }
 
 func (r *Repository) ResolveConnection(ctx context.Context, organizationID uuid.UUID, channel Channel) (sqlc.MessagingConnection, error) {
+	// This is deliberately a first-active fallback. Destination, health,
+	// capacity, cost, and priority policy belongs in the future router.
 	return r.queries.ResolveMessagingConnection(ctx, sqlc.ResolveMessagingConnectionParams{
-		OrganizationID: organizationID,
+		OrganizationID: &organizationID,
 		Channel:        string(channel),
+	})
+}
+
+func (r *Repository) ResolveInboundOrganization(
+	ctx context.Context,
+	messagingConnectionID uuid.UUID,
+	to string,
+) (uuid.UUID, error) {
+	return r.queries.ResolveInboundMessagingOrganization(ctx, sqlc.ResolveInboundMessagingOrganizationParams{
+		MessagingConnectionID: messagingConnectionID,
+		ToAddress:             to,
 	})
 }
 
@@ -115,6 +140,35 @@ func (r *Repository) SetProviderAttribution(ctx context.Context, organizationID,
 		MessagingConnectionID: messagingConnectionID,
 		OrganizationID:        organizationID,
 		ID:                    id,
+	})
+}
+
+func (r *Repository) BeginSubmission(ctx context.Context, organizationID, id uuid.UUID) (sqlc.Message, error) {
+	return r.queries.BeginMessageSubmission(ctx, sqlc.BeginMessageSubmissionParams{
+		OrganizationID: organizationID,
+		ID:             id,
+	})
+}
+
+func (r *Repository) MarkSubmissionUnknown(
+	ctx context.Context,
+	organizationID, id uuid.UUID,
+	failure Failure,
+) (sqlc.Message, error) {
+	return r.mutate(ctx, EventSubmissionUnknown, func(repo *Repository) (sqlc.Message, error) {
+		return repo.queries.MarkMessageSubmissionUnknown(ctx, sqlc.MarkMessageSubmissionUnknownParams{
+			FailureCode:    failure.Code,
+			FailureMessage: failure.Message,
+			OrganizationID: organizationID,
+			ID:             id,
+		})
+	})
+}
+
+func (r *Repository) ListStaleSubmissions(ctx context.Context, staleBefore time.Time) ([]sqlc.Message, error) {
+	return r.queries.ListStaleMessageSubmissions(ctx, pgtype.Timestamptz{
+		Time:  staleBefore,
+		Valid: true,
 	})
 }
 
@@ -130,13 +184,19 @@ func (r *Repository) MarkSubmitted(ctx context.Context, organizationID, id uuid.
 
 func (r *Repository) MarkSent(ctx context.Context, organizationID, id uuid.UUID) (sqlc.Message, error) {
 	return r.mutate(ctx, EventSent, func(repo *Repository) (sqlc.Message, error) {
-		return repo.queries.MarkMessageSent(ctx, sqlc.MarkMessageSentParams{OrganizationID: organizationID, ID: id})
+		return repo.queries.MarkMessageSent(ctx, sqlc.MarkMessageSentParams{
+			OrganizationID: organizationID,
+			ID:             id,
+		})
 	})
 }
 
 func (r *Repository) MarkDelivered(ctx context.Context, organizationID, id uuid.UUID) (sqlc.Message, error) {
 	return r.mutate(ctx, EventDelivered, func(repo *Repository) (sqlc.Message, error) {
-		return repo.queries.MarkMessageDelivered(ctx, sqlc.MarkMessageDeliveredParams{OrganizationID: organizationID, ID: id})
+		return repo.queries.MarkMessageDelivered(ctx, sqlc.MarkMessageDeliveredParams{
+			OrganizationID: organizationID,
+			ID:             id,
+		})
 	})
 }
 

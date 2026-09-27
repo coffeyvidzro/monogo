@@ -14,5 +14,12 @@ func Translate(messageID, connectionID uuid.UUID, channel Channel, from, to stri
 	if body != nil {
 		text = *body
 	}
-	return Request{MessageID: messageID, ConnectionID: connectionID, Channel: channel, From: strings.TrimSpace(from), To: strings.TrimSpace(to), Text: text}, nil
+	return Request{
+		MessageID:    messageID,
+		ConnectionID: connectionID,
+		Channel:      channel,
+		From:         strings.TrimSpace(from),
+		To:           strings.TrimSpace(to),
+		Text:         text,
+	}, nil
 }

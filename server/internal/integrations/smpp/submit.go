@@ -32,7 +32,17 @@ func (c *Client) Submit(ctx context.Context, request SubmitRequest) (SubmitResul
 	if request.RequestDeliveryReceipt {
 		register = pdufield.FinalDeliveryReceipt
 	}
-	message, err := c.submitter.Submit(&gosmpp.ShortMessage{Src: request.From, Dst: request.To, Text: pdutext.Raw(request.Text), Register: register, ServiceType: request.ServiceType, SourceAddrTON: request.SourceTON, SourceAddrNPI: request.SourceNPI, DestAddrTON: request.DestinationTON, DestAddrNPI: request.DestinationNPI})
+	message, err := c.submitter.Submit(&gosmpp.ShortMessage{
+		Src:           request.From,
+		Dst:           request.To,
+		Text:          pdutext.Raw(request.Text),
+		Register:      register,
+		ServiceType:   request.ServiceType,
+		SourceAddrTON: request.SourceTON,
+		SourceAddrNPI: request.SourceNPI,
+		DestAddrTON:   request.DestinationTON,
+		DestAddrNPI:   request.DestinationNPI,
+	})
 	if errors.Is(err, gosmpp.ErrNotConnected) {
 		return SubmitResult{}, ErrNotConnected
 	}
@@ -43,5 +53,7 @@ func (c *Client) Submit(ctx context.Context, request SubmitRequest) (SubmitResul
 	if id == "" {
 		return SubmitResult{}, fmt.Errorf("SMPP submit_sm_resp did not contain a message id")
 	}
-	return SubmitResult{MessageID: id}, nil
+	return SubmitResult{
+		MessageID: id,
+	}, nil
 }

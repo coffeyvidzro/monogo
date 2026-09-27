@@ -26,7 +26,6 @@ type StateChange struct {
 }
 type Inbound struct {
 	From, To, Text string
-	Reference      string
 	ReceivedAt     time.Time
 }
 type DeliveryState string
