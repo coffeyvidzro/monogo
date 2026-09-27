@@ -90,20 +90,11 @@ func (s *Service) ByResource(
 	if organizationID == uuid.Nil || resourceID == uuid.Nil {
 		return sqlc.Charge{}, apperror.NewBadRequest("organization and resource are required")
 	}
-	probe := CreateRequest{
-		OrganizationID: organizationID,
-		WalletID:       uuid.New(),
-		ResourceType:   resourceType,
-		ResourceID:     resourceID,
-		ChargingMode:   ModeDiscrete,
-		Currency:       "USD",
-		IdempotencyKey: "probe",
-		RequestHash:    "0000000000000000000000000000000000000000000000000000000000000000",
-	}
-	if err := normalizeCreate(&probe); err != nil {
+	resourceType, err := normalizeResourceType(resourceType)
+	if err != nil {
 		return sqlc.Charge{}, err
 	}
-	charge, err := s.repo.ByResource(ctx, organizationID, probe.ResourceType, resourceID)
+	charge, err := s.repo.ByResource(ctx, organizationID, resourceType, resourceID)
 	return charge, chargeReadError(err)
 }
 
