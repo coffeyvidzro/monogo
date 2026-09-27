@@ -81,6 +81,37 @@ $COMPOSE config --quiet
 
 $COMPOSE up -d --build postgres redis nats minio voice-agent-v1-openai
 
+printf '%s\n' "Waiting for fake OpenAI Realtime fixture..."
+fake_openai_ready=0
+for _ in $(seq 1 60); do
+    if python3 - <<'PY'
+import os
+import ssl
+import urllib.request
+
+cert_dir = os.environ["VOICE_AGENT_V1_CERT_DIR"]
+context = ssl.create_default_context(cafile=os.path.join(cert_dir, "ca.crt"))
+try:
+    with urllib.request.urlopen(
+        "https://127.0.0.1:18444/healthz",
+        timeout=2,
+        context=context,
+    ) as response:
+        raise SystemExit(0 if response.status == 200 else 1)
+except Exception:
+    raise SystemExit(1)
+PY
+    then
+        fake_openai_ready=1
+        break
+    fi
+    sleep 1
+done
+[ "$fake_openai_ready" -eq 1 ] || {
+    echo "fake OpenAI Realtime fixture did not become ready" >&2
+    exit 1
+}
+
 printf '%s\n' "Waiting for PostgreSQL..."
 i=0
 until $COMPOSE exec -T postgres pg_isready -U leamout -d leamout >/dev/null 2>&1; do
