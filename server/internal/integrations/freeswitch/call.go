@@ -200,8 +200,16 @@ func (c *Client) Record(ctx context.Context, req RecordRequest) error {
 }
 
 func (c *Client) StartAudioFork(ctx context.Context, req AudioForkRequest) error {
+	_, err := c.StartAudioForkWithReply(ctx, req)
+	return err
+}
+
+func (c *Client) StartAudioForkWithReply(
+	ctx context.Context,
+	req AudioForkRequest,
+) (Reply, error) {
 	if err := req.Validate(); err != nil {
-		return err
+		return Reply{}, err
 	}
 	arguments := []string{
 		req.ChannelID,
@@ -213,7 +221,14 @@ func (c *Client) StartAudioFork(ctx context.Context, req AudioForkRequest) error
 	if metadata := strings.TrimSpace(req.Metadata); metadata != "" {
 		arguments = append(arguments, metadata)
 	}
-	return c.commandOK(ctx, "uuid_audio_fork "+commandWords(arguments...))
+	reply, err := c.Command(ctx, "uuid_audio_fork "+commandWords(arguments...))
+	if err != nil {
+		return Reply{}, err
+	}
+	if err := commandReplyError(reply); err != nil {
+		return reply, err
+	}
+	return reply, nil
 }
 
 func (c *Client) StopAudioFork(ctx context.Context, channelID string) error {
