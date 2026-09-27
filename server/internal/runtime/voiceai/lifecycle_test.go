@@ -393,6 +393,7 @@ type lifecycleFreeSWITCHServer struct {
 	mu              sync.Mutex
 	variable        string
 	forkStarts      int
+	audioClocks     int
 	lastForkCommand string
 }
 
