@@ -117,6 +117,12 @@ func (r *Runtime) attach(ctx context.Context, call sqlc.Call, channelID string) 
 			"voice_agent_session_id", record.ID,
 			"sample_rate_hz", format.SampleRateHz,
 			"websocket_url", redactWebSocketURL(websocketURL),
+			"freeswitch_command", fmt.Sprintf(
+				"uuid_audio_fork %s start %s mono %d <metadata>",
+				channelID,
+				redactWebSocketURL(websocketURL),
+				format.SampleRateHz,
+			),
 			"freeswitch_reply_text", strings.TrimSpace(reply.Text),
 			"freeswitch_reply_body", strings.TrimSpace(reply.Body),
 		)
