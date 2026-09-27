@@ -145,7 +145,6 @@ func newModules(ctx context.Context, cfg config.Config) (*modules, error) {
 		return nil, fmt.Errorf("initialize telecom: %w", err)
 	}
 
-
 	aiModule := ai.New(queries, ai.Dependencies{
 		CredentialCipher: credentialCipher,
 		Calls:            telecomModule.Calls.Service,
