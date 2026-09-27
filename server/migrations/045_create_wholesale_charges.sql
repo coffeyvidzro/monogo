@@ -4,9 +4,6 @@
 CREATE TABLE wholesale_charges (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     provider_cdr_id UUID NOT NULL REFERENCES provider_cdrs(id) ON DELETE RESTRICT,
-    provider_id UUID NOT NULL REFERENCES carrier_providers(id) ON DELETE RESTRICT,
-    carrier_connection_id UUID REFERENCES carrier_connections(id) ON DELETE RESTRICT,
-    call_id UUID NOT NULL REFERENCES calls(id) ON DELETE RESTRICT,
 
     currency CHAR(3) NOT NULL,
     rate_micros BIGINT NOT NULL,
@@ -27,9 +24,3 @@ CREATE TABLE wholesale_charges (
     CONSTRAINT chk_wholesale_charges_amount
         CHECK (amount_micros >= 0)
 );
-
-CREATE INDEX idx_wholesale_charges_call
-    ON wholesale_charges (call_id);
-
-CREATE INDEX idx_wholesale_charges_provider_rated
-    ON wholesale_charges (provider_id, rated_at DESC);
