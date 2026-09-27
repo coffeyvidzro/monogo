@@ -5,8 +5,8 @@
 CREATE TABLE provider_cdrs (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     provider_id UUID NOT NULL REFERENCES carrier_providers(id) ON DELETE RESTRICT,
-    carrier_connection_id UUID REFERENCES carrier_connections(id) ON DELETE RESTRICT,
-    call_id UUID REFERENCES calls(id) ON DELETE RESTRICT,
+    carrier_connection_id UUID NOT NULL REFERENCES carrier_connections(id) ON DELETE RESTRICT,
+    call_id UUID NOT NULL REFERENCES calls(id) ON DELETE RESTRICT,
 
     provider_cdr_id TEXT NOT NULL,
     direction TEXT NOT NULL,
@@ -47,15 +47,10 @@ CREATE TABLE provider_cdrs (
 );
 
 CREATE INDEX idx_provider_cdrs_call
-    ON provider_cdrs (call_id)
-    WHERE call_id IS NOT NULL;
+    ON provider_cdrs (call_id);
 
 CREATE INDEX idx_provider_cdrs_provider_started
     ON provider_cdrs (provider_id, started_at DESC);
-
-CREATE INDEX idx_provider_cdrs_unreconciled
-    ON provider_cdrs (provider_id, received_at)
-    WHERE call_id IS NULL;
 
 CREATE FUNCTION reject_provider_cdr_mutation()
 RETURNS TRIGGER
