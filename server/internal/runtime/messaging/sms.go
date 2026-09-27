@@ -16,7 +16,9 @@ type SMS struct{ client SMPPClient }
 func NewSMS(client SMPPClient) *SMS { return &SMS{client: client} }
 
 func (s *SMS) Send(ctx context.Context, request Request) (Result, error) {
-	result, err := s.client.Submit(ctx, smpp.SubmitRequest{From: request.From, To: request.To, Text: request.Text})
+	result, err := s.client.Submit(ctx, smpp.SubmitRequest{
+		From: request.From, To: request.To, Text: request.Text, RequestDeliveryReceipt: true,
+	})
 	if err != nil {
 		return Result{}, err
 	}
