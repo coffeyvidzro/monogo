@@ -162,7 +162,7 @@ func mediaFormat(engine string) (session.AudioFormat, error) {
 	case session.EngineComposable:
 		return session.AudioFormat{SampleRateHz: 16000, Channels: 1}, nil
 	case session.EngineIntegrated:
-		return session.AudioFormat{SampleRateHz: 24000, Channels: 1}, nil
+		return session.AudioFormat{SampleRateHz: 16000, Channels: 1}, nil
 	default:
 		return session.AudioFormat{}, fmt.Errorf("unsupported Voice Agent engine %q", engine)
 	}
