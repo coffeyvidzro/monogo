@@ -1,6 +1,7 @@
 package smpp
 
 import (
+	"errors"
 	"testing"
 	"time"
 )
@@ -42,7 +43,7 @@ func TestReceiverBindCannotSubmit(t *testing.T) {
 		To:   "2",
 		Text: "hello",
 	})
-	if err != ErrSubmitUnsupported {
+	if !errors.Is(err, ErrSubmitUnsupported) {
 		t.Fatalf("Submit() error = %v", err)
 	}
 }
