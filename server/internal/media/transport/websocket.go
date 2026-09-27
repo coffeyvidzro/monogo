@@ -50,10 +50,10 @@ func NewWebSocketHandler(tokens *TokenService, attacher Attacher, cfg WebSocketC
 		return nil, fmt.Errorf("media WebSocket read limit must be positive")
 	}
 	return &WebSocketHandler{
-		tokens: tokens,
+		tokens:   tokens,
 		attacher: attacher,
-		config: cfg,
-		logger: cfg.Logger,
+		config:   cfg,
+		logger:   cfg.Logger,
 	}, nil
 }
 
