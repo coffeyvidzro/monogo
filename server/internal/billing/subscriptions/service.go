@@ -100,6 +100,11 @@ func (s *Service) Create(
 	}
 	current, currentErr := s.repo.Current(ctx, req.OrganizationID)
 	if currentErr == nil {
+		if current.PlanID != req.PlanID {
+			return sqlc.Subscription{}, apperror.NewConflict(
+				"organization already has a current subscription",
+			)
+		}
 		return current, nil
 	}
 	if errors.Is(currentErr, pgx.ErrNoRows) {
