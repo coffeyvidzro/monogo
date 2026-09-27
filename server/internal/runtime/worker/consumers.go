@@ -17,6 +17,7 @@ var freeSWITCHLifecycleEvents = append(
 	calling.FreeSWITCHEvents(),
 	"RECORD_START",
 	"RECORD_STOP",
+	"CUSTOM",
 )
 
 func subscribeFreeSWITCH(
@@ -29,6 +30,22 @@ func subscribeFreeSWITCH(
 		freeswitch.EventFormatPlain,
 		freeSWITCHLifecycleEvents,
 		func(eventCtx context.Context, event freeswitch.Event) error {
+			if event.Name == "CUSTOM" {
+				subclass := strings.TrimSpace(event.Header("Event-Subclass"))
+				if strings.HasPrefix(subclass, "mod_audio_fork::") {
+					logger.Info(
+						eventCtx,
+						"FreeSWITCH audio fork event",
+						"event_subclass", subclass,
+						"channel_id", strings.TrimSpace(event.Header("Unique-ID")),
+						"fork_id", strings.TrimSpace(event.Header("Fork-ID")),
+						"detail", strings.TrimSpace(event.Header("Detail")),
+						"gap_ms", strings.TrimSpace(event.Header("Gap-Ms")),
+						"dropped_ms", strings.TrimSpace(event.Header("Dropped-Ms")),
+					)
+				}
+				return nil
+			}
 			if event.Name == "CHANNEL_CREATE" &&
 				strings.TrimSpace(event.Header("variable_leamout_call_id")) == "" {
 				admission, err := calling.TranslateInboundFreeSWITCHEvent(event)

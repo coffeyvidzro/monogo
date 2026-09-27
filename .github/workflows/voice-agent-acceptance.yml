@@ -1,0 +1,47 @@
+name: Voice Agent v1 acceptance
+
+on:
+  workflow_dispatch:
+    inputs:
+      require_audio:
+        description: "Require the known-gap bidirectional audio round-trip check"
+        required: false
+        default: false
+        type: boolean
+  pull_request:
+    paths:
+      - "server/**"
+      - "deploy/**"
+      - "containers/**"
+      - "tests/voice-agent-v1/**"
+      - "tests/voice-v1/carrier-dialplan.xml"
+      - "tests/voice-v1/carrier-sip-profile.xml"
+      - ".github/workflows/voice-agent-acceptance.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: voice-agent-v1-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  smoke:
+    name: Voice Agent lifecycle
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Validate Voice Agent v1 scripts
+        run: |
+          sh -n tests/voice-agent-v1/run.sh
+          python3 -m py_compile tests/voice-agent-v1/acceptance.py
+          python3 -m py_compile tests/voice-agent-v1/fake_openai.py
+
+      - name: Run Voice Agent v1 lifecycle acceptance
+        env:
+          VOICE_AGENT_V1_REQUIRE_AUDIO: ${{ github.event_name == 'workflow_dispatch' && inputs.require_audio && '1' || '0' }}
+        run: sh tests/voice-agent-v1/run.sh

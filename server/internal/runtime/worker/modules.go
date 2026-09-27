@@ -51,7 +51,7 @@ type modules struct {
 	lifecycleReconciliation *lifecycle.ReconciliationJob
 }
 
-func newModules(ctx context.Context, cfg config.Config) (*modules, error) {
+func newModules(ctx context.Context, cfg config.Config, logger *logging.Logger) (*modules, error) {
 	postgresClient, err := postgres.New(ctx, postgres.DefaultConfig(cfg.DatabaseURL))
 	if err != nil {
 		return nil, fmt.Errorf("initialize PostgreSQL: %w", err)
@@ -128,6 +128,7 @@ func newModules(ctx context.Context, cfg config.Config) (*modules, error) {
 		aiModule.Orchestration,
 		freeSwitch,
 		voiceai.DefaultConfig(cfg.MediaControlURL, cfg.MediaControlToken),
+		logger,
 	)
 	if err != nil {
 		closeDependencies()

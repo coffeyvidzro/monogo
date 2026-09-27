@@ -12,6 +12,7 @@ import (
 
 	"github.com/coder/websocket"
 	"github.com/coffeyvidzro/monogo/internal/media/session"
+	"github.com/coffeyvidzro/monogo/internal/platform/logging"
 )
 
 type Attacher interface {
@@ -21,6 +22,7 @@ type Attacher interface {
 type WebSocketConfig struct {
 	HandshakeTimeout time.Duration
 	ReadLimit        int64
+	Logger           *logging.Logger
 }
 
 func DefaultWebSocketConfig() WebSocketConfig {
@@ -31,6 +33,7 @@ type WebSocketHandler struct {
 	tokens   *TokenService
 	attacher Attacher
 	config   WebSocketConfig
+	logger   *logging.Logger
 }
 
 func NewWebSocketHandler(tokens *TokenService, attacher Attacher, cfg WebSocketConfig) (*WebSocketHandler, error) {
@@ -46,7 +49,12 @@ func NewWebSocketHandler(tokens *TokenService, attacher Attacher, cfg WebSocketC
 	if cfg.ReadLimit <= 0 {
 		return nil, fmt.Errorf("media WebSocket read limit must be positive")
 	}
-	return &WebSocketHandler{tokens: tokens, attacher: attacher, config: cfg}, nil
+	return &WebSocketHandler{
+		tokens:   tokens,
+		attacher: attacher,
+		config:   cfg,
+		logger:   cfg.Logger,
+	}, nil
 }
 
 func (h *WebSocketHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -55,44 +63,150 @@ func (h *WebSocketHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
+	if h.logger != nil {
+		h.logger.Info(
+			r.Context(),
+			"media audio fork request received",
+			"remote_address", r.RemoteAddr,
+		)
+	}
 
 	claims, err := h.tokens.VerifyAndConsume(r.URL.Query().Get("token"))
 	if err != nil {
+		if h.logger != nil {
+			h.logger.Warn(
+				r.Context(),
+				"media audio fork token rejected",
+				"remote_address", r.RemoteAddr,
+				"error", err,
+			)
+		}
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
+	}
+	if h.logger != nil {
+		h.logger.Info(
+			r.Context(),
+			"media audio fork token accepted",
+			"session_id", claims.SessionID,
+			"call_id", claims.CallID,
+			"channel_id", claims.ChannelID,
+			"organization_id", claims.OrganizationID,
+			"remote_address", r.RemoteAddr,
+		)
 	}
 
 	ws, err := websocket.Accept(w, r, &websocket.AcceptOptions{
 		CompressionMode: websocket.CompressionDisabled,
 	})
 	if err != nil {
+		if h.logger != nil {
+			h.logger.Warn(
+				r.Context(),
+				"media audio fork WebSocket upgrade failed",
+				"session_id", claims.SessionID,
+				"call_id", claims.CallID,
+				"channel_id", claims.ChannelID,
+				"error", err,
+			)
+		}
 		return
 	}
 	ws.SetReadLimit(h.config.ReadLimit)
+	if h.logger != nil {
+		h.logger.Info(
+			r.Context(),
+			"media audio fork WebSocket upgraded",
+			"session_id", claims.SessionID,
+			"call_id", claims.CallID,
+			"channel_id", claims.ChannelID,
+		)
+	}
 
 	ctx, cancel := context.WithTimeout(r.Context(), h.config.HandshakeTimeout)
 	messageType, payload, err := ws.Read(ctx)
 	cancel()
 	if err != nil {
+		if h.logger != nil {
+			h.logger.Warn(
+				r.Context(),
+				"media audio fork hello read failed",
+				"session_id", claims.SessionID,
+				"call_id", claims.CallID,
+				"channel_id", claims.ChannelID,
+				"error", err,
+			)
+		}
 		_ = ws.Close(websocket.StatusPolicyViolation, "hello required")
 		return
 	}
 	metadata, err := parseHello(messageType, payload, claims, r.RemoteAddr)
 	if err != nil {
+		if h.logger != nil {
+			h.logger.Warn(
+				r.Context(),
+				"media audio fork hello rejected",
+				"session_id", claims.SessionID,
+				"call_id", claims.CallID,
+				"channel_id", claims.ChannelID,
+				"error", err,
+			)
+		}
 		_ = ws.Close(websocket.StatusPolicyViolation, "invalid hello")
 		return
 	}
+	if h.logger != nil {
+		h.logger.Info(
+			r.Context(),
+			"media audio fork hello accepted",
+			"session_id", metadata.SessionID,
+			"call_id", metadata.CallID,
+			"channel_id", metadata.ChannelID,
+			"sample_rate_hz", metadata.Format.SampleRateHz,
+			"channels", metadata.Format.Channels,
+			"remote_address", metadata.RemoteAddress,
+		)
+	}
 
 	connection := &webSocketConnection{connection: ws, metadata: metadata}
+	if h.logger != nil {
+		h.logger.Info(
+			r.Context(),
+			"media audio fork attach started",
+			"session_id", metadata.SessionID,
+			"call_id", metadata.CallID,
+			"channel_id", metadata.ChannelID,
+		)
+	}
 	if err := h.attacher.Attach(r.Context(), connection); err != nil {
+		if h.logger != nil {
+			h.logger.Warn(
+				r.Context(),
+				"media audio fork attach ended with error",
+				"session_id", metadata.SessionID,
+				"call_id", metadata.CallID,
+				"channel_id", metadata.ChannelID,
+				"error", err,
+			)
+		}
 		_ = ws.Close(websocket.StatusPolicyViolation, "session rejected")
 		return
+	}
+	if h.logger != nil {
+		h.logger.Info(
+			r.Context(),
+			"media audio fork attach completed",
+			"session_id", metadata.SessionID,
+			"call_id", metadata.CallID,
+			"channel_id", metadata.ChannelID,
+		)
 	}
 	_ = connection.Close()
 }
 
 type audioForkHello struct {
 	Type     string         `json:"type"`
+	Version  string         `json:"version"`
 	CallID   string         `json:"callSid"`
 	Rate     int            `json:"rate"`
 	Channels int            `json:"channels"`
@@ -109,7 +223,15 @@ func parseHello(messageType websocket.MessageType, payload []byte, claims TokenC
 		return session.ConnectionMetadata{}, fmt.Errorf("decode media hello: %w", err)
 	}
 	if hello.Type != "hello" {
-		return session.ConnectionMetadata{}, fmt.Errorf("first media message must be hello")
+		return session.ConnectionMetadata{}, fmt.Errorf(
+			"first media message must be hello: type=%q version=%q callSid=%q rate=%d channels=%d encoding=%q",
+			hello.Type,
+			hello.Version,
+			hello.CallID,
+			hello.Rate,
+			hello.Channels,
+			hello.Encoding,
+		)
 	}
 	if hello.CallID != claims.ChannelID.String() {
 		return session.ConnectionMetadata{}, fmt.Errorf("media hello channel id does not match token")
