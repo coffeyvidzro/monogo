@@ -1,4 +1,4 @@
-h1:76LwMGE0Is17xs3Rfx/sBRisxRmexvOeXQ5uj4SLTlo=
+h1:6HpYleBZTxw+pr4Nw6RcHvf4K727iSBlUSKE/P27+sM=
 001_extensions.sql h1:V12FA/dbb8clPffRf/1QJRpbB/S0eECkElwvfOVRda4=
 002_create_users.sql h1:w8z6z5sqnmtExCGa63iYl2ssG9rgXX8m3VPqvb1z4jo=
 003_create_authentication.sql h1:6R8fm0zInr9A/OW74oYTBLpPYHRf3dpVjw13qyjdd7E=
@@ -36,3 +36,4 @@ h1:76LwMGE0Is17xs3Rfx/sBRisxRmexvOeXQ5uj4SLTlo=
 035_create_voice_agent_turns.sql h1:f2GsXiouu+2x3Aa0/gRKPHfratZS+hCAVrD8IMkYO08=
 036_create_voice_agent_tool_execution.sql h1:uZpp+vdJe8kryORJYR7pR0zilBi/n0cZ+rVuwRBaFcs=
 037_create_messages.sql h1:HIyHBqWYqXZ2MOovXikHSgeHV4b6/HKsq4r7m+aq/UM=
+038_create_billing.sql h1:W8U/8RwKaVUnHpmAUD3KLEqWNU7osgtHpHrEJy6Ruy8=
