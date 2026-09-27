@@ -44,13 +44,13 @@ func (r *Repository) CreateOutbound(
 	return r.mutate(ctx, EventQueued, func(repo *Repository) (sqlc.Message, error) {
 		return repo.queries.CreateOutboundMessage(ctx, sqlc.CreateOutboundMessageParams{
 			OrganizationID: organizationID,
-			Channel: string(req.Channel),
-			FromAddress: req.From,
-			ToAddress: req.To,
-			Body: req.Body,
-			Media: media,
+			Channel:        string(req.Channel),
+			FromAddress:    req.From,
+			ToAddress:      req.To,
+			Body:           req.Body,
+			Media:          media,
 			IdempotencyKey: idempotencyKey,
-			RequestHash: requestHash,
+			RequestHash:    requestHash,
 		})
 	})
 }
@@ -62,14 +62,14 @@ func (r *Repository) CreateInbound(ctx context.Context, req InboundRequest) (sql
 	}
 	return r.mutate(ctx, EventReceived, func(repo *Repository) (sqlc.Message, error) {
 		return repo.queries.CreateInboundMessage(ctx, sqlc.CreateInboundMessageParams{
-			OrganizationID: req.OrganizationID,
+			OrganizationID:      req.OrganizationID,
 			CarrierConnectionID: &req.CarrierConnectionID,
-			Channel: string(req.Channel),
-			FromAddress: req.From,
-			ToAddress: req.To,
-			Body: req.Body,
-			Media: media,
-			ProviderMessageID: &req.ProviderMessageID,
+			Channel:             string(req.Channel),
+			FromAddress:         req.From,
+			ToAddress:           req.To,
+			Body:                req.Body,
+			Media:               media,
+			ProviderMessageID:   &req.ProviderMessageID,
 		})
 	})
 }
@@ -88,26 +88,26 @@ func (r *Repository) GetByIdempotencyKey(ctx context.Context, organizationID uui
 func (r *Repository) GetByProviderID(ctx context.Context, carrierConnectionID uuid.UUID, providerMessageID string) (sqlc.Message, error) {
 	return r.queries.GetMessageByProviderID(ctx, sqlc.GetMessageByProviderIDParams{
 		CarrierConnectionID: &carrierConnectionID,
-		ProviderMessageID: &providerMessageID,
+		ProviderMessageID:   &providerMessageID,
 	})
 }
 
 func (r *Repository) List(ctx context.Context, organizationID uuid.UUID, req ListRequest) ([]sqlc.Message, error) {
 	return r.queries.ListMessages(ctx, sqlc.ListMessagesParams{
 		OrganizationID: organizationID,
-		Status: req.Status,
-		Direction: req.Direction,
-		Channel: req.Channel,
-		PageOffset: req.Offset,
-		PageLimit: req.Limit,
+		Status:         req.Status,
+		Direction:      req.Direction,
+		Channel:        req.Channel,
+		PageOffset:     req.Offset,
+		PageLimit:      req.Limit,
 	})
 }
 
 func (r *Repository) SetProviderAttribution(ctx context.Context, organizationID, id, carrierConnectionID uuid.UUID) (sqlc.Message, error) {
 	return r.queries.SetMessageProviderAttribution(ctx, sqlc.SetMessageProviderAttributionParams{
 		CarrierConnectionID: &carrierConnectionID,
-		OrganizationID: organizationID,
-		ID: id,
+		OrganizationID:      organizationID,
+		ID:                  id,
 	})
 }
 
@@ -115,8 +115,8 @@ func (r *Repository) MarkSubmitted(ctx context.Context, organizationID, id uuid.
 	return r.mutate(ctx, EventSubmitted, func(repo *Repository) (sqlc.Message, error) {
 		return repo.queries.MarkMessageSubmitted(ctx, sqlc.MarkMessageSubmittedParams{
 			ProviderMessageID: &providerMessageID,
-			OrganizationID: organizationID,
-			ID: id,
+			OrganizationID:    organizationID,
+			ID:                id,
 		})
 	})
 }
@@ -136,10 +136,10 @@ func (r *Repository) MarkDelivered(ctx context.Context, organizationID, id uuid.
 func (r *Repository) MarkUndelivered(ctx context.Context, organizationID, id uuid.UUID, failure Failure) (sqlc.Message, error) {
 	return r.mutate(ctx, EventUndelivered, func(repo *Repository) (sqlc.Message, error) {
 		return repo.queries.MarkMessageUndelivered(ctx, sqlc.MarkMessageUndeliveredParams{
-			FailureCode: failure.Code,
+			FailureCode:    failure.Code,
 			FailureMessage: failure.Message,
 			OrganizationID: organizationID,
-			ID: id,
+			ID:             id,
 		})
 	})
 }
@@ -147,10 +147,10 @@ func (r *Repository) MarkUndelivered(ctx context.Context, organizationID, id uui
 func (r *Repository) MarkFailed(ctx context.Context, organizationID, id uuid.UUID, failure Failure) (sqlc.Message, error) {
 	return r.mutate(ctx, EventFailed, func(repo *Repository) (sqlc.Message, error) {
 		return repo.queries.MarkMessageFailed(ctx, sqlc.MarkMessageFailedParams{
-			FailureCode: failure.Code,
+			FailureCode:    failure.Code,
 			FailureMessage: failure.Message,
 			OrganizationID: organizationID,
-			ID: id,
+			ID:             id,
 		})
 	})
 }
@@ -180,20 +180,20 @@ func (r *Repository) mutate(ctx context.Context, eventType EventType, fn mutatio
 
 func (r *Repository) insertEvent(ctx context.Context, eventType EventType, value sqlc.Message, occurredAt time.Time) error {
 	_, err := r.outbox.Insert(ctx, outbox.Event{
-		Subject: string(eventType),
+		Subject:       string(eventType),
 		AggregateType: "message",
-		AggregateID: value.ID,
+		AggregateID:   value.ID,
 		Payload: Event{
-			EventType: eventType,
+			EventType:      eventType,
 			OrganizationID: value.OrganizationID,
-			MessageID: value.ID,
-			Resource: messageResponse(value),
-			OccurredAt: occurredAt,
+			MessageID:      value.ID,
+			Resource:       messageResponse(value),
+			OccurredAt:     occurredAt,
 		},
 		Headers: map[string]string{
-			"event_type": string(eventType),
+			"event_type":      string(eventType),
 			"organization_id": value.OrganizationID.String(),
-			"schema_version": "1",
+			"schema_version":  "1",
 		},
 	})
 	if err != nil {

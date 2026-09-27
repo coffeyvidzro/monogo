@@ -47,7 +47,7 @@ func TestNormalizeCreateRequestRejectsSMSMedia(t *testing.T) {
 		From:    "+233200000001",
 		To:      "+233200000002",
 		Body:    &body,
-		Media: []Media{{URL: "https://example.com/image.jpg", ContentType: "image/jpeg"}},
+		Media:   []Media{{URL: "https://example.com/image.jpg", ContentType: "image/jpeg"}},
 	})
 	if err == nil {
 		t.Fatal("normalizeCreateRequest() error = nil")
@@ -59,7 +59,7 @@ func TestNormalizeCreateRequestMMSAllowsHTTPSMedia(t *testing.T) {
 		Channel: ChannelMMS,
 		From:    "+15551230001",
 		To:      "+15551230002",
-		Media: []Media{{URL: " https://example.com/image.jpg ", ContentType: " image/jpeg "}},
+		Media:   []Media{{URL: " https://example.com/image.jpg ", ContentType: " image/jpeg "}},
 	})
 	if err != nil {
 		t.Fatalf("normalizeCreateRequest() error = %v", err)

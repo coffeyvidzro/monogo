@@ -267,6 +267,32 @@ type ManagedNumberOrder struct {
 	UpdatedAt           pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 }
 
+type Message struct {
+	ID                  uuid.UUID          `db:"id" json:"id"`
+	OrganizationID      uuid.UUID          `db:"organization_id" json:"organization_id"`
+	CarrierConnectionID *uuid.UUID         `db:"carrier_connection_id" json:"carrier_connection_id"`
+	Channel             string             `db:"channel" json:"channel"`
+	Direction           string             `db:"direction" json:"direction"`
+	Status              string             `db:"status" json:"status"`
+	FromAddress         string             `db:"from_address" json:"from_address"`
+	ToAddress           string             `db:"to_address" json:"to_address"`
+	Body                *string            `db:"body" json:"body"`
+	Media               []byte             `db:"media" json:"media"`
+	ProviderMessageID   *string            `db:"provider_message_id" json:"provider_message_id"`
+	IdempotencyKey      *string            `db:"idempotency_key" json:"idempotency_key"`
+	RequestHash         *string            `db:"request_hash" json:"request_hash"`
+	FailureCode         *string            `db:"failure_code" json:"failure_code"`
+	FailureMessage      *string            `db:"failure_message" json:"failure_message"`
+	QueuedAt            pgtype.Timestamptz `db:"queued_at" json:"queued_at"`
+	SubmittedAt         pgtype.Timestamptz `db:"submitted_at" json:"submitted_at"`
+	SentAt              pgtype.Timestamptz `db:"sent_at" json:"sent_at"`
+	DeliveredAt         pgtype.Timestamptz `db:"delivered_at" json:"delivered_at"`
+	ReceivedAt          pgtype.Timestamptz `db:"received_at" json:"received_at"`
+	FailedAt            pgtype.Timestamptz `db:"failed_at" json:"failed_at"`
+	CreatedAt           pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	UpdatedAt           pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+}
+
 type NumberLifecycleOperation struct {
 	ID                uuid.UUID          `db:"id" json:"id"`
 	OrganizationID    uuid.UUID          `db:"organization_id" json:"organization_id"`
