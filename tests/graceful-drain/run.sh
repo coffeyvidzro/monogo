@@ -140,6 +140,8 @@ PY
 rm -f "$COMPOSE_CONFIG_TMP"
 COMPOSE_CONFIG_TMP=""
 
+(cd "$REPO_ROOT" && sh tests/pull-acceptance-minio.sh)
+
 $COMPOSE up -d --build postgres redis nats rtpengine freeswitch graceful-drain-carrier
 until $COMPOSE exec -T postgres pg_isready -U leamout -d leamout >/dev/null 2>&1; do
     sleep 1
