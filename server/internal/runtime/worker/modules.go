@@ -3,11 +3,9 @@ package worker
 import (
 	"context"
 	"fmt"
-	"os"
 	"time"
 
 	"github.com/coffeyvidzro/monogo/internal/ai"
-	"github.com/coffeyvidzro/monogo/internal/billing/settlement"
 	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
 	"github.com/coffeyvidzro/monogo/internal/integrations/carriers/didww"
 	"github.com/coffeyvidzro/monogo/internal/integrations/freeswitch"
@@ -30,7 +28,6 @@ import (
 	"github.com/coffeyvidzro/monogo/internal/telecom/recordings"
 	"github.com/coffeyvidzro/monogo/internal/telecom/routing"
 	"github.com/coffeyvidzro/monogo/internal/telecom/trunks"
-	"github.com/google/uuid"
 )
 
 type modules struct {
@@ -53,7 +50,6 @@ type modules struct {
 	numberReconciliation    *numbers.ReconciliationJob
 	lifecycleReconciliation *lifecycle.ReconciliationJob
 	messaging               *messagingRuntime
-	ocsSettlement           *settlement.Consumer
 }
 
 func newModules(ctx context.Context, cfg config.Config, logger *logging.Logger) (*modules, error) {
@@ -110,32 +106,6 @@ func newModules(ctx context.Context, cfg config.Config, logger *logging.Logger) 
 	}
 
 	queries := sqlc.New(postgresClient.Pool())
-	ocs, err := redisClient.NewOCS()
-	if err != nil {
-		closeDependencies()
-		return nil, fmt.Errorf("initialize prepaid OCS: %w", err)
-	}
-	consumerName, err := os.Hostname()
-	if err != nil {
-		closeDependencies()
-		return nil, fmt.Errorf("resolve OCS consumer name: %w", err)
-	}
-	consumerName += "-" + uuid.NewString()
-	ocsSettlement, err := settlement.NewConsumer(
-		ocs,
-		settlement.NewPersister(
-			settlement.NewRepository(
-				postgresClient.Pool(),
-				queries,
-			),
-		),
-		settlement.DefaultConsumerConfig(consumerName),
-		logger,
-	)
-	if err != nil {
-		closeDependencies()
-		return nil, fmt.Errorf("initialize OCS persistence consumer: %w", err)
-	}
 	credentialCipher, err := encryption.New(cfg.EncryptionKey)
 	if err != nil {
 		closeDependencies()
@@ -297,7 +267,6 @@ func newModules(ctx context.Context, cfg config.Config, logger *logging.Logger) 
 		numberReconciliation:    numberReconciliation,
 		lifecycleReconciliation: lifecycleReconciliation,
 		messaging:               messagingRuntime,
-		ocsSettlement:           ocsSettlement,
 	}, nil
 }
 

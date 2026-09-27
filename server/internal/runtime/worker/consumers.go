@@ -176,7 +176,6 @@ func runWorkloads(ctx context.Context, logger *logging.Logger, modules *modules)
 	run("recording ingestion", modules.recordingIngestion.Run)
 	run("idempotency cleanup", modules.idempotencyCleanup.Run)
 	run("trunk endpoint health checks", modules.trunkHealth.Run)
-	run("OCS persistence consumer", modules.ocsSettlement.Run)
 	if modules.messaging != nil {
 		run("messaging outbound consumer", modules.messaging.RunOutbound)
 		run("messaging inbound consumer", modules.messaging.RunInbound)
