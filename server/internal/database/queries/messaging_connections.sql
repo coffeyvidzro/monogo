@@ -2,17 +2,15 @@
 -- First-active fallback only. A later router will score destination, network,
 -- health, capacity, cost, and priority before selecting a connection.
 SELECT * FROM messaging_connections
-WHERE channel = sqlc.arg(channel)
-  AND (
-    (channel = 'whatsapp' AND scope = 'organization' AND organization_id = sqlc.arg(organization_id))
+WHERE (
+    (scope = 'organization' AND organization_id = sqlc.arg(organization_id))
     OR (
-      channel = 'sms'
-      AND (
-        (scope = 'organization' AND organization_id = sqlc.arg(organization_id))
-        OR (scope = 'platform' AND organization_id IS NULL)
-      )
+      scope = 'platform'
+      AND organization_id IS NULL
+      AND sqlc.arg(channel) = 'sms'
     )
   )
+  AND channel = sqlc.arg(channel)
   AND status = 'active'
 ORDER BY
   CASE WHEN scope = 'organization' THEN 0 ELSE 1 END,

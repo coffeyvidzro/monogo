@@ -107,17 +107,15 @@ func (q *Queries) ResolveInboundMessagingOrganization(ctx context.Context, arg R
 
 const resolveMessagingConnection = `-- name: ResolveMessagingConnection :one
 SELECT id, organization_id, scope, channel, name, status, configuration, encrypted_secret, created_at, updated_at FROM messaging_connections
-WHERE channel = $2
-  AND (
-    (channel = 'whatsapp' AND scope = 'organization' AND organization_id = $1)
+WHERE (
+    (scope = 'organization' AND organization_id = $1)
     OR (
-      channel = 'sms'
-      AND (
-        (scope = 'organization' AND organization_id = $1)
-        OR (scope = 'platform' AND organization_id IS NULL)
-      )
+      scope = 'platform'
+      AND organization_id IS NULL
+      AND $2 = 'sms'
     )
   )
+  AND channel = $2
   AND status = 'active'
 ORDER BY
   CASE WHEN scope = 'organization' THEN 0 ELSE 1 END,
