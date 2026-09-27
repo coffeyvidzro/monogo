@@ -46,7 +46,7 @@ func (o *OCS) EnsureConsumerGroup(ctx context.Context, group string) error {
 		group,
 		"0",
 	).Err()
-	if err != nil && !strings.Contains(err.Error(), "BUSYGROUP") {
+	if err != nil && !redisv9.HasErrorPrefix(err, "BUSYGROUP") {
 		return fmt.Errorf("create OCS consumer group: %w", err)
 	}
 
@@ -267,11 +267,7 @@ func decodeOCSEvent(message redisv9.XMessage) (OCSEvent, error) {
 
 	eventType := eventString(message.Values, "event_type")
 	chargeStatus := eventString(message.Values, "charge_status")
-	if err := validateDecodedEvent(eventType, chargeStatus, chargeID); err != nil {
-		return OCSEvent{}, err
-	}
-
-	return OCSEvent{
+	event := OCSEvent{
 		StreamID:               message.ID,
 		OrganizationID:         organizationID,
 		WalletID:               walletID,
@@ -289,37 +285,21 @@ func decodeOCSEvent(message redisv9.XMessage) (OCSEvent, error) {
 		ChargeReservedMicros:   chargeReserved,
 		ChargeStatus:           chargeStatus,
 		OccurredAt:             time.UnixMilli(occurredAtMillis).UTC(),
-	}, nil
-}
-
-func validateDecodedEvent(eventType string, chargeStatus string, chargeID *uuid.UUID) error {
-	switch eventType {
-	case "credit":
-		if chargeID != nil || chargeStatus != "" {
-			return fmt.Errorf("credit event cannot reference a charge")
-		}
-	case "reserve", "consume", "release", "debit":
-		if chargeID == nil || chargeStatus != "active" {
-			return fmt.Errorf("%s event requires an active charge", eventType)
-		}
-	case "finalize":
-		if chargeID == nil {
-			return fmt.Errorf("finalize event requires a charge")
-		}
-		switch chargeStatus {
-		case "completed", "failed", "cancelled":
-		default:
-			return fmt.Errorf("finalize event has invalid charge status")
-		}
-	default:
-		return fmt.Errorf("unsupported event type %q", eventType)
+	}
+	if err := ValidateOCSEvent(event); err != nil {
+		return OCSEvent{}, err
 	}
 
-	return nil
+	return event, nil
 }
 
 func eventString(values map[string]any, field string) string {
-	return strings.TrimSpace(fmt.Sprint(values[field]))
+	value, ok := values[field]
+	if !ok || value == nil {
+		return ""
+	}
+
+	return strings.TrimSpace(fmt.Sprint(value))
 }
 
 func eventUUID(values map[string]any, field string) (uuid.UUID, error) {

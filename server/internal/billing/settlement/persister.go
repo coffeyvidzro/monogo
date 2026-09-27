@@ -5,379 +5,224 @@ import (
 	"errors"
 	"fmt"
 	"math"
-	"time"
 
+	"github.com/coffeyvidzro/monogo/internal/database/pgconv"
+	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
 	redisintegration "github.com/coffeyvidzro/monogo/internal/integrations/redis"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 type Persister struct {
-	db *pgxpool.Pool
+	repository *Repository
 }
 
-func NewPersister(db *pgxpool.Pool) *Persister {
-	if db == nil {
-		panic("billing settlement: database is required")
+func NewPersister(repository *Repository) *Persister {
+	if repository == nil {
+		panic("billing settlement: repository is required")
 	}
 
 	return &Persister{
-		db: db,
+		repository: repository,
 	}
 }
 
-func (p *Persister) Persist(ctx context.Context, event redisintegration.OCSEvent) error {
-	tx, err := p.db.BeginTx(
-		ctx,
-		pgx.TxOptions{
-			IsoLevel: pgx.Serializable,
-		},
-	)
+func (p *Persister) Persist(
+	ctx context.Context,
+	event redisintegration.OCSEvent,
+) (Result, error) {
+	if err := redisintegration.ValidateOCSEvent(event); err != nil {
+		return Result{
+				Outcome: OutcomeIntegrity,
+			}, &PersistenceError{
+				Outcome: OutcomeIntegrity,
+				Cause:   fmt.Errorf("validate OCS event: %w", err),
+			}
+	}
+
+	tx, queries, err := p.repository.Begin(ctx)
 	if err != nil {
-		return fmt.Errorf("begin OCS persistence transaction: %w", err)
+		return retryResult(err)
 	}
 	defer func() {
 		_ = tx.Rollback(ctx)
 	}()
 
-	alreadyPersisted, err := operationAlreadyPersisted(ctx, tx, event)
-	if err != nil {
-		return err
+	walletParams := sqlc.LockOCSWalletParams{
+		WalletID:       event.WalletID,
+		OrganizationID: event.OrganizationID,
 	}
-	if alreadyPersisted {
-		if err := tx.Commit(ctx); err != nil {
-			return fmt.Errorf("commit OCS idempotency transaction: %w", err)
+	wallet, err := queries.LockOCSWallet(
+		ctx,
+		walletParams,
+	)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return integrityResult(fmt.Errorf("OCS wallet %s does not exist", event.WalletID))
+	}
+	if err != nil {
+		return retryResult(fmt.Errorf("lock OCS wallet projection: %w", err))
+	}
+	if err := queries.LockOCSOperation(
+		ctx,
+		event.OperationID.String(),
+	); err != nil {
+		return retryResult(fmt.Errorf("lock OCS operation: %w", err))
+	}
+
+	existing, err := queries.GetWalletEventByOperationID(
+		ctx,
+		event.OperationID,
+	)
+	if err == nil {
+		if !samePersistedEvent(existing, event) {
+			return integrityResult(fmt.Errorf(
+				"OCS operation %s conflicts with its persisted event",
+				event.OperationID,
+			))
 		}
 
-		return nil
+		if err := tx.Commit(ctx); err != nil {
+			return retryResult(fmt.Errorf("commit OCS replay transaction: %w", err))
+		}
+
+		return Result{
+			Outcome: OutcomeAlreadyApplied,
+		}, nil
+	}
+	if !errors.Is(err, pgx.ErrNoRows) {
+		return retryResult(fmt.Errorf("read persisted OCS operation: %w", err))
 	}
 
-	if err := persistEvent(ctx, tx, event); err != nil {
-		return err
+	if err := validateWalletProjection(wallet, event); err != nil {
+		return classifyValidationError(err)
+	}
+
+	var charge sqlc.Charge
+	if event.ChargeID != nil {
+		chargeParams := sqlc.LockOCSChargeParams{
+			ChargeID:       *event.ChargeID,
+			OrganizationID: event.OrganizationID,
+			WalletID:       event.WalletID,
+		}
+		charge, err = queries.LockOCSCharge(
+			ctx,
+			chargeParams,
+		)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return integrityResult(fmt.Errorf("OCS charge %s does not exist", *event.ChargeID))
+		}
+		if err != nil {
+			return retryResult(fmt.Errorf("lock OCS charge projection: %w", err))
+		}
+		if err := validateChargeProjection(wallet, charge, event); err != nil {
+			return classifyValidationError(err)
+		}
+		if err := validateChargeTransition(charge, event); err != nil {
+			return integrityResult(err)
+		}
+	}
+
+	walletEvent, err := createWalletEvent(ctx, queries, event)
+	if err != nil {
+		return retryResult(fmt.Errorf("insert OCS wallet event: %w", err))
+	}
+
+	walletProjectionParams := sqlc.ApplyOCSWalletProjectionParams{
+		BalanceAfterMicros:    event.BalanceAfterMicros,
+		ReservedAfterMicros:   event.ReservedAfterMicros,
+		WalletVersion:         event.WalletVersion,
+		WalletID:              event.WalletID,
+		OrganizationID:        event.OrganizationID,
+		PreviousWalletVersion: wallet.OcsVersion,
+	}
+	if _, err := queries.ApplyOCSWalletProjection(
+		ctx,
+		walletProjectionParams,
+	); err != nil {
+		return retryResult(fmt.Errorf("apply OCS wallet projection: %w", err))
+	}
+
+	if event.ChargeID != nil {
+		chargeProjectionParams := sqlc.ApplyOCSChargeProjectionParams{
+			ChargeStatus:           event.ChargeStatus,
+			AuthorizedMicros:       event.ChargeAuthorizedMicros,
+			ConsumedMicros:         event.ChargeConsumedMicros,
+			ReservedMicros:         event.ChargeReservedMicros,
+			ChargeSequence:         event.ChargeSequence,
+			ClosedAt:               terminalTime(event),
+			ChargeID:               *event.ChargeID,
+			OrganizationID:         event.OrganizationID,
+			WalletID:               event.WalletID,
+			PreviousChargeSequence: charge.OcsSequence,
+		}
+		if _, err := queries.ApplyOCSChargeProjection(
+			ctx,
+			chargeProjectionParams,
+		); err != nil {
+			return retryResult(fmt.Errorf("apply OCS charge projection: %w", err))
+		}
+	}
+
+	if err := createLedgerEntry(ctx, queries, walletEvent.ID, event); err != nil {
+		return retryResult(err)
 	}
 	if err := tx.Commit(ctx); err != nil {
-		return fmt.Errorf("commit OCS event transaction: %w", err)
+		return retryResult(fmt.Errorf("commit OCS event transaction: %w", err))
 	}
 
-	return nil
+	return Result{
+		Outcome: OutcomeApplied,
+	}, nil
 }
 
-type persistedEvent struct {
-	WalletID            uuid.UUID
-	OrganizationID      uuid.UUID
-	ChargeID            *uuid.UUID
-	WalletVersion       int64
-	ChargeSequence      *int64
-	EventType           string
-	BalanceDeltaMicros  int64
-	ReservedDeltaMicros int64
-	BalanceAfterMicros  int64
-	ReservedAfterMicros int64
-	OccurredAt          time.Time
-}
-
-func operationAlreadyPersisted(
+func createWalletEvent(
 	ctx context.Context,
-	tx pgx.Tx,
+	queries *sqlc.Queries,
 	event redisintegration.OCSEvent,
-) (bool, error) {
-	var existing persistedEvent
-	err := tx.QueryRow(
-		ctx,
-		`SELECT wallet_id, organization_id, charge_id, wallet_version,
-		        charge_sequence, event_type, balance_delta_micros,
-		        reserved_delta_micros, balance_after_micros,
-		        reserved_after_micros, occurred_at
-		   FROM wallet_events
-		  WHERE operation_id = $1`,
-		event.OperationID,
-	).Scan(
-		&existing.WalletID,
-		&existing.OrganizationID,
-		&existing.ChargeID,
-		&existing.WalletVersion,
-		&existing.ChargeSequence,
-		&existing.EventType,
-		&existing.BalanceDeltaMicros,
-		&existing.ReservedDeltaMicros,
-		&existing.BalanceAfterMicros,
-		&existing.ReservedAfterMicros,
-		&existing.OccurredAt,
-	)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return false, nil
-	}
-	if err != nil {
-		return false, fmt.Errorf("read persisted OCS operation: %w", err)
-	}
-
-	if !samePersistedEvent(existing, event) {
-		return false, fmt.Errorf(
-			"OCS operation %s conflicts with its persisted event",
-			event.OperationID,
-		)
-	}
-
-	return true, nil
-}
-
-func samePersistedEvent(existing persistedEvent, event redisintegration.OCSEvent) bool {
-	return existing.WalletID == event.WalletID &&
-		existing.OrganizationID == event.OrganizationID &&
-		equalOptionalUUID(existing.ChargeID, event.ChargeID) &&
-		existing.WalletVersion == event.WalletVersion &&
-		equalOptionalSequence(existing.ChargeSequence, event) &&
-		existing.EventType == event.EventType &&
-		existing.BalanceDeltaMicros == event.BalanceDeltaMicros &&
-		existing.ReservedDeltaMicros == event.ReservedDeltaMicros &&
-		existing.BalanceAfterMicros == event.BalanceAfterMicros &&
-		existing.ReservedAfterMicros == event.ReservedAfterMicros &&
-		existing.OccurredAt.Equal(event.OccurredAt)
-}
-
-func equalOptionalUUID(left *uuid.UUID, right *uuid.UUID) bool {
-	if left == nil || right == nil {
-		return left == nil && right == nil
-	}
-
-	return *left == *right
-}
-
-func equalOptionalSequence(sequence *int64, event redisintegration.OCSEvent) bool {
-	if event.ChargeID == nil {
-		return sequence == nil
-	}
-
-	return sequence != nil && *sequence == event.ChargeSequence
-}
-
-func persistEvent(
-	ctx context.Context,
-	tx pgx.Tx,
-	event redisintegration.OCSEvent,
-) error {
-	var balanceMicros int64
-	var reservedMicros int64
-	var walletVersion int64
-	err := tx.QueryRow(
-		ctx,
-		`SELECT balance_micros, reserved_micros, ocs_version
-		   FROM wallets
-		  WHERE id = $1 AND organization_id = $2
-		  FOR UPDATE`,
-		event.WalletID,
-		event.OrganizationID,
-	).Scan(
-		&balanceMicros,
-		&reservedMicros,
-		&walletVersion,
-	)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return fmt.Errorf("OCS wallet %s does not exist", event.WalletID)
-	}
-	if err != nil {
-		return fmt.Errorf("lock OCS wallet projection: %w", err)
-	}
-
-	if err := validateWalletProjection(
-		walletVersion,
-		balanceMicros,
-		reservedMicros,
-		event,
-	); err != nil {
-		return err
-	}
-	if event.ChargeID != nil {
-		if err := validateChargeProjection(ctx, tx, event); err != nil {
-			return err
-		}
-	}
-
-	eventID := uuid.New()
+) (sqlc.WalletEvent, error) {
 	var chargeSequence *int64
+	var chargeAuthorized *int64
+	var chargeConsumed *int64
+	var chargeReserved *int64
+	var chargeStatus *string
 	if event.ChargeID != nil {
 		chargeSequence = &event.ChargeSequence
+		chargeAuthorized = &event.ChargeAuthorizedMicros
+		chargeConsumed = &event.ChargeConsumedMicros
+		chargeReserved = &event.ChargeReservedMicros
+		chargeStatus = &event.ChargeStatus
 	}
-	_, err = tx.Exec(
+
+	params := sqlc.CreateOCSWalletEventParams{
+		WalletID:                    event.WalletID,
+		OrganizationID:              event.OrganizationID,
+		ChargeID:                    event.ChargeID,
+		OperationID:                 event.OperationID,
+		WalletVersion:               event.WalletVersion,
+		ChargeSequence:              chargeSequence,
+		EventType:                   event.EventType,
+		BalanceDeltaMicros:          event.BalanceDeltaMicros,
+		ReservedDeltaMicros:         event.ReservedDeltaMicros,
+		BalanceAfterMicros:          event.BalanceAfterMicros,
+		ReservedAfterMicros:         event.ReservedAfterMicros,
+		ChargeAuthorizedAfterMicros: chargeAuthorized,
+		ChargeConsumedAfterMicros:   chargeConsumed,
+		ChargeReservedAfterMicros:   chargeReserved,
+		ChargeStatus:                chargeStatus,
+		OccurredAt:                  pgconv.TimeToTimestamptz(event.OccurredAt),
+	}
+
+	return queries.CreateOCSWalletEvent(
 		ctx,
-		`INSERT INTO wallet_events (
-		     id, wallet_id, organization_id, charge_id, operation_id,
-		     wallet_version, charge_sequence, event_type,
-		     balance_delta_micros, reserved_delta_micros,
-		     balance_after_micros, reserved_after_micros, occurred_at
-		 ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
-		eventID,
-		event.WalletID,
-		event.OrganizationID,
-		event.ChargeID,
-		event.OperationID,
-		event.WalletVersion,
-		chargeSequence,
-		event.EventType,
-		event.BalanceDeltaMicros,
-		event.ReservedDeltaMicros,
-		event.BalanceAfterMicros,
-		event.ReservedAfterMicros,
-		event.OccurredAt,
+		params,
 	)
-	if err != nil {
-		return fmt.Errorf("insert wallet event: %w", err)
-	}
-
-	if err := updateProjections(ctx, tx, event); err != nil {
-		return err
-	}
-	if err := insertLedgerEntry(ctx, tx, eventID, event); err != nil {
-		return err
-	}
-
-	return nil
 }
 
-func validateWalletProjection(
-	currentVersion int64,
-	currentBalance int64,
-	currentReserved int64,
-	event redisintegration.OCSEvent,
-) error {
-	expectedVersion := currentVersion + 1
-	if currentVersion == math.MaxInt64 || event.WalletVersion != expectedVersion {
-		return fmt.Errorf(
-			"OCS wallet version gap for %s: current=%d event=%d",
-			event.WalletID,
-			currentVersion,
-			event.WalletVersion,
-		)
-	}
-	if !safeDeltaMatches(currentBalance, event.BalanceDeltaMicros, event.BalanceAfterMicros) {
-		return fmt.Errorf("OCS wallet balance projection mismatch")
-	}
-	if !safeDeltaMatches(currentReserved, event.ReservedDeltaMicros, event.ReservedAfterMicros) {
-		return fmt.Errorf("OCS wallet reservation projection mismatch")
-	}
-
-	return nil
-}
-
-func validateChargeProjection(
+func createLedgerEntry(
 	ctx context.Context,
-	tx pgx.Tx,
-	event redisintegration.OCSEvent,
-) error {
-	var organizationID uuid.UUID
-	var walletID uuid.UUID
-	var currentSequence int64
-	err := tx.QueryRow(
-		ctx,
-		`SELECT organization_id, wallet_id
-		   FROM charges
-		  WHERE id = $1
-		  FOR UPDATE`,
-		*event.ChargeID,
-	).Scan(
-		&organizationID,
-		&walletID,
-	)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return fmt.Errorf("OCS charge %s does not exist", *event.ChargeID)
-	}
-	if err != nil {
-		return fmt.Errorf("lock OCS charge projection: %w", err)
-	}
-	if organizationID != event.OrganizationID || walletID != event.WalletID {
-		return fmt.Errorf("OCS charge identity does not match event")
-	}
-	err = tx.QueryRow(
-		ctx,
-		`SELECT COALESCE(MAX(charge_sequence), 0)
-		   FROM wallet_events
-		  WHERE charge_id = $1`,
-		*event.ChargeID,
-	).Scan(&currentSequence)
-	if err != nil {
-		return fmt.Errorf("read OCS charge sequence: %w", err)
-	}
-	if currentSequence == math.MaxInt64 || event.ChargeSequence != currentSequence+1 {
-		return fmt.Errorf(
-			"OCS charge sequence gap for %s: current=%d event=%d",
-			*event.ChargeID,
-			currentSequence,
-			event.ChargeSequence,
-		)
-	}
-
-	return nil
-}
-
-func updateProjections(
-	ctx context.Context,
-	tx pgx.Tx,
-	event redisintegration.OCSEvent,
-) error {
-	command, err := tx.Exec(
-		ctx,
-		`UPDATE wallets
-		    SET balance_micros = $1,
-		        reserved_micros = $2,
-		        ocs_version = $3,
-		        updated_at = NOW()
-		  WHERE id = $4 AND organization_id = $5 AND ocs_version = $6`,
-		event.BalanceAfterMicros,
-		event.ReservedAfterMicros,
-		event.WalletVersion,
-		event.WalletID,
-		event.OrganizationID,
-		event.WalletVersion-1,
-	)
-	if err != nil {
-		return fmt.Errorf("update OCS wallet projection: %w", err)
-	}
-	if command.RowsAffected() != 1 {
-		return fmt.Errorf("OCS wallet projection changed concurrently")
-	}
-
-	if event.ChargeID == nil {
-		return nil
-	}
-
-	var closedAt *time.Time
-	if event.ChargeStatus != "active" {
-		closedAt = &event.OccurredAt
-	}
-	command, err = tx.Exec(
-		ctx,
-		`UPDATE charges
-		    SET status = $1,
-		        authorized_micros = $2,
-		        consumed_micros = $3,
-		        reserved_micros = $4,
-		        closed_at = $5,
-		        updated_at = NOW()
-		  WHERE id = $6 AND organization_id = $7 AND wallet_id = $8`,
-		event.ChargeStatus,
-		event.ChargeAuthorizedMicros,
-		event.ChargeConsumedMicros,
-		event.ChargeReservedMicros,
-		closedAt,
-		*event.ChargeID,
-		event.OrganizationID,
-		event.WalletID,
-	)
-	if err != nil {
-		return fmt.Errorf("update OCS charge projection: %w", err)
-	}
-	if command.RowsAffected() != 1 {
-		return fmt.Errorf("OCS charge projection was not updated")
-	}
-
-	return nil
-}
-
-func insertLedgerEntry(
-	ctx context.Context,
-	tx pgx.Tx,
-	eventID uuid.UUID,
+	queries *sqlc.Queries,
+	walletEventID uuid.UUID,
 	event redisintegration.OCSEvent,
 ) error {
 	var direction string
@@ -398,28 +243,211 @@ func insertLedgerEntry(
 		return fmt.Errorf("settled OCS event must have a non-zero balance delta")
 	}
 
-	_, err := tx.Exec(
+	params := sqlc.CreateOCSLedgerEntryParams{
+		WalletEventID:      walletEventID,
+		WalletID:           event.WalletID,
+		OrganizationID:     event.OrganizationID,
+		ChargeID:           event.ChargeID,
+		Direction:          direction,
+		Reason:             event.EventType,
+		AmountMicros:       amountMicros,
+		BalanceAfterMicros: event.BalanceAfterMicros,
+		OccurredAt:         pgconv.TimeToTimestamptz(event.OccurredAt),
+	}
+	if _, err := queries.CreateOCSLedgerEntry(
 		ctx,
-		`INSERT INTO wallet_ledger_entries (
-		     wallet_event_id, wallet_id, organization_id, charge_id,
-		     direction, reason, amount_micros, balance_after_micros,
-		     occurred_at
-		 ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-		eventID,
-		event.WalletID,
-		event.OrganizationID,
-		event.ChargeID,
-		direction,
-		event.EventType,
-		amountMicros,
-		event.BalanceAfterMicros,
-		event.OccurredAt,
-	)
-	if err != nil {
+		params,
+	); err != nil {
 		return fmt.Errorf("insert OCS ledger entry: %w", err)
 	}
 
 	return nil
+}
+
+func samePersistedEvent(
+	existing sqlc.WalletEvent,
+	event redisintegration.OCSEvent,
+) bool {
+	return existing.OperationID == event.OperationID &&
+		existing.WalletID == event.WalletID &&
+		existing.OrganizationID == event.OrganizationID &&
+		equalOptionalUUID(existing.ChargeID, event.ChargeID) &&
+		existing.WalletVersion == event.WalletVersion &&
+		equalOptionalInt64(existing.ChargeSequence, optionalChargeInt64(event, event.ChargeSequence)) &&
+		existing.EventType == event.EventType &&
+		existing.BalanceDeltaMicros == event.BalanceDeltaMicros &&
+		existing.ReservedDeltaMicros == event.ReservedDeltaMicros &&
+		existing.BalanceAfterMicros == event.BalanceAfterMicros &&
+		existing.ReservedAfterMicros == event.ReservedAfterMicros &&
+		equalOptionalInt64(existing.ChargeAuthorizedAfterMicros, optionalChargeInt64(event, event.ChargeAuthorizedMicros)) &&
+		equalOptionalInt64(existing.ChargeConsumedAfterMicros, optionalChargeInt64(event, event.ChargeConsumedMicros)) &&
+		equalOptionalInt64(existing.ChargeReservedAfterMicros, optionalChargeInt64(event, event.ChargeReservedMicros)) &&
+		equalOptionalString(existing.ChargeStatus, optionalChargeString(event, event.ChargeStatus)) &&
+		pgconv.TimestamptzToTime(existing.OccurredAt).Equal(event.OccurredAt)
+}
+
+func equalOptionalUUID(left *uuid.UUID, right *uuid.UUID) bool {
+	if left == nil || right == nil {
+		return left == nil && right == nil
+	}
+
+	return *left == *right
+}
+
+func equalOptionalInt64(left *int64, right *int64) bool {
+	if left == nil || right == nil {
+		return left == nil && right == nil
+	}
+
+	return *left == *right
+}
+
+func equalOptionalString(left *string, right *string) bool {
+	if left == nil || right == nil {
+		return left == nil && right == nil
+	}
+
+	return *left == *right
+}
+
+func optionalChargeInt64(event redisintegration.OCSEvent, value int64) *int64 {
+	if event.ChargeID == nil {
+		return nil
+	}
+
+	return &value
+}
+
+func optionalChargeString(event redisintegration.OCSEvent, value string) *string {
+	if event.ChargeID == nil {
+		return nil
+	}
+
+	return &value
+}
+
+func validateWalletProjection(wallet sqlc.Wallet, event redisintegration.OCSEvent) error {
+	if wallet.OcsVersion == math.MaxInt64 || event.WalletVersion > wallet.OcsVersion+1 {
+		return &PersistenceError{
+			Outcome: OutcomeVersionGap,
+			Cause: fmt.Errorf(
+				"OCS wallet version gap for %s: current=%d event=%d",
+				event.WalletID,
+				wallet.OcsVersion,
+				event.WalletVersion,
+			),
+		}
+	}
+	if event.WalletVersion <= wallet.OcsVersion {
+		return &PersistenceError{
+			Outcome: OutcomeIntegrity,
+			Cause: fmt.Errorf(
+				"stale OCS wallet version for %s: current=%d event=%d",
+				event.WalletID,
+				wallet.OcsVersion,
+				event.WalletVersion,
+			),
+		}
+	}
+	if !safeDeltaMatches(wallet.BalanceMicros, event.BalanceDeltaMicros, event.BalanceAfterMicros) {
+		return fmt.Errorf("OCS wallet balance projection mismatch")
+	}
+	if !safeDeltaMatches(wallet.ReservedMicros, event.ReservedDeltaMicros, event.ReservedAfterMicros) {
+		return fmt.Errorf("OCS wallet reservation projection mismatch")
+	}
+
+	return nil
+}
+
+func validateChargeProjection(
+	wallet sqlc.Wallet,
+	charge sqlc.Charge,
+	event redisintegration.OCSEvent,
+) error {
+	if charge.Currency != wallet.Currency {
+		return fmt.Errorf("OCS charge currency does not match wallet")
+	}
+	if charge.OcsSequence == math.MaxInt64 || event.ChargeSequence > charge.OcsSequence+1 {
+		return &PersistenceError{
+			Outcome: OutcomeVersionGap,
+			Cause: fmt.Errorf(
+				"OCS charge sequence gap for %s: current=%d event=%d",
+				*event.ChargeID,
+				charge.OcsSequence,
+				event.ChargeSequence,
+			),
+		}
+	}
+	if event.ChargeSequence <= charge.OcsSequence {
+		return &PersistenceError{
+			Outcome: OutcomeIntegrity,
+			Cause: fmt.Errorf(
+				"stale OCS charge sequence for %s: current=%d event=%d",
+				*event.ChargeID,
+				charge.OcsSequence,
+				event.ChargeSequence,
+			),
+		}
+	}
+
+	return nil
+}
+
+func validateChargeTransition(
+	charge sqlc.Charge,
+	event redisintegration.OCSEvent,
+) error {
+	switch event.EventType {
+	case "reserve":
+		if !safeDeltaMatches(
+			charge.AuthorizedMicros,
+			event.ReservedDeltaMicros,
+			event.ChargeAuthorizedMicros,
+		) || !safeDeltaMatches(
+			charge.ReservedMicros,
+			event.ReservedDeltaMicros,
+			event.ChargeReservedMicros,
+		) || event.ChargeConsumedMicros != charge.ConsumedMicros {
+			return fmt.Errorf("reserve event charge transition is inconsistent")
+		}
+	case "consume":
+		settled := -event.BalanceDeltaMicros
+		if event.ChargeAuthorizedMicros != charge.AuthorizedMicros ||
+			!safeDeltaMatches(charge.ConsumedMicros, settled, event.ChargeConsumedMicros) ||
+			!safeDeltaMatches(charge.ReservedMicros, event.ReservedDeltaMicros, event.ChargeReservedMicros) {
+			return fmt.Errorf("consume event charge transition is inconsistent")
+		}
+	case "release":
+		if event.ChargeAuthorizedMicros != charge.AuthorizedMicros ||
+			event.ChargeConsumedMicros != charge.ConsumedMicros ||
+			!safeDeltaMatches(charge.ReservedMicros, event.ReservedDeltaMicros, event.ChargeReservedMicros) {
+			return fmt.Errorf("release event charge transition is inconsistent")
+		}
+	case "debit":
+		settled := -event.BalanceDeltaMicros
+		if !safeDeltaMatches(charge.AuthorizedMicros, settled, event.ChargeAuthorizedMicros) ||
+			!safeDeltaMatches(charge.ConsumedMicros, settled, event.ChargeConsumedMicros) ||
+			event.ChargeReservedMicros != charge.ReservedMicros {
+			return fmt.Errorf("debit event charge transition is inconsistent")
+		}
+	case "finalize":
+		if event.ChargeAuthorizedMicros != charge.AuthorizedMicros ||
+			event.ChargeConsumedMicros != charge.ConsumedMicros ||
+			event.ChargeReservedMicros != 0 ||
+			event.ReservedDeltaMicros != -charge.ReservedMicros {
+			return fmt.Errorf("finalize event charge transition is inconsistent")
+		}
+	}
+
+	return nil
+}
+
+func terminalTime(event redisintegration.OCSEvent) pgtype.Timestamptz {
+	if event.ChargeStatus == "active" {
+		return pgtype.Timestamptz{}
+	}
+
+	return pgconv.TimeToTimestamptz(event.OccurredAt)
 }
 
 func safeDeltaMatches(current int64, delta int64, after int64) bool {
@@ -431,4 +459,33 @@ func safeDeltaMatches(current int64, delta int64, after int64) bool {
 	}
 
 	return current+delta == after
+}
+
+func retryResult(err error) (Result, error) {
+	return Result{
+			Outcome: OutcomeRetry,
+		}, &PersistenceError{
+			Outcome: OutcomeRetry,
+			Cause:   err,
+		}
+}
+
+func integrityResult(err error) (Result, error) {
+	return Result{
+			Outcome: OutcomeIntegrity,
+		}, &PersistenceError{
+			Outcome: OutcomeIntegrity,
+			Cause:   err,
+		}
+}
+
+func classifyValidationError(err error) (Result, error) {
+	var persistenceError *PersistenceError
+	if errors.As(err, &persistenceError) {
+		return Result{
+			Outcome: persistenceError.Outcome,
+		}, err
+	}
+
+	return integrityResult(err)
 }

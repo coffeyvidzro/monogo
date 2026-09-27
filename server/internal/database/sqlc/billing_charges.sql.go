@@ -43,7 +43,7 @@ WHERE organization.id = $8
   AND wallet.status = 'active'
   AND wallet.currency = $9
 ON CONFLICT (organization_id, idempotency_key) DO NOTHING
-RETURNING id, organization_id, wallet_id, resource_type, resource_id, charging_mode, currency, idempotency_key, request_hash, pricing_snapshot, status, authorized_micros, consumed_micros, reserved_micros, closed_at, created_at, updated_at
+RETURNING id, organization_id, wallet_id, resource_type, resource_id, charging_mode, currency, idempotency_key, request_hash, pricing_snapshot, status, authorized_micros, consumed_micros, reserved_micros, closed_at, created_at, updated_at, ocs_sequence
 `
 
 type CreateBillingChargeParams struct {
@@ -89,12 +89,13 @@ func (q *Queries) CreateBillingCharge(ctx context.Context, arg CreateBillingChar
 		&i.ClosedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.OcsSequence,
 	)
 	return i, err
 }
 
 const getBillingCharge = `-- name: GetBillingCharge :one
-SELECT id, organization_id, wallet_id, resource_type, resource_id, charging_mode, currency, idempotency_key, request_hash, pricing_snapshot, status, authorized_micros, consumed_micros, reserved_micros, closed_at, created_at, updated_at
+SELECT id, organization_id, wallet_id, resource_type, resource_id, charging_mode, currency, idempotency_key, request_hash, pricing_snapshot, status, authorized_micros, consumed_micros, reserved_micros, closed_at, created_at, updated_at, ocs_sequence
 FROM charges
 WHERE id = $1
   AND organization_id = $2
@@ -127,12 +128,13 @@ func (q *Queries) GetBillingCharge(ctx context.Context, arg GetBillingChargePara
 		&i.ClosedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.OcsSequence,
 	)
 	return i, err
 }
 
 const getBillingChargeByIdempotencyKey = `-- name: GetBillingChargeByIdempotencyKey :one
-SELECT id, organization_id, wallet_id, resource_type, resource_id, charging_mode, currency, idempotency_key, request_hash, pricing_snapshot, status, authorized_micros, consumed_micros, reserved_micros, closed_at, created_at, updated_at
+SELECT id, organization_id, wallet_id, resource_type, resource_id, charging_mode, currency, idempotency_key, request_hash, pricing_snapshot, status, authorized_micros, consumed_micros, reserved_micros, closed_at, created_at, updated_at, ocs_sequence
 FROM charges
 WHERE organization_id = $1
   AND idempotency_key = $2
@@ -165,12 +167,13 @@ func (q *Queries) GetBillingChargeByIdempotencyKey(ctx context.Context, arg GetB
 		&i.ClosedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.OcsSequence,
 	)
 	return i, err
 }
 
 const getBillingChargeByResource = `-- name: GetBillingChargeByResource :one
-SELECT id, organization_id, wallet_id, resource_type, resource_id, charging_mode, currency, idempotency_key, request_hash, pricing_snapshot, status, authorized_micros, consumed_micros, reserved_micros, closed_at, created_at, updated_at
+SELECT id, organization_id, wallet_id, resource_type, resource_id, charging_mode, currency, idempotency_key, request_hash, pricing_snapshot, status, authorized_micros, consumed_micros, reserved_micros, closed_at, created_at, updated_at, ocs_sequence
 FROM charges
 WHERE organization_id = $1
   AND resource_type = $2
@@ -205,12 +208,13 @@ func (q *Queries) GetBillingChargeByResource(ctx context.Context, arg GetBilling
 		&i.ClosedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.OcsSequence,
 	)
 	return i, err
 }
 
 const listBillingCharges = `-- name: ListBillingCharges :many
-SELECT id, organization_id, wallet_id, resource_type, resource_id, charging_mode, currency, idempotency_key, request_hash, pricing_snapshot, status, authorized_micros, consumed_micros, reserved_micros, closed_at, created_at, updated_at
+SELECT id, organization_id, wallet_id, resource_type, resource_id, charging_mode, currency, idempotency_key, request_hash, pricing_snapshot, status, authorized_micros, consumed_micros, reserved_micros, closed_at, created_at, updated_at, ocs_sequence
 FROM charges
 WHERE organization_id = $1
   AND ($2::text IS NULL OR status = $2::text)
@@ -258,6 +262,7 @@ func (q *Queries) ListBillingCharges(ctx context.Context, arg ListBillingCharges
 			&i.ClosedAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.OcsSequence,
 		); err != nil {
 			return nil, err
 		}

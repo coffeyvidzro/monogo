@@ -188,6 +188,7 @@ type Charge struct {
 	ClosedAt         pgtype.Timestamptz `db:"closed_at" json:"closed_at"`
 	CreatedAt        pgtype.Timestamptz `db:"created_at" json:"created_at"`
 	UpdatedAt        pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+	OcsSequence      int64              `db:"ocs_sequence" json:"ocs_sequence"`
 }
 
 type Conference struct {
@@ -837,20 +838,24 @@ type Wallet struct {
 }
 
 type WalletEvent struct {
-	ID                  uuid.UUID          `db:"id" json:"id"`
-	WalletID            uuid.UUID          `db:"wallet_id" json:"wallet_id"`
-	OrganizationID      uuid.UUID          `db:"organization_id" json:"organization_id"`
-	ChargeID            *uuid.UUID         `db:"charge_id" json:"charge_id"`
-	OperationID         uuid.UUID          `db:"operation_id" json:"operation_id"`
-	WalletVersion       int64              `db:"wallet_version" json:"wallet_version"`
-	ChargeSequence      *int64             `db:"charge_sequence" json:"charge_sequence"`
-	EventType           string             `db:"event_type" json:"event_type"`
-	BalanceDeltaMicros  int64              `db:"balance_delta_micros" json:"balance_delta_micros"`
-	ReservedDeltaMicros int64              `db:"reserved_delta_micros" json:"reserved_delta_micros"`
-	BalanceAfterMicros  int64              `db:"balance_after_micros" json:"balance_after_micros"`
-	ReservedAfterMicros int64              `db:"reserved_after_micros" json:"reserved_after_micros"`
-	OccurredAt          pgtype.Timestamptz `db:"occurred_at" json:"occurred_at"`
-	CreatedAt           pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	ID                          uuid.UUID          `db:"id" json:"id"`
+	WalletID                    uuid.UUID          `db:"wallet_id" json:"wallet_id"`
+	OrganizationID              uuid.UUID          `db:"organization_id" json:"organization_id"`
+	ChargeID                    *uuid.UUID         `db:"charge_id" json:"charge_id"`
+	OperationID                 uuid.UUID          `db:"operation_id" json:"operation_id"`
+	WalletVersion               int64              `db:"wallet_version" json:"wallet_version"`
+	ChargeSequence              *int64             `db:"charge_sequence" json:"charge_sequence"`
+	EventType                   string             `db:"event_type" json:"event_type"`
+	BalanceDeltaMicros          int64              `db:"balance_delta_micros" json:"balance_delta_micros"`
+	ReservedDeltaMicros         int64              `db:"reserved_delta_micros" json:"reserved_delta_micros"`
+	BalanceAfterMicros          int64              `db:"balance_after_micros" json:"balance_after_micros"`
+	ReservedAfterMicros         int64              `db:"reserved_after_micros" json:"reserved_after_micros"`
+	OccurredAt                  pgtype.Timestamptz `db:"occurred_at" json:"occurred_at"`
+	CreatedAt                   pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	ChargeAuthorizedAfterMicros *int64             `db:"charge_authorized_after_micros" json:"charge_authorized_after_micros"`
+	ChargeConsumedAfterMicros   *int64             `db:"charge_consumed_after_micros" json:"charge_consumed_after_micros"`
+	ChargeReservedAfterMicros   *int64             `db:"charge_reserved_after_micros" json:"charge_reserved_after_micros"`
+	ChargeStatus                *string            `db:"charge_status" json:"charge_status"`
 }
 
 type WalletLedgerEntry struct {

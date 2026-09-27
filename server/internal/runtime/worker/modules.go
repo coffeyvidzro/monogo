@@ -123,8 +123,14 @@ func newModules(ctx context.Context, cfg config.Config, logger *logging.Logger) 
 	consumerName += "-" + uuid.NewString()
 	ocsSettlement, err := settlement.NewConsumer(
 		ocs,
-		settlement.NewPersister(postgresClient.Pool()),
+		settlement.NewPersister(
+			settlement.NewRepository(
+				postgresClient.Pool(),
+				queries,
+			),
+		),
 		settlement.DefaultConsumerConfig(consumerName),
+		logger,
 	)
 	if err != nil {
 		closeDependencies()

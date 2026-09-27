@@ -118,7 +118,7 @@ func (q *Queries) GetBillingWalletByID(ctx context.Context, arg GetBillingWallet
 }
 
 const getWalletEventByOperationID = `-- name: GetWalletEventByOperationID :one
-SELECT id, wallet_id, organization_id, charge_id, operation_id, wallet_version, charge_sequence, event_type, balance_delta_micros, reserved_delta_micros, balance_after_micros, reserved_after_micros, occurred_at, created_at
+SELECT id, wallet_id, organization_id, charge_id, operation_id, wallet_version, charge_sequence, event_type, balance_delta_micros, reserved_delta_micros, balance_after_micros, reserved_after_micros, occurred_at, created_at, charge_authorized_after_micros, charge_consumed_after_micros, charge_reserved_after_micros, charge_status
 FROM wallet_events
 WHERE operation_id = $1
 LIMIT 1
@@ -142,6 +142,10 @@ func (q *Queries) GetWalletEventByOperationID(ctx context.Context, operationID u
 		&i.ReservedAfterMicros,
 		&i.OccurredAt,
 		&i.CreatedAt,
+		&i.ChargeAuthorizedAfterMicros,
+		&i.ChargeConsumedAfterMicros,
+		&i.ChargeReservedAfterMicros,
+		&i.ChargeStatus,
 	)
 	return i, err
 }
@@ -188,7 +192,7 @@ func (q *Queries) ListBillingWallets(ctx context.Context, organizationID uuid.UU
 }
 
 const listChargeWalletEvents = `-- name: ListChargeWalletEvents :many
-SELECT event.id, event.wallet_id, event.organization_id, event.charge_id, event.operation_id, event.wallet_version, event.charge_sequence, event.event_type, event.balance_delta_micros, event.reserved_delta_micros, event.balance_after_micros, event.reserved_after_micros, event.occurred_at, event.created_at
+SELECT event.id, event.wallet_id, event.organization_id, event.charge_id, event.operation_id, event.wallet_version, event.charge_sequence, event.event_type, event.balance_delta_micros, event.reserved_delta_micros, event.balance_after_micros, event.reserved_after_micros, event.occurred_at, event.created_at, event.charge_authorized_after_micros, event.charge_consumed_after_micros, event.charge_reserved_after_micros, event.charge_status
 FROM wallet_events AS event
 JOIN charges AS charge
   ON charge.id = event.charge_id
@@ -227,6 +231,10 @@ func (q *Queries) ListChargeWalletEvents(ctx context.Context, arg ListChargeWall
 			&i.ReservedAfterMicros,
 			&i.OccurredAt,
 			&i.CreatedAt,
+			&i.ChargeAuthorizedAfterMicros,
+			&i.ChargeConsumedAfterMicros,
+			&i.ChargeReservedAfterMicros,
+			&i.ChargeStatus,
 		); err != nil {
 			return nil, err
 		}
@@ -239,7 +247,7 @@ func (q *Queries) ListChargeWalletEvents(ctx context.Context, arg ListChargeWall
 }
 
 const listWalletEvents = `-- name: ListWalletEvents :many
-SELECT id, wallet_id, organization_id, charge_id, operation_id, wallet_version, charge_sequence, event_type, balance_delta_micros, reserved_delta_micros, balance_after_micros, reserved_after_micros, occurred_at, created_at
+SELECT id, wallet_id, organization_id, charge_id, operation_id, wallet_version, charge_sequence, event_type, balance_delta_micros, reserved_delta_micros, balance_after_micros, reserved_after_micros, occurred_at, created_at, charge_authorized_after_micros, charge_consumed_after_micros, charge_reserved_after_micros, charge_status
 FROM wallet_events
 WHERE wallet_id = $1
   AND organization_id = $2
@@ -277,6 +285,10 @@ func (q *Queries) ListWalletEvents(ctx context.Context, arg ListWalletEventsPara
 			&i.ReservedAfterMicros,
 			&i.OccurredAt,
 			&i.CreatedAt,
+			&i.ChargeAuthorizedAfterMicros,
+			&i.ChargeConsumedAfterMicros,
+			&i.ChargeReservedAfterMicros,
+			&i.ChargeStatus,
 		); err != nil {
 			return nil, err
 		}
