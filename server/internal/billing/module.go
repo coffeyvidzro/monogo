@@ -40,27 +40,50 @@ func New(queries *sqlc.Queries) *Module {
 		panic("billing: queries are required")
 	}
 
-	walletRepository := wallets.NewRepository(queries)
-	chargeRepository := charges.NewRepository(queries)
-	ledgerRepository := ledger.NewRepository(queries)
-	subscriptionRepository := subscriptions.NewRepository(queries)
+	walletRepository := wallets.NewRepository(
+		queries,
+	)
+	walletService := wallets.NewService(
+		walletRepository,
+	)
+
+	chargeRepository := charges.NewRepository(
+		queries,
+	)
+	chargeService := charges.NewService(
+		chargeRepository,
+	)
+
+	ledgerRepository := ledger.NewRepository(
+		queries,
+	)
+	ledgerService := ledger.NewService(
+		ledgerRepository,
+	)
+
+	subscriptionRepository := subscriptions.NewRepository(
+		queries,
+	)
+	subscriptionService := subscriptions.NewService(
+		subscriptionRepository,
+	)
 
 	return &Module{
 		Wallets: WalletsModule{
 			Repository: walletRepository,
-			Service:    wallets.NewService(walletRepository),
+			Service:    walletService,
 		},
 		Charges: ChargesModule{
 			Repository: chargeRepository,
-			Service:    charges.NewService(chargeRepository),
+			Service:    chargeService,
 		},
 		Ledger: LedgerModule{
 			Repository: ledgerRepository,
-			Service:    ledger.NewService(ledgerRepository),
+			Service:    ledgerService,
 		},
 		Subscriptions: SubscriptionsModule{
 			Repository: subscriptionRepository,
-			Service:    subscriptions.NewService(subscriptionRepository),
+			Service:    subscriptionService,
 		},
 	}
 }
