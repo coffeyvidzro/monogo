@@ -35,7 +35,7 @@ func registerMessagingProviderRoutes(router chi.Router, modules *modules) {
 			return
 		}
 		connection, err := modules.queries.GetMessagingConnection(r.Context(), id)
-		if err != nil || connection.Channel != "whatsapp" {
+		if err != nil || connection.Channel != "whatsapp" || connection.Scope != "organization" {
 			http.NotFound(w, r)
 			return
 		}
@@ -63,7 +63,7 @@ func registerMessagingProviderRoutes(router chi.Router, modules *modules) {
 			return
 		}
 		connection, err := modules.queries.GetMessagingConnection(r.Context(), id)
-		if err != nil || connection.Channel != "whatsapp" {
+		if err != nil || connection.Channel != "whatsapp" || connection.Scope != "organization" {
 			http.NotFound(w, r)
 			return
 		}
@@ -104,6 +104,10 @@ func registerMessagingProviderRoutes(router chi.Router, modules *modules) {
 			return
 		}
 		for _, event := range events {
+			if event.PhoneNumberID == "" || event.PhoneNumberID != config.PhoneNumberID {
+				http.Error(w, "webhook phone number does not match connection", http.StatusUnprocessableEntity)
+				return
+			}
 			switch event.Kind {
 			case whatsapp.EventMessage:
 				organizationID, resolveErr := modules.queries.ResolveInboundMessagingOrganization(

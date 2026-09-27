@@ -569,7 +569,7 @@ SET
 WHERE organization_id = $3
   AND id = $4
   AND direction = 'outbound'
-  AND status IN ('queued', 'submitted', 'sent')
+  AND status IN ('queued', 'submitting', 'submitted', 'sent')
 RETURNING id, organization_id, messaging_connection_id, channel, direction, status, from_address, to_address, body, media, provider_message_id, idempotency_key, request_hash, failure_code, failure_message, queued_at, submitting_at, submission_unknown_at, submitted_at, sent_at, delivered_at, received_at, failed_at, created_at, updated_at
 `
 
@@ -813,6 +813,57 @@ func (q *Queries) MarkMessageUndelivered(ctx context.Context, arg MarkMessageUnd
 		arg.OrganizationID,
 		arg.ID,
 	)
+	var i Message
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.MessagingConnectionID,
+		&i.Channel,
+		&i.Direction,
+		&i.Status,
+		&i.FromAddress,
+		&i.ToAddress,
+		&i.Body,
+		&i.Media,
+		&i.ProviderMessageID,
+		&i.IdempotencyKey,
+		&i.RequestHash,
+		&i.FailureCode,
+		&i.FailureMessage,
+		&i.QueuedAt,
+		&i.SubmittingAt,
+		&i.SubmissionUnknownAt,
+		&i.SubmittedAt,
+		&i.SentAt,
+		&i.DeliveredAt,
+		&i.ReceivedAt,
+		&i.FailedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const requeueMessageSubmission = `-- name: RequeueMessageSubmission :one
+UPDATE messages
+SET
+    status = 'queued',
+    submitting_at = NULL,
+    updated_at = NOW()
+WHERE organization_id = $1
+  AND id = $2
+  AND direction = 'outbound'
+  AND status = 'submitting'
+RETURNING id, organization_id, messaging_connection_id, channel, direction, status, from_address, to_address, body, media, provider_message_id, idempotency_key, request_hash, failure_code, failure_message, queued_at, submitting_at, submission_unknown_at, submitted_at, sent_at, delivered_at, received_at, failed_at, created_at, updated_at
+`
+
+type RequeueMessageSubmissionParams struct {
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	ID             uuid.UUID `db:"id" json:"id"`
+}
+
+func (q *Queries) RequeueMessageSubmission(ctx context.Context, arg RequeueMessageSubmissionParams) (Message, error) {
+	row := q.db.QueryRow(ctx, requeueMessageSubmission, arg.OrganizationID, arg.ID)
 	var i Message
 	err := row.Scan(
 		&i.ID,

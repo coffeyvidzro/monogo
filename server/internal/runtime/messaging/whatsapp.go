@@ -2,6 +2,7 @@ package messaging
 
 import (
 	"context"
+	"errors"
 
 	"github.com/coffeyvidzro/monogo/internal/integrations/whatsapp"
 )
@@ -20,7 +21,11 @@ func (w *WhatsApp) Send(ctx context.Context, request Request) (Result, error) {
 		Text: request.Text,
 	})
 	if err != nil {
-		return Result{}, err
+		var apiError *whatsapp.APIError
+		if errors.As(err, &apiError) && apiError.Status >= 400 && apiError.Status < 500 {
+			return Result{}, newSubmissionError(SubmissionRejected, err)
+		}
+		return Result{}, newSubmissionError(SubmissionUnknown, err)
 	}
 	return Result{
 		ExternalID: result.MessageID,

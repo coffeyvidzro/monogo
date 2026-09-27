@@ -28,9 +28,12 @@ type messagingRuntime struct {
 type smsConnectionConfig struct {
 	Host       string        `json:"host"`
 	Port       int           `json:"port"`
-	SystemID   string        `json:"system_id"`
 	SystemType string        `json:"system_type"`
 	BindMode   smpp.BindMode `json:"bind_mode"`
+}
+type smsConnectionSecrets struct {
+	SystemID string `json:"system_id"`
+	Password string `json:"password"`
 }
 type whatsappConnectionConfig struct {
 	BaseURL       string `json:"base_url"`
@@ -66,10 +69,14 @@ func newMessagingRuntime(ctx context.Context, queries *sqlc.Queries, db *pgxpool
 		switch connection.Channel {
 		case "sms":
 			var value smsConnectionConfig
+			var secrets smsConnectionSecrets
 			if err := json.Unmarshal(connection.Configuration, &value); err != nil {
 				return nil, err
 			}
-			config := smpp.DefaultConfig(value.Host, value.Port, value.SystemID, secret)
+			if err := json.Unmarshal([]byte(secret), &secrets); err != nil {
+				return nil, fmt.Errorf("decode SMPP credentials for connection %s: %w", connection.ID, err)
+			}
+			config := smpp.DefaultConfig(value.Host, value.Port, secrets.SystemID, secrets.Password)
 			config.SystemType = value.SystemType
 			config.BindMode = value.BindMode
 			client, err := smpp.New(config)

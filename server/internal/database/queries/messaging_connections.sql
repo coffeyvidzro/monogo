@@ -4,7 +4,11 @@
 SELECT * FROM messaging_connections
 WHERE (
     (scope = 'organization' AND organization_id = sqlc.arg(organization_id))
-    OR (scope = 'platform' AND organization_id IS NULL)
+    OR (
+      scope = 'platform'
+      AND organization_id IS NULL
+      AND sqlc.arg(channel) = 'sms'
+    )
   )
   AND channel = sqlc.arg(channel)
   AND status = 'active'
@@ -35,6 +39,10 @@ WHERE connection.id = sqlc.arg(messaging_connection_id)
   AND connection.status = 'active'
   AND (
     (connection.scope = 'organization' AND connection.organization_id IS NOT NULL)
-    OR (connection.scope = 'platform' AND number.id IS NOT NULL)
+    OR (
+      connection.channel = 'sms'
+      AND connection.scope = 'platform'
+      AND number.id IS NOT NULL
+    )
   )
 LIMIT 1;

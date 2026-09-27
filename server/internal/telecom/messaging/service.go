@@ -163,6 +163,11 @@ func (s *Service) BeginSubmission(ctx context.Context, organizationID, id uuid.U
 	return value, messageWriteError(err, "begin message submission")
 }
 
+func (s *Service) RequeueSubmission(ctx context.Context, organizationID, id uuid.UUID) (sqlc.Message, error) {
+	value, err := s.repo.RequeueSubmission(ctx, organizationID, id)
+	return value, messageWriteError(err, "requeue message submission")
+}
+
 func (s *Service) MarkSubmissionUnknown(
 	ctx context.Context,
 	organizationID, id uuid.UUID,

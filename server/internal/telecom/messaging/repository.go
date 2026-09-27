@@ -150,6 +150,13 @@ func (r *Repository) BeginSubmission(ctx context.Context, organizationID, id uui
 	})
 }
 
+func (r *Repository) RequeueSubmission(ctx context.Context, organizationID, id uuid.UUID) (sqlc.Message, error) {
+	return r.queries.RequeueMessageSubmission(ctx, sqlc.RequeueMessageSubmissionParams{
+		OrganizationID: organizationID,
+		ID:             id,
+	})
+}
+
 func (r *Repository) MarkSubmissionUnknown(
 	ctx context.Context,
 	organizationID, id uuid.UUID,
