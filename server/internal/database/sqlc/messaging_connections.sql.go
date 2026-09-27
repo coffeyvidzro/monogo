@@ -124,8 +124,8 @@ LIMIT 1
 `
 
 type ResolveMessagingConnectionParams struct {
-	OrganizationID *uuid.UUID `db:"organization_id" json:"organization_id"`
-	Channel        string     `db:"channel" json:"channel"`
+	OrganizationID *uuid.UUID  `db:"organization_id" json:"organization_id"`
+	Channel        interface{} `db:"channel" json:"channel"`
 }
 
 // First-active fallback only. A later router will score destination, network,
