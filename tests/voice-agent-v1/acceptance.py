@@ -315,6 +315,19 @@ def originate_call():
     except ValueError as error:
         raise AcceptanceError(f"invalid FreeSWITCH channel id {channel_id!r}") from error
     STATE["channel_id"] = channel_id
+
+    def carrier_channel():
+        raw = fs_cli("voice-agent-v1-carrier", "show channels as json")
+        payload = json.loads(raw)
+        rows = payload.get("rows") or []
+        channels = [row.get("uuid") for row in rows if row.get("uuid")]
+        return channels[0] if len(channels) == 1 else False
+
+    STATE["carrier_channel_id"] = wait_for(
+        "synthetic carrier channel",
+        carrier_channel,
+        timeout=15,
+    )
     return current
 
 
@@ -380,29 +393,37 @@ def verify_snapshot_immutability():
 
 
 def verify_audio_roundtrip():
-    fs_cli(
-        "freeswitch",
-        f"uuid_broadcast {STATE['channel_id']} tone_stream://%(2500,0,440) aleg",
+    response = fs_cli(
+        "voice-agent-v1-carrier",
+        f"uuid_broadcast {STATE['carrier_channel_id']} tone_stream://%(2500,0,440) aleg",
     )
+    if "-ERR" in response:
+        raise AcceptanceError(f"synthetic carrier tone failed: {response}")
 
-    def provider_audio():
-        state = fake_openai_state()
-        return state if state["audio_appends"] > 0 and state["responses"] > 0 else False
+    deadline = time.monotonic() + 20
+    provider = {}
+    fork = {}
+    while time.monotonic() < deadline:
+        provider = fake_openai_state()
+        try:
+            fork = json.loads(fs_cli("freeswitch", "audio_fork status"))
+        except (json.JSONDecodeError, AcceptanceError):
+            fork = {}
 
-    wait_for("provider audio input and response", provider_audio, timeout=20)
+        if (
+            provider.get("audio_appends", 0) > 0
+            and provider.get("responses", 0) > 0
+            and fork.get("sent_bytes", 0) > 0
+            and fork.get("playback_bytes_played", 0) > 0
+        ):
+            return
+        time.sleep(0.25)
 
-    def fork_audio():
-        raw = fs_cli("freeswitch", "audio_fork status")
-        status = json.loads(raw)
-        return (
-            status
-            if status.get("sent_bytes", 0) > 0
-            and status.get("playback_bytes_played", 0) > 0
-            else False
-        )
-
-    wait_for("bidirectional audio fork bytes", fork_audio, timeout=20)
-
+    raise AcceptanceError(
+        "Voice Agent audio round trip did not complete: "
+        f"provider={json.dumps(provider, sort_keys=True)} "
+        f"audio_fork={json.dumps(fork, sort_keys=True)}"
+    )
 
 def hangup_and_verify_completion():
     api("POST", f"/v1/calls/{STATE['call_id']}/hangup", expected={200})
