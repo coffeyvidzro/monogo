@@ -64,6 +64,9 @@ func TestLifecycleDuplicateChannelAnswerAttachesOnce(t *testing.T) {
 	if got := freeSwitch.audioForkCommand(); strings.Count(got, " ") != 6 {
 		t.Fatalf("audio fork command = %q, want no metadata argument", got)
 	}
+	if got := freeSwitch.audioClockStarts(); got != 1 {
+		t.Fatalf("audio clock starts = %d, want 1", got)
+	}
 	if got := freeSwitch.sessionVariable(); got != db.sessionID.String() {
 		t.Fatalf("Voice Agent session channel variable = %q, want %q", got, db.sessionID)
 	}
@@ -427,6 +430,12 @@ func (s *lifecycleFreeSWITCHServer) audioForkCommand() string {
 	return s.lastForkCommand
 }
 
+func (s *lifecycleFreeSWITCHServer) audioClockStarts() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.audioClocks
+}
+
 func (s *lifecycleFreeSWITCHServer) serve() {
 	conn, err := s.listener.Accept()
 	if err != nil {
@@ -480,6 +489,10 @@ func (s *lifecycleFreeSWITCHServer) handle(command string) string {
 			return "-ERR simulated audio fork failure"
 		}
 		return "+OK"
+	case strings.HasPrefix(command, "api uuid_broadcast ") &&
+		strings.Contains(command, " silence_stream://-1 aleg"):
+		s.audioClocks++
+		return "+OK Message sent"
 	case strings.HasPrefix(command, "api uuid_setvar "):
 		fields := strings.Fields(command)
 		if len(fields) >= 5 && fields[3] == voiceAgentSessionVariable {
