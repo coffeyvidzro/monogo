@@ -609,6 +609,35 @@ type Subscriber struct {
 	UpdatedAt      pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 }
 
+type Subscription struct {
+	ID                 uuid.UUID          `db:"id" json:"id"`
+	OrganizationID     uuid.UUID          `db:"organization_id" json:"organization_id"`
+	PlanID             uuid.UUID          `db:"plan_id" json:"plan_id"`
+	Status             string             `db:"status" json:"status"`
+	Currency           string             `db:"currency" json:"currency"`
+	AmountMicros       int64              `db:"amount_micros" json:"amount_micros"`
+	Interval           string             `db:"interval" json:"interval"`
+	CurrentPeriodStart pgtype.Timestamptz `db:"current_period_start" json:"current_period_start"`
+	CurrentPeriodEnd   pgtype.Timestamptz `db:"current_period_end" json:"current_period_end"`
+	CancelAtPeriodEnd  bool               `db:"cancel_at_period_end" json:"cancel_at_period_end"`
+	StartedAt          pgtype.Timestamptz `db:"started_at" json:"started_at"`
+	CancelledAt        pgtype.Timestamptz `db:"cancelled_at" json:"cancelled_at"`
+	CreatedAt          pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	UpdatedAt          pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+}
+
+type SubscriptionPlan struct {
+	ID           uuid.UUID          `db:"id" json:"id"`
+	Code         string             `db:"code" json:"code"`
+	Name         string             `db:"name" json:"name"`
+	Currency     string             `db:"currency" json:"currency"`
+	Interval     string             `db:"interval" json:"interval"`
+	AmountMicros int64              `db:"amount_micros" json:"amount_micros"`
+	Status       string             `db:"status" json:"status"`
+	CreatedAt    pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	UpdatedAt    pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+}
+
 type Trunk struct {
 	ID                  uuid.UUID          `db:"id" json:"id"`
 	OrganizationID      *uuid.UUID         `db:"organization_id" json:"organization_id"`
@@ -808,23 +837,20 @@ type Wallet struct {
 }
 
 type WalletEvent struct {
-	ID                          uuid.UUID          `db:"id" json:"id"`
-	WalletID                    uuid.UUID          `db:"wallet_id" json:"wallet_id"`
-	OrganizationID              uuid.UUID          `db:"organization_id" json:"organization_id"`
-	ChargeID                    *uuid.UUID         `db:"charge_id" json:"charge_id"`
-	OperationID                 uuid.UUID          `db:"operation_id" json:"operation_id"`
-	WalletVersion               int64              `db:"wallet_version" json:"wallet_version"`
-	ChargeSequence              *int64             `db:"charge_sequence" json:"charge_sequence"`
-	EventType                   string             `db:"event_type" json:"event_type"`
-	BalanceDeltaMicros          int64              `db:"balance_delta_micros" json:"balance_delta_micros"`
-	ReservedDeltaMicros         int64              `db:"reserved_delta_micros" json:"reserved_delta_micros"`
-	BalanceAfterMicros          int64              `db:"balance_after_micros" json:"balance_after_micros"`
-	ReservedAfterMicros         int64              `db:"reserved_after_micros" json:"reserved_after_micros"`
-	ChargeAuthorizedAfterMicros *int64             `db:"charge_authorized_after_micros" json:"charge_authorized_after_micros"`
-	ChargeConsumedAfterMicros   *int64             `db:"charge_consumed_after_micros" json:"charge_consumed_after_micros"`
-	ChargeReservedAfterMicros   *int64             `db:"charge_reserved_after_micros" json:"charge_reserved_after_micros"`
-	OccurredAt                  pgtype.Timestamptz `db:"occurred_at" json:"occurred_at"`
-	CreatedAt                   pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	ID                  uuid.UUID          `db:"id" json:"id"`
+	WalletID            uuid.UUID          `db:"wallet_id" json:"wallet_id"`
+	OrganizationID      uuid.UUID          `db:"organization_id" json:"organization_id"`
+	ChargeID            *uuid.UUID         `db:"charge_id" json:"charge_id"`
+	OperationID         uuid.UUID          `db:"operation_id" json:"operation_id"`
+	WalletVersion       int64              `db:"wallet_version" json:"wallet_version"`
+	ChargeSequence      *int64             `db:"charge_sequence" json:"charge_sequence"`
+	EventType           string             `db:"event_type" json:"event_type"`
+	BalanceDeltaMicros  int64              `db:"balance_delta_micros" json:"balance_delta_micros"`
+	ReservedDeltaMicros int64              `db:"reserved_delta_micros" json:"reserved_delta_micros"`
+	BalanceAfterMicros  int64              `db:"balance_after_micros" json:"balance_after_micros"`
+	ReservedAfterMicros int64              `db:"reserved_after_micros" json:"reserved_after_micros"`
+	OccurredAt          pgtype.Timestamptz `db:"occurred_at" json:"occurred_at"`
+	CreatedAt           pgtype.Timestamptz `db:"created_at" json:"created_at"`
 }
 
 type WalletLedgerEntry struct {

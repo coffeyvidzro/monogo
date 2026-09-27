@@ -1,4 +1,4 @@
-h1:6HpYleBZTxw+pr4Nw6RcHvf4K727iSBlUSKE/P27+sM=
+h1:qTEKInjYVH1vUGHjTKsx1cDao2JYHEcjQZRyd17N6Gc=
 001_extensions.sql h1:V12FA/dbb8clPffRf/1QJRpbB/S0eECkElwvfOVRda4=
 002_create_users.sql h1:w8z6z5sqnmtExCGa63iYl2ssG9rgXX8m3VPqvb1z4jo=
 003_create_authentication.sql h1:6R8fm0zInr9A/OW74oYTBLpPYHRf3dpVjw13qyjdd7E=
@@ -36,4 +36,8 @@ h1:6HpYleBZTxw+pr4Nw6RcHvf4K727iSBlUSKE/P27+sM=
 035_create_voice_agent_turns.sql h1:f2GsXiouu+2x3Aa0/gRKPHfratZS+hCAVrD8IMkYO08=
 036_create_voice_agent_tool_execution.sql h1:uZpp+vdJe8kryORJYR7pR0zilBi/n0cZ+rVuwRBaFcs=
 037_create_messages.sql h1:HIyHBqWYqXZ2MOovXikHSgeHV4b6/HKsq4r7m+aq/UM=
-038_create_billing.sql h1:W8U/8RwKaVUnHpmAUD3KLEqWNU7osgtHpHrEJy6Ruy8=
+038_create_wallets.sql h1:EQ0FTm5mEsmjr+xb2wqHgu9BneLyASr0vX5pNspoQgE=
+039_create_charges.sql h1:pHtnd+Ygc2L9nNhhmru0qKt7+AzlKawCZn0lGNxHR0M=
+040_create_wallet_events.sql h1:OWnpwghzRT21w6iPOneSi3BFz/jwzBde4GKtHR/vq4g=
+041_create_wallet_ledger.sql h1:CgsO9YaaB5I/2kOSzcGOqeOl1MjzTKuisp16BlrNlrk=
+042_create_subscriptions.sql h1:T9UdWlQgYqn/nj6GHu5ysufMPiVJ6MKRhEMoeh5Tw5Y=
