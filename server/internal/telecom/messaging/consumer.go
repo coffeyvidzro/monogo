@@ -16,6 +16,12 @@ type RouteResolver interface {
 	Resolve(context.Context, sqlc.Message) (Route, error)
 }
 
+// Dispatcher is implemented by runtime/messaging. The domain never imports an
+// SMPP or WhatsApp client and receives only a normalized submission result.
+type Dispatcher interface {
+	Send(context.Context, Route, OutboundMessage) (Submission, error)
+}
+
 type outboundLifecycle interface {
 	SetProviderAttribution(context.Context, uuid.UUID, uuid.UUID, uuid.UUID) (sqlc.Message, error)
 	MarkSubmitted(context.Context, uuid.UUID, uuid.UUID, string) (sqlc.Message, error)
@@ -26,14 +32,14 @@ type outboundLifecycle interface {
 type Consumer struct {
 	messages outboundLifecycle
 	routes   RouteResolver
-	channels *ChannelRouter
+	dispatch Dispatcher
 }
 
-func NewConsumer(messages outboundLifecycle, routes RouteResolver, channels *ChannelRouter) *Consumer {
-	if messages == nil || routes == nil || channels == nil {
-		panic("messaging: lifecycle, route resolver, and channel router are required")
+func NewConsumer(messages outboundLifecycle, routes RouteResolver, dispatch Dispatcher) *Consumer {
+	if messages == nil || routes == nil || dispatch == nil {
+		panic("messaging: lifecycle, route resolver, and dispatcher are required")
 	}
-	return &Consumer{messages: messages, routes: routes, channels: channels}
+	return &Consumer{messages: messages, routes: routes, dispatch: dispatch}
 }
 
 // HandleQueued submits a queued outbound message. Infrastructure errors are
@@ -43,10 +49,6 @@ func (c *Consumer) HandleQueued(ctx context.Context, message sqlc.Message) (sqlc
 		return sqlc.Message{}, fmt.Errorf("message %s is not queued outbound", message.ID)
 	}
 	channel := Channel(message.Channel)
-	transport, err := c.channels.Transport(channel)
-	if err != nil {
-		return sqlc.Message{}, err
-	}
 	route, err := c.routes.Resolve(ctx, message)
 	if err != nil {
 		return sqlc.Message{}, fmt.Errorf("resolve message route: %w", err)
@@ -63,7 +65,7 @@ func (c *Consumer) HandleQueued(ctx context.Context, message sqlc.Message) (sqlc
 	if err := unmarshalMedia(attributed.Media, &media); err != nil {
 		return sqlc.Message{}, err
 	}
-	submission, err := transport.Send(ctx, route, OutboundMessage{
+	submission, err := c.dispatch.Send(ctx, route, OutboundMessage{
 		MessageID: attributed.ID, Channel: Channel(attributed.Channel),
 		From: attributed.FromAddress, To: attributed.ToAddress,
 		Body: attributed.Body, Media: media,

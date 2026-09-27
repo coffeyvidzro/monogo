@@ -15,7 +15,6 @@ const (
 	ChannelSMS      Channel = "sms"
 	ChannelMMS      Channel = "mms"
 	ChannelWhatsApp Channel = "whatsapp"
-	ChannelRCS      Channel = "rcs"
 )
 
 type Direction string
@@ -52,6 +51,27 @@ const (
 type Media struct {
 	URL         string `json:"url"`
 	ContentType string `json:"content_type,omitempty"`
+}
+
+// OutboundMessage is the canonical command shared by channel runtimes.
+type OutboundMessage struct {
+	MessageID uuid.UUID
+	Channel   Channel
+	From      string
+	To        string
+	Body      *string
+	Media     []Media
+}
+
+// Route is the domain-selected connection. Protocol credentials stay in the
+// integration selected by the runtime controller.
+type Route struct {
+	CarrierConnectionID uuid.UUID
+}
+
+// Submission is the normalized transport acceptance result.
+type Submission struct {
+	ProviderMessageID string
 }
 
 type CreateRequest struct {

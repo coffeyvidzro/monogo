@@ -32,7 +32,7 @@ CREATE TABLE IF NOT EXISTS messages (
     CONSTRAINT uq_messages_id_organization UNIQUE (id, organization_id),
 
     CONSTRAINT chk_messages_channel CHECK (
-        channel IN ('sms', 'mms', 'whatsapp', 'rcs')
+        channel IN ('sms', 'mms', 'whatsapp')
     ),
     CONSTRAINT chk_messages_direction CHECK (
         direction IN ('inbound', 'outbound')

@@ -104,7 +104,7 @@ func validateMedia(item Media) error {
 
 func (c Channel) IsValid() bool {
 	switch c {
-	case ChannelSMS, ChannelMMS, ChannelWhatsApp, ChannelRCS:
+	case ChannelSMS, ChannelMMS, ChannelWhatsApp:
 		return true
 	default:
 		return false
