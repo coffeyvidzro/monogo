@@ -9,6 +9,7 @@ import (
 	"github.com/coffeyvidzro/monogo/internal/telecom/carriers"
 	"github.com/coffeyvidzro/monogo/internal/telecom/conferences"
 	"github.com/coffeyvidzro/monogo/internal/telecom/lifecycle"
+	"github.com/coffeyvidzro/monogo/internal/telecom/messaging"
 	"github.com/coffeyvidzro/monogo/internal/telecom/numbers"
 	"github.com/coffeyvidzro/monogo/internal/telecom/realtime"
 	"github.com/coffeyvidzro/monogo/internal/telecom/recordings"
@@ -28,6 +29,13 @@ func RegisterRoutes(
 		router,
 		module.Calls.Handler,
 		organizationAccess("calls"),
+		idempotency,
+	)
+
+	messaging.RegisterRoutes(
+		router,
+		module.Messaging.Handler,
+		organizationAccess("messages"),
 		idempotency,
 	)
 
