@@ -1,4 +1,4 @@
-h1:VzTZ3hB0WBMB0A/fmwG4j87RmwSydA0QLiI5CFJ6+ek=
+h1:qTEKInjYVH1vUGHjTKsx1cDao2JYHEcjQZRyd17N6Gc=
 001_extensions.sql h1:V12FA/dbb8clPffRf/1QJRpbB/S0eECkElwvfOVRda4=
 002_create_users.sql h1:w8z6z5sqnmtExCGa63iYl2ssG9rgXX8m3VPqvb1z4jo=
 003_create_authentication.sql h1:6R8fm0zInr9A/OW74oYTBLpPYHRf3dpVjw13qyjdd7E=
@@ -41,4 +41,3 @@ h1:VzTZ3hB0WBMB0A/fmwG4j87RmwSydA0QLiI5CFJ6+ek=
 040_create_wallet_events.sql h1:OWnpwghzRT21w6iPOneSi3BFz/jwzBde4GKtHR/vq4g=
 041_create_wallet_ledger.sql h1:CgsO9YaaB5I/2kOSzcGOqeOl1MjzTKuisp16BlrNlrk=
 042_create_subscriptions.sql h1:T9UdWlQgYqn/nj6GHu5ysufMPiVJ6MKRhEMoeh5Tw5Y=
-043_add_ocs_persistence_state.sql h1:Xe6mE/mO4VZ7pxoA4PUcGXVmmeUYXIOzDK4EAg+E8EI=
