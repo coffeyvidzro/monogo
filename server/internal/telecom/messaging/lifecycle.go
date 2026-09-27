@@ -22,11 +22,11 @@ const (
 // DeliveryReceipt is produced by a carrier adapter after it has authenticated
 // and normalized a provider callback.
 type DeliveryReceipt struct {
-	CarrierConnectionID uuid.UUID
-	ProviderMessageID   string
-	Status              DeliveryStatus
-	FailureCode         *string
-	FailureMessage      *string
+	MessagingConnectionID uuid.UUID
+	ProviderMessageID     string
+	Status                DeliveryStatus
+	FailureCode           *string
+	FailureMessage        *string
 }
 
 // AcceptInbound persists a normalized inbound provider callback. The database
@@ -39,8 +39,8 @@ func (s *Service) AcceptInbound(ctx context.Context, req InboundRequest) (sqlc.M
 // stale intermediate states are acknowledged by returning the current message.
 func (s *Service) AcceptDelivery(ctx context.Context, receipt DeliveryReceipt) (sqlc.Message, error) {
 	receipt.ProviderMessageID = strings.TrimSpace(receipt.ProviderMessageID)
-	if receipt.CarrierConnectionID == uuid.Nil {
-		return sqlc.Message{}, apperror.NewBadRequest("carrier_connection_id is required")
+	if receipt.MessagingConnectionID == uuid.Nil {
+		return sqlc.Message{}, apperror.NewBadRequest("messaging_connection_id is required")
 	}
 	if receipt.ProviderMessageID == "" || len(receipt.ProviderMessageID) > 255 {
 		return sqlc.Message{}, apperror.NewBadRequest("provider_message_id must be between 1 and 255 characters")
@@ -49,7 +49,7 @@ func (s *Service) AcceptDelivery(ctx context.Context, receipt DeliveryReceipt) (
 		return sqlc.Message{}, apperror.NewBadRequest("invalid delivery status")
 	}
 
-	message, err := s.repo.GetByProviderID(ctx, receipt.CarrierConnectionID, receipt.ProviderMessageID)
+	message, err := s.repo.GetByProviderID(ctx, receipt.MessagingConnectionID, receipt.ProviderMessageID)
 	if err != nil {
 		return sqlc.Message{}, messageReadError(err, "message not found")
 	}

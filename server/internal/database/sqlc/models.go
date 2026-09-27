@@ -270,7 +270,7 @@ type ManagedNumberOrder struct {
 type Message struct {
 	ID                  uuid.UUID          `db:"id" json:"id"`
 	OrganizationID      uuid.UUID          `db:"organization_id" json:"organization_id"`
-	CarrierConnectionID *uuid.UUID         `db:"carrier_connection_id" json:"carrier_connection_id"`
+	MessagingConnectionID *uuid.UUID         `db:"messaging_connection_id" json:"messaging_connection_id"`
 	Channel             string             `db:"channel" json:"channel"`
 	Direction           string             `db:"direction" json:"direction"`
 	Status              string             `db:"status" json:"status"`
@@ -804,4 +804,17 @@ type WebhookEvent struct {
 	Payload        []byte             `db:"payload" json:"payload"`
 	OccurredAt     pgtype.Timestamptz `db:"occurred_at" json:"occurred_at"`
 	CreatedAt      pgtype.Timestamptz `db:"created_at" json:"created_at"`
+}
+
+
+type MessagingConnection struct {
+	ID              uuid.UUID          `db:"id" json:"id"`
+	OrganizationID  uuid.UUID          `db:"organization_id" json:"organization_id"`
+	Channel         string             `db:"channel" json:"channel"`
+	Name            string             `db:"name" json:"name"`
+	Status          string             `db:"status" json:"status"`
+	Configuration   []byte             `db:"configuration" json:"configuration"`
+	EncryptedSecret string             `db:"encrypted_secret" json:"encrypted_secret"`
+	CreatedAt       pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	UpdatedAt       pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 }

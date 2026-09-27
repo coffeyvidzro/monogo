@@ -49,6 +49,7 @@ type modules struct {
 	trunkHealth             *trunks.HealthCheckJob
 	numberReconciliation    *numbers.ReconciliationJob
 	lifecycleReconciliation *lifecycle.ReconciliationJob
+	messaging               *messagingRuntime
 }
 
 func newModules(ctx context.Context, cfg config.Config, logger *logging.Logger) (*modules, error) {
@@ -105,6 +106,11 @@ func newModules(ctx context.Context, cfg config.Config, logger *logging.Logger) 
 	if err != nil {
 		closeDependencies()
 		return nil, fmt.Errorf("initialize Voice Agent tool encryption: %w", err)
+	}
+	messagingRuntime, err := newMessagingRuntime(ctx, queries, postgresClient.Pool(), natsClient, credentialCipher)
+	if err != nil {
+		closeDependencies()
+		return nil, fmt.Errorf("initialize messaging runtime: %w", err)
 	}
 
 	routingRepository := routing.NewRepository(queries, postgresClient.Pool())
@@ -256,6 +262,7 @@ func newModules(ctx context.Context, cfg config.Config, logger *logging.Logger) 
 		trunkHealth:             trunkHealth,
 		numberReconciliation:    numberReconciliation,
 		lifecycleReconciliation: lifecycleReconciliation,
+		messaging:               messagingRuntime,
 	}, nil
 }
 

@@ -2,6 +2,7 @@ package smpp
 
 import (
 	"encoding/hex"
+	"fmt"
 	"strings"
 	"time"
 
@@ -32,7 +33,7 @@ func (c *Client) handlePDU(body pdu.Body) {
 		}
 		return
 	}
-	message := Inbound{From: fieldString(fields, pdufield.SourceAddr), To: fieldString(fields, pdufield.DestinationAddr), Text: text, ReceivedAt: time.Now().UTC()}
+	message := Inbound{Reference: fmt.Sprintf("deliver_sm:%d", body.Header().Seq), From: fieldString(fields, pdufield.SourceAddr), To: fieldString(fields, pdufield.DestinationAddr), Text: text, ReceivedAt: time.Now().UTC()}
 	if message.From == "" || message.To == "" {
 		return
 	}

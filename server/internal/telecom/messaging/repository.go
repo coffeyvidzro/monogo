@@ -62,14 +62,14 @@ func (r *Repository) CreateInbound(ctx context.Context, req InboundRequest) (sql
 	}
 	return r.mutate(ctx, EventReceived, func(repo *Repository) (sqlc.Message, error) {
 		return repo.queries.CreateInboundMessage(ctx, sqlc.CreateInboundMessageParams{
-			OrganizationID:      req.OrganizationID,
-			CarrierConnectionID: req.CarrierConnectionID,
-			Channel:             string(req.Channel),
-			FromAddress:         req.From,
-			ToAddress:           req.To,
-			Body:                req.Body,
-			Media:               media,
-			ProviderMessageID:   &req.ProviderMessageID,
+			OrganizationID:        req.OrganizationID,
+			MessagingConnectionID: req.MessagingConnectionID,
+			Channel:               string(req.Channel),
+			FromAddress:           req.From,
+			ToAddress:             req.To,
+			Body:                  req.Body,
+			Media:                 media,
+			ProviderMessageID:     &req.ProviderMessageID,
 		})
 	})
 }
@@ -85,10 +85,10 @@ func (r *Repository) GetByIdempotencyKey(ctx context.Context, organizationID uui
 	})
 }
 
-func (r *Repository) GetByProviderID(ctx context.Context, carrierConnectionID uuid.UUID, providerMessageID string) (sqlc.Message, error) {
+func (r *Repository) GetByProviderID(ctx context.Context, messagingConnectionID uuid.UUID, providerMessageID string) (sqlc.Message, error) {
 	return r.queries.GetMessageByProviderID(ctx, sqlc.GetMessageByProviderIDParams{
-		CarrierConnectionID: &carrierConnectionID,
-		ProviderMessageID:   &providerMessageID,
+		MessagingConnectionID: &messagingConnectionID,
+		ProviderMessageID:     &providerMessageID,
 	})
 }
 
@@ -103,11 +103,18 @@ func (r *Repository) List(ctx context.Context, organizationID uuid.UUID, req Lis
 	})
 }
 
-func (r *Repository) SetProviderAttribution(ctx context.Context, organizationID, id, carrierConnectionID uuid.UUID) (sqlc.Message, error) {
+func (r *Repository) ResolveConnection(ctx context.Context, organizationID uuid.UUID, channel Channel) (sqlc.MessagingConnection, error) {
+	return r.queries.ResolveMessagingConnection(ctx, sqlc.ResolveMessagingConnectionParams{
+		OrganizationID: organizationID,
+		Channel:        string(channel),
+	})
+}
+
+func (r *Repository) SetProviderAttribution(ctx context.Context, organizationID, id, messagingConnectionID uuid.UUID) (sqlc.Message, error) {
 	return r.queries.SetMessageProviderAttribution(ctx, sqlc.SetMessageProviderAttributionParams{
-		CarrierConnectionID: carrierConnectionID,
-		OrganizationID:      organizationID,
-		ID:                  id,
+		MessagingConnectionID: messagingConnectionID,
+		OrganizationID:        organizationID,
+		ID:                    id,
 	})
 }
 

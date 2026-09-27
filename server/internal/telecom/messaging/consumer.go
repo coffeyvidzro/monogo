@@ -7,80 +7,49 @@ import (
 	"strings"
 
 	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
-	"github.com/google/uuid"
+	runtimemessaging "github.com/coffeyvidzro/monogo/internal/runtime/messaging"
 )
 
-// RouteResolver applies tenant routing policy and selects a connection. It
-// deliberately does not select or expose a protocol adapter.
-type RouteResolver interface {
-	Resolve(context.Context, sqlc.Message) (Route, error)
-}
-
-// Dispatcher is implemented by runtime/messaging. The domain never imports an
-// SMPP or WhatsApp client and receives only a normalized submission result.
-type Dispatcher interface {
-	Send(context.Context, Route, OutboundMessage) (Submission, error)
-}
-
-type outboundLifecycle interface {
-	SetProviderAttribution(context.Context, uuid.UUID, uuid.UUID, uuid.UUID) (sqlc.Message, error)
-	MarkSubmitted(context.Context, uuid.UUID, uuid.UUID, string) (sqlc.Message, error)
-	MarkFailed(context.Context, uuid.UUID, uuid.UUID, Failure) (sqlc.Message, error)
-}
-
-// Consumer coordinates domain routing, channel routing, and lifecycle changes.
+// Consumer owns canonical state transitions and delegates execution to the runtime.
 type Consumer struct {
-	messages outboundLifecycle
-	routes   RouteResolver
-	dispatch Dispatcher
+	service *Service
+	repo    *Repository
+	runtime *runtimemessaging.Controller
 }
 
-func NewConsumer(messages outboundLifecycle, routes RouteResolver, dispatch Dispatcher) *Consumer {
-	if messages == nil || routes == nil || dispatch == nil {
-		panic("messaging: lifecycle, route resolver, and dispatcher are required")
+func NewConsumer(service *Service, repo *Repository, runtime *runtimemessaging.Controller) *Consumer {
+	if service == nil || repo == nil || runtime == nil {
+		panic("messaging: service, repository, and runtime are required")
 	}
-	return &Consumer{messages: messages, routes: routes, dispatch: dispatch}
+	return &Consumer{service: service, repo: repo, runtime: runtime}
 }
-
-// HandleQueued submits a queued outbound message. Infrastructure errors are
-// returned so the caller can retry with the same stable MessageID.
 func (c *Consumer) HandleQueued(ctx context.Context, message sqlc.Message) (sqlc.Message, error) {
 	if message.Direction != string(DirectionOutbound) || message.Status != string(StatusQueued) {
 		return sqlc.Message{}, fmt.Errorf("message %s is not queued outbound", message.ID)
 	}
-	channel := Channel(message.Channel)
-	route, err := c.routes.Resolve(ctx, message)
+	connection, err := c.repo.ResolveConnection(ctx, message.OrganizationID, Channel(message.Channel))
 	if err != nil {
-		return sqlc.Message{}, fmt.Errorf("resolve message route: %w", err)
+		return sqlc.Message{}, fmt.Errorf("resolve messaging connection: %w", err)
 	}
-	if route.CarrierConnectionID == uuid.Nil {
-		return sqlc.Message{}, fmt.Errorf("resolve message route: carrier connection is required")
-	}
-	attributed, err := c.messages.SetProviderAttribution(ctx, message.OrganizationID, message.ID, route.CarrierConnectionID)
+	attributed, err := c.service.SetProviderAttribution(ctx, message.OrganizationID, message.ID, connection.ID)
 	if err != nil {
 		return sqlc.Message{}, err
 	}
-
-	var media []Media
-	if err := unmarshalMedia(attributed.Media, &media); err != nil {
+	request, err := runtimemessaging.Translate(attributed.ID, connection.ID, runtimemessaging.Channel(attributed.Channel), attributed.FromAddress, attributed.ToAddress, attributed.Body)
+	if err != nil {
 		return sqlc.Message{}, err
 	}
-	submission, err := c.dispatch.Send(ctx, route, OutboundMessage{
-		MessageID: attributed.ID, Channel: Channel(attributed.Channel),
-		From: attributed.FromAddress, To: attributed.ToAddress,
-		Body: attributed.Body, Media: media,
-	})
+	result, err := c.runtime.Send(ctx, request)
 	if err != nil {
-		return sqlc.Message{}, fmt.Errorf("submit %s message: %w", channel, err)
+		return sqlc.Message{}, fmt.Errorf("submit %s message: %w", message.Channel, err)
 	}
-	providerID := strings.TrimSpace(submission.ProviderMessageID)
+	providerID := strings.TrimSpace(result.ExternalID)
 	if providerID == "" {
 		code, detail := "invalid_provider_response", "transport accepted message without an id"
-		return c.messages.MarkFailed(ctx, message.OrganizationID, message.ID, Failure{Code: &code, Message: &detail})
+		return c.service.MarkFailed(ctx, message.OrganizationID, message.ID, Failure{Code: &code, Message: &detail})
 	}
-	return c.messages.MarkSubmitted(ctx, message.OrganizationID, message.ID, providerID)
+	return c.service.MarkSubmitted(ctx, message.OrganizationID, message.ID, providerID)
 }
-
 func unmarshalMedia(payload []byte, target *[]Media) error {
 	if len(payload) == 0 {
 		*target = []Media{}

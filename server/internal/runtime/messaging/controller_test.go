@@ -1,44 +1,37 @@
 package messaging
 
 import (
-	"context"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"testing"
+	"time"
 
-	domain "github.com/coffeyvidzro/monogo/internal/telecom/messaging"
+	"github.com/coffeyvidzro/monogo/internal/integrations/whatsapp"
 	"github.com/google/uuid"
 )
 
-type captureSender struct{ called bool }
-
-func (s *captureSender) Send(context.Context, Request) (Result, error) {
-	s.called = true
-	return Result{ExternalID: "external-1"}, nil
-}
-
-func TestControllerRoutesSMSAndWhatsApp(t *testing.T) {
-	for _, channel := range []domain.Channel{domain.ChannelSMS, domain.ChannelMMS, domain.ChannelWhatsApp} {
-		sms, whatsapp := &captureSender{}, &captureSender{}
-		controller := NewController(sms, whatsapp)
-		body := "hello"
-		result, err := controller.Send(context.Background(), domain.Route{CarrierConnectionID: uuid.New()}, domain.OutboundMessage{MessageID: uuid.New(), Channel: channel, From: "+12025550100", To: "+12025550101", Body: &body})
+func TestControllerUsesSelectedWhatsAppConnection(t *testing.T) {
+	selected := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { fmt.Fprint(w, `{"messages":[{"id":"selected"}]}`) }))
+	defer selected.Close()
+	other := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { fmt.Fprint(w, `{"messages":[{"id":"other"}]}`) }))
+	defer other.Close()
+	newClient := func(server *httptest.Server) *whatsapp.Client {
+		client, err := whatsapp.New(whatsapp.Config{BaseURL: server.URL, AccessToken: "token", PhoneNumberID: "phone", AppSecret: "secret", Timeout: time.Second}, server.Client())
 		if err != nil {
-			t.Fatalf("Send(%q) error = %v", channel, err)
+			t.Fatal(err)
 		}
-		if result.ProviderMessageID != "external-1" {
-			t.Fatalf("Send(%q) result = %#v", channel, result)
-		}
-		if channel == domain.ChannelWhatsApp && (!whatsapp.called || sms.called) {
-			t.Fatalf("WhatsApp selected wrong sender")
-		}
-		if channel != domain.ChannelWhatsApp && (!sms.called || whatsapp.called) {
-			t.Fatalf("SMS selected wrong sender")
-		}
+		return client
 	}
-}
-
-func TestControllerRejectsUnsupportedChannel(t *testing.T) {
-	_, err := NewController(&captureSender{}, &captureSender{}).Send(context.Background(), domain.Route{CarrierConnectionID: uuid.New()}, domain.OutboundMessage{MessageID: uuid.New(), Channel: domain.Channel("email")})
-	if err == nil {
-		t.Fatal("Send(email) error = nil")
+	selectedID, otherID := uuid.New(), uuid.New()
+	controller := NewController()
+	controller.RegisterWhatsApp(selectedID, newClient(selected))
+	controller.RegisterWhatsApp(otherID, newClient(other))
+	result, err := controller.Send(t.Context(), Request{MessageID: uuid.New(), ConnectionID: selectedID, Channel: ChannelWhatsApp, To: "15550001", Text: "hello"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.ExternalID != "selected" {
+		t.Fatalf("external id = %q", result.ExternalID)
 	}
 }

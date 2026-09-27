@@ -77,7 +77,7 @@ func (s *Service) CreateInbound(ctx context.Context, req InboundRequest) (sqlc.M
 	if !errors.Is(err, pgx.ErrNoRows) {
 		return sqlc.Message{}, apperror.NewInternal("create inbound message", err)
 	}
-	existing, readErr := s.repo.GetByProviderID(ctx, normalized.CarrierConnectionID, normalized.ProviderMessageID)
+	existing, readErr := s.repo.GetByProviderID(ctx, normalized.MessagingConnectionID, normalized.ProviderMessageID)
 	if readErr != nil {
 		return sqlc.Message{}, messageReadError(readErr, "message not found")
 	}
@@ -99,10 +99,10 @@ func (s *Service) Get(ctx context.Context, organizationID, id uuid.UUID) (sqlc.M
 // receipts. It is intentionally not exposed as an organization API lookup.
 func (s *Service) GetByProviderID(
 	ctx context.Context,
-	carrierConnectionID uuid.UUID,
+	messagingConnectionID uuid.UUID,
 	providerMessageID string,
 ) (sqlc.Message, error) {
-	value, err := s.repo.GetByProviderID(ctx, carrierConnectionID, providerMessageID)
+	value, err := s.repo.GetByProviderID(ctx, messagingConnectionID, providerMessageID)
 	return value, messageReadError(err, "message not found")
 }
 
@@ -123,14 +123,14 @@ func (s *Service) List(ctx context.Context, organizationID uuid.UUID, req ListRe
 
 func (s *Service) SetProviderAttribution(
 	ctx context.Context,
-	organizationID, id, carrierConnectionID uuid.UUID,
+	organizationID, id, messagingConnectionID uuid.UUID,
 ) (sqlc.Message, error) {
-	if organizationID == uuid.Nil || id == uuid.Nil || carrierConnectionID == uuid.Nil {
+	if organizationID == uuid.Nil || id == uuid.Nil || messagingConnectionID == uuid.Nil {
 		return sqlc.Message{}, apperror.NewBadRequest(
-			"organization_id, message_id, and carrier_connection_id are required",
+			"organization_id, message_id, and messaging_connection_id are required",
 		)
 	}
-	value, err := s.repo.SetProviderAttribution(ctx, organizationID, id, carrierConnectionID)
+	value, err := s.repo.SetProviderAttribution(ctx, organizationID, id, messagingConnectionID)
 	return value, messageWriteError(err, "attribute message provider")
 }
 

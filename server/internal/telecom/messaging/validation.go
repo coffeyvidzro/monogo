@@ -37,8 +37,8 @@ func normalizeInboundRequest(req InboundRequest) (InboundRequest, error) {
 	if req.OrganizationID == uuid.Nil {
 		return InboundRequest{}, apperror.NewBadRequest("organization_id is required")
 	}
-	if req.CarrierConnectionID == uuid.Nil {
-		return InboundRequest{}, apperror.NewBadRequest("carrier_connection_id is required")
+	if req.MessagingConnectionID == uuid.Nil {
+		return InboundRequest{}, apperror.NewBadRequest("messaging_connection_id is required")
 	}
 	req.ProviderMessageID = strings.TrimSpace(req.ProviderMessageID)
 	if req.ProviderMessageID == "" || len(req.ProviderMessageID) > 255 {
@@ -104,7 +104,7 @@ func validateMedia(item Media) error {
 
 func (c Channel) IsValid() bool {
 	switch c {
-	case ChannelSMS, ChannelMMS, ChannelWhatsApp:
+	case ChannelSMS, ChannelWhatsApp:
 		return true
 	default:
 		return false

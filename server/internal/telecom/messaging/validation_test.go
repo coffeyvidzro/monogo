@@ -54,33 +54,15 @@ func TestNormalizeCreateRequestRejectsSMSMedia(t *testing.T) {
 	}
 }
 
-func TestNormalizeCreateRequestMMSAllowsHTTPSMedia(t *testing.T) {
-	got, err := normalizeCreateRequest(CreateRequest{
-		Channel: ChannelMMS,
-		From:    "+15551230001",
-		To:      "+15551230002",
-		Media:   []Media{{URL: " https://example.com/image.jpg ", ContentType: " image/jpeg "}},
-	})
-	if err != nil {
-		t.Fatalf("normalizeCreateRequest() error = %v", err)
-	}
-	if got.Media[0].URL != "https://example.com/image.jpg" {
-		t.Fatalf("media URL = %q", got.Media[0].URL)
-	}
-	if got.Media[0].ContentType != "image/jpeg" {
-		t.Fatalf("content type = %q", got.Media[0].ContentType)
-	}
-}
-
 func TestNormalizeInboundRequestRequiresProviderIdentity(t *testing.T) {
 	body := "hello"
 	_, err := normalizeInboundRequest(InboundRequest{
-		OrganizationID:      uuid.New(),
-		CarrierConnectionID: uuid.New(),
-		Channel:             ChannelSMS,
-		From:                "+233200000001",
-		To:                  "+233200000002",
-		Body:                &body,
+		OrganizationID:        uuid.New(),
+		MessagingConnectionID: uuid.New(),
+		Channel:               ChannelSMS,
+		From:                  "+233200000001",
+		To:                    "+233200000002",
+		Body:                  &body,
 	})
 	if err == nil {
 		t.Fatal("normalizeInboundRequest() error = nil")

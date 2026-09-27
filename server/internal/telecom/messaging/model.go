@@ -13,7 +13,6 @@ type Channel string
 
 const (
 	ChannelSMS      Channel = "sms"
-	ChannelMMS      Channel = "mms"
 	ChannelWhatsApp Channel = "whatsapp"
 )
 
@@ -53,27 +52,6 @@ type Media struct {
 	ContentType string `json:"content_type,omitempty"`
 }
 
-// OutboundMessage is the canonical command shared by channel runtimes.
-type OutboundMessage struct {
-	MessageID uuid.UUID
-	Channel   Channel
-	From      string
-	To        string
-	Body      *string
-	Media     []Media
-}
-
-// Route is the domain-selected connection. Protocol credentials stay in the
-// integration selected by the runtime controller.
-type Route struct {
-	CarrierConnectionID uuid.UUID
-}
-
-// Submission is the normalized transport acceptance result.
-type Submission struct {
-	ProviderMessageID string
-}
-
 type CreateRequest struct {
 	Channel Channel `json:"channel"`
 	From    string  `json:"from"`
@@ -83,14 +61,14 @@ type CreateRequest struct {
 }
 
 type InboundRequest struct {
-	OrganizationID      uuid.UUID
-	CarrierConnectionID uuid.UUID
-	ProviderMessageID   string
-	Channel             Channel
-	From                string
-	To                  string
-	Body                *string
-	Media               []Media
+	OrganizationID        uuid.UUID
+	MessagingConnectionID uuid.UUID
+	ProviderMessageID     string
+	Channel               Channel
+	From                  string
+	To                    string
+	Body                  *string
+	Media                 []Media
 }
 
 type Failure struct {
@@ -115,27 +93,27 @@ type Event struct {
 }
 
 type MessageResponse struct {
-	ID                  uuid.UUID       `json:"id"`
-	OrganizationID      uuid.UUID       `json:"organization_id"`
-	CarrierConnectionID *uuid.UUID      `json:"carrier_connection_id,omitempty"`
-	Channel             string          `json:"channel"`
-	Direction           string          `json:"direction"`
-	Status              string          `json:"status"`
-	From                string          `json:"from"`
-	To                  string          `json:"to"`
-	Body                *string         `json:"body,omitempty"`
-	Media               json.RawMessage `json:"media"`
-	ProviderMessageID   *string         `json:"provider_message_id,omitempty"`
-	FailureCode         *string         `json:"failure_code,omitempty"`
-	FailureMessage      *string         `json:"failure_message,omitempty"`
-	QueuedAt            *time.Time      `json:"queued_at,omitempty"`
-	SubmittedAt         *time.Time      `json:"submitted_at,omitempty"`
-	SentAt              *time.Time      `json:"sent_at,omitempty"`
-	DeliveredAt         *time.Time      `json:"delivered_at,omitempty"`
-	ReceivedAt          *time.Time      `json:"received_at,omitempty"`
-	FailedAt            *time.Time      `json:"failed_at,omitempty"`
-	CreatedAt           time.Time       `json:"created_at"`
-	UpdatedAt           time.Time       `json:"updated_at"`
+	ID                    uuid.UUID       `json:"id"`
+	OrganizationID        uuid.UUID       `json:"organization_id"`
+	MessagingConnectionID *uuid.UUID      `json:"messaging_connection_id,omitempty"`
+	Channel               string          `json:"channel"`
+	Direction             string          `json:"direction"`
+	Status                string          `json:"status"`
+	From                  string          `json:"from"`
+	To                    string          `json:"to"`
+	Body                  *string         `json:"body,omitempty"`
+	Media                 json.RawMessage `json:"media"`
+	ProviderMessageID     *string         `json:"provider_message_id,omitempty"`
+	FailureCode           *string         `json:"failure_code,omitempty"`
+	FailureMessage        *string         `json:"failure_message,omitempty"`
+	QueuedAt              *time.Time      `json:"queued_at,omitempty"`
+	SubmittedAt           *time.Time      `json:"submitted_at,omitempty"`
+	SentAt                *time.Time      `json:"sent_at,omitempty"`
+	DeliveredAt           *time.Time      `json:"delivered_at,omitempty"`
+	ReceivedAt            *time.Time      `json:"received_at,omitempty"`
+	FailedAt              *time.Time      `json:"failed_at,omitempty"`
+	CreatedAt             time.Time       `json:"created_at"`
+	UpdatedAt             time.Time       `json:"updated_at"`
 }
 
 func messageResponse(value sqlc.Message) MessageResponse {
@@ -144,26 +122,26 @@ func messageResponse(value sqlc.Message) MessageResponse {
 		media = json.RawMessage("[]")
 	}
 	return MessageResponse{
-		ID:                  value.ID,
-		OrganizationID:      value.OrganizationID,
-		CarrierConnectionID: value.CarrierConnectionID,
-		Channel:             value.Channel,
-		Direction:           value.Direction,
-		Status:              value.Status,
-		From:                value.FromAddress,
-		To:                  value.ToAddress,
-		Body:                value.Body,
-		Media:               media,
-		ProviderMessageID:   value.ProviderMessageID,
-		FailureCode:         value.FailureCode,
-		FailureMessage:      value.FailureMessage,
-		QueuedAt:            pgconv.TimestamptzToTimePtr(value.QueuedAt),
-		SubmittedAt:         pgconv.TimestamptzToTimePtr(value.SubmittedAt),
-		SentAt:              pgconv.TimestamptzToTimePtr(value.SentAt),
-		DeliveredAt:         pgconv.TimestamptzToTimePtr(value.DeliveredAt),
-		ReceivedAt:          pgconv.TimestamptzToTimePtr(value.ReceivedAt),
-		FailedAt:            pgconv.TimestamptzToTimePtr(value.FailedAt),
-		CreatedAt:           pgconv.TimestamptzToTime(value.CreatedAt),
-		UpdatedAt:           pgconv.TimestamptzToTime(value.UpdatedAt),
+		ID:                    value.ID,
+		OrganizationID:        value.OrganizationID,
+		MessagingConnectionID: value.MessagingConnectionID,
+		Channel:               value.Channel,
+		Direction:             value.Direction,
+		Status:                value.Status,
+		From:                  value.FromAddress,
+		To:                    value.ToAddress,
+		Body:                  value.Body,
+		Media:                 media,
+		ProviderMessageID:     value.ProviderMessageID,
+		FailureCode:           value.FailureCode,
+		FailureMessage:        value.FailureMessage,
+		QueuedAt:              pgconv.TimestamptzToTimePtr(value.QueuedAt),
+		SubmittedAt:           pgconv.TimestamptzToTimePtr(value.SubmittedAt),
+		SentAt:                pgconv.TimestamptzToTimePtr(value.SentAt),
+		DeliveredAt:           pgconv.TimestamptzToTimePtr(value.DeliveredAt),
+		ReceivedAt:            pgconv.TimestamptzToTimePtr(value.ReceivedAt),
+		FailedAt:              pgconv.TimestamptzToTimePtr(value.FailedAt),
+		CreatedAt:             pgconv.TimestamptzToTime(value.CreatedAt),
+		UpdatedAt:             pgconv.TimestamptzToTime(value.UpdatedAt),
 	}
 }

@@ -1,43 +1,55 @@
-// Package messaging connects the canonical messaging domain to channel adapters.
+// Package messaging executes canonical messages through configured channel integrations.
 package messaging
 
 import (
 	"context"
 	"fmt"
+	"sync"
 
-	domain "github.com/coffeyvidzro/monogo/internal/telecom/messaging"
+	"github.com/coffeyvidzro/monogo/internal/integrations/smpp"
+	"github.com/coffeyvidzro/monogo/internal/integrations/whatsapp"
+	"github.com/google/uuid"
 )
 
 type Controller struct {
-	sms      Sender
-	whatsapp Sender
+	mu       sync.RWMutex
+	sms      map[uuid.UUID]*SMS
+	whatsapp map[uuid.UUID]*WhatsApp
 }
 
-func NewController(sms, whatsapp Sender) *Controller {
-	return &Controller{sms: sms, whatsapp: whatsapp}
+func NewController() *Controller {
+	return &Controller{sms: make(map[uuid.UUID]*SMS), whatsapp: make(map[uuid.UUID]*WhatsApp)}
 }
-
-// Send implements the domain Dispatcher without exposing adapter state.
-func (c *Controller) Send(ctx context.Context, route domain.Route, message domain.OutboundMessage) (domain.Submission, error) {
-	request, err := Translate(route, message)
-	if err != nil {
-		return domain.Submission{}, err
+func (c *Controller) RegisterSMS(id uuid.UUID, client *smpp.Client) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.sms[id] = NewSMS(client)
+}
+func (c *Controller) RegisterWhatsApp(id uuid.UUID, client *whatsapp.Client) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.whatsapp[id] = NewWhatsApp(client)
+}
+func (c *Controller) Send(ctx context.Context, request Request) (Result, error) {
+	if request.ConnectionID == uuid.Nil {
+		return Result{}, fmt.Errorf("messaging connection is required")
 	}
-	var sender Sender
-	switch message.Channel {
-	case domain.ChannelSMS, domain.ChannelMMS:
-		sender = c.sms
-	case domain.ChannelWhatsApp:
-		sender = c.whatsapp
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	switch request.Channel {
+	case ChannelSMS:
+		adapter := c.sms[request.ConnectionID]
+		if adapter == nil {
+			return Result{}, fmt.Errorf("SMS connection %s is not registered", request.ConnectionID)
+		}
+		return adapter.Send(ctx, request)
+	case ChannelWhatsApp:
+		adapter := c.whatsapp[request.ConnectionID]
+		if adapter == nil {
+			return Result{}, fmt.Errorf("WhatsApp connection %s is not registered", request.ConnectionID)
+		}
+		return adapter.Send(ctx, request)
 	default:
-		return domain.Submission{}, fmt.Errorf("unsupported messaging channel %q", message.Channel)
+		return Result{}, fmt.Errorf("unsupported messaging channel %q", request.Channel)
 	}
-	if sender == nil {
-		return domain.Submission{}, fmt.Errorf("messaging channel %q is not configured", message.Channel)
-	}
-	result, err := sender.Send(ctx, request)
-	if err != nil {
-		return domain.Submission{}, err
-	}
-	return domain.Submission{ProviderMessageID: result.ExternalID}, nil
 }

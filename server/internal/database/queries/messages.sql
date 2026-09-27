@@ -32,7 +32,7 @@ RETURNING *;
 -- name: CreateInboundMessage :one
 INSERT INTO messages (
     organization_id,
-    carrier_connection_id,
+    messaging_connection_id,
     channel,
     direction,
     status,
@@ -55,25 +55,16 @@ SELECT
     sqlc.arg(media)::jsonb,
     sqlc.arg(provider_message_id),
     NOW()
-FROM carrier_connections AS connection
+FROM messaging_connections AS connection
 JOIN organizations AS organization
   ON organization.id = sqlc.arg(organization_id)
-WHERE connection.id = sqlc.arg(carrier_connection_id)
+WHERE connection.id = sqlc.arg(messaging_connection_id)
   AND connection.status = 'active'
   AND organization.status = 'active'
   AND organization.deleted_at IS NULL
-  AND (
-      (
-          connection.scope = 'organization'
-          AND connection.organization_id = sqlc.arg(organization_id)
-      )
-      OR (
-          connection.scope = 'platform'
-          AND connection.organization_id IS NULL
-      )
-  )
-ON CONFLICT (carrier_connection_id, provider_message_id)
-WHERE carrier_connection_id IS NOT NULL
+  AND connection.organization_id = sqlc.arg(organization_id)
+ON CONFLICT (messaging_connection_id, provider_message_id)
+WHERE messaging_connection_id IS NOT NULL
   AND provider_message_id IS NOT NULL
 DO NOTHING
 RETURNING *;
@@ -95,7 +86,7 @@ LIMIT 1;
 -- name: GetMessageByProviderID :one
 SELECT *
 FROM messages
-WHERE carrier_connection_id = sqlc.arg(carrier_connection_id)
+WHERE messaging_connection_id = sqlc.arg(messaging_connection_id)
   AND provider_message_id = sqlc.arg(provider_message_id)
 LIMIT 1;
 
@@ -113,32 +104,23 @@ OFFSET sqlc.arg(page_offset);
 -- name: SetMessageProviderAttribution :one
 UPDATE messages AS message
 SET
-    carrier_connection_id = connection.id,
+    messaging_connection_id = connection.id,
     updated_at = NOW()
-FROM carrier_connections AS connection
+FROM messaging_connections AS connection
 JOIN organizations AS organization
   ON organization.id = sqlc.arg(organization_id)
 WHERE message.organization_id = sqlc.arg(organization_id)
   AND message.id = sqlc.arg(id)
   AND message.direction = 'outbound'
   AND message.status = 'queued'
-  AND connection.id = sqlc.arg(carrier_connection_id)
+  AND connection.id = sqlc.arg(messaging_connection_id)
   AND connection.status = 'active'
   AND organization.status = 'active'
   AND organization.deleted_at IS NULL
+  AND connection.organization_id = message.organization_id
   AND (
-      (
-          connection.scope = 'organization'
-          AND connection.organization_id = message.organization_id
-      )
-      OR (
-          connection.scope = 'platform'
-          AND connection.organization_id IS NULL
-      )
-  )
-  AND (
-      message.carrier_connection_id IS NULL
-      OR message.carrier_connection_id = connection.id
+      message.messaging_connection_id IS NULL
+      OR message.messaging_connection_id = connection.id
   )
 RETURNING message.*;
 
@@ -153,7 +135,7 @@ WHERE organization_id = sqlc.arg(organization_id)
   AND id = sqlc.arg(id)
   AND direction = 'outbound'
   AND status = 'queued'
-  AND carrier_connection_id IS NOT NULL
+  AND messaging_connection_id IS NOT NULL
   AND provider_message_id IS NULL
 RETURNING *;
 

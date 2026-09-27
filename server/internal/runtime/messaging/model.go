@@ -1,22 +1,19 @@
 package messaging
 
 import (
-	"context"
-
 	"github.com/google/uuid"
 )
 
-// Request is the runtime boundary shared by the two channel adapters.
+type Channel string
+
+const (
+	ChannelSMS      Channel = "sms"
+	ChannelWhatsApp Channel = "whatsapp"
+)
+
 type Request struct {
-	MessageID    uuid.UUID
-	ConnectionID uuid.UUID
-	From         string
-	To           string
-	Text         string
+	MessageID, ConnectionID uuid.UUID
+	Channel                 Channel
+	From, To, Text          string
 }
-
 type Result struct{ ExternalID string }
-
-type Sender interface {
-	Send(context.Context, Request) (Result, error)
-}
