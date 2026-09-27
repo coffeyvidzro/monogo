@@ -44,7 +44,7 @@ def main() -> None:
     if "+OK" not in response:
         raise RuntimeError(f"originate failed: {response}")
     try:
-        response = fs(f"uuid_audio_fork {channel_id} start {websocket_url} mono 16k")
+        response = fs(f"uuid_audio_fork {channel_id} start {websocket_url} mono 16000")
         if "+OK" not in response:
             raise RuntimeError(f"audio fork failed: {response}")
         fs(f"uuid_broadcast {channel_id} tone_stream://%(2000,0,440) aleg")
