@@ -5,7 +5,7 @@ import "testing"
 func TestAudioForkRequestValidate(t *testing.T) {
 	valid := AudioForkRequest{
 		ChannelID: "00000000-0000-0000-0000-000000000001", WebSocketURL: "ws://media:8090/v1/audio-forks?token=value",
-		MixType: "mono", SampleRate: "16k",
+		MixType: "mono", SampleRateHz: 16000,
 	}
 	if err := valid.Validate(); err != nil {
 		t.Fatalf("Validate() error = %v", err)
@@ -18,7 +18,7 @@ func TestAudioForkRequestValidate(t *testing.T) {
 		{name: "channel", mutate: func(r *AudioForkRequest) { r.ChannelID = "" }},
 		{name: "URL", mutate: func(r *AudioForkRequest) { r.WebSocketURL = "https://media.example.com" }},
 		{name: "mix", mutate: func(r *AudioForkRequest) { r.MixType = "caller" }},
-		{name: "rate", mutate: func(r *AudioForkRequest) { r.SampleRate = "32k" }},
+		{name: "rate", mutate: func(r *AudioForkRequest) { r.SampleRateHz = 32000 }},
 		{name: "metadata", mutate: func(r *AudioForkRequest) { r.Metadata = "{" }},
 	}
 	for _, tt := range tests {
