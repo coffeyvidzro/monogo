@@ -387,9 +387,9 @@ type lifecycleFreeSWITCHServer struct {
 	listener      net.Listener
 	failAudioFork bool
 
-	mu         sync.Mutex
-	variable   string
-	forkStarts int
+	mu              sync.Mutex
+	variable        string
+	forkStarts      int
 	lastForkCommand string
 }
 
