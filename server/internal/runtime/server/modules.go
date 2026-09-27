@@ -147,7 +147,21 @@ func newModules(ctx context.Context, cfg config.Config) (*modules, error) {
 		return nil, fmt.Errorf("initialize telecom: %w", err)
 	}
 
-	billingModule := billing.New(queries)
+	ocs, err := redisClient.NewOCS()
+	if err != nil {
+		closeDependencies()
+		return nil, fmt.Errorf(
+			"initialize prepaid OCS: %w",
+			err,
+		)
+	}
+
+	billingModule := billing.New(
+		queries,
+		billing.Dependencies{
+			OCS: ocs,
+		},
+	)
 
 	aiModule := ai.New(queries, ai.Dependencies{
 		CredentialCipher: credentialCipher,
