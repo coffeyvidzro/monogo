@@ -15,3 +15,6 @@ type sendResponse struct {
 	} `json:"messages"`
 }
 type WebhookEvent struct{ ExternalID, From, To, Text, Status, ErrorCode string }
+
+type MessageRequest struct{ To, Text string }
+type MessageResult struct{ MessageID string }
