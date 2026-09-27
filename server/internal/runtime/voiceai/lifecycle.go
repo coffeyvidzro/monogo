@@ -102,6 +102,19 @@ func (r *Runtime) attach(ctx context.Context, call sqlc.Call, channelID string) 
 		failErr := r.failSession(ctx, call, time.Now().UTC())
 		return errors.Join(fmt.Errorf("start Voice Agent audio fork: %w", err), stopErr, failErr)
 	}
+	if err := r.freeSwitch.StartAudioClock(ctx, channelID); err != nil {
+		forkErr := r.freeSwitch.StopAudioFork(ctx, channelID)
+		clockErr := r.freeSwitch.Break(ctx, channelID)
+		stopErr := r.media.StopSession(ctx, record.ID)
+		failErr := r.failSession(ctx, call, time.Now().UTC())
+		return errors.Join(
+			fmt.Errorf("start Voice Agent audio clock: %w", err),
+			forkErr,
+			clockErr,
+			stopErr,
+			failErr,
+		)
+	}
 	if r.logger != nil {
 		r.logger.Info(
 			ctx,
@@ -112,7 +125,7 @@ func (r *Runtime) attach(ctx context.Context, call sqlc.Call, channelID string) 
 			"sample_rate_hz", format.SampleRateHz,
 			"websocket_url", redactWebSocketURL(websocketURL),
 			"freeswitch_command", fmt.Sprintf(
-				"uuid_audio_fork %s start %s mono %d <metadata>",
+				"uuid_audio_fork %s start %s mono %d",
 				channelID,
 				redactWebSocketURL(websocketURL),
 				format.SampleRateHz,
