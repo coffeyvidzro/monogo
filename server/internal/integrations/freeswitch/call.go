@@ -3,6 +3,7 @@ package freeswitch
 import (
 	"context"
 	"errors"
+	"strconv"
 	"strings"
 
 	"github.com/google/uuid"
@@ -202,7 +203,13 @@ func (c *Client) StartAudioFork(ctx context.Context, req AudioForkRequest) error
 	if err := req.Validate(); err != nil {
 		return err
 	}
-	arguments := []string{req.ChannelID, "start", req.WebSocketURL, req.MixType, req.SampleRate}
+	arguments := []string{
+		req.ChannelID,
+		"start",
+		req.WebSocketURL,
+		req.MixType,
+		strconv.Itoa(req.SampleRateHz),
+	}
 	if metadata := strings.TrimSpace(req.Metadata); metadata != "" {
 		arguments = append(arguments, metadata)
 	}
