@@ -102,3 +102,37 @@ func TestWhatsAppSendClassifiesTransportFailureAsUnknown(t *testing.T) {
 		t.Fatalf("outcome = %q", submissionError.Outcome)
 	}
 }
+
+func TestWhatsAppSendClassifiesServerErrorAsUnknown(t *testing.T) {
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusServiceUnavailable)
+		_, _ = fmt.Fprint(w, `{"error":{"message":"unavailable"}}`)
+	}))
+	defer server.Close()
+
+	client, err := whatsapp.New(whatsapp.Config{
+		BaseURL:       server.URL,
+		AccessToken:   "token",
+		PhoneNumberID: "phone",
+		AppSecret:     "secret",
+		Timeout:       time.Second,
+	}, server.Client())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = NewWhatsApp(client).Send(t.Context(), Request{
+		MessageID:    uuid.New(),
+		ConnectionID: uuid.New(),
+		Channel:      ChannelWhatsApp,
+		To:           "233200000002",
+		Text:         "hello",
+	})
+	var submissionError *SubmissionError
+	if !errors.As(err, &submissionError) {
+		t.Fatalf("Send() error = %v", err)
+	}
+	if submissionError.Outcome != SubmissionUnknown {
+		t.Fatalf("outcome = %q", submissionError.Outcome)
+	}
+}

@@ -22,7 +22,7 @@ func (w *WhatsApp) Send(ctx context.Context, request Request) (Result, error) {
 	})
 	if err != nil {
 		var apiError *whatsapp.APIError
-		if errors.As(err, &apiError) {
+		if errors.As(err, &apiError) && apiError.Status >= 400 && apiError.Status < 500 {
 			return Result{}, newSubmissionError(SubmissionRejected, err)
 		}
 		return Result{}, newSubmissionError(SubmissionUnknown, err)
