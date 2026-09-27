@@ -392,7 +392,72 @@ def verify_snapshot_immutability():
         raise AcceptanceError("active durable session snapshot changed after agent update")
 
 
+def live_media_state():
+    call = get_call(STATE["call_id"])
+    durable_state = psql(
+        "SELECT state FROM voice_agent_sessions "
+        f"WHERE id='{STATE['session_id']}'"
+    )
+    channel_exists = (
+        fs_cli(
+            "freeswitch",
+            f"uuid_exists {STATE['channel_id']}",
+        ).strip().lower()
+        == "true"
+    )
+    carrier_exists = (
+        fs_cli(
+            "voice-agent-v1-carrier",
+            f"uuid_exists {STATE['carrier_channel_id']}",
+        ).strip().lower()
+        == "true"
+    )
+    try:
+        fork = json.loads(fs_cli("freeswitch", "audio_fork status"))
+    except json.JSONDecodeError:
+        fork = {}
+
+    return {
+        "call_state": call.get("state"),
+        "call_media_state": call.get("media_state"),
+        "durable_session_state": durable_state,
+        "channel_exists": channel_exists,
+        "carrier_channel_exists": carrier_exists,
+        "audio_fork": fork,
+    }
+
+
+def verify_live_media_attachment():
+    def attached():
+        state = live_media_state()
+        fork = state["audio_fork"]
+        if (
+            state["call_state"] in {"answered", "active"}
+            and state["durable_session_state"] == "active"
+            and state["channel_exists"]
+            and state["carrier_channel_exists"]
+            and fork.get("forks", 0) >= 1
+            and fork.get("calls", 0) >= 1
+        ):
+            return state
+        return False
+
+    try:
+        return wait_for(
+            "live Voice Agent media fork",
+            attached,
+            timeout=5,
+            interval=0.1,
+        )
+    except AcceptanceError as error:
+        raise AcceptanceError(
+            f"{error}; lifecycle={json.dumps(live_media_state(), sort_keys=True)}"
+        ) from error
+
+
 def verify_audio_roundtrip():
+    before = verify_live_media_attachment()
+
     response = fs_cli(
         "voice-agent-v1-carrier",
         f"uuid_broadcast {STATE['carrier_channel_id']} tone_stream://%(2500,0,440) aleg",
@@ -421,6 +486,8 @@ def verify_audio_roundtrip():
 
     raise AcceptanceError(
         "Voice Agent audio round trip did not complete: "
+        f"before={json.dumps(before, sort_keys=True)} "
+        f"after={json.dumps(live_media_state(), sort_keys=True)} "
         f"provider={json.dumps(provider, sort_keys=True)} "
         f"audio_fork={json.dumps(fork, sort_keys=True)}"
     )
