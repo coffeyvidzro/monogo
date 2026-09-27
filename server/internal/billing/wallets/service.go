@@ -3,7 +3,6 @@ package wallets
 import (
 	"context"
 	"errors"
-	"strings"
 
 	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
 	"github.com/coffeyvidzro/monogo/pkg/apperror"
@@ -24,7 +23,10 @@ func NewService(repo *Repository) *Service {
 	if repo == nil {
 		panic("billing wallets: repository is required")
 	}
-	return &Service{repo: repo}
+
+	return &Service{
+		repo: repo,
+	}
 }
 
 func (s *Service) Create(
@@ -33,27 +35,48 @@ func (s *Service) Create(
 	currency string,
 ) (sqlc.Wallet, error) {
 	if organizationID == uuid.Nil {
-		return sqlc.Wallet{}, apperror.NewBadRequest("organization context required")
+		return sqlc.Wallet{}, apperror.NewBadRequest(
+			"organization context required",
+		)
 	}
+
 	currency, err := normalizeCurrency(currency)
 	if err != nil {
 		return sqlc.Wallet{}, err
 	}
 
-	wallet, err := s.repo.Create(ctx, organizationID, currency)
+	wallet, err := s.repo.Create(
+		ctx,
+		organizationID,
+		currency,
+	)
 	if err == nil {
 		return wallet, nil
 	}
 	if !errors.Is(err, pgx.ErrNoRows) {
-		return sqlc.Wallet{}, apperror.NewInternal("create billing wallet", err)
+		return sqlc.Wallet{}, apperror.NewInternal(
+			"create billing wallet",
+			err,
+		)
 	}
-	wallet, err = s.repo.Get(ctx, organizationID, currency)
+
+	wallet, err = s.repo.Get(
+		ctx,
+		organizationID,
+		currency,
+	)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return sqlc.Wallet{}, apperror.NewNotFound("organization or wallet not found")
+		return sqlc.Wallet{}, apperror.NewNotFound(
+			"organization or wallet not found",
+		)
 	}
 	if err != nil {
-		return sqlc.Wallet{}, apperror.NewInternal("get billing wallet after create", err)
+		return sqlc.Wallet{}, apperror.NewInternal(
+			"get billing wallet after create",
+			err,
+		)
 	}
+
 	return wallet, nil
 }
 
@@ -63,24 +86,42 @@ func (s *Service) Get(
 	currency string,
 ) (sqlc.Wallet, error) {
 	if organizationID == uuid.Nil {
-		return sqlc.Wallet{}, apperror.NewBadRequest("organization context required")
+		return sqlc.Wallet{}, apperror.NewBadRequest(
+			"organization context required",
+		)
 	}
+
 	currency, err := normalizeCurrency(currency)
 	if err != nil {
 		return sqlc.Wallet{}, err
 	}
-	wallet, err := s.repo.Get(ctx, organizationID, currency)
+
+	wallet, err := s.repo.Get(
+		ctx,
+		organizationID,
+		currency,
+	)
+
 	return wallet, walletReadError(err)
 }
 
 func (s *Service) GetByID(
 	ctx context.Context,
-	organizationID, id uuid.UUID,
+	organizationID uuid.UUID,
+	id uuid.UUID,
 ) (sqlc.Wallet, error) {
 	if organizationID == uuid.Nil || id == uuid.Nil {
-		return sqlc.Wallet{}, apperror.NewBadRequest("organization and wallet are required")
+		return sqlc.Wallet{}, apperror.NewBadRequest(
+			"organization and wallet are required",
+		)
 	}
-	wallet, err := s.repo.GetByID(ctx, organizationID, id)
+
+	wallet, err := s.repo.GetByID(
+		ctx,
+		organizationID,
+		id,
+	)
+
 	return wallet, walletReadError(err)
 }
 
@@ -89,34 +130,60 @@ func (s *Service) List(
 	organizationID uuid.UUID,
 ) ([]sqlc.Wallet, error) {
 	if organizationID == uuid.Nil {
-		return nil, apperror.NewBadRequest("organization context required")
+		return nil, apperror.NewBadRequest(
+			"organization context required",
+		)
 	}
-	wallets, err := s.repo.List(ctx, organizationID)
+
+	wallets, err := s.repo.List(
+		ctx,
+		organizationID,
+	)
 	if err != nil {
-		return nil, apperror.NewInternal("list billing wallets", err)
+		return nil, apperror.NewInternal(
+			"list billing wallets",
+			err,
+		)
 	}
+
 	return wallets, nil
 }
 
 func (s *Service) SetStatus(
 	ctx context.Context,
-	organizationID, id uuid.UUID,
+	organizationID uuid.UUID,
+	id uuid.UUID,
 	status string,
 ) (sqlc.Wallet, error) {
-	status = strings.ToLower(strings.TrimSpace(status))
 	if organizationID == uuid.Nil || id == uuid.Nil {
-		return sqlc.Wallet{}, apperror.NewBadRequest("organization and wallet are required")
+		return sqlc.Wallet{}, apperror.NewBadRequest(
+			"organization and wallet are required",
+		)
 	}
-	if !validStatus(status) {
-		return sqlc.Wallet{}, apperror.NewBadRequest("wallet status must be active, frozen, or closed")
+
+	status, err := normalizeStatus(status)
+	if err != nil {
+		return sqlc.Wallet{}, err
 	}
-	wallet, err := s.repo.SetStatus(ctx, organizationID, id, status)
+
+	wallet, err := s.repo.SetStatus(
+		ctx,
+		organizationID,
+		id,
+		status,
+	)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return sqlc.Wallet{}, apperror.NewNotFound("wallet not found")
+		return sqlc.Wallet{}, apperror.NewNotFound(
+			"wallet not found",
+		)
 	}
 	if err != nil {
-		return sqlc.Wallet{}, apperror.NewInternal("update billing wallet status", err)
+		return sqlc.Wallet{}, apperror.NewInternal(
+			"update billing wallet status",
+			err,
+		)
 	}
+
 	return wallet, nil
 }
 
@@ -125,59 +192,101 @@ func (s *Service) EventByOperationID(
 	operationID uuid.UUID,
 ) (sqlc.WalletEvent, error) {
 	if operationID == uuid.Nil {
-		return sqlc.WalletEvent{}, apperror.NewBadRequest("operation id is required")
+		return sqlc.WalletEvent{}, apperror.NewBadRequest(
+			"operation id is required",
+		)
 	}
-	event, err := s.repo.EventByOperationID(ctx, operationID)
+
+	event, err := s.repo.EventByOperationID(
+		ctx,
+		operationID,
+	)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return sqlc.WalletEvent{}, apperror.NewNotFound("wallet event not found")
+		return sqlc.WalletEvent{}, apperror.NewNotFound(
+			"wallet event not found",
+		)
 	}
 	if err != nil {
-		return sqlc.WalletEvent{}, apperror.NewInternal("get wallet event", err)
+		return sqlc.WalletEvent{}, apperror.NewInternal(
+			"get wallet event",
+			err,
+		)
 	}
+
 	return event, nil
 }
 
 func (s *Service) ListEvents(
 	ctx context.Context,
-	organizationID, walletID uuid.UUID,
+	organizationID uuid.UUID,
+	walletID uuid.UUID,
 	limit int32,
 ) ([]sqlc.WalletEvent, error) {
 	if organizationID == uuid.Nil || walletID == uuid.Nil {
-		return nil, apperror.NewBadRequest("organization and wallet are required")
+		return nil, apperror.NewBadRequest(
+			"organization and wallet are required",
+		)
 	}
-	if limit == 0 {
-		limit = defaultEventLimit
-	}
-	if limit < 1 || limit > maxEventLimit {
-		return nil, apperror.NewBadRequest("event limit must be between 1 and 200")
-	}
-	events, err := s.repo.ListEvents(ctx, organizationID, walletID, limit)
+
+	limit, err := normalizeEventLimit(limit)
 	if err != nil {
-		return nil, apperror.NewInternal("list wallet events", err)
+		return nil, err
 	}
+
+	events, err := s.repo.ListEvents(
+		ctx,
+		organizationID,
+		walletID,
+		limit,
+	)
+	if err != nil {
+		return nil, apperror.NewInternal(
+			"list wallet events",
+			err,
+		)
+	}
+
 	return events, nil
 }
 
 func (s *Service) ListChargeEvents(
 	ctx context.Context,
-	organizationID, chargeID uuid.UUID,
+	organizationID uuid.UUID,
+	chargeID uuid.UUID,
 ) ([]sqlc.WalletEvent, error) {
 	if organizationID == uuid.Nil || chargeID == uuid.Nil {
-		return nil, apperror.NewBadRequest("organization and charge are required")
+		return nil, apperror.NewBadRequest(
+			"organization and charge are required",
+		)
 	}
-	events, err := s.repo.ListChargeEvents(ctx, organizationID, chargeID)
+
+	events, err := s.repo.ListChargeEvents(
+		ctx,
+		organizationID,
+		chargeID,
+	)
 	if err != nil {
-		return nil, apperror.NewInternal("list charge wallet events", err)
+		return nil, apperror.NewInternal(
+			"list charge wallet events",
+			err,
+		)
 	}
+
 	return events, nil
 }
 
 func walletReadError(err error) error {
 	if errors.Is(err, pgx.ErrNoRows) {
-		return apperror.NewNotFound("wallet not found")
+		return apperror.NewNotFound(
+			"wallet not found",
+		)
 	}
 	if err != nil {
-		return apperror.NewInternal("get billing wallet", err)
+		return apperror.NewInternal(
+			"get billing wallet",
+			err,
+		)
 	}
+
 	return nil
 }
