@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	ocsKeyPrefix = "leamout:ocs"
+	ocsKeyPrefix   = "leamout:ocs"
 	ocsEventStream = ocsKeyPrefix + ":events"
 
 	maxOCSMicros int64 = 9_000_000_000_000_000
@@ -39,7 +39,6 @@ type OCSReserveRequest struct {
 	OperationID    uuid.UUID
 	AmountMicros   int64
 	ChargingMode   string
-	OccurredAt     time.Time
 }
 
 type OCSChargeMutationRequest struct {
@@ -49,7 +48,6 @@ type OCSChargeMutationRequest struct {
 	ChargeID       uuid.UUID
 	OperationID    uuid.UUID
 	AmountMicros   int64
-	OccurredAt     time.Time
 }
 
 type OCSFinalizeRequest struct {
@@ -59,7 +57,6 @@ type OCSFinalizeRequest struct {
 	ChargeID       uuid.UUID
 	OperationID    uuid.UUID
 	Status         string
-	OccurredAt     time.Time
 }
 
 type OCSCreditRequest struct {
@@ -68,20 +65,19 @@ type OCSCreditRequest struct {
 	Currency       string
 	OperationID    uuid.UUID
 	AmountMicros   int64
-	OccurredAt     time.Time
 }
 
 type OCSResult struct {
 	Code                   string
 	StreamID               string
-	WalletVersion           int64
-	ChargeSequence          int64
-	BalanceMicros           int64
-	WalletReservedMicros    int64
-	ChargeAuthorizedMicros  int64
-	ChargeConsumedMicros    int64
-	ChargeReservedMicros    int64
-	ChargeStatus            string
+	WalletVersion          int64
+	ChargeSequence         int64
+	BalanceMicros          int64
+	WalletReservedMicros   int64
+	ChargeAuthorizedMicros int64
+	ChargeConsumedMicros   int64
+	ChargeReservedMicros   int64
+	ChargeStatus           string
 }
 
 func (c *Client) NewOCS() (*OCS, error) {
@@ -152,7 +148,7 @@ func (o *OCS) Reserve(
 		req.AmountMicros,
 		req.ChargingMode,
 		"",
-		req.OccurredAt,
+		time.Now().UTC(),
 	)
 }
 
@@ -176,7 +172,7 @@ func (o *OCS) Consume(
 		req.AmountMicros,
 		"",
 		"",
-		req.OccurredAt,
+		time.Now().UTC(),
 	)
 }
 
@@ -200,7 +196,7 @@ func (o *OCS) Release(
 		req.AmountMicros,
 		"",
 		"",
-		req.OccurredAt,
+		time.Now().UTC(),
 	)
 }
 
@@ -224,7 +220,7 @@ func (o *OCS) Debit(
 		req.AmountMicros,
 		"discrete",
 		"",
-		req.OccurredAt,
+		time.Now().UTC(),
 	)
 }
 
@@ -248,7 +244,7 @@ func (o *OCS) Finalize(
 		0,
 		"",
 		req.Status,
-		req.OccurredAt,
+		time.Now().UTC(),
 	)
 }
 
@@ -276,7 +272,7 @@ func (o *OCS) Credit(
 		req.Currency,
 		req.OperationID.String(),
 		req.AmountMicros,
-		req.OccurredAt.UTC().UnixMilli(),
+		time.Now().UTC().UnixMilli(),
 		maxOCSMicros,
 	).Result()
 	if err != nil {
@@ -406,12 +402,12 @@ func parseOCSResult(value any) (OCSResult, error) {
 	}
 
 	return OCSResult{
-		Code:                  fmt.Sprint(values[0]),
-		StreamID:              fmt.Sprint(values[1]),
-		WalletVersion:         walletVersion,
-		ChargeSequence:        chargeSequence,
-		BalanceMicros:         balanceMicros,
-		WalletReservedMicros:  walletReservedMicros,
+		Code:                   fmt.Sprint(values[0]),
+		StreamID:               fmt.Sprint(values[1]),
+		WalletVersion:          walletVersion,
+		ChargeSequence:         chargeSequence,
+		BalanceMicros:          balanceMicros,
+		WalletReservedMicros:   walletReservedMicros,
 		ChargeAuthorizedMicros: chargeAuthorizedMicros,
 		ChargeConsumedMicros:   chargeConsumedMicros,
 		ChargeReservedMicros:   chargeReservedMicros,

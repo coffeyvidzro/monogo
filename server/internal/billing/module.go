@@ -1,8 +1,8 @@
 package billing
 
 import (
-	"github.com/coffeyvidzro/monogo/internal/billing/charging"
 	"github.com/coffeyvidzro/monogo/internal/billing/charges"
+	"github.com/coffeyvidzro/monogo/internal/billing/charging"
 	"github.com/coffeyvidzro/monogo/internal/billing/ledger"
 	"github.com/coffeyvidzro/monogo/internal/billing/subscriptions"
 	"github.com/coffeyvidzro/monogo/internal/billing/wallets"

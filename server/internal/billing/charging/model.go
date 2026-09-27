@@ -1,8 +1,6 @@
 package charging
 
 import (
-	"time"
-
 	"github.com/google/uuid"
 )
 
@@ -11,7 +9,6 @@ type ReserveRequest struct {
 	ChargeID       uuid.UUID
 	OperationID    uuid.UUID
 	AmountMicros   int64
-	OccurredAt     time.Time
 }
 
 type MutationRequest struct {
@@ -19,7 +16,6 @@ type MutationRequest struct {
 	ChargeID       uuid.UUID
 	OperationID    uuid.UUID
 	AmountMicros   int64
-	OccurredAt     time.Time
 }
 
 type FinalizeRequest struct {
@@ -27,7 +23,6 @@ type FinalizeRequest struct {
 	ChargeID       uuid.UUID
 	OperationID    uuid.UUID
 	Status         string
-	OccurredAt     time.Time
 }
 
 type CreditRequest struct {
@@ -35,7 +30,6 @@ type CreditRequest struct {
 	WalletID       uuid.UUID
 	OperationID    uuid.UUID
 	AmountMicros   int64
-	OccurredAt     time.Time
 }
 
 type Result struct {

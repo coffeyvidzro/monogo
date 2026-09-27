@@ -17,12 +17,6 @@ func validateReserve(req ReserveRequest) error {
 		return err
 	}
 
-	if req.OccurredAt.IsZero() {
-		return apperror.NewBadRequest(
-			"occurred_at is required",
-		)
-	}
-
 	return nil
 }
 
@@ -34,12 +28,6 @@ func validateMutation(req MutationRequest) error {
 		req.AmountMicros,
 	); err != nil {
 		return err
-	}
-
-	if req.OccurredAt.IsZero() {
-		return apperror.NewBadRequest(
-			"occurred_at is required",
-		)
 	}
 
 	return nil
@@ -64,12 +52,6 @@ func validateFinalize(req FinalizeRequest) error {
 		)
 	}
 
-	if req.OccurredAt.IsZero() {
-		return apperror.NewBadRequest(
-			"occurred_at is required",
-		)
-	}
-
 	return nil
 }
 
@@ -84,12 +66,6 @@ func validateCredit(req CreditRequest) error {
 	if err := validateAmount(req.AmountMicros); err != nil {
 		return err
 	}
-	if req.OccurredAt.IsZero() {
-		return apperror.NewBadRequest(
-			"occurred_at is required",
-		)
-	}
-
 	return nil
 }
 

@@ -164,6 +164,7 @@ local function append_event(
   charge_authorized_after,
   charge_consumed_after,
   charge_reserved_after,
+  charge_status,
   occurred_at
 )
   return redis.call(
@@ -184,6 +185,7 @@ local function append_event(
     'charge_authorized_after_micros', tostring(charge_authorized_after),
     'charge_consumed_after_micros', tostring(charge_consumed_after),
     'charge_reserved_after_micros', tostring(charge_reserved_after),
+    'charge_status', charge_status,
     'occurred_at_millis', tostring(occurred_at)
   )
 end
@@ -431,6 +433,7 @@ local stream_id = append_event(
   authorized,
   charge.consumed,
   charge_reserved,
+  'active',
   occurred_at
 )
 
@@ -602,6 +605,7 @@ local stream_id = append_event(
   charge.authorized,
   consumed,
   charge_reserved,
+  charge.status,
   occurred_at
 )
 
@@ -768,6 +772,7 @@ local stream_id = append_event(
   charge.authorized,
   charge.consumed,
   charge_reserved,
+  charge.status,
   occurred_at
 )
 
@@ -988,6 +993,7 @@ local stream_id = append_event(
   authorized,
   consumed,
   charge.reserved,
+  'active',
   occurred_at
 )
 
@@ -1154,6 +1160,7 @@ local stream_id = append_event(
   charge.authorized,
   charge.consumed,
   0,
+  terminal_status,
   occurred_at
 )
 
@@ -1277,6 +1284,7 @@ local stream_id = append_event(
   0,
   0,
   0,
+  '',
   occurred_at
 )
 

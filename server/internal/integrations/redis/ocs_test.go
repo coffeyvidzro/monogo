@@ -2,7 +2,6 @@ package redis
 
 import (
 	"testing"
-	"time"
 
 	"github.com/google/uuid"
 )
@@ -44,7 +43,6 @@ func TestValidateOCSReserveRequest(t *testing.T) {
 		OperationID:    uuid.New(),
 		AmountMicros:   20_000,
 		ChargingMode:   "rolling",
-		OccurredAt:     time.Now().UTC(),
 	}
 
 	if err := validateOCSReserveRequest(req); err != nil {

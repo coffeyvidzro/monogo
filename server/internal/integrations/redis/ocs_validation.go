@@ -74,12 +74,6 @@ func validateOCSReserveRequest(req OCSReserveRequest) error {
 		)
 	}
 
-	if req.OccurredAt.IsZero() {
-		return fmt.Errorf(
-			"OCS occurrence time is required",
-		)
-	}
-
 	return nil
 }
 
@@ -100,12 +94,6 @@ func validateOCSChargeMutationRequest(
 	if err := validateOCSAmount(req.AmountMicros); err != nil {
 		return err
 	}
-	if req.OccurredAt.IsZero() {
-		return fmt.Errorf(
-			"OCS occurrence time is required",
-		)
-	}
-
 	return nil
 }
 
@@ -134,12 +122,6 @@ func validateOCSFinalizeRequest(
 		)
 	}
 
-	if req.OccurredAt.IsZero() {
-		return fmt.Errorf(
-			"OCS occurrence time is required",
-		)
-	}
-
 	return nil
 }
 
@@ -159,12 +141,6 @@ func validateOCSCreditRequest(
 	if err := validateOCSAmount(req.AmountMicros); err != nil {
 		return err
 	}
-	if req.OccurredAt.IsZero() {
-		return fmt.Errorf(
-			"OCS occurrence time is required",
-		)
-	}
-
 	return nil
 }
 

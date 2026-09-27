@@ -2,7 +2,6 @@ package charging
 
 import (
 	"testing"
-	"time"
 
 	"github.com/google/uuid"
 )
@@ -15,7 +14,6 @@ func TestValidateReserve(t *testing.T) {
 		ChargeID:       uuid.New(),
 		OperationID:    uuid.New(),
 		AmountMicros:   20_000,
-		OccurredAt:     time.Now().UTC(),
 	}
 
 	if err := validateReserve(req); err != nil {
@@ -39,7 +37,6 @@ func TestValidateFinalize(t *testing.T) {
 		ChargeID:       uuid.New(),
 		OperationID:    uuid.New(),
 		Status:         "completed",
-		OccurredAt:     time.Now().UTC(),
 	}
 
 	if err := validateFinalize(req); err != nil {

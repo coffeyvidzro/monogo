@@ -73,7 +73,6 @@ func (s *Service) Reserve(
 			OperationID:    req.OperationID,
 			AmountMicros:   req.AmountMicros,
 			ChargingMode:   charge.ChargingMode,
-			OccurredAt:     req.OccurredAt,
 		},
 	)
 	if err != nil {
@@ -118,7 +117,6 @@ func (s *Service) Consume(
 			ChargeID:       charge.ID,
 			OperationID:    req.OperationID,
 			AmountMicros:   req.AmountMicros,
-			OccurredAt:     req.OccurredAt,
 		},
 	)
 	if err != nil {
@@ -163,7 +161,6 @@ func (s *Service) Release(
 			ChargeID:       charge.ID,
 			OperationID:    req.OperationID,
 			AmountMicros:   req.AmountMicros,
-			OccurredAt:     req.OccurredAt,
 		},
 	)
 	if err != nil {
@@ -213,7 +210,6 @@ func (s *Service) Debit(
 			ChargeID:       charge.ID,
 			OperationID:    req.OperationID,
 			AmountMicros:   req.AmountMicros,
-			OccurredAt:     req.OccurredAt,
 		},
 	)
 	if err != nil {
@@ -258,7 +254,6 @@ func (s *Service) Finalize(
 			ChargeID:       charge.ID,
 			OperationID:    req.OperationID,
 			Status:         req.Status,
-			OccurredAt:     req.OccurredAt,
 		},
 	)
 	if err != nil {
@@ -302,7 +297,6 @@ func (s *Service) Credit(
 			Currency:       wallet.Currency,
 			OperationID:    req.OperationID,
 			AmountMicros:   req.AmountMicros,
-			OccurredAt:     req.OccurredAt,
 		},
 	)
 	if err != nil {
