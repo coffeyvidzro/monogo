@@ -50,3 +50,52 @@ type Result struct {
 	ChargeReservedMicros int64
 	ChargeStatus         string
 }
+
+// OperationRequest is the HTTP representation shared by reserve, consume,
+// release, and debit operations. OperationID is the idempotency key for an
+// individual balance mutation.
+type OperationRequest struct {
+	OperationID  uuid.UUID `json:"operation_id"`
+	AmountMicros int64     `json:"amount_micros"`
+	OccurredAt   time.Time `json:"occurred_at"`
+}
+
+type FinalizeOperationRequest struct {
+	OperationID uuid.UUID `json:"operation_id"`
+	Status      string    `json:"status"`
+	OccurredAt  time.Time `json:"occurred_at"`
+}
+
+type CreditOperationRequest struct {
+	OperationID  uuid.UUID `json:"operation_id"`
+	AmountMicros int64     `json:"amount_micros"`
+	OccurredAt   time.Time `json:"occurred_at"`
+}
+
+type Response struct {
+	Code                 string `json:"code"`
+	StreamID             string `json:"stream_id"`
+	WalletVersion        int64  `json:"wallet_version"`
+	ChargeSequence       int64  `json:"charge_sequence,omitempty"`
+	BalanceMicros        int64  `json:"balance_micros"`
+	WalletReservedMicros int64  `json:"wallet_reserved_micros"`
+	AuthorizedMicros     int64  `json:"authorized_micros,omitempty"`
+	ConsumedMicros       int64  `json:"consumed_micros,omitempty"`
+	ChargeReservedMicros int64  `json:"charge_reserved_micros,omitempty"`
+	ChargeStatus         string `json:"charge_status,omitempty"`
+}
+
+func response(value Result) Response {
+	return Response{
+		Code:                 value.Code,
+		StreamID:             value.StreamID,
+		WalletVersion:        value.WalletVersion,
+		ChargeSequence:       value.ChargeSequence,
+		BalanceMicros:        value.BalanceMicros,
+		WalletReservedMicros: value.WalletReservedMicros,
+		AuthorizedMicros:     value.AuthorizedMicros,
+		ConsumedMicros:       value.ConsumedMicros,
+		ChargeReservedMicros: value.ChargeReservedMicros,
+		ChargeStatus:         value.ChargeStatus,
+	}
+}

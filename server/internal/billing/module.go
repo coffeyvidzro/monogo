@@ -1,8 +1,8 @@
 package billing
 
 import (
-	"github.com/coffeyvidzro/monogo/internal/billing/charging"
 	"github.com/coffeyvidzro/monogo/internal/billing/charges"
+	"github.com/coffeyvidzro/monogo/internal/billing/charging"
 	"github.com/coffeyvidzro/monogo/internal/billing/ledger"
 	"github.com/coffeyvidzro/monogo/internal/billing/subscriptions"
 	"github.com/coffeyvidzro/monogo/internal/billing/wallets"
@@ -34,6 +34,7 @@ type ChargesModule struct {
 
 type ChargingModule struct {
 	Service *charging.Service
+	Handler *charging.Handler
 }
 
 type LedgerModule struct {
@@ -76,6 +77,9 @@ func New(
 		chargeService,
 		deps.OCS,
 	)
+	chargingHandler := charging.NewHandler(
+		chargingService,
+	)
 
 	ledgerRepository := ledger.NewRepository(
 		queries,
@@ -102,6 +106,7 @@ func New(
 		},
 		Charging: ChargingModule{
 			Service: chargingService,
+			Handler: chargingHandler,
 		},
 		Ledger: LedgerModule{
 			Repository: ledgerRepository,
