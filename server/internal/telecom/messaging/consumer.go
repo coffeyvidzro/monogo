@@ -2,7 +2,6 @@ package messaging
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -109,14 +108,4 @@ func (c *Consumer) HandleQueued(ctx context.Context, message sqlc.Message) (sqlc
 		})
 	}
 	return c.service.MarkSubmitted(ctx, message.OrganizationID, message.ID, providerID)
-}
-func unmarshalMedia(payload []byte, target *[]Media) error {
-	if len(payload) == 0 {
-		*target = []Media{}
-		return nil
-	}
-	if err := json.Unmarshal(payload, target); err != nil {
-		return fmt.Errorf("decode message media: %w", err)
-	}
-	return nil
 }
