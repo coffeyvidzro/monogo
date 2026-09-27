@@ -49,7 +49,9 @@ func RunWithConfig(ctx context.Context, cfg Config) error {
 		return fmt.Errorf("initialize media tokens: %w", err)
 	}
 	websockets, err := transport.NewWebSocketHandler(tokens, manager, transport.WebSocketConfig{
-		HandshakeTimeout: cfg.HandshakeTimeout, ReadLimit: cfg.ReadLimit,
+		HandshakeTimeout: cfg.HandshakeTimeout,
+		ReadLimit:        cfg.ReadLimit,
+		Logger:           logger,
 	})
 	if err != nil {
 		return fmt.Errorf("initialize media WebSocket: %w", err)
