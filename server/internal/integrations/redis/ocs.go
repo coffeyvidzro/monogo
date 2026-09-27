@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	ocsKeyPrefix = "leamout:ocs"
+	ocsKeyPrefix   = "leamout:ocs"
 	ocsEventStream = ocsKeyPrefix + ":events"
 
 	maxOCSMicros int64 = 9_000_000_000_000_000
@@ -74,14 +74,14 @@ type OCSCreditRequest struct {
 type OCSResult struct {
 	Code                   string
 	StreamID               string
-	WalletVersion           int64
-	ChargeSequence          int64
-	BalanceMicros           int64
-	WalletReservedMicros    int64
-	ChargeAuthorizedMicros  int64
-	ChargeConsumedMicros    int64
-	ChargeReservedMicros    int64
-	ChargeStatus            string
+	WalletVersion          int64
+	ChargeSequence         int64
+	BalanceMicros          int64
+	WalletReservedMicros   int64
+	ChargeAuthorizedMicros int64
+	ChargeConsumedMicros   int64
+	ChargeReservedMicros   int64
+	ChargeStatus           string
 }
 
 func (c *Client) NewOCS() (*OCS, error) {
@@ -406,12 +406,12 @@ func parseOCSResult(value any) (OCSResult, error) {
 	}
 
 	return OCSResult{
-		Code:                  fmt.Sprint(values[0]),
-		StreamID:              fmt.Sprint(values[1]),
-		WalletVersion:         walletVersion,
-		ChargeSequence:        chargeSequence,
-		BalanceMicros:         balanceMicros,
-		WalletReservedMicros:  walletReservedMicros,
+		Code:                   fmt.Sprint(values[0]),
+		StreamID:               fmt.Sprint(values[1]),
+		WalletVersion:          walletVersion,
+		ChargeSequence:         chargeSequence,
+		BalanceMicros:          balanceMicros,
+		WalletReservedMicros:   walletReservedMicros,
 		ChargeAuthorizedMicros: chargeAuthorizedMicros,
 		ChargeConsumedMicros:   chargeConsumedMicros,
 		ChargeReservedMicros:   chargeReservedMicros,
