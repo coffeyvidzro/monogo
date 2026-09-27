@@ -15,7 +15,10 @@ func NewRepository(queries *sqlc.Queries) *Repository {
 	if queries == nil {
 		panic("billing wallets: queries are required")
 	}
-	return &Repository{queries: queries}
+
+	return &Repository{
+		queries: queries,
+	}
 }
 
 func (r *Repository) Create(
@@ -23,10 +26,12 @@ func (r *Repository) Create(
 	organizationID uuid.UUID,
 	currency string,
 ) (sqlc.Wallet, error) {
-	return r.queries.CreateBillingWallet(ctx, sqlc.CreateBillingWalletParams{
+	params := sqlc.CreateBillingWalletParams{
 		OrganizationID: organizationID,
 		Currency:       currency,
-	})
+	}
+
+	return r.queries.CreateBillingWallet(ctx, params)
 }
 
 func (r *Repository) Get(
@@ -34,20 +39,25 @@ func (r *Repository) Get(
 	organizationID uuid.UUID,
 	currency string,
 ) (sqlc.Wallet, error) {
-	return r.queries.GetBillingWallet(ctx, sqlc.GetBillingWalletParams{
+	params := sqlc.GetBillingWalletParams{
 		OrganizationID: organizationID,
 		Currency:       currency,
-	})
+	}
+
+	return r.queries.GetBillingWallet(ctx, params)
 }
 
 func (r *Repository) GetByID(
 	ctx context.Context,
-	organizationID, id uuid.UUID,
+	organizationID uuid.UUID,
+	id uuid.UUID,
 ) (sqlc.Wallet, error) {
-	return r.queries.GetBillingWalletByID(ctx, sqlc.GetBillingWalletByIDParams{
+	params := sqlc.GetBillingWalletByIDParams{
 		ID:             id,
 		OrganizationID: organizationID,
-	})
+	}
+
+	return r.queries.GetBillingWalletByID(ctx, params)
 }
 
 func (r *Repository) List(
@@ -59,14 +69,17 @@ func (r *Repository) List(
 
 func (r *Repository) SetStatus(
 	ctx context.Context,
-	organizationID, id uuid.UUID,
+	organizationID uuid.UUID,
+	id uuid.UUID,
 	status string,
 ) (sqlc.Wallet, error) {
-	return r.queries.SetBillingWalletStatus(ctx, sqlc.SetBillingWalletStatusParams{
+	params := sqlc.SetBillingWalletStatusParams{
 		Status:         status,
 		ID:             id,
 		OrganizationID: organizationID,
-	})
+	}
+
+	return r.queries.SetBillingWalletStatus(ctx, params)
 }
 
 func (r *Repository) EventByOperationID(
@@ -78,22 +91,28 @@ func (r *Repository) EventByOperationID(
 
 func (r *Repository) ListEvents(
 	ctx context.Context,
-	organizationID, walletID uuid.UUID,
+	organizationID uuid.UUID,
+	walletID uuid.UUID,
 	limit int32,
 ) ([]sqlc.WalletEvent, error) {
-	return r.queries.ListWalletEvents(ctx, sqlc.ListWalletEventsParams{
+	params := sqlc.ListWalletEventsParams{
 		WalletID:       walletID,
 		OrganizationID: organizationID,
 		PageLimit:      limit,
-	})
+	}
+
+	return r.queries.ListWalletEvents(ctx, params)
 }
 
 func (r *Repository) ListChargeEvents(
 	ctx context.Context,
-	organizationID, chargeID uuid.UUID,
+	organizationID uuid.UUID,
+	chargeID uuid.UUID,
 ) ([]sqlc.WalletEvent, error) {
-	return r.queries.ListChargeWalletEvents(ctx, sqlc.ListChargeWalletEventsParams{
+	params := sqlc.ListChargeWalletEventsParams{
 		OrganizationID: organizationID,
 		ChargeID:       &chargeID,
-	})
+	}
+
+	return r.queries.ListChargeWalletEvents(ctx, params)
 }
