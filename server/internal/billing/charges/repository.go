@@ -15,14 +15,17 @@ func NewRepository(queries *sqlc.Queries) *Repository {
 	if queries == nil {
 		panic("billing charges: queries are required")
 	}
-	return &Repository{queries: queries}
+
+	return &Repository{
+		queries: queries,
+	}
 }
 
 func (r *Repository) Create(
 	ctx context.Context,
 	req CreateRequest,
 ) (sqlc.Charge, error) {
-	return r.queries.CreateBillingCharge(ctx, sqlc.CreateBillingChargeParams{
+	params := sqlc.CreateBillingChargeParams{
 		OrganizationID:  req.OrganizationID,
 		WalletID:        req.WalletID,
 		ResourceType:    req.ResourceType,
@@ -32,17 +35,28 @@ func (r *Repository) Create(
 		IdempotencyKey:  req.IdempotencyKey,
 		RequestHash:     req.RequestHash,
 		PricingSnapshot: req.PricingSnapshot,
-	})
+	}
+
+	return r.queries.CreateBillingCharge(
+		ctx,
+		params,
+	)
 }
 
 func (r *Repository) Get(
 	ctx context.Context,
-	organizationID, id uuid.UUID,
+	organizationID uuid.UUID,
+	id uuid.UUID,
 ) (sqlc.Charge, error) {
-	return r.queries.GetBillingCharge(ctx, sqlc.GetBillingChargeParams{
+	params := sqlc.GetBillingChargeParams{
 		ID:             id,
 		OrganizationID: organizationID,
-	})
+	}
+
+	return r.queries.GetBillingCharge(
+		ctx,
+		params,
+	)
 }
 
 func (r *Repository) ByIdempotencyKey(
@@ -50,12 +64,14 @@ func (r *Repository) ByIdempotencyKey(
 	organizationID uuid.UUID,
 	key string,
 ) (sqlc.Charge, error) {
+	params := sqlc.GetBillingChargeByIdempotencyKeyParams{
+		OrganizationID: organizationID,
+		IdempotencyKey: key,
+	}
+
 	return r.queries.GetBillingChargeByIdempotencyKey(
 		ctx,
-		sqlc.GetBillingChargeByIdempotencyKeyParams{
-			OrganizationID: organizationID,
-			IdempotencyKey: key,
-		},
+		params,
 	)
 }
 
@@ -65,11 +81,16 @@ func (r *Repository) ByResource(
 	resourceType string,
 	resourceID uuid.UUID,
 ) (sqlc.Charge, error) {
-	return r.queries.GetBillingChargeByResource(ctx, sqlc.GetBillingChargeByResourceParams{
+	params := sqlc.GetBillingChargeByResourceParams{
 		OrganizationID: organizationID,
 		ResourceType:   resourceType,
 		ResourceID:     resourceID,
-	})
+	}
+
+	return r.queries.GetBillingChargeByResource(
+		ctx,
+		params,
+	)
 }
 
 func (r *Repository) List(
@@ -77,10 +98,15 @@ func (r *Repository) List(
 	organizationID uuid.UUID,
 	req ListRequest,
 ) ([]sqlc.Charge, error) {
-	return r.queries.ListBillingCharges(ctx, sqlc.ListBillingChargesParams{
+	params := sqlc.ListBillingChargesParams{
 		OrganizationID: organizationID,
 		Status:         req.Status,
 		PageLimit:      req.Limit,
 		PageOffset:     req.Offset,
-	})
+	}
+
+	return r.queries.ListBillingCharges(
+		ctx,
+		params,
+	)
 }
