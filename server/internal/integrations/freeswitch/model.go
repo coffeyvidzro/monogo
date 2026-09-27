@@ -156,7 +156,7 @@ type AudioForkRequest struct {
 	ChannelID    string
 	WebSocketURL string
 	MixType      string
-	SampleRate   string
+	SampleRateHz int
 	Metadata     string
 }
 
@@ -171,7 +171,9 @@ func (r AudioForkRequest) Validate() error {
 	if r.MixType != "mono" && r.MixType != "mixed" && r.MixType != "stereo" {
 		return fmt.Errorf("FreeSWITCH audio fork mix type must be mono, mixed, or stereo")
 	}
-	if r.SampleRate != "8k" && r.SampleRate != "16k" && r.SampleRate != "24k" && r.SampleRate != "48k" {
+	switch r.SampleRateHz {
+	case 8000, 16000, 24000, 48000:
+	default:
 		return fmt.Errorf("FreeSWITCH audio fork sample rate is unsupported")
 	}
 	if metadata := strings.TrimSpace(r.Metadata); metadata != "" && !json.Valid([]byte(metadata)) {
