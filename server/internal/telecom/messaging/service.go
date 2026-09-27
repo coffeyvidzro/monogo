@@ -95,6 +95,17 @@ func (s *Service) Get(ctx context.Context, organizationID, id uuid.UUID) (sqlc.M
 	return value, messageReadError(err, "message not found")
 }
 
+// GetByProviderID resolves the carrier-scoped identity used by inbound delivery
+// receipts. It is intentionally not exposed as an organization API lookup.
+func (s *Service) GetByProviderID(
+	ctx context.Context,
+	carrierConnectionID uuid.UUID,
+	providerMessageID string,
+) (sqlc.Message, error) {
+	value, err := s.repo.GetByProviderID(ctx, carrierConnectionID, providerMessageID)
+	return value, messageReadError(err, "message not found")
+}
+
 func (s *Service) List(ctx context.Context, organizationID uuid.UUID, req ListRequest) ([]sqlc.Message, error) {
 	if organizationID == uuid.Nil {
 		return nil, apperror.NewBadRequest("organization context required")
