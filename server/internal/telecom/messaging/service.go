@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"strings"
+	"time"
 
 	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
 	"github.com/coffeyvidzro/monogo/pkg/apperror"
@@ -18,11 +19,31 @@ type Service struct {
 	repo *Repository
 }
 
+func (s *Service) ReconcileStaleSubmissions(ctx context.Context, staleBefore time.Time) error {
+	messages, err := s.repo.ListStaleSubmissions(ctx, staleBefore)
+	if err != nil {
+		return apperror.NewInternal("reconcile stale message submissions", err)
+	}
+	code := "submission_outcome_unknown"
+	detail := "worker stopped before provider acceptance was recorded"
+	for _, message := range messages {
+		if _, err := s.MarkSubmissionUnknown(ctx, message.OrganizationID, message.ID, Failure{
+			Code:    &code,
+			Message: &detail,
+		}); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func NewService(repo *Repository) *Service {
 	if repo == nil {
 		panic("messaging: repository is required")
 	}
-	return &Service{repo: repo}
+	return &Service{
+		repo: repo,
+	}
 }
 
 func (s *Service) Create(
@@ -77,7 +98,10 @@ func (s *Service) CreateInbound(ctx context.Context, req InboundRequest) (sqlc.M
 	if !errors.Is(err, pgx.ErrNoRows) {
 		return sqlc.Message{}, apperror.NewInternal("create inbound message", err)
 	}
-	existing, readErr := s.repo.GetByProviderID(ctx, normalized.CarrierConnectionID, normalized.ProviderMessageID)
+	if normalized.ProviderMessageID == nil {
+		return sqlc.Message{}, apperror.NewInternal("create inbound message", err)
+	}
+	existing, readErr := s.repo.GetByProviderID(ctx, normalized.MessagingConnectionID, *normalized.ProviderMessageID)
 	if readErr != nil {
 		return sqlc.Message{}, messageReadError(readErr, "message not found")
 	}
@@ -92,6 +116,17 @@ func (s *Service) Get(ctx context.Context, organizationID, id uuid.UUID) (sqlc.M
 		return sqlc.Message{}, apperror.NewBadRequest("message id is required")
 	}
 	value, err := s.repo.Get(ctx, organizationID, id)
+	return value, messageReadError(err, "message not found")
+}
+
+// GetByProviderID resolves the carrier-scoped identity used by inbound delivery
+// receipts. It is intentionally not exposed as an organization API lookup.
+func (s *Service) GetByProviderID(
+	ctx context.Context,
+	messagingConnectionID uuid.UUID,
+	providerMessageID string,
+) (sqlc.Message, error) {
+	value, err := s.repo.GetByProviderID(ctx, messagingConnectionID, providerMessageID)
 	return value, messageReadError(err, "message not found")
 }
 
@@ -112,15 +147,34 @@ func (s *Service) List(ctx context.Context, organizationID uuid.UUID, req ListRe
 
 func (s *Service) SetProviderAttribution(
 	ctx context.Context,
-	organizationID, id, carrierConnectionID uuid.UUID,
+	organizationID, id, messagingConnectionID uuid.UUID,
 ) (sqlc.Message, error) {
-	if organizationID == uuid.Nil || id == uuid.Nil || carrierConnectionID == uuid.Nil {
+	if organizationID == uuid.Nil || id == uuid.Nil || messagingConnectionID == uuid.Nil {
 		return sqlc.Message{}, apperror.NewBadRequest(
-			"organization_id, message_id, and carrier_connection_id are required",
+			"organization_id, message_id, and messaging_connection_id are required",
 		)
 	}
-	value, err := s.repo.SetProviderAttribution(ctx, organizationID, id, carrierConnectionID)
+	value, err := s.repo.SetProviderAttribution(ctx, organizationID, id, messagingConnectionID)
 	return value, messageWriteError(err, "attribute message provider")
+}
+
+func (s *Service) BeginSubmission(ctx context.Context, organizationID, id uuid.UUID) (sqlc.Message, error) {
+	value, err := s.repo.BeginSubmission(ctx, organizationID, id)
+	return value, messageWriteError(err, "begin message submission")
+}
+
+func (s *Service) RequeueSubmission(ctx context.Context, organizationID, id uuid.UUID) (sqlc.Message, error) {
+	value, err := s.repo.RequeueSubmission(ctx, organizationID, id)
+	return value, messageWriteError(err, "requeue message submission")
+}
+
+func (s *Service) MarkSubmissionUnknown(
+	ctx context.Context,
+	organizationID, id uuid.UUID,
+	failure Failure,
+) (sqlc.Message, error) {
+	value, err := s.repo.MarkSubmissionUnknown(ctx, organizationID, id, failure)
+	return value, messageWriteError(err, "mark message submission outcome unknown")
 }
 
 func (s *Service) MarkSubmitted(

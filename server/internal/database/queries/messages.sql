@@ -32,7 +32,7 @@ RETURNING *;
 -- name: CreateInboundMessage :one
 INSERT INTO messages (
     organization_id,
-    carrier_connection_id,
+    messaging_connection_id,
     channel,
     direction,
     status,
@@ -55,25 +55,19 @@ SELECT
     sqlc.arg(media)::jsonb,
     sqlc.arg(provider_message_id),
     NOW()
-FROM carrier_connections AS connection
+FROM messaging_connections AS connection
 JOIN organizations AS organization
   ON organization.id = sqlc.arg(organization_id)
-WHERE connection.id = sqlc.arg(carrier_connection_id)
+WHERE connection.id = sqlc.arg(messaging_connection_id)
   AND connection.status = 'active'
   AND organization.status = 'active'
   AND organization.deleted_at IS NULL
   AND (
-      (
-          connection.scope = 'organization'
-          AND connection.organization_id = sqlc.arg(organization_id)
-      )
-      OR (
-          connection.scope = 'platform'
-          AND connection.organization_id IS NULL
-      )
+    (connection.scope = 'organization' AND connection.organization_id = sqlc.arg(organization_id))
+    OR (connection.scope = 'platform' AND connection.organization_id IS NULL)
   )
-ON CONFLICT (carrier_connection_id, provider_message_id)
-WHERE carrier_connection_id IS NOT NULL
+ON CONFLICT (messaging_connection_id, provider_message_id)
+WHERE messaging_connection_id IS NOT NULL
   AND provider_message_id IS NOT NULL
 DO NOTHING
 RETURNING *;
@@ -95,7 +89,7 @@ LIMIT 1;
 -- name: GetMessageByProviderID :one
 SELECT *
 FROM messages
-WHERE carrier_connection_id = sqlc.arg(carrier_connection_id)
+WHERE messaging_connection_id = sqlc.arg(messaging_connection_id)
   AND provider_message_id = sqlc.arg(provider_message_id)
 LIMIT 1;
 
@@ -113,34 +107,50 @@ OFFSET sqlc.arg(page_offset);
 -- name: SetMessageProviderAttribution :one
 UPDATE messages AS message
 SET
-    carrier_connection_id = connection.id,
+    messaging_connection_id = connection.id,
     updated_at = NOW()
-FROM carrier_connections AS connection
+FROM messaging_connections AS connection
 JOIN organizations AS organization
   ON organization.id = sqlc.arg(organization_id)
 WHERE message.organization_id = sqlc.arg(organization_id)
   AND message.id = sqlc.arg(id)
   AND message.direction = 'outbound'
   AND message.status = 'queued'
-  AND connection.id = sqlc.arg(carrier_connection_id)
+  AND connection.id = sqlc.arg(messaging_connection_id)
   AND connection.status = 'active'
   AND organization.status = 'active'
   AND organization.deleted_at IS NULL
   AND (
-      (
-          connection.scope = 'organization'
-          AND connection.organization_id = message.organization_id
-      )
-      OR (
-          connection.scope = 'platform'
-          AND connection.organization_id IS NULL
-      )
+    (connection.scope = 'organization' AND connection.organization_id = message.organization_id)
+    OR (connection.scope = 'platform' AND connection.organization_id IS NULL)
   )
   AND (
-      message.carrier_connection_id IS NULL
-      OR message.carrier_connection_id = connection.id
+      message.messaging_connection_id IS NULL
+      OR message.messaging_connection_id = connection.id
   )
 RETURNING message.*;
+
+-- name: BeginMessageSubmission :one
+UPDATE messages
+SET status = 'submitting', submitting_at = NOW(), updated_at = NOW()
+WHERE organization_id = sqlc.arg(organization_id)
+  AND id = sqlc.arg(id)
+  AND direction = 'outbound'
+  AND status = 'queued'
+  AND messaging_connection_id IS NOT NULL
+RETURNING *;
+
+-- name: RequeueMessageSubmission :one
+UPDATE messages
+SET
+    status = 'queued',
+    submitting_at = NULL,
+    updated_at = NOW()
+WHERE organization_id = sqlc.arg(organization_id)
+  AND id = sqlc.arg(id)
+  AND direction = 'outbound'
+  AND status = 'submitting'
+RETURNING *;
 
 -- name: MarkMessageSubmitted :one
 UPDATE messages
@@ -152,8 +162,8 @@ SET
 WHERE organization_id = sqlc.arg(organization_id)
   AND id = sqlc.arg(id)
   AND direction = 'outbound'
-  AND status = 'queued'
-  AND carrier_connection_id IS NOT NULL
+  AND status = 'submitting'
+  AND messaging_connection_id IS NOT NULL
   AND provider_message_id IS NULL
 RETURNING *;
 
@@ -206,5 +216,25 @@ SET
 WHERE organization_id = sqlc.arg(organization_id)
   AND id = sqlc.arg(id)
   AND direction = 'outbound'
-  AND status IN ('queued', 'submitted', 'sent')
+  AND status IN ('queued', 'submitting', 'submitted', 'sent')
 RETURNING *;
+
+
+-- name: MarkMessageSubmissionUnknown :one
+UPDATE messages
+SET
+    status = 'submission_unknown',
+    submission_unknown_at = NOW(),
+    failure_code = sqlc.narg(failure_code),
+    failure_message = sqlc.narg(failure_message),
+    updated_at = NOW()
+WHERE organization_id = sqlc.arg(organization_id)
+  AND id = sqlc.arg(id)
+  AND direction = 'outbound'
+  AND status = 'submitting'
+RETURNING *;
+
+-- name: ListStaleMessageSubmissions :many
+SELECT * FROM messages
+WHERE status = 'submitting' AND submitting_at < sqlc.arg(stale_before)
+ORDER BY submitting_at ASC;

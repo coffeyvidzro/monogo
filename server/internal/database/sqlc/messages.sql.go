@@ -9,12 +9,62 @@ import (
 	"context"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
+
+const beginMessageSubmission = `-- name: BeginMessageSubmission :one
+UPDATE messages
+SET status = 'submitting', submitting_at = NOW(), updated_at = NOW()
+WHERE organization_id = $1
+  AND id = $2
+  AND direction = 'outbound'
+  AND status = 'queued'
+  AND messaging_connection_id IS NOT NULL
+RETURNING id, organization_id, messaging_connection_id, channel, direction, status, from_address, to_address, body, media, provider_message_id, idempotency_key, request_hash, failure_code, failure_message, queued_at, submitting_at, submission_unknown_at, submitted_at, sent_at, delivered_at, received_at, failed_at, created_at, updated_at
+`
+
+type BeginMessageSubmissionParams struct {
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	ID             uuid.UUID `db:"id" json:"id"`
+}
+
+func (q *Queries) BeginMessageSubmission(ctx context.Context, arg BeginMessageSubmissionParams) (Message, error) {
+	row := q.db.QueryRow(ctx, beginMessageSubmission, arg.OrganizationID, arg.ID)
+	var i Message
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.MessagingConnectionID,
+		&i.Channel,
+		&i.Direction,
+		&i.Status,
+		&i.FromAddress,
+		&i.ToAddress,
+		&i.Body,
+		&i.Media,
+		&i.ProviderMessageID,
+		&i.IdempotencyKey,
+		&i.RequestHash,
+		&i.FailureCode,
+		&i.FailureMessage,
+		&i.QueuedAt,
+		&i.SubmittingAt,
+		&i.SubmissionUnknownAt,
+		&i.SubmittedAt,
+		&i.SentAt,
+		&i.DeliveredAt,
+		&i.ReceivedAt,
+		&i.FailedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
 
 const createInboundMessage = `-- name: CreateInboundMessage :one
 INSERT INTO messages (
     organization_id,
-    carrier_connection_id,
+    messaging_connection_id,
     channel,
     direction,
     status,
@@ -37,7 +87,7 @@ SELECT
     $6::jsonb,
     $7,
     NOW()
-FROM carrier_connections AS connection
+FROM messaging_connections AS connection
 JOIN organizations AS organization
   ON organization.id = $1
 WHERE connection.id = $8
@@ -45,31 +95,25 @@ WHERE connection.id = $8
   AND organization.status = 'active'
   AND organization.deleted_at IS NULL
   AND (
-      (
-          connection.scope = 'organization'
-          AND connection.organization_id = $1
-      )
-      OR (
-          connection.scope = 'platform'
-          AND connection.organization_id IS NULL
-      )
+    (connection.scope = 'organization' AND connection.organization_id = $1)
+    OR (connection.scope = 'platform' AND connection.organization_id IS NULL)
   )
-ON CONFLICT (carrier_connection_id, provider_message_id)
-WHERE carrier_connection_id IS NOT NULL
+ON CONFLICT (messaging_connection_id, provider_message_id)
+WHERE messaging_connection_id IS NOT NULL
   AND provider_message_id IS NOT NULL
 DO NOTHING
-RETURNING id, organization_id, carrier_connection_id, channel, direction, status, from_address, to_address, body, media, provider_message_id, idempotency_key, request_hash, failure_code, failure_message, queued_at, submitted_at, sent_at, delivered_at, received_at, failed_at, created_at, updated_at
+RETURNING id, organization_id, messaging_connection_id, channel, direction, status, from_address, to_address, body, media, provider_message_id, idempotency_key, request_hash, failure_code, failure_message, queued_at, submitting_at, submission_unknown_at, submitted_at, sent_at, delivered_at, received_at, failed_at, created_at, updated_at
 `
 
 type CreateInboundMessageParams struct {
-	OrganizationID      uuid.UUID `db:"organization_id" json:"organization_id"`
-	Channel             string    `db:"channel" json:"channel"`
-	FromAddress         string    `db:"from_address" json:"from_address"`
-	ToAddress           string    `db:"to_address" json:"to_address"`
-	Body                *string   `db:"body" json:"body"`
-	Media               []byte    `db:"media" json:"media"`
-	ProviderMessageID   *string   `db:"provider_message_id" json:"provider_message_id"`
-	CarrierConnectionID uuid.UUID `db:"carrier_connection_id" json:"carrier_connection_id"`
+	OrganizationID        uuid.UUID `db:"organization_id" json:"organization_id"`
+	Channel               string    `db:"channel" json:"channel"`
+	FromAddress           string    `db:"from_address" json:"from_address"`
+	ToAddress             string    `db:"to_address" json:"to_address"`
+	Body                  *string   `db:"body" json:"body"`
+	Media                 []byte    `db:"media" json:"media"`
+	ProviderMessageID     *string   `db:"provider_message_id" json:"provider_message_id"`
+	MessagingConnectionID uuid.UUID `db:"messaging_connection_id" json:"messaging_connection_id"`
 }
 
 func (q *Queries) CreateInboundMessage(ctx context.Context, arg CreateInboundMessageParams) (Message, error) {
@@ -81,13 +125,13 @@ func (q *Queries) CreateInboundMessage(ctx context.Context, arg CreateInboundMes
 		arg.Body,
 		arg.Media,
 		arg.ProviderMessageID,
-		arg.CarrierConnectionID,
+		arg.MessagingConnectionID,
 	)
 	var i Message
 	err := row.Scan(
 		&i.ID,
 		&i.OrganizationID,
-		&i.CarrierConnectionID,
+		&i.MessagingConnectionID,
 		&i.Channel,
 		&i.Direction,
 		&i.Status,
@@ -101,6 +145,8 @@ func (q *Queries) CreateInboundMessage(ctx context.Context, arg CreateInboundMes
 		&i.FailureCode,
 		&i.FailureMessage,
 		&i.QueuedAt,
+		&i.SubmittingAt,
+		&i.SubmissionUnknownAt,
 		&i.SubmittedAt,
 		&i.SentAt,
 		&i.DeliveredAt,
@@ -141,7 +187,7 @@ INSERT INTO messages (
 ON CONFLICT (organization_id, idempotency_key)
 WHERE idempotency_key IS NOT NULL
 DO NOTHING
-RETURNING id, organization_id, carrier_connection_id, channel, direction, status, from_address, to_address, body, media, provider_message_id, idempotency_key, request_hash, failure_code, failure_message, queued_at, submitted_at, sent_at, delivered_at, received_at, failed_at, created_at, updated_at
+RETURNING id, organization_id, messaging_connection_id, channel, direction, status, from_address, to_address, body, media, provider_message_id, idempotency_key, request_hash, failure_code, failure_message, queued_at, submitting_at, submission_unknown_at, submitted_at, sent_at, delivered_at, received_at, failed_at, created_at, updated_at
 `
 
 type CreateOutboundMessageParams struct {
@@ -170,7 +216,7 @@ func (q *Queries) CreateOutboundMessage(ctx context.Context, arg CreateOutboundM
 	err := row.Scan(
 		&i.ID,
 		&i.OrganizationID,
-		&i.CarrierConnectionID,
+		&i.MessagingConnectionID,
 		&i.Channel,
 		&i.Direction,
 		&i.Status,
@@ -184,6 +230,8 @@ func (q *Queries) CreateOutboundMessage(ctx context.Context, arg CreateOutboundM
 		&i.FailureCode,
 		&i.FailureMessage,
 		&i.QueuedAt,
+		&i.SubmittingAt,
+		&i.SubmissionUnknownAt,
 		&i.SubmittedAt,
 		&i.SentAt,
 		&i.DeliveredAt,
@@ -196,7 +244,7 @@ func (q *Queries) CreateOutboundMessage(ctx context.Context, arg CreateOutboundM
 }
 
 const getMessage = `-- name: GetMessage :one
-SELECT id, organization_id, carrier_connection_id, channel, direction, status, from_address, to_address, body, media, provider_message_id, idempotency_key, request_hash, failure_code, failure_message, queued_at, submitted_at, sent_at, delivered_at, received_at, failed_at, created_at, updated_at
+SELECT id, organization_id, messaging_connection_id, channel, direction, status, from_address, to_address, body, media, provider_message_id, idempotency_key, request_hash, failure_code, failure_message, queued_at, submitting_at, submission_unknown_at, submitted_at, sent_at, delivered_at, received_at, failed_at, created_at, updated_at
 FROM messages
 WHERE organization_id = $1
   AND id = $2
@@ -214,7 +262,7 @@ func (q *Queries) GetMessage(ctx context.Context, arg GetMessageParams) (Message
 	err := row.Scan(
 		&i.ID,
 		&i.OrganizationID,
-		&i.CarrierConnectionID,
+		&i.MessagingConnectionID,
 		&i.Channel,
 		&i.Direction,
 		&i.Status,
@@ -228,6 +276,8 @@ func (q *Queries) GetMessage(ctx context.Context, arg GetMessageParams) (Message
 		&i.FailureCode,
 		&i.FailureMessage,
 		&i.QueuedAt,
+		&i.SubmittingAt,
+		&i.SubmissionUnknownAt,
 		&i.SubmittedAt,
 		&i.SentAt,
 		&i.DeliveredAt,
@@ -240,7 +290,7 @@ func (q *Queries) GetMessage(ctx context.Context, arg GetMessageParams) (Message
 }
 
 const getMessageByIdempotencyKey = `-- name: GetMessageByIdempotencyKey :one
-SELECT id, organization_id, carrier_connection_id, channel, direction, status, from_address, to_address, body, media, provider_message_id, idempotency_key, request_hash, failure_code, failure_message, queued_at, submitted_at, sent_at, delivered_at, received_at, failed_at, created_at, updated_at
+SELECT id, organization_id, messaging_connection_id, channel, direction, status, from_address, to_address, body, media, provider_message_id, idempotency_key, request_hash, failure_code, failure_message, queued_at, submitting_at, submission_unknown_at, submitted_at, sent_at, delivered_at, received_at, failed_at, created_at, updated_at
 FROM messages
 WHERE organization_id = $1
   AND idempotency_key = $2
@@ -258,7 +308,7 @@ func (q *Queries) GetMessageByIdempotencyKey(ctx context.Context, arg GetMessage
 	err := row.Scan(
 		&i.ID,
 		&i.OrganizationID,
-		&i.CarrierConnectionID,
+		&i.MessagingConnectionID,
 		&i.Channel,
 		&i.Direction,
 		&i.Status,
@@ -272,6 +322,8 @@ func (q *Queries) GetMessageByIdempotencyKey(ctx context.Context, arg GetMessage
 		&i.FailureCode,
 		&i.FailureMessage,
 		&i.QueuedAt,
+		&i.SubmittingAt,
+		&i.SubmissionUnknownAt,
 		&i.SubmittedAt,
 		&i.SentAt,
 		&i.DeliveredAt,
@@ -284,25 +336,25 @@ func (q *Queries) GetMessageByIdempotencyKey(ctx context.Context, arg GetMessage
 }
 
 const getMessageByProviderID = `-- name: GetMessageByProviderID :one
-SELECT id, organization_id, carrier_connection_id, channel, direction, status, from_address, to_address, body, media, provider_message_id, idempotency_key, request_hash, failure_code, failure_message, queued_at, submitted_at, sent_at, delivered_at, received_at, failed_at, created_at, updated_at
+SELECT id, organization_id, messaging_connection_id, channel, direction, status, from_address, to_address, body, media, provider_message_id, idempotency_key, request_hash, failure_code, failure_message, queued_at, submitting_at, submission_unknown_at, submitted_at, sent_at, delivered_at, received_at, failed_at, created_at, updated_at
 FROM messages
-WHERE carrier_connection_id = $1
+WHERE messaging_connection_id = $1
   AND provider_message_id = $2
 LIMIT 1
 `
 
 type GetMessageByProviderIDParams struct {
-	CarrierConnectionID *uuid.UUID `db:"carrier_connection_id" json:"carrier_connection_id"`
-	ProviderMessageID   *string    `db:"provider_message_id" json:"provider_message_id"`
+	MessagingConnectionID *uuid.UUID `db:"messaging_connection_id" json:"messaging_connection_id"`
+	ProviderMessageID     *string    `db:"provider_message_id" json:"provider_message_id"`
 }
 
 func (q *Queries) GetMessageByProviderID(ctx context.Context, arg GetMessageByProviderIDParams) (Message, error) {
-	row := q.db.QueryRow(ctx, getMessageByProviderID, arg.CarrierConnectionID, arg.ProviderMessageID)
+	row := q.db.QueryRow(ctx, getMessageByProviderID, arg.MessagingConnectionID, arg.ProviderMessageID)
 	var i Message
 	err := row.Scan(
 		&i.ID,
 		&i.OrganizationID,
-		&i.CarrierConnectionID,
+		&i.MessagingConnectionID,
 		&i.Channel,
 		&i.Direction,
 		&i.Status,
@@ -316,6 +368,8 @@ func (q *Queries) GetMessageByProviderID(ctx context.Context, arg GetMessageByPr
 		&i.FailureCode,
 		&i.FailureMessage,
 		&i.QueuedAt,
+		&i.SubmittingAt,
+		&i.SubmissionUnknownAt,
 		&i.SubmittedAt,
 		&i.SentAt,
 		&i.DeliveredAt,
@@ -328,7 +382,7 @@ func (q *Queries) GetMessageByProviderID(ctx context.Context, arg GetMessageByPr
 }
 
 const listMessages = `-- name: ListMessages :many
-SELECT id, organization_id, carrier_connection_id, channel, direction, status, from_address, to_address, body, media, provider_message_id, idempotency_key, request_hash, failure_code, failure_message, queued_at, submitted_at, sent_at, delivered_at, received_at, failed_at, created_at, updated_at
+SELECT id, organization_id, messaging_connection_id, channel, direction, status, from_address, to_address, body, media, provider_message_id, idempotency_key, request_hash, failure_code, failure_message, queued_at, submitting_at, submission_unknown_at, submitted_at, sent_at, delivered_at, received_at, failed_at, created_at, updated_at
 FROM messages
 WHERE organization_id = $1
   AND ($2::text IS NULL OR status = $2::text)
@@ -367,7 +421,7 @@ func (q *Queries) ListMessages(ctx context.Context, arg ListMessagesParams) ([]M
 		if err := rows.Scan(
 			&i.ID,
 			&i.OrganizationID,
-			&i.CarrierConnectionID,
+			&i.MessagingConnectionID,
 			&i.Channel,
 			&i.Direction,
 			&i.Status,
@@ -381,6 +435,60 @@ func (q *Queries) ListMessages(ctx context.Context, arg ListMessagesParams) ([]M
 			&i.FailureCode,
 			&i.FailureMessage,
 			&i.QueuedAt,
+			&i.SubmittingAt,
+			&i.SubmissionUnknownAt,
+			&i.SubmittedAt,
+			&i.SentAt,
+			&i.DeliveredAt,
+			&i.ReceivedAt,
+			&i.FailedAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listStaleMessageSubmissions = `-- name: ListStaleMessageSubmissions :many
+SELECT id, organization_id, messaging_connection_id, channel, direction, status, from_address, to_address, body, media, provider_message_id, idempotency_key, request_hash, failure_code, failure_message, queued_at, submitting_at, submission_unknown_at, submitted_at, sent_at, delivered_at, received_at, failed_at, created_at, updated_at FROM messages
+WHERE status = 'submitting' AND submitting_at < $1
+ORDER BY submitting_at ASC
+`
+
+func (q *Queries) ListStaleMessageSubmissions(ctx context.Context, staleBefore pgtype.Timestamptz) ([]Message, error) {
+	rows, err := q.db.Query(ctx, listStaleMessageSubmissions, staleBefore)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Message{}
+	for rows.Next() {
+		var i Message
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrganizationID,
+			&i.MessagingConnectionID,
+			&i.Channel,
+			&i.Direction,
+			&i.Status,
+			&i.FromAddress,
+			&i.ToAddress,
+			&i.Body,
+			&i.Media,
+			&i.ProviderMessageID,
+			&i.IdempotencyKey,
+			&i.RequestHash,
+			&i.FailureCode,
+			&i.FailureMessage,
+			&i.QueuedAt,
+			&i.SubmittingAt,
+			&i.SubmissionUnknownAt,
 			&i.SubmittedAt,
 			&i.SentAt,
 			&i.DeliveredAt,
@@ -409,7 +517,7 @@ WHERE organization_id = $1
   AND id = $2
   AND direction = 'outbound'
   AND status IN ('submitted', 'sent')
-RETURNING id, organization_id, carrier_connection_id, channel, direction, status, from_address, to_address, body, media, provider_message_id, idempotency_key, request_hash, failure_code, failure_message, queued_at, submitted_at, sent_at, delivered_at, received_at, failed_at, created_at, updated_at
+RETURNING id, organization_id, messaging_connection_id, channel, direction, status, from_address, to_address, body, media, provider_message_id, idempotency_key, request_hash, failure_code, failure_message, queued_at, submitting_at, submission_unknown_at, submitted_at, sent_at, delivered_at, received_at, failed_at, created_at, updated_at
 `
 
 type MarkMessageDeliveredParams struct {
@@ -423,7 +531,7 @@ func (q *Queries) MarkMessageDelivered(ctx context.Context, arg MarkMessageDeliv
 	err := row.Scan(
 		&i.ID,
 		&i.OrganizationID,
-		&i.CarrierConnectionID,
+		&i.MessagingConnectionID,
 		&i.Channel,
 		&i.Direction,
 		&i.Status,
@@ -437,6 +545,8 @@ func (q *Queries) MarkMessageDelivered(ctx context.Context, arg MarkMessageDeliv
 		&i.FailureCode,
 		&i.FailureMessage,
 		&i.QueuedAt,
+		&i.SubmittingAt,
+		&i.SubmissionUnknownAt,
 		&i.SubmittedAt,
 		&i.SentAt,
 		&i.DeliveredAt,
@@ -459,8 +569,8 @@ SET
 WHERE organization_id = $3
   AND id = $4
   AND direction = 'outbound'
-  AND status IN ('queued', 'submitted', 'sent')
-RETURNING id, organization_id, carrier_connection_id, channel, direction, status, from_address, to_address, body, media, provider_message_id, idempotency_key, request_hash, failure_code, failure_message, queued_at, submitted_at, sent_at, delivered_at, received_at, failed_at, created_at, updated_at
+  AND status IN ('queued', 'submitting', 'submitted', 'sent')
+RETURNING id, organization_id, messaging_connection_id, channel, direction, status, from_address, to_address, body, media, provider_message_id, idempotency_key, request_hash, failure_code, failure_message, queued_at, submitting_at, submission_unknown_at, submitted_at, sent_at, delivered_at, received_at, failed_at, created_at, updated_at
 `
 
 type MarkMessageFailedParams struct {
@@ -481,7 +591,7 @@ func (q *Queries) MarkMessageFailed(ctx context.Context, arg MarkMessageFailedPa
 	err := row.Scan(
 		&i.ID,
 		&i.OrganizationID,
-		&i.CarrierConnectionID,
+		&i.MessagingConnectionID,
 		&i.Channel,
 		&i.Direction,
 		&i.Status,
@@ -495,6 +605,8 @@ func (q *Queries) MarkMessageFailed(ctx context.Context, arg MarkMessageFailedPa
 		&i.FailureCode,
 		&i.FailureMessage,
 		&i.QueuedAt,
+		&i.SubmittingAt,
+		&i.SubmissionUnknownAt,
 		&i.SubmittedAt,
 		&i.SentAt,
 		&i.DeliveredAt,
@@ -516,7 +628,7 @@ WHERE organization_id = $1
   AND id = $2
   AND direction = 'outbound'
   AND status = 'submitted'
-RETURNING id, organization_id, carrier_connection_id, channel, direction, status, from_address, to_address, body, media, provider_message_id, idempotency_key, request_hash, failure_code, failure_message, queued_at, submitted_at, sent_at, delivered_at, received_at, failed_at, created_at, updated_at
+RETURNING id, organization_id, messaging_connection_id, channel, direction, status, from_address, to_address, body, media, provider_message_id, idempotency_key, request_hash, failure_code, failure_message, queued_at, submitting_at, submission_unknown_at, submitted_at, sent_at, delivered_at, received_at, failed_at, created_at, updated_at
 `
 
 type MarkMessageSentParams struct {
@@ -530,7 +642,7 @@ func (q *Queries) MarkMessageSent(ctx context.Context, arg MarkMessageSentParams
 	err := row.Scan(
 		&i.ID,
 		&i.OrganizationID,
-		&i.CarrierConnectionID,
+		&i.MessagingConnectionID,
 		&i.Channel,
 		&i.Direction,
 		&i.Status,
@@ -544,6 +656,68 @@ func (q *Queries) MarkMessageSent(ctx context.Context, arg MarkMessageSentParams
 		&i.FailureCode,
 		&i.FailureMessage,
 		&i.QueuedAt,
+		&i.SubmittingAt,
+		&i.SubmissionUnknownAt,
+		&i.SubmittedAt,
+		&i.SentAt,
+		&i.DeliveredAt,
+		&i.ReceivedAt,
+		&i.FailedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const markMessageSubmissionUnknown = `-- name: MarkMessageSubmissionUnknown :one
+UPDATE messages
+SET
+    status = 'submission_unknown',
+    submission_unknown_at = NOW(),
+    failure_code = $1,
+    failure_message = $2,
+    updated_at = NOW()
+WHERE organization_id = $3
+  AND id = $4
+  AND direction = 'outbound'
+  AND status = 'submitting'
+RETURNING id, organization_id, messaging_connection_id, channel, direction, status, from_address, to_address, body, media, provider_message_id, idempotency_key, request_hash, failure_code, failure_message, queued_at, submitting_at, submission_unknown_at, submitted_at, sent_at, delivered_at, received_at, failed_at, created_at, updated_at
+`
+
+type MarkMessageSubmissionUnknownParams struct {
+	FailureCode    *string   `db:"failure_code" json:"failure_code"`
+	FailureMessage *string   `db:"failure_message" json:"failure_message"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	ID             uuid.UUID `db:"id" json:"id"`
+}
+
+func (q *Queries) MarkMessageSubmissionUnknown(ctx context.Context, arg MarkMessageSubmissionUnknownParams) (Message, error) {
+	row := q.db.QueryRow(ctx, markMessageSubmissionUnknown,
+		arg.FailureCode,
+		arg.FailureMessage,
+		arg.OrganizationID,
+		arg.ID,
+	)
+	var i Message
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.MessagingConnectionID,
+		&i.Channel,
+		&i.Direction,
+		&i.Status,
+		&i.FromAddress,
+		&i.ToAddress,
+		&i.Body,
+		&i.Media,
+		&i.ProviderMessageID,
+		&i.IdempotencyKey,
+		&i.RequestHash,
+		&i.FailureCode,
+		&i.FailureMessage,
+		&i.QueuedAt,
+		&i.SubmittingAt,
+		&i.SubmissionUnknownAt,
 		&i.SubmittedAt,
 		&i.SentAt,
 		&i.DeliveredAt,
@@ -565,10 +739,10 @@ SET
 WHERE organization_id = $2
   AND id = $3
   AND direction = 'outbound'
-  AND status = 'queued'
-  AND carrier_connection_id IS NOT NULL
+  AND status = 'submitting'
+  AND messaging_connection_id IS NOT NULL
   AND provider_message_id IS NULL
-RETURNING id, organization_id, carrier_connection_id, channel, direction, status, from_address, to_address, body, media, provider_message_id, idempotency_key, request_hash, failure_code, failure_message, queued_at, submitted_at, sent_at, delivered_at, received_at, failed_at, created_at, updated_at
+RETURNING id, organization_id, messaging_connection_id, channel, direction, status, from_address, to_address, body, media, provider_message_id, idempotency_key, request_hash, failure_code, failure_message, queued_at, submitting_at, submission_unknown_at, submitted_at, sent_at, delivered_at, received_at, failed_at, created_at, updated_at
 `
 
 type MarkMessageSubmittedParams struct {
@@ -583,7 +757,7 @@ func (q *Queries) MarkMessageSubmitted(ctx context.Context, arg MarkMessageSubmi
 	err := row.Scan(
 		&i.ID,
 		&i.OrganizationID,
-		&i.CarrierConnectionID,
+		&i.MessagingConnectionID,
 		&i.Channel,
 		&i.Direction,
 		&i.Status,
@@ -597,6 +771,8 @@ func (q *Queries) MarkMessageSubmitted(ctx context.Context, arg MarkMessageSubmi
 		&i.FailureCode,
 		&i.FailureMessage,
 		&i.QueuedAt,
+		&i.SubmittingAt,
+		&i.SubmissionUnknownAt,
 		&i.SubmittedAt,
 		&i.SentAt,
 		&i.DeliveredAt,
@@ -620,7 +796,7 @@ WHERE organization_id = $3
   AND id = $4
   AND direction = 'outbound'
   AND status IN ('submitted', 'sent')
-RETURNING id, organization_id, carrier_connection_id, channel, direction, status, from_address, to_address, body, media, provider_message_id, idempotency_key, request_hash, failure_code, failure_message, queued_at, submitted_at, sent_at, delivered_at, received_at, failed_at, created_at, updated_at
+RETURNING id, organization_id, messaging_connection_id, channel, direction, status, from_address, to_address, body, media, provider_message_id, idempotency_key, request_hash, failure_code, failure_message, queued_at, submitting_at, submission_unknown_at, submitted_at, sent_at, delivered_at, received_at, failed_at, created_at, updated_at
 `
 
 type MarkMessageUndeliveredParams struct {
@@ -641,7 +817,7 @@ func (q *Queries) MarkMessageUndelivered(ctx context.Context, arg MarkMessageUnd
 	err := row.Scan(
 		&i.ID,
 		&i.OrganizationID,
-		&i.CarrierConnectionID,
+		&i.MessagingConnectionID,
 		&i.Channel,
 		&i.Direction,
 		&i.Status,
@@ -655,6 +831,59 @@ func (q *Queries) MarkMessageUndelivered(ctx context.Context, arg MarkMessageUnd
 		&i.FailureCode,
 		&i.FailureMessage,
 		&i.QueuedAt,
+		&i.SubmittingAt,
+		&i.SubmissionUnknownAt,
+		&i.SubmittedAt,
+		&i.SentAt,
+		&i.DeliveredAt,
+		&i.ReceivedAt,
+		&i.FailedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const requeueMessageSubmission = `-- name: RequeueMessageSubmission :one
+UPDATE messages
+SET
+    status = 'queued',
+    submitting_at = NULL,
+    updated_at = NOW()
+WHERE organization_id = $1
+  AND id = $2
+  AND direction = 'outbound'
+  AND status = 'submitting'
+RETURNING id, organization_id, messaging_connection_id, channel, direction, status, from_address, to_address, body, media, provider_message_id, idempotency_key, request_hash, failure_code, failure_message, queued_at, submitting_at, submission_unknown_at, submitted_at, sent_at, delivered_at, received_at, failed_at, created_at, updated_at
+`
+
+type RequeueMessageSubmissionParams struct {
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	ID             uuid.UUID `db:"id" json:"id"`
+}
+
+func (q *Queries) RequeueMessageSubmission(ctx context.Context, arg RequeueMessageSubmissionParams) (Message, error) {
+	row := q.db.QueryRow(ctx, requeueMessageSubmission, arg.OrganizationID, arg.ID)
+	var i Message
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.MessagingConnectionID,
+		&i.Channel,
+		&i.Direction,
+		&i.Status,
+		&i.FromAddress,
+		&i.ToAddress,
+		&i.Body,
+		&i.Media,
+		&i.ProviderMessageID,
+		&i.IdempotencyKey,
+		&i.RequestHash,
+		&i.FailureCode,
+		&i.FailureMessage,
+		&i.QueuedAt,
+		&i.SubmittingAt,
+		&i.SubmissionUnknownAt,
 		&i.SubmittedAt,
 		&i.SentAt,
 		&i.DeliveredAt,
@@ -669,9 +898,9 @@ func (q *Queries) MarkMessageUndelivered(ctx context.Context, arg MarkMessageUnd
 const setMessageProviderAttribution = `-- name: SetMessageProviderAttribution :one
 UPDATE messages AS message
 SET
-    carrier_connection_id = connection.id,
+    messaging_connection_id = connection.id,
     updated_at = NOW()
-FROM carrier_connections AS connection
+FROM messaging_connections AS connection
 JOIN organizations AS organization
   ON organization.id = $1
 WHERE message.organization_id = $1
@@ -683,35 +912,29 @@ WHERE message.organization_id = $1
   AND organization.status = 'active'
   AND organization.deleted_at IS NULL
   AND (
-      (
-          connection.scope = 'organization'
-          AND connection.organization_id = message.organization_id
-      )
-      OR (
-          connection.scope = 'platform'
-          AND connection.organization_id IS NULL
-      )
+    (connection.scope = 'organization' AND connection.organization_id = message.organization_id)
+    OR (connection.scope = 'platform' AND connection.organization_id IS NULL)
   )
   AND (
-      message.carrier_connection_id IS NULL
-      OR message.carrier_connection_id = connection.id
+      message.messaging_connection_id IS NULL
+      OR message.messaging_connection_id = connection.id
   )
-RETURNING message.id, message.organization_id, message.carrier_connection_id, message.channel, message.direction, message.status, message.from_address, message.to_address, message.body, message.media, message.provider_message_id, message.idempotency_key, message.request_hash, message.failure_code, message.failure_message, message.queued_at, message.submitted_at, message.sent_at, message.delivered_at, message.received_at, message.failed_at, message.created_at, message.updated_at
+RETURNING message.id, message.organization_id, message.messaging_connection_id, message.channel, message.direction, message.status, message.from_address, message.to_address, message.body, message.media, message.provider_message_id, message.idempotency_key, message.request_hash, message.failure_code, message.failure_message, message.queued_at, message.submitting_at, message.submission_unknown_at, message.submitted_at, message.sent_at, message.delivered_at, message.received_at, message.failed_at, message.created_at, message.updated_at
 `
 
 type SetMessageProviderAttributionParams struct {
-	OrganizationID      uuid.UUID `db:"organization_id" json:"organization_id"`
-	ID                  uuid.UUID `db:"id" json:"id"`
-	CarrierConnectionID uuid.UUID `db:"carrier_connection_id" json:"carrier_connection_id"`
+	OrganizationID        uuid.UUID `db:"organization_id" json:"organization_id"`
+	ID                    uuid.UUID `db:"id" json:"id"`
+	MessagingConnectionID uuid.UUID `db:"messaging_connection_id" json:"messaging_connection_id"`
 }
 
 func (q *Queries) SetMessageProviderAttribution(ctx context.Context, arg SetMessageProviderAttributionParams) (Message, error) {
-	row := q.db.QueryRow(ctx, setMessageProviderAttribution, arg.OrganizationID, arg.ID, arg.CarrierConnectionID)
+	row := q.db.QueryRow(ctx, setMessageProviderAttribution, arg.OrganizationID, arg.ID, arg.MessagingConnectionID)
 	var i Message
 	err := row.Scan(
 		&i.ID,
 		&i.OrganizationID,
-		&i.CarrierConnectionID,
+		&i.MessagingConnectionID,
 		&i.Channel,
 		&i.Direction,
 		&i.Status,
@@ -725,6 +948,8 @@ func (q *Queries) SetMessageProviderAttribution(ctx context.Context, arg SetMess
 		&i.FailureCode,
 		&i.FailureMessage,
 		&i.QueuedAt,
+		&i.SubmittingAt,
+		&i.SubmissionUnknownAt,
 		&i.SubmittedAt,
 		&i.SentAt,
 		&i.DeliveredAt,

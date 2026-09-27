@@ -1,7 +1,32 @@
+CREATE TABLE IF NOT EXISTS messaging_connections (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    organization_id UUID REFERENCES organizations(id) ON DELETE CASCADE,
+    scope TEXT NOT NULL CHECK (scope IN ('platform', 'organization')),
+    channel TEXT NOT NULL CHECK (channel IN ('sms', 'whatsapp')),
+    name TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'disabled')),
+    configuration JSONB NOT NULL DEFAULT '{}'::jsonb,
+    encrypted_secret TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    CONSTRAINT uq_messaging_connections_id_organization UNIQUE (id, organization_id),
+    CONSTRAINT chk_messaging_connections_scope CHECK (
+        (scope = 'platform' AND organization_id IS NULL)
+        OR (scope = 'organization' AND organization_id IS NOT NULL)
+    )
+);
+
+CREATE INDEX IF NOT EXISTS idx_messaging_connections_routing
+    ON messaging_connections (scope, organization_id, channel, created_at) WHERE status = 'active';
+
+CREATE TRIGGER set_messaging_connections_updated_at
+BEFORE UPDATE ON messaging_connections
+FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
 CREATE TABLE IF NOT EXISTS messages (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-    carrier_connection_id UUID REFERENCES carrier_connections(id) ON DELETE RESTRICT,
+    messaging_connection_id UUID REFERENCES messaging_connections(id) ON DELETE RESTRICT,
 
     channel TEXT NOT NULL,
     direction TEXT NOT NULL,
@@ -20,6 +45,8 @@ CREATE TABLE IF NOT EXISTS messages (
     failure_message TEXT,
 
     queued_at TIMESTAMPTZ,
+    submitting_at TIMESTAMPTZ,
+    submission_unknown_at TIMESTAMPTZ,
     submitted_at TIMESTAMPTZ,
     sent_at TIMESTAMPTZ,
     delivered_at TIMESTAMPTZ,
@@ -32,7 +59,7 @@ CREATE TABLE IF NOT EXISTS messages (
     CONSTRAINT uq_messages_id_organization UNIQUE (id, organization_id),
 
     CONSTRAINT chk_messages_channel CHECK (
-        channel IN ('sms', 'mms', 'whatsapp', 'rcs')
+        channel IN ('sms', 'whatsapp')
     ),
     CONSTRAINT chk_messages_direction CHECK (
         direction IN ('inbound', 'outbound')
@@ -40,6 +67,8 @@ CREATE TABLE IF NOT EXISTS messages (
     CONSTRAINT chk_messages_status CHECK (
         status IN (
             'queued',
+            'submitting',
+            'submission_unknown',
             'submitted',
             'sent',
             'delivered',
@@ -84,7 +113,7 @@ CREATE TABLE IF NOT EXISTS messages (
     CONSTRAINT chk_messages_provider_identity CHECK (
         provider_message_id IS NULL
         OR (
-            carrier_connection_id IS NOT NULL
+            messaging_connection_id IS NOT NULL
             AND length(btrim(provider_message_id)) > 0
         )
     ),
@@ -96,6 +125,8 @@ CREATE TABLE IF NOT EXISTS messages (
             direction = 'outbound'
             AND status IN (
                 'queued',
+                'submitting',
+                'submission_unknown',
                 'submitted',
                 'sent',
                 'delivered',
@@ -108,6 +139,8 @@ CREATE TABLE IF NOT EXISTS messages (
     CONSTRAINT chk_messages_lifecycle_timestamps CHECK (
         (direction <> 'outbound' OR queued_at IS NOT NULL)
         AND (direction <> 'inbound' OR received_at IS NOT NULL)
+        AND (status <> 'submitting' OR submitting_at IS NOT NULL)
+        AND (status <> 'submission_unknown' OR submission_unknown_at IS NOT NULL)
         AND (status <> 'submitted' OR submitted_at IS NOT NULL)
         AND (status <> 'sent' OR sent_at IS NOT NULL)
         AND (status <> 'delivered' OR delivered_at IS NOT NULL)
@@ -127,17 +160,17 @@ CREATE INDEX IF NOT EXISTS idx_messages_organization_direction
 CREATE INDEX IF NOT EXISTS idx_messages_organization_channel
     ON messages (organization_id, channel, created_at DESC);
 
-CREATE INDEX IF NOT EXISTS idx_messages_carrier_connection
-    ON messages (carrier_connection_id, created_at DESC)
-    WHERE carrier_connection_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_messages_messaging_connection
+    ON messages (messaging_connection_id, created_at DESC)
+    WHERE messaging_connection_id IS NOT NULL;
 
 CREATE UNIQUE INDEX IF NOT EXISTS uq_messages_organization_idempotency
     ON messages (organization_id, idempotency_key)
     WHERE idempotency_key IS NOT NULL;
 
 CREATE UNIQUE INDEX IF NOT EXISTS uq_messages_provider_message
-    ON messages (carrier_connection_id, provider_message_id)
-    WHERE carrier_connection_id IS NOT NULL
+    ON messages (messaging_connection_id, provider_message_id)
+    WHERE messaging_connection_id IS NOT NULL
       AND provider_message_id IS NOT NULL;
 
 CREATE TRIGGER set_messages_updated_at
