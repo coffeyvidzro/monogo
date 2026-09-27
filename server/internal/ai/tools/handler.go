@@ -26,12 +26,14 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 		httputil.Error(w, err)
 		return
 	}
-	tool, err := h.service.Create(r.Context(), orgID, agentID, req)
+	tool, signingSecret, err := h.service.Create(r.Context(), orgID, agentID, req)
 	if err != nil {
 		httputil.Error(w, err)
 		return
 	}
-	httputil.Created(w, response(tool))
+	created := response(tool)
+	created.SigningSecret = signingSecret
+	httputil.Created(w, created)
 }
 func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 	orgID, agentID, err := ids(r)
@@ -73,6 +75,25 @@ func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 	}
 	httputil.OK(w, response(tool))
 }
+func (h *Handler) RotateSigningSecret(w http.ResponseWriter, r *http.Request) {
+	orgID, agentID, err := ids(r)
+	if err != nil {
+		httputil.Error(w, err)
+		return
+	}
+	toolID, err := uuid.Parse(chi.URLParam(r, "tool_id"))
+	if err != nil {
+		httputil.Error(w, apperror.NewBadRequest("invalid tool_id"))
+		return
+	}
+	secret, err := h.service.RotateSigningSecret(r.Context(), orgID, agentID, toolID)
+	if err != nil {
+		httputil.Error(w, err)
+		return
+	}
+	httputil.OK(w, SigningSecretResponse{SigningSecret: secret})
+}
+
 func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 	orgID, agentID, err := ids(r)
 	if err != nil {

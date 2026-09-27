@@ -27,6 +27,122 @@ func (r *Repository) Create(ctx context.Context, organizationID, agentID uuid.UU
 	})
 }
 
+func (r *Repository) CreateWebhook(
+	ctx context.Context,
+	organizationID, agentID, id uuid.UUID,
+	req CreateRequest,
+	secretCiphertext string,
+) (sqlc.VoiceAgentTool, error) {
+	timeout := int32(3000)
+	if req.TimeoutMS != nil {
+		timeout = *req.TimeoutMS
+	}
+	enabled := true
+	if req.Enabled != nil {
+		enabled = *req.Enabled
+	}
+	if _, err := r.queries.CreateVoiceAgentWebhookTool(ctx, sqlc.CreateVoiceAgentWebhookToolParams{
+		ID:               id,
+		OrganizationID:   organizationID,
+		VoiceAgentID:     agentID,
+		Name:             req.Name,
+		Description:      req.Description,
+		Parameters:       []byte(req.Parameters),
+		EndpointUrl:      req.EndpointURL,
+		TimeoutMs:        timeout,
+		Enabled:          enabled,
+		SecretCiphertext: secretCiphertext,
+	}); err != nil {
+		return sqlc.VoiceAgentTool{}, err
+	}
+	return r.Get(ctx, organizationID, agentID, id)
+}
+
+func (r *Repository) GetSigningSecret(
+	ctx context.Context,
+	organizationID, agentID, toolID uuid.UUID,
+) (string, error) {
+	return r.queries.GetVoiceAgentToolSigningSecret(ctx, sqlc.GetVoiceAgentToolSigningSecretParams{
+		ToolID:         toolID,
+		OrganizationID: organizationID,
+		VoiceAgentID:   agentID,
+	})
+}
+
+func (r *Repository) RotateSigningSecret(
+	ctx context.Context,
+	organizationID, agentID, toolID uuid.UUID,
+	secretCiphertext string,
+) (int64, error) {
+	return r.queries.RotateVoiceAgentToolSigningSecret(ctx, sqlc.RotateVoiceAgentToolSigningSecretParams{
+		SecretCiphertext: secretCiphertext,
+		ToolID:           toolID,
+		OrganizationID:   organizationID,
+		VoiceAgentID:     agentID,
+	})
+}
+
+func (r *Repository) ClaimExecution(
+	ctx context.Context,
+	req ExecuteRequest,
+) (uuid.UUID, error) {
+	return r.queries.ClaimVoiceAgentToolExecution(ctx, sqlc.ClaimVoiceAgentToolExecutionParams{
+		OrganizationID: req.OrganizationID,
+		SessionID:      req.SessionID,
+		VoiceAgentID:   req.VoiceAgentID,
+		ToolID:         req.ToolID,
+		CallID:         req.CallID,
+		ToolCallID:     req.ToolCallID,
+		Arguments:      []byte(req.Arguments),
+	})
+}
+
+func (r *Repository) GetExecution(
+	ctx context.Context,
+	organizationID, sessionID uuid.UUID,
+	toolCallID string,
+) (sqlc.VoiceAgentToolExecution, error) {
+	return r.queries.GetVoiceAgentToolExecution(ctx, sqlc.GetVoiceAgentToolExecutionParams{
+		OrganizationID: organizationID,
+		SessionID:      sessionID,
+		ToolCallID:     toolCallID,
+	})
+}
+
+func (r *Repository) MarkExecutionSucceeded(
+	ctx context.Context,
+	organizationID, id uuid.UUID,
+	result ExecuteResult,
+) (int64, error) {
+	status := int32(result.StatusCode)
+	contentType := result.ContentType
+	return r.queries.MarkVoiceAgentToolExecutionSucceeded(ctx, sqlc.MarkVoiceAgentToolExecutionSucceededParams{
+		ResponseStatus:      &status,
+		ResponseContentType: &contentType,
+		ResponseBody:        result.Body,
+		ID:                  id,
+		OrganizationID:      organizationID,
+	})
+}
+
+func (r *Repository) MarkExecutionFailed(
+	ctx context.Context,
+	organizationID, id uuid.UUID,
+	message string,
+) (int64, error) {
+	return r.queries.MarkVoiceAgentToolExecutionFailed(ctx, sqlc.MarkVoiceAgentToolExecutionFailedParams{
+		ErrorMessage:   &message,
+		ID:             id,
+		OrganizationID: organizationID,
+	})
+}
+
+func (r *Repository) Get(ctx context.Context, organizationID, agentID, id uuid.UUID) (sqlc.VoiceAgentTool, error) {
+	return r.queries.GetVoiceAgentToolByID(ctx, sqlc.GetVoiceAgentToolByIDParams{
+		ID: id, OrganizationID: organizationID, VoiceAgentID: agentID,
+	})
+}
+
 func (r *Repository) List(ctx context.Context, organizationID, agentID uuid.UUID) ([]sqlc.VoiceAgentTool, error) {
 	return r.queries.ListVoiceAgentToolsByAgentID(ctx, sqlc.ListVoiceAgentToolsByAgentIDParams{
 		OrganizationID: organizationID, VoiceAgentID: agentID,

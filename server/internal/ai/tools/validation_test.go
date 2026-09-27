@@ -34,3 +34,28 @@ func TestNormalizeCreateRejectsBuiltinWebhookURL(t *testing.T) {
 }
 
 func stringPointer(value string) *string { return &value }
+
+func TestNormalizeCreateRejectsUnknownBuiltin(t *testing.T) {
+	_, err := normalizeCreate(CreateRequest{
+		Type:        TypeBuiltin,
+		Name:        "unknown_action",
+		Description: "Unknown action",
+		Parameters:  json.RawMessage(`{"type":"object"}`),
+	})
+	if err == nil {
+		t.Fatal("normalizeCreate() error = nil")
+	}
+}
+
+func TestNormalizeCreateRejectsHTTPWebhook(t *testing.T) {
+	_, err := normalizeCreate(CreateRequest{
+		Type:        TypeWebhook,
+		Name:        "lookup_customer",
+		Description: "Look up a customer",
+		Parameters:  json.RawMessage(`{"type":"object"}`),
+		EndpointURL: stringPointer("http://example.com/tool"),
+	})
+	if err == nil {
+		t.Fatal("normalizeCreate() error = nil")
+	}
+}

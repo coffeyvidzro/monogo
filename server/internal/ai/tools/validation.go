@@ -38,6 +38,13 @@ func normalizeCreate(req CreateRequest) (CreateRequest, error) {
 	if err := validateEndpoint(req.Type, req.EndpointURL); err != nil {
 		return CreateRequest{}, err
 	}
+	if req.Type == TypeBuiltin {
+		switch req.Name {
+		case BuiltinHangupCall, BuiltinTransferCall, BuiltinHoldCall, BuiltinResumeCall, BuiltinSendDTMF:
+		default:
+			return CreateRequest{}, apperror.NewBadRequest("unsupported builtin tool name")
+		}
+	}
 	return req, nil
 }
 
@@ -93,8 +100,8 @@ func validateEndpoint(toolType string, endpoint *string) error {
 	}
 	value := strings.TrimSpace(*endpoint)
 	parsed, err := url.ParseRequestURI(value)
-	if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" {
-		return apperror.NewBadRequest("endpoint_url must be a valid HTTP or HTTPS URL")
+	if err != nil || parsed.Scheme != "https" || parsed.Host == "" {
+		return apperror.NewBadRequest("endpoint_url must be a valid HTTPS URL")
 	}
 	*endpoint = value
 	return nil

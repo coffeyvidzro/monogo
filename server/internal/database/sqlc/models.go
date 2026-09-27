@@ -663,6 +663,35 @@ type VoiceAgentTool struct {
 	UpdatedAt      pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 }
 
+type VoiceAgentToolExecution struct {
+	ID                  uuid.UUID          `db:"id" json:"id"`
+	OrganizationID      uuid.UUID          `db:"organization_id" json:"organization_id"`
+	SessionID           uuid.UUID          `db:"session_id" json:"session_id"`
+	VoiceAgentID        uuid.UUID          `db:"voice_agent_id" json:"voice_agent_id"`
+	ToolID              uuid.UUID          `db:"tool_id" json:"tool_id"`
+	CallID              uuid.UUID          `db:"call_id" json:"call_id"`
+	ToolCallID          string             `db:"tool_call_id" json:"tool_call_id"`
+	State               string             `db:"state" json:"state"`
+	Arguments           []byte             `db:"arguments" json:"arguments"`
+	ResponseStatus      *int32             `db:"response_status" json:"response_status"`
+	ResponseContentType *string            `db:"response_content_type" json:"response_content_type"`
+	ResponseBody        []byte             `db:"response_body" json:"response_body"`
+	ErrorMessage        *string            `db:"error_message" json:"error_message"`
+	StartedAt           pgtype.Timestamptz `db:"started_at" json:"started_at"`
+	CompletedAt         pgtype.Timestamptz `db:"completed_at" json:"completed_at"`
+	CreatedAt           pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	UpdatedAt           pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+}
+
+type VoiceAgentToolSecret struct {
+	ToolID           uuid.UUID          `db:"tool_id" json:"tool_id"`
+	OrganizationID   uuid.UUID          `db:"organization_id" json:"organization_id"`
+	VoiceAgentID     uuid.UUID          `db:"voice_agent_id" json:"voice_agent_id"`
+	SecretCiphertext string             `db:"secret_ciphertext" json:"secret_ciphertext"`
+	CreatedAt        pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	RotatedAt        pgtype.Timestamptz `db:"rotated_at" json:"rotated_at"`
+}
+
 type VoiceAgentTurn struct {
 	ID              uuid.UUID          `db:"id" json:"id"`
 	OrganizationID  uuid.UUID          `db:"organization_id" json:"organization_id"`
