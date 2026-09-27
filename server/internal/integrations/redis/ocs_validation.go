@@ -3,11 +3,13 @@ package redis
 import (
 	"fmt"
 	"strings"
+
+	"github.com/google/uuid"
 )
 
 func validateOCSWalletSeed(seed OCSWalletSeed) error {
-	if seed.OrganizationID == [16]byte{} ||
-		seed.WalletID == [16]byte{} {
+	if seed.OrganizationID == uuid.Nil ||
+		seed.WalletID == uuid.Nil {
 		return fmt.Errorf(
 			"OCS organization and wallet are required",
 		)
@@ -48,10 +50,10 @@ func validateOCSWalletSeed(seed OCSWalletSeed) error {
 }
 
 func validateOCSReserveRequest(req OCSReserveRequest) error {
-	if req.OrganizationID == [16]byte{} ||
-		req.WalletID == [16]byte{} ||
-		req.ChargeID == [16]byte{} ||
-		req.OperationID == [16]byte{} {
+	if req.OrganizationID == uuid.Nil ||
+		req.WalletID == uuid.Nil ||
+		req.ChargeID == uuid.Nil ||
+		req.OperationID == uuid.Nil {
 		return fmt.Errorf(
 			"OCS organization, wallet, charge, and operation are required",
 		)
@@ -84,10 +86,10 @@ func validateOCSReserveRequest(req OCSReserveRequest) error {
 func validateOCSChargeMutationRequest(
 	req OCSChargeMutationRequest,
 ) error {
-	if req.OrganizationID == [16]byte{} ||
-		req.WalletID == [16]byte{} ||
-		req.ChargeID == [16]byte{} ||
-		req.OperationID == [16]byte{} {
+	if req.OrganizationID == uuid.Nil ||
+		req.WalletID == uuid.Nil ||
+		req.ChargeID == uuid.Nil ||
+		req.OperationID == uuid.Nil {
 		return fmt.Errorf(
 			"OCS organization, wallet, charge, and operation are required",
 		)
@@ -110,10 +112,10 @@ func validateOCSChargeMutationRequest(
 func validateOCSFinalizeRequest(
 	req OCSFinalizeRequest,
 ) error {
-	if req.OrganizationID == [16]byte{} ||
-		req.WalletID == [16]byte{} ||
-		req.ChargeID == [16]byte{} ||
-		req.OperationID == [16]byte{} {
+	if req.OrganizationID == uuid.Nil ||
+		req.WalletID == uuid.Nil ||
+		req.ChargeID == uuid.Nil ||
+		req.OperationID == uuid.Nil {
 		return fmt.Errorf(
 			"OCS organization, wallet, charge, and operation are required",
 		)
@@ -144,9 +146,9 @@ func validateOCSFinalizeRequest(
 func validateOCSCreditRequest(
 	req OCSCreditRequest,
 ) error {
-	if req.OrganizationID == [16]byte{} ||
-		req.WalletID == [16]byte{} ||
-		req.OperationID == [16]byte{} {
+	if req.OrganizationID == uuid.Nil ||
+		req.WalletID == uuid.Nil ||
+		req.OperationID == uuid.Nil {
 		return fmt.Errorf(
 			"OCS organization, wallet, and operation are required",
 		)
