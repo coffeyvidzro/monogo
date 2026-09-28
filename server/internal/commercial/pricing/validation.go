@@ -33,6 +33,18 @@ func normalizeCreateRateRequest(req *CreateRateRequest) error {
 	if req.RateMicros < 0 {
 		return fmt.Errorf("%w: rate cannot be negative", ErrInvalidInput)
 	}
+	if req.BillingUnit == "" {
+		req.BillingUnit = BillingUnitMinute
+	}
+	if req.BillingIncrementSeconds == 0 {
+		req.BillingIncrementSeconds = 60
+	}
+	if req.MinimumDurationSeconds == 0 {
+		req.MinimumDurationSeconds = 60
+	}
+	if req.BillingUnit != BillingUnitMinute || req.BillingIncrementSeconds < 1 || req.MinimumDurationSeconds < 0 {
+		return fmt.Errorf("%w: invalid billing terms", ErrInvalidInput)
+	}
 	if req.EffectiveAt.IsZero() {
 		return fmt.Errorf("%w: effective time is required", ErrInvalidInput)
 	}

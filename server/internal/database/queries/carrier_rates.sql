@@ -5,6 +5,9 @@ INSERT INTO carrier_rates (
     direction,
     currency,
     rate_micros,
+    billing_unit,
+    billing_increment_seconds,
+    minimum_duration_seconds,
     effective_at,
     expires_at
 )
@@ -14,6 +17,9 @@ SELECT
     sqlc.arg(direction),
     sqlc.arg(currency),
     sqlc.arg(rate_micros),
+    sqlc.arg(billing_unit),
+    sqlc.arg(billing_increment_seconds),
+    sqlc.arg(minimum_duration_seconds),
     sqlc.arg(effective_at),
     sqlc.narg(expires_at)
 WHERE sqlc.narg(organization_id)::UUID IS NULL

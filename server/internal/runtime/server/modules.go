@@ -134,17 +134,18 @@ func newModules(ctx context.Context, cfg config.Config) (*modules, error) {
 	})
 	metricsRegistry := metrics.New(redisClient)
 	telecomModule, err := telecom.New(telecom.Dependencies{
-		DB:                   postgresClient.Pool(),
-		Queries:              queries,
-		CallsController:      calling.NewController(freeSwitch),
-		CallsChannelStore:    calling.NewChannelStore(redisClient),
-		CallsAdmission:       calling.NewAdmissionLimiter(redisClient),
-		ConferenceController: conferences.NewFreeSWITCHController(freeSwitch),
-		CredentialCipher:     credentialCipher,
-		DIDWWInventory:       didwwInventory,
-		RealtimeService:      turnService,
-		RecordingStorage:     recordingStorage,
-		Metrics:              metricsRegistry,
+		DB:                      postgresClient.Pool(),
+		Queries:                 queries,
+		CallsController:         calling.NewController(freeSwitch),
+		CallsChannelStore:       calling.NewChannelStore(redisClient),
+		CallsAdmission:          calling.NewAdmissionLimiter(redisClient),
+		ConferenceController:    conferences.NewFreeSWITCHController(freeSwitch),
+		CredentialCipher:        credentialCipher,
+		DIDWWInventory:          didwwInventory,
+		RealtimeService:         turnService,
+		RecordingStorage:        recordingStorage,
+		Metrics:                 metricsRegistry,
+		CommercialAuthorization: commercialModule.Authorization.Service,
 	})
 	if err != nil {
 		closeDependencies()

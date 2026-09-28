@@ -2,189 +2,70 @@ package authorization
 
 import (
 	"context"
-	"math"
+	"errors"
 	"strings"
+	"time"
 
 	"github.com/coffeyvidzro/monogo/internal/commercial/pricing"
 	"github.com/coffeyvidzro/monogo/internal/commercial/wallets"
 	"github.com/coffeyvidzro/monogo/pkg/apperror"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 )
 
 type Service struct {
+	repo    *Repository
 	pricing *pricing.Service
-	wallets *wallets.Service
+	now     func() time.Time
 }
 
-func NewService(
-	pricingService *pricing.Service,
-	walletService *wallets.Service,
-) *Service {
+func NewService(repo *Repository, pricingService *pricing.Service) *Service {
+	if repo == nil {
+		panic("commercial authorization: repository is required")
+	}
 	if pricingService == nil {
 		panic("commercial authorization: pricing service is required")
 	}
-	if walletService == nil {
-		panic("commercial authorization: wallet service is required")
-	}
-
 	return &Service{
+		repo:    repo,
 		pricing: pricingService,
-		wallets: walletService,
+		now:     time.Now,
 	}
 }
 
-// AuthorizeCall fails closed for managed traffic. BYOC traffic is explicitly
-// non-billable and therefore never requires a Leamout rate or wallet balance.
-func (s *Service) AuthorizeCall(
-	ctx context.Context,
-	req CallRequest,
-) (Decision, error) {
-	if err := normalizeCallRequest(&req); err != nil {
-		return Decision{}, apperror.NewBadRequest(err.Error())
-	}
-	if req.ProvisioningMode == ProvisioningBYOC {
-		return Decision{
-			OperationID: req.OperationID,
-			Billable:    false,
-		}, nil
-	}
-
-	rate, err := s.pricing.Resolve(
-		ctx,
-		pricing.ResolveRequest{
-			OrganizationID:    req.OrganizationID,
-			DestinationDigits: req.Destination,
-			Direction:         req.Direction,
-			Currency:          CurrencyUSD,
-			ResolvedAt:        req.RequestedAt,
-		},
-	)
-	if err != nil {
-		return Decision{}, err
-	}
-
-	amount, err := AmountForSeconds(rate.RateMicros, req.MinimumSeconds)
-	if err != nil {
-		return Decision{}, apperror.NewBadRequest(err.Error())
-	}
-	wallet, err := s.wallets.Get(ctx, req.OrganizationID)
-	if err != nil {
-		return Decision{}, err
-	}
-	if wallet.Currency != rate.Currency {
-		return Decision{}, apperror.NewConflict("wallet and carrier rate currencies do not match")
-	}
-	if wallet.BalanceMicros < amount {
-		return Decision{}, apperror.NewPaymentRequired("insufficient wallet balance")
-	}
-
-	currency := rate.Currency
-	rateID := rate.ID
-	return Decision{
-		OperationID:            req.OperationID,
-		Billable:               true,
-		Currency:               &currency,
-		RateID:                 &rateID,
-		RateMicros:             rate.RateMicros,
-		AuthorizedAmountMicros: amount,
-	}, nil
-}
-
-// CaptureCall debits metered usage through the wallet's atomic, idempotent
-// movement path. Callers must use the same operation ID used for authorization.
-func (s *Service) CaptureCall(
-	ctx context.Context,
-	req CaptureRequest,
-) (*wallets.LedgerEntry, error) {
-	if err := validateCaptureRequest(req); err != nil {
-		return nil, apperror.NewBadRequest(err.Error())
-	}
-	if !req.Decision.Billable {
-		return nil, nil
-	}
-
-	amount, err := AmountForSeconds(req.Decision.RateMicros, req.BillableSeconds)
-	if err != nil {
-		return nil, apperror.NewBadRequest(err.Error())
-	}
-	if amount == 0 {
-		return nil, nil
-	}
-	referenceType := "call"
-	entry, err := s.wallets.Debit(
-		ctx,
-		wallets.MovementRequest{
-			OrganizationID: req.OrganizationID,
-			OperationID:    req.OperationID,
-			AmountMicros:   amount,
-			Reason:         "managed_call_usage",
-			ReferenceType:  &referenceType,
-			ReferenceID:    &req.ReferenceID,
-			OccurredAt:     req.OccurredAt,
-		},
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	return &entry, nil
-}
-
-// AmountForSeconds prices per-minute rates using whole started minutes. This
-// prevents sub-minute managed usage from escaping billing.
-func AmountForSeconds(rateMicros int64, seconds int64) (int64, error) {
-	if rateMicros < 0 || seconds < 0 {
-		return 0, ErrInvalidInput
-	}
-	if rateMicros == 0 || seconds == 0 {
-		return 0, nil
-	}
-	minutes := seconds / 60
-	if seconds%60 != 0 {
-		minutes++
-	}
-	if minutes > math.MaxInt64/rateMicros {
-		return 0, ErrInvalidInput
-	}
-
-	return minutes * rateMicros, nil
-}
-
-func normalizeCallRequest(req *CallRequest) error {
+// AuthorizeManagedCall currently permits only explicitly free customer rates.
+// Positive-rate calls remain fail-closed until atomic holds, incremental
+// charging, and an exhaustion hangup path exist.
+func (s *Service) AuthorizeManagedCall(ctx context.Context, req ManagedCallRequest) (CallAuthorization, error) {
 	req.Destination = strings.TrimPrefix(strings.TrimSpace(req.Destination), "+")
-	req.Direction = strings.ToLower(strings.TrimSpace(req.Direction))
-	req.ProvisioningMode = strings.ToLower(strings.TrimSpace(req.ProvisioningMode))
-	if req.OrganizationID == uuid.Nil || req.OperationID == uuid.Nil || req.MinimumSeconds <= 0 {
-		return ErrInvalidInput
+	if req.CallID == uuid.Nil || req.OrganizationID == uuid.Nil || req.Destination == "" {
+		return CallAuthorization{}, apperror.NewBadRequest("invalid managed call authorization")
 	}
-	if req.ProvisioningMode != ProvisioningBYOC && req.ProvisioningMode != ProvisioningManaged {
-		return ErrInvalidInput
+	if req.RequestedAt.IsZero() {
+		req.RequestedAt = s.now().UTC()
 	}
-	if req.Direction != pricing.DirectionInbound && req.Direction != pricing.DirectionOutbound {
-		return ErrInvalidInput
+	rate, err := s.pricing.Resolve(ctx, pricing.ResolveRequest{
+		OrganizationID:    req.OrganizationID,
+		DestinationDigits: req.Destination,
+		Direction:         req.Direction,
+		Currency:          wallets.CurrencyUSD,
+		ResolvedAt:        req.RequestedAt,
+	})
+	if err != nil {
+		return CallAuthorization{}, err
 	}
-	if req.Destination == "" {
-		return ErrInvalidInput
+	if rate.RateMicros > 0 {
+		return CallAuthorization{}, apperror.NewServiceUnavailable(
+			"paid managed calls require prepaid wallet reservations",
+			nil,
+		)
 	}
-	for _, digit := range req.Destination {
-		if digit < '0' || digit > '9' {
-			return ErrInvalidInput
-		}
+	authorization, err := s.repo.PersistFreeCallAuthorization(ctx, req.CallID, req.OrganizationID, rate, req.RequestedAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return CallAuthorization{}, apperror.NewConflict("call cannot be commercially authorized")
 	}
-
-	return nil
-}
-
-func validateCaptureRequest(req CaptureRequest) error {
-	if req.OrganizationID == uuid.Nil || req.OperationID == uuid.Nil || req.ReferenceID == uuid.Nil {
-		return ErrInvalidInput
+	if err != nil {
+		return CallAuthorization{}, apperror.NewInternal("persist call commercial authorization", err)
 	}
-	if req.Decision.OperationID != req.OperationID || req.BillableSeconds < 0 {
-		return ErrInvalidInput
-	}
-	if req.Decision.Billable && (req.Decision.Currency == nil || req.Decision.RateID == nil) {
-		return ErrInvalidInput
-	}
-
-	return nil
+	return authorization, nil
 }

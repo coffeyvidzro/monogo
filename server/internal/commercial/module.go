@@ -17,12 +17,17 @@ type Dependencies struct {
 }
 
 type Module struct {
-	Authorization *authorization.Service
+	Authorization AuthorizationModule
 	Wallets       WalletsModule
 	Plans         PlansModule
 	Subscriptions SubscriptionsModule
 	Pricing       PricingModule
 	Wholesale     WholesaleModule
+}
+
+type AuthorizationModule struct {
+	Repository *authorization.Repository
+	Service    *authorization.Service
 }
 
 type WalletsModule struct {
@@ -80,13 +85,17 @@ func New(deps Dependencies) *Module {
 	wholesaleService := wholesale.NewService(
 		wholesaleRepository,
 	)
+	authorizationRepository := authorization.NewRepository(deps.DB)
 	authorizationService := authorization.NewService(
+		authorizationRepository,
 		pricingService,
-		walletsService,
 	)
 
 	return &Module{
-		Authorization: authorizationService,
+		Authorization: AuthorizationModule{
+			Repository: authorizationRepository,
+			Service:    authorizationService,
+		},
 		Wallets: WalletsModule{
 			Repository: walletsRepository,
 			Service:    walletsService,

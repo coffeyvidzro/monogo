@@ -1,4 +1,4 @@
-h1:Q3neNy4EepBvYAnyN6eliqULhGCzC314AKR/kgJWNYo=
+h1:css2qXu53f6wPOHWv1MZqD+8BTtBGM0fqqCetEMdpmg=
 001_extensions.sql h1:V12FA/dbb8clPffRf/1QJRpbB/S0eECkElwvfOVRda4=
 002_create_users.sql h1:w8z6z5sqnmtExCGa63iYl2ssG9rgXX8m3VPqvb1z4jo=
 003_create_authentication.sql h1:6R8fm0zInr9A/OW74oYTBLpPYHRf3dpVjw13qyjdd7E=
@@ -41,3 +41,4 @@ h1:Q3neNy4EepBvYAnyN6eliqULhGCzC314AKR/kgJWNYo=
 040_create_provider_cdrs.sql h1:pXEfiSHUUn+ar/Sm8NdOZxx1lwhykUtkyEmlWjVlOKw=
 041_create_wholesale_charges.sql h1:iqFn5cIHejCadT++FTs+x2R5azsKUIlwxESXHF0WFpo=
 042_create_carrier_rates.sql h1:DwdxzQbFEDGx8bUAM6j9b2GBIlocd4RuVPRPQVCaobY=
+043_define_customer_rate_billing.sql h1:9qOpnZdiUJcn4+yPY8YhKWoLAjC3aZ2Opm0no281trE=

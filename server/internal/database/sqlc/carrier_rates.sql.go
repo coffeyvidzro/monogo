@@ -19,6 +19,9 @@ INSERT INTO carrier_rates (
     direction,
     currency,
     rate_micros,
+    billing_unit,
+    billing_increment_seconds,
+    minimum_duration_seconds,
     effective_at,
     expires_at
 )
@@ -29,7 +32,10 @@ SELECT
     $4,
     $5,
     $6,
-    $7
+    $7,
+    $8,
+    $9,
+    $10
 WHERE $1::UUID IS NULL
    OR EXISTS (
        SELECT 1
@@ -38,17 +44,20 @@ WHERE $1::UUID IS NULL
          AND o.status = 'active'
          AND o.deleted_at IS NULL
    )
-RETURNING id, organization_id, destination_prefix, direction, currency, rate_micros, effective_at, expires_at, created_at
+RETURNING id, organization_id, destination_prefix, direction, currency, rate_micros, billing_unit, billing_increment_seconds, minimum_duration_seconds, effective_at, expires_at, created_at
 `
 
 type CreateCarrierRateParams struct {
-	OrganizationID    *uuid.UUID         `db:"organization_id" json:"organization_id"`
-	DestinationPrefix string             `db:"destination_prefix" json:"destination_prefix"`
-	Direction         string             `db:"direction" json:"direction"`
-	Currency          string             `db:"currency" json:"currency"`
-	RateMicros        int64              `db:"rate_micros" json:"rate_micros"`
-	EffectiveAt       pgtype.Timestamptz `db:"effective_at" json:"effective_at"`
-	ExpiresAt         pgtype.Timestamptz `db:"expires_at" json:"expires_at"`
+	OrganizationID          *uuid.UUID         `db:"organization_id" json:"organization_id"`
+	DestinationPrefix       string             `db:"destination_prefix" json:"destination_prefix"`
+	Direction               string             `db:"direction" json:"direction"`
+	Currency                string             `db:"currency" json:"currency"`
+	RateMicros              int64              `db:"rate_micros" json:"rate_micros"`
+	BillingUnit             string             `db:"billing_unit" json:"billing_unit"`
+	BillingIncrementSeconds int32              `db:"billing_increment_seconds" json:"billing_increment_seconds"`
+	MinimumDurationSeconds  int32              `db:"minimum_duration_seconds" json:"minimum_duration_seconds"`
+	EffectiveAt             pgtype.Timestamptz `db:"effective_at" json:"effective_at"`
+	ExpiresAt               pgtype.Timestamptz `db:"expires_at" json:"expires_at"`
 }
 
 func (q *Queries) CreateCarrierRate(ctx context.Context, arg CreateCarrierRateParams) (CarrierRate, error) {
@@ -58,6 +67,9 @@ func (q *Queries) CreateCarrierRate(ctx context.Context, arg CreateCarrierRatePa
 		arg.Direction,
 		arg.Currency,
 		arg.RateMicros,
+		arg.BillingUnit,
+		arg.BillingIncrementSeconds,
+		arg.MinimumDurationSeconds,
 		arg.EffectiveAt,
 		arg.ExpiresAt,
 	)
@@ -69,6 +81,9 @@ func (q *Queries) CreateCarrierRate(ctx context.Context, arg CreateCarrierRatePa
 		&i.Direction,
 		&i.Currency,
 		&i.RateMicros,
+		&i.BillingUnit,
+		&i.BillingIncrementSeconds,
+		&i.MinimumDurationSeconds,
 		&i.EffectiveAt,
 		&i.ExpiresAt,
 		&i.CreatedAt,
@@ -77,7 +92,7 @@ func (q *Queries) CreateCarrierRate(ctx context.Context, arg CreateCarrierRatePa
 }
 
 const getCarrierRateByID = `-- name: GetCarrierRateByID :one
-SELECT id, organization_id, destination_prefix, direction, currency, rate_micros, effective_at, expires_at, created_at
+SELECT id, organization_id, destination_prefix, direction, currency, rate_micros, billing_unit, billing_increment_seconds, minimum_duration_seconds, effective_at, expires_at, created_at
 FROM carrier_rates
 WHERE id = $1
 LIMIT 1
@@ -93,6 +108,9 @@ func (q *Queries) GetCarrierRateByID(ctx context.Context, id uuid.UUID) (Carrier
 		&i.Direction,
 		&i.Currency,
 		&i.RateMicros,
+		&i.BillingUnit,
+		&i.BillingIncrementSeconds,
+		&i.MinimumDurationSeconds,
 		&i.EffectiveAt,
 		&i.ExpiresAt,
 		&i.CreatedAt,
@@ -101,7 +119,7 @@ func (q *Queries) GetCarrierRateByID(ctx context.Context, id uuid.UUID) (Carrier
 }
 
 const resolveCarrierRate = `-- name: ResolveCarrierRate :one
-SELECT cr.id, cr.organization_id, cr.destination_prefix, cr.direction, cr.currency, cr.rate_micros, cr.effective_at, cr.expires_at, cr.created_at
+SELECT cr.id, cr.organization_id, cr.destination_prefix, cr.direction, cr.currency, cr.rate_micros, cr.billing_unit, cr.billing_increment_seconds, cr.minimum_duration_seconds, cr.effective_at, cr.expires_at, cr.created_at
 FROM carrier_rates AS cr
 JOIN organizations AS o
   ON o.id = $1
@@ -144,6 +162,9 @@ func (q *Queries) ResolveCarrierRate(ctx context.Context, arg ResolveCarrierRate
 		&i.Direction,
 		&i.Currency,
 		&i.RateMicros,
+		&i.BillingUnit,
+		&i.BillingIncrementSeconds,
+		&i.MinimumDurationSeconds,
 		&i.EffectiveAt,
 		&i.ExpiresAt,
 		&i.CreatedAt,

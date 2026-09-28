@@ -1,6 +1,7 @@
 package telecom
 
 import (
+	"github.com/coffeyvidzro/monogo/internal/commercial/authorization"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
@@ -24,17 +25,18 @@ import (
 )
 
 type Dependencies struct {
-	DB                   *pgxpool.Pool
-	Queries              *sqlc.Queries
-	CallsController      *calling.Controller
-	CallsChannelStore    *calling.ChannelStore
-	CallsAdmission       *calling.AdmissionLimiter
-	ConferenceController conferences.Controller
-	CredentialCipher     *encryption.Cipher
-	DIDWWInventory       *didww.Client
-	RealtimeService      *realtime.Service
-	RecordingStorage     recordings.Storage
-	Metrics              *metrics.Registry
+	DB                      *pgxpool.Pool
+	Queries                 *sqlc.Queries
+	CallsController         *calling.Controller
+	CallsChannelStore       *calling.ChannelStore
+	CallsAdmission          *calling.AdmissionLimiter
+	ConferenceController    conferences.Controller
+	CredentialCipher        *encryption.Cipher
+	DIDWWInventory          *didww.Client
+	RealtimeService         *realtime.Service
+	RecordingStorage        recordings.Storage
+	Metrics                 *metrics.Registry
+	CommercialAuthorization *authorization.Service
 }
 
 type Module struct {
@@ -141,6 +143,7 @@ func New(deps Dependencies) (*Module, error) {
 		deps.CallsChannelStore,
 		deps.CallsAdmission,
 		deps.Metrics,
+		deps.CommercialAuthorization,
 	)
 
 	numbersRepository := numbers.NewRepository(deps.Queries)

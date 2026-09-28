@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 
+	"github.com/coffeyvidzro/monogo/internal/commercial/authorization"
 	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
 	"github.com/coffeyvidzro/monogo/internal/runtime/calling"
 	"github.com/coffeyvidzro/monogo/internal/telecom/routing"
@@ -19,6 +20,11 @@ type Service struct {
 	channels   *calling.ChannelStore
 	admission  *calling.AdmissionLimiter
 	metrics    routeAttemptMetrics
+	commercial callCommercialAuthorizer
+}
+
+type callCommercialAuthorizer interface {
+	AuthorizeManagedCall(context.Context, authorization.ManagedCallRequest) (authorization.CallAuthorization, error)
 }
 
 type routeAttemptMetrics interface {
@@ -33,6 +39,7 @@ func NewService(
 	channels *calling.ChannelStore,
 	admission *calling.AdmissionLimiter,
 	metrics routeAttemptMetrics,
+	commercial callCommercialAuthorizer,
 ) *Service {
 	if repo == nil {
 		panic("calls: repository is required")
@@ -49,6 +56,9 @@ func NewService(
 	if admission == nil {
 		panic("calls: admission limiter is required")
 	}
+	if commercial == nil {
+		panic("calls: commercial authorization service is required")
+	}
 	return &Service{
 		repo:       repo,
 		router:     router,
@@ -56,6 +66,7 @@ func NewService(
 		channels:   channels,
 		admission:  admission,
 		metrics:    metrics,
+		commercial: commercial,
 	}
 }
 
@@ -83,22 +94,17 @@ func (s *Service) Create(ctx context.Context, organizationID uuid.UUID, req Crea
 		_, _ = s.repo.MarkFailed(ctx, organizationID, call.ID, &reason)
 		return sqlc.Call{}, err
 	}
-	_, ok := decision.Primary()
+	primary, ok := decision.Primary()
 	if !ok {
 		reason := "route_resolution_failed"
 		_, _ = s.repo.MarkFailed(ctx, organizationID, call.ID, &reason)
 		return sqlc.Call{}, apperror.NewNotFound("no eligible outbound route")
 	}
 
-	// Until an atomic prepaid reservation and final settlement are wired,
-	// managed carrier origination must not create unbacked wholesale exposure.
-	if decision.ID != uuid.Nil {
-		reason := "prepaid_authorization_unavailable"
+	if authorizationErr := s.authorizeOutbound(ctx, call.ID, organizationID, req.ToURI, primary); authorizationErr != nil {
+		reason := "commercial_authorization_failed"
 		_, _ = s.repo.MarkFailed(ctx, organizationID, call.ID, &reason)
-		return sqlc.Call{}, apperror.NewServiceUnavailable(
-			"managed outbound calls require prepaid authorization",
-			nil,
-		)
+		return sqlc.Call{}, authorizationErr
 	}
 
 	result, selected, err := executeRoutePlan(ctx, decision.Routes, func(
@@ -179,6 +185,32 @@ func (s *Service) Create(ctx context.Context, organizationID uuid.UUID, req Crea
 	}
 
 	return s.repo.Get(ctx, organizationID, call.ID)
+}
+
+func (s *Service) authorizeOutbound(
+	ctx context.Context,
+	callID uuid.UUID,
+	organizationID uuid.UUID,
+	destination string,
+	route routing.OutboundRoute,
+) error {
+	switch route.ProvisioningMode {
+	case "byoc":
+		return nil
+	case "managed":
+		_, err := s.commercial.AuthorizeManagedCall(
+			ctx,
+			authorization.ManagedCallRequest{
+				CallID:         callID,
+				OrganizationID: organizationID,
+				Destination:    destination,
+				Direction:      string(DirectionOutbound),
+			},
+		)
+		return err
+	default:
+		return apperror.NewServiceUnavailable("route provisioning mode is not commercially authorized", nil)
+	}
 }
 
 func optionalDecisionID(id uuid.UUID) *uuid.UUID {

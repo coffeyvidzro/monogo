@@ -36,13 +36,16 @@ func (s *Service) Create(
 	row, err := s.repo.Create(
 		ctx,
 		sqlc.CreateCarrierRateParams{
-			OrganizationID:    req.OrganizationID,
-			DestinationPrefix: req.DestinationPrefix,
-			Direction:         req.Direction,
-			Currency:          req.Currency,
-			RateMicros:        req.RateMicros,
-			EffectiveAt:       pgconv.TimeToTimestamptz(req.EffectiveAt),
-			ExpiresAt:         pgconv.NullableTimestamptz(req.ExpiresAt),
+			OrganizationID:          req.OrganizationID,
+			DestinationPrefix:       req.DestinationPrefix,
+			Direction:               req.Direction,
+			Currency:                req.Currency,
+			RateMicros:              req.RateMicros,
+			BillingUnit:             req.BillingUnit,
+			BillingIncrementSeconds: req.BillingIncrementSeconds,
+			MinimumDurationSeconds:  req.MinimumDurationSeconds,
+			EffectiveAt:             pgconv.TimeToTimestamptz(req.EffectiveAt),
+			ExpiresAt:               pgconv.NullableTimestamptz(req.ExpiresAt),
 		},
 	)
 	var pgErr *pgconn.PgError
@@ -114,14 +117,17 @@ func (s *Service) Resolve(
 
 func rateFromRow(row sqlc.CarrierRate) Rate {
 	return Rate{
-		ID:                row.ID,
-		OrganizationID:    row.OrganizationID,
-		DestinationPrefix: row.DestinationPrefix,
-		Direction:         row.Direction,
-		Currency:          row.Currency,
-		RateMicros:        row.RateMicros,
-		EffectiveAt:       pgconv.TimestamptzToTime(row.EffectiveAt),
-		ExpiresAt:         pgconv.TimestamptzToTimePtr(row.ExpiresAt),
-		CreatedAt:         pgconv.TimestamptzToTime(row.CreatedAt),
+		ID:                      row.ID,
+		OrganizationID:          row.OrganizationID,
+		DestinationPrefix:       row.DestinationPrefix,
+		Direction:               row.Direction,
+		Currency:                row.Currency,
+		RateMicros:              row.RateMicros,
+		BillingUnit:             row.BillingUnit,
+		BillingIncrementSeconds: row.BillingIncrementSeconds,
+		MinimumDurationSeconds:  row.MinimumDurationSeconds,
+		EffectiveAt:             pgconv.TimestamptzToTime(row.EffectiveAt),
+		ExpiresAt:               pgconv.TimestamptzToTimePtr(row.ExpiresAt),
+		CreatedAt:               pgconv.TimestamptzToTime(row.CreatedAt),
 	}
 }

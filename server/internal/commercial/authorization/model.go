@@ -1,45 +1,27 @@
 package authorization
 
 import (
-	"errors"
 	"time"
 
 	"github.com/google/uuid"
 )
 
-const (
-	ProvisioningBYOC    = "byoc"
-	ProvisioningManaged = "managed"
-
-	CurrencyUSD = "USD"
-)
-
-var ErrInvalidInput = errors.New("invalid commercial authorization input")
-
-type CallRequest struct {
-	OrganizationID   uuid.UUID
-	OperationID      uuid.UUID
-	Destination      string
-	Direction        string
-	ProvisioningMode string
-	MinimumSeconds   int64
-	RequestedAt      time.Time
+type CallAuthorization struct {
+	CallID                  uuid.UUID
+	OrganizationID          uuid.UUID
+	CarrierRateID           uuid.UUID
+	Currency                string
+	RateMicros              int64
+	BillingUnit             string
+	BillingIncrementSeconds int32
+	MinimumDurationSeconds  int32
+	AuthorizedAt            time.Time
 }
 
-type Decision struct {
-	OperationID            uuid.UUID  `json:"operation_id"`
-	Billable               bool       `json:"billable"`
-	Currency               *string    `json:"currency,omitempty"`
-	RateID                 *uuid.UUID `json:"rate_id,omitempty"`
-	RateMicros             int64      `json:"rate_micros"`
-	AuthorizedAmountMicros int64      `json:"authorized_amount_micros"`
-}
-
-type CaptureRequest struct {
-	OrganizationID  uuid.UUID
-	OperationID     uuid.UUID
-	ReferenceID     uuid.UUID
-	BillableSeconds int64
-	Decision        Decision
-	OccurredAt      time.Time
+type ManagedCallRequest struct {
+	CallID         uuid.UUID
+	OrganizationID uuid.UUID
+	Destination    string
+	Direction      string
+	RequestedAt    time.Time
 }

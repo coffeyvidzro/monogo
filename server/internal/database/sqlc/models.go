@@ -149,15 +149,18 @@ type CarrierProvider struct {
 }
 
 type CarrierRate struct {
-	ID                uuid.UUID          `db:"id" json:"id"`
-	OrganizationID    *uuid.UUID         `db:"organization_id" json:"organization_id"`
-	DestinationPrefix string             `db:"destination_prefix" json:"destination_prefix"`
-	Direction         string             `db:"direction" json:"direction"`
-	Currency          string             `db:"currency" json:"currency"`
-	RateMicros        int64              `db:"rate_micros" json:"rate_micros"`
-	EffectiveAt       pgtype.Timestamptz `db:"effective_at" json:"effective_at"`
-	ExpiresAt         pgtype.Timestamptz `db:"expires_at" json:"expires_at"`
-	CreatedAt         pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	ID                      uuid.UUID          `db:"id" json:"id"`
+	OrganizationID          *uuid.UUID         `db:"organization_id" json:"organization_id"`
+	DestinationPrefix       string             `db:"destination_prefix" json:"destination_prefix"`
+	Direction               string             `db:"direction" json:"direction"`
+	Currency                string             `db:"currency" json:"currency"`
+	RateMicros              int64              `db:"rate_micros" json:"rate_micros"`
+	BillingUnit             string             `db:"billing_unit" json:"billing_unit"`
+	BillingIncrementSeconds int32              `db:"billing_increment_seconds" json:"billing_increment_seconds"`
+	MinimumDurationSeconds  int32              `db:"minimum_duration_seconds" json:"minimum_duration_seconds"`
+	EffectiveAt             pgtype.Timestamptz `db:"effective_at" json:"effective_at"`
+	ExpiresAt               pgtype.Timestamptz `db:"expires_at" json:"expires_at"`
+	CreatedAt               pgtype.Timestamptz `db:"created_at" json:"created_at"`
 }
 
 type CarrierRouteMetric struct {
