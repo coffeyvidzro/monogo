@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/coffeyvidzro/monogo/internal/ai"
+	"github.com/coffeyvidzro/monogo/internal/commercial"
 	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
 	"github.com/coffeyvidzro/monogo/internal/integrations/carriers/didww"
 	"github.com/coffeyvidzro/monogo/internal/integrations/freeswitch"
@@ -106,6 +107,10 @@ func newModules(ctx context.Context, cfg config.Config, logger *logging.Logger) 
 	}
 
 	queries := sqlc.New(postgresClient.Pool())
+	commercialModule := commercial.New(commercial.Dependencies{
+		DB:      postgresClient.Pool(),
+		Queries: queries,
+	})
 	credentialCipher, err := encryption.New(cfg.EncryptionKey)
 	if err != nil {
 		closeDependencies()
@@ -125,6 +130,9 @@ func newModules(ctx context.Context, cfg config.Config, logger *logging.Logger) 
 	callsService := calls.NewService(
 		callsRepository,
 		routingService,
+		commercialModule.Subscriptions.Service,
+		commercialModule.Pricing.Service,
+		commercialModule.Wallets.Service,
 		callController,
 		calling.NewChannelStore(redisClient),
 		admissionLimiter,

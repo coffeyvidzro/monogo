@@ -48,6 +48,7 @@ func TestEgressVariablesCarryLeamoutIdentity(t *testing.T) {
 		Privacy:             true,
 		DTMFMode:            "rfc2833",
 		MediaEncryption:     "sdes_srtp",
+		MaxDurationSeconds:  60,
 	}, "sip:carrier.example.com:5061;transport=tls")
 	if err != nil {
 		t.Fatal(err)
@@ -61,5 +62,25 @@ func TestEgressVariablesCarryLeamoutIdentity(t *testing.T) {
 	}
 	if !strings.Contains(variables[routeURIHeaderVar], "carrier.example.com") {
 		t.Fatalf("route URI variable = %q", variables[routeURIHeaderVar])
+	}
+	if variables["execute_on_answer"] != "sched_hangup +60 ALLOTTED_TIMEOUT" {
+		t.Fatalf(
+			"execute_on_answer variable = %q",
+			variables["execute_on_answer"],
+		)
+	}
+}
+
+func TestEgressVariablesRejectNegativeMaximumDuration(t *testing.T) {
+	_, err := egressVariables(
+		OriginateRequest{
+			CallID:              uuid.New(),
+			CarrierConnectionID: uuid.New(),
+			MaxDurationSeconds:  -1,
+		},
+		"sip:carrier.example.com:5061;transport=tls",
+	)
+	if err == nil {
+		t.Fatal("expected maximum duration validation error")
 	}
 }

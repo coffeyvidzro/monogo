@@ -1,5 +1,6 @@
 -- Customer-facing managed carrier pricing. This is what Leamout charges
 -- customers and is separate from provider_rates, which is supplier pricing.
+-- rate_micros is USD micros per started 60-second managed outbound voice minute.
 
 CREATE TABLE carrier_rates (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
