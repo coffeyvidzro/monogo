@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/coffeyvidzro/monogo/internal/database/pgconv"
@@ -24,124 +23,6 @@ func NewService(repo *Repository) *Service {
 		repo: repo,
 		now:  time.Now,
 	}
-}
-
-func (s *Service) CreatePlan(
-	ctx context.Context,
-	req CreatePlanRequest,
-) (Plan, error) {
-	if err := normalizeCreatePlanRequest(&req); err != nil {
-		return Plan{}, err
-	}
-
-	row, err := s.repo.CreatePlan(
-		ctx,
-		sqlc.CreateSubscriptionPlanParams{
-			Code:         req.Code,
-			Name:         req.Name,
-			Currency:     req.Currency,
-			AmountMicros: req.AmountMicros,
-		},
-	)
-	if isUniqueViolation(err) {
-		return Plan{}, ErrPlanConflict
-	}
-	if err != nil {
-		return Plan{}, fmt.Errorf("create subscription plan: %w", err)
-	}
-
-	return planFromRow(row), nil
-}
-
-func (s *Service) GetPlan(
-	ctx context.Context,
-	id uuid.UUID,
-) (Plan, error) {
-	if id == uuid.Nil {
-		return Plan{}, ErrPlanNotFound
-	}
-
-	row, err := s.repo.GetPlanByID(
-		ctx,
-		id,
-	)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return Plan{}, ErrPlanNotFound
-	}
-	if err != nil {
-		return Plan{}, fmt.Errorf("get subscription plan: %w", err)
-	}
-
-	return planFromRow(row), nil
-}
-
-func (s *Service) GetPlanByCode(
-	ctx context.Context,
-	code string,
-) (Plan, error) {
-	req := CreatePlanRequest{
-		Code:     code,
-		Name:     "placeholder",
-		Currency: "USD",
-	}
-	req.Code = normalizePlanCode(req.Code)
-	if !planCodePattern.MatchString(req.Code) {
-		return Plan{}, ErrPlanNotFound
-	}
-
-	row, err := s.repo.GetPlanByCode(
-		ctx,
-		req.Code,
-	)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return Plan{}, ErrPlanNotFound
-	}
-	if err != nil {
-		return Plan{}, fmt.Errorf("get subscription plan by code: %w", err)
-	}
-
-	return planFromRow(row), nil
-}
-
-func (s *Service) ListPlans(
-	ctx context.Context,
-) ([]Plan, error) {
-	rows, err := s.repo.ListPlans(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("list subscription plans: %w", err)
-	}
-
-	result := make([]Plan, 0, len(rows))
-	for _, row := range rows {
-		result = append(
-			result,
-			planFromRow(row),
-		)
-	}
-
-	return result, nil
-}
-
-func (s *Service) ArchivePlan(
-	ctx context.Context,
-	id uuid.UUID,
-) (Plan, error) {
-	if id == uuid.Nil {
-		return Plan{}, ErrPlanNotFound
-	}
-
-	row, err := s.repo.ArchivePlan(
-		ctx,
-		id,
-	)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return Plan{}, ErrPlanNotFound
-	}
-	if err != nil {
-		return Plan{}, fmt.Errorf("archive subscription plan: %w", err)
-	}
-
-	return planFromRow(row), nil
 }
 
 func (s *Service) Subscribe(
@@ -346,27 +227,9 @@ func (s *Service) Cancel(
 	return subscriptionFromRow(row), nil
 }
 
-func normalizePlanCode(value string) string {
-	return strings.ToLower(strings.TrimSpace(value))
-}
-
 func isUniqueViolation(err error) bool {
 	var pgErr *pgconn.PgError
 	return errors.As(err, &pgErr) && pgErr.Code == "23505"
-}
-
-func planFromRow(row sqlc.SubscriptionPlan) Plan {
-	return Plan{
-		ID:           row.ID,
-		Code:         row.Code,
-		Name:         row.Name,
-		Currency:     row.Currency,
-		Interval:     row.Interval,
-		AmountMicros: row.AmountMicros,
-		Status:       row.Status,
-		CreatedAt:    pgconv.TimestamptzToTime(row.CreatedAt),
-		UpdatedAt:    pgconv.TimestamptzToTime(row.UpdatedAt),
-	}
 }
 
 func subscriptionFromRow(row sqlc.Subscription) Subscription {

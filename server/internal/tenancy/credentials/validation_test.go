@@ -12,6 +12,7 @@ func TestValidateScopesAcceptsAPIResourceScopes(t *testing.T) {
 		"voice-agents:read",
 		"voice-agents:write",
 		"wallets:read",
+		"plans:read",
 		"subscriptions:read",
 		"subscriptions:write",
 		"pricing:read",

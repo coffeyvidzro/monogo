@@ -3,6 +3,7 @@ package commercial
 import (
 	"net/http"
 
+	"github.com/coffeyvidzro/monogo/internal/commercial/plans"
 	"github.com/coffeyvidzro/monogo/internal/commercial/pricing"
 	"github.com/coffeyvidzro/monogo/internal/commercial/subscriptions"
 	"github.com/coffeyvidzro/monogo/internal/commercial/wallets"
@@ -19,6 +20,12 @@ func RegisterRoutes(
 		router,
 		module.Wallets.Handler,
 		organizationAccess("wallets"),
+	)
+
+	plans.RegisterRoutes(
+		router,
+		module.Plans.Handler,
+		organizationAccess("plans"),
 	)
 
 	subscriptions.RegisterRoutes(

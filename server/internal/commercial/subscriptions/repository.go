@@ -17,52 +17,6 @@ func NewRepository(queries *sqlc.Queries) *Repository {
 	}
 }
 
-func (r *Repository) CreatePlan(
-	ctx context.Context,
-	params sqlc.CreateSubscriptionPlanParams,
-) (sqlc.SubscriptionPlan, error) {
-	return r.queries.CreateSubscriptionPlan(
-		ctx,
-		params,
-	)
-}
-
-func (r *Repository) GetPlanByID(
-	ctx context.Context,
-	id uuid.UUID,
-) (sqlc.SubscriptionPlan, error) {
-	return r.queries.GetActiveSubscriptionPlanByID(
-		ctx,
-		id,
-	)
-}
-
-func (r *Repository) GetPlanByCode(
-	ctx context.Context,
-	code string,
-) (sqlc.SubscriptionPlan, error) {
-	return r.queries.GetActiveSubscriptionPlanByCode(
-		ctx,
-		code,
-	)
-}
-
-func (r *Repository) ListPlans(
-	ctx context.Context,
-) ([]sqlc.SubscriptionPlan, error) {
-	return r.queries.ListActiveSubscriptionPlans(ctx)
-}
-
-func (r *Repository) ArchivePlan(
-	ctx context.Context,
-	id uuid.UUID,
-) (sqlc.SubscriptionPlan, error) {
-	return r.queries.ArchiveSubscriptionPlan(
-		ctx,
-		id,
-	)
-}
-
 func (r *Repository) CreateSubscription(
 	ctx context.Context,
 	organizationID uuid.UUID,
