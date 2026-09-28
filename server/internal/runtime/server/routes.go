@@ -6,6 +6,7 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/coffeyvidzro/monogo/internal/ai"
+	"github.com/coffeyvidzro/monogo/internal/commercial"
 	"github.com/coffeyvidzro/monogo/internal/identity"
 	"github.com/coffeyvidzro/monogo/internal/platform"
 	"github.com/coffeyvidzro/monogo/internal/platform/config"
@@ -65,6 +66,7 @@ func newRouter(cfg config.Config, logger *logging.Logger, modules *modules) *chi
 		)
 		platform.RegisterRoutes(r, modules.platform, organizationAccess)
 		ai.RegisterRoutes(r, modules.ai, organizationAccess)
+		commercial.RegisterRoutes(r, modules.commercial, organizationAccess)
 		telecom.RegisterRoutes(
 			r,
 			modules.telecom,

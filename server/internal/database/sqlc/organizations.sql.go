@@ -13,17 +13,40 @@ import (
 )
 
 const createOrganization = `-- name: CreateOrganization :one
-INSERT INTO organizations (
-    name
-) VALUES (
-    $1
+WITH new_organization AS (
+    INSERT INTO organizations (
+        name
+    ) VALUES (
+        $1
+    )
+    RETURNING id, name, status, created_at, updated_at, deleted_at
+), organization_wallet AS (
+    INSERT INTO wallets (
+        organization_id
+    )
+    SELECT
+        o.id
+    FROM new_organization AS o
+    RETURNING organization_id
 )
-RETURNING id, name, status, created_at, updated_at, deleted_at
+SELECT o.id, o.name, o.status, o.created_at, o.updated_at, o.deleted_at
+FROM new_organization AS o
+JOIN organization_wallet AS w
+  ON w.organization_id = o.id
 `
 
-func (q *Queries) CreateOrganization(ctx context.Context, name string) (Organization, error) {
+type CreateOrganizationRow struct {
+	ID        uuid.UUID          `db:"id" json:"id"`
+	Name      string             `db:"name" json:"name"`
+	Status    string             `db:"status" json:"status"`
+	CreatedAt pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	UpdatedAt pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+	DeletedAt pgtype.Timestamptz `db:"deleted_at" json:"deleted_at"`
+}
+
+func (q *Queries) CreateOrganization(ctx context.Context, name string) (CreateOrganizationRow, error) {
 	row := q.db.QueryRow(ctx, createOrganization, name)
-	var i Organization
+	var i CreateOrganizationRow
 	err := row.Scan(
 		&i.ID,
 		&i.Name,
@@ -43,7 +66,7 @@ WITH new_organization AS (
     SELECT $1
     FROM users AS u
     WHERE u.id = $2
-    AND u.disabled_at IS NULL
+      AND u.disabled_at IS NULL
     RETURNING id, name, status, created_at, updated_at, deleted_at
 ), owner_membership AS (
     INSERT INTO organization_members (
@@ -57,10 +80,21 @@ WITH new_organization AS (
         'owner'
     FROM new_organization AS o
     RETURNING organization_id
+), organization_wallet AS (
+    INSERT INTO wallets (
+        organization_id
+    )
+    SELECT
+        o.id
+    FROM new_organization AS o
+    RETURNING organization_id
 )
 SELECT o.id, o.name, o.status, o.created_at, o.updated_at, o.deleted_at
 FROM new_organization AS o
-JOIN owner_membership AS om ON om.organization_id = o.id
+JOIN owner_membership AS om
+  ON om.organization_id = o.id
+JOIN organization_wallet AS w
+  ON w.organization_id = o.id
 `
 
 type CreateOrganizationWithOwnerParams struct {

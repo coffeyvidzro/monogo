@@ -16,7 +16,15 @@ func NewRepository(queries *sqlc.Queries) *Repository {
 }
 
 func (r *Repository) Create(ctx context.Context, name string) (sqlc.Organization, error) {
-	return r.queries.CreateOrganization(ctx, name)
+	row, err := r.queries.CreateOrganization(
+		ctx,
+		name,
+	)
+	if err != nil {
+		return sqlc.Organization{}, err
+	}
+
+	return sqlc.Organization(row), nil
 }
 
 func (r *Repository) CreateWithOwner(ctx context.Context, name string, userID uuid.UUID) (sqlc.Organization, error) {
