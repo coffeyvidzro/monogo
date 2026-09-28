@@ -20,34 +20,42 @@ INSERT INTO provider_rates (
     billing_currency,
     effective_at,
     expires_at
-) VALUES (
+)
+SELECT
+    cc.id,
     $1,
     $2,
     $3,
     $4,
-    $5,
-    $6
-)
+    $5
+FROM carrier_connections AS cc
+JOIN carrier_providers AS cp
+  ON cp.id = cc.provider_id
+WHERE cc.id = $6
+  AND cc.scope = 'platform'
+  AND cc.organization_id IS NULL
+  AND cc.status = 'active'
+  AND cp.status = 'active'
 RETURNING id, carrier_connection_id, destination_prefix, rate_micros, billing_currency, effective_at, expires_at, created_at
 `
 
 type CreateProviderRateParams struct {
-	CarrierConnectionID uuid.UUID          `db:"carrier_connection_id" json:"carrier_connection_id"`
 	DestinationPrefix   string             `db:"destination_prefix" json:"destination_prefix"`
 	RateMicros          int64              `db:"rate_micros" json:"rate_micros"`
 	BillingCurrency     string             `db:"billing_currency" json:"billing_currency"`
 	EffectiveAt         pgtype.Timestamptz `db:"effective_at" json:"effective_at"`
 	ExpiresAt           pgtype.Timestamptz `db:"expires_at" json:"expires_at"`
+	CarrierConnectionID uuid.UUID          `db:"carrier_connection_id" json:"carrier_connection_id"`
 }
 
 func (q *Queries) CreateProviderRate(ctx context.Context, arg CreateProviderRateParams) (ProviderRate, error) {
 	row := q.db.QueryRow(ctx, createProviderRate,
-		arg.CarrierConnectionID,
 		arg.DestinationPrefix,
 		arg.RateMicros,
 		arg.BillingCurrency,
 		arg.EffectiveAt,
 		arg.ExpiresAt,
+		arg.CarrierConnectionID,
 	)
 	var i ProviderRate
 	err := row.Scan(
@@ -268,6 +276,7 @@ SELECT
     metrics.observed_at
 FROM trunks AS t
 JOIN carrier_connections AS cc ON cc.id = t.carrier_connection_id
+JOIN carrier_providers AS cp ON cp.id = cc.provider_id
 JOIN trunk_endpoints AS te ON te.trunk_id = t.id
 JOIN carrier_route_metrics AS metrics ON metrics.trunk_endpoint_id = te.id
 JOIN LATERAL (
@@ -288,6 +297,7 @@ WHERE t.organization_id IS NULL
   AND cc.scope = 'platform'
   AND cc.organization_id IS NULL
   AND cc.status = 'active'
+  AND cp.status = 'active'
   AND te.organization_id IS NULL
   AND te.enabled = true
   AND te.direction IN ('outbound', 'bidirectional')
