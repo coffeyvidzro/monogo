@@ -42,6 +42,22 @@ func (s *Service) ObserveLifecycle(ctx context.Context, event LifecycleEvent) er
 		}
 	}
 
+	if err := s.settleManagedVoiceLifecycle(
+		ctx,
+		snapshot,
+		event,
+	); err != nil {
+		if event.ChannelID != "" &&
+			(event.Type == LifecycleAnswered || event.Type == LifecycleActive) {
+			_ = s.controller.Hangup(
+				ctx,
+				event.ChannelID,
+			)
+		}
+
+		return err
+	}
+
 	if !isTerminalLifecycle(event.Type) && snapshot.CarrierConnectionID != nil {
 		if err := s.admission.Refresh(ctx, *snapshot.CarrierConnectionID, event.CallID); err != nil {
 			return apperror.NewServiceUnavailable("refresh carrier call lease", err)
@@ -86,6 +102,62 @@ func (s *Service) ObserveLifecycle(ctx context.Context, event LifecycleEvent) er
 		}
 	}
 	return err
+}
+
+func (s *Service) settleManagedVoiceLifecycle(
+	ctx context.Context,
+	snapshot LifecycleSnapshot,
+	event LifecycleEvent,
+) error {
+	if snapshot.Direction != string(DirectionOutbound) ||
+		snapshot.RoutingDecisionID == nil {
+		return nil
+	}
+
+	operationID := managedVoiceOperationID(event.CallID)
+
+	switch event.Type {
+	case LifecycleAnswered, LifecycleActive, LifecycleCompleted:
+		if _, err := s.wallets.Capture(
+			ctx,
+			snapshot.OrganizationID,
+			operationID,
+		); err != nil {
+			return apperror.NewInternal(
+				"capture managed voice prepaid hold",
+				err,
+			)
+		}
+	case LifecycleFailed, LifecycleCancelled:
+		if snapshot.State == string(StateAnswered) ||
+			snapshot.State == string(StateActive) {
+			if _, err := s.wallets.Capture(
+				ctx,
+				snapshot.OrganizationID,
+				operationID,
+			); err != nil {
+				return apperror.NewInternal(
+					"capture answered managed voice prepaid hold",
+					err,
+				)
+			}
+
+			return nil
+		}
+
+		if _, err := s.wallets.Release(
+			ctx,
+			snapshot.OrganizationID,
+			operationID,
+		); err != nil {
+			return apperror.NewInternal(
+				"release managed voice prepaid hold",
+				err,
+			)
+		}
+	}
+
+	return nil
 }
 
 func lifecycleAlreadyApplied(snapshot LifecycleSnapshot, eventType LifecycleEventType) bool {
