@@ -3,7 +3,6 @@ package subscriptions
 import (
 	"context"
 	"errors"
-	"fmt"
 	"time"
 
 	"github.com/coffeyvidzro/monogo/internal/database/pgconv"

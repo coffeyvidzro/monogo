@@ -3,7 +3,6 @@ package plans
 import (
 	"context"
 	"errors"
-	"fmt"
 
 	"github.com/coffeyvidzro/monogo/internal/database/pgconv"
 	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
