@@ -76,6 +76,6 @@ func normalizeDirection(value string) (string, error) {
 	case DirectionInbound, DirectionOutbound:
 		return value, nil
 	default:
-		return "", fmt.Errorf("direction must be inbound or outbound")
+		return "", fmt.Errorf("%w: direction must be inbound or outbound", ErrInvalidInput)
 	}
 }
