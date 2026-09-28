@@ -1,6 +1,7 @@
 package commercial
 
 import (
+	"github.com/coffeyvidzro/monogo/internal/commercial/authorization"
 	"github.com/coffeyvidzro/monogo/internal/commercial/plans"
 	"github.com/coffeyvidzro/monogo/internal/commercial/pricing"
 	"github.com/coffeyvidzro/monogo/internal/commercial/subscriptions"
@@ -16,6 +17,7 @@ type Dependencies struct {
 }
 
 type Module struct {
+	Authorization *authorization.Service
 	Wallets       WalletsModule
 	Plans         PlansModule
 	Subscriptions SubscriptionsModule
@@ -78,8 +80,13 @@ func New(deps Dependencies) *Module {
 	wholesaleService := wholesale.NewService(
 		wholesaleRepository,
 	)
+	authorizationService := authorization.NewService(
+		pricingService,
+		walletsService,
+	)
 
 	return &Module{
+		Authorization: authorizationService,
 		Wallets: WalletsModule{
 			Repository: walletsRepository,
 			Service:    walletsService,
