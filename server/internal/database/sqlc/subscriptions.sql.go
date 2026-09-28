@@ -393,6 +393,60 @@ func (q *Queries) ListActiveSubscriptionPlans(ctx context.Context) ([]Subscripti
 	return items, nil
 }
 
+const listSubscriptionsByOrganization = `-- name: ListSubscriptionsByOrganization :many
+SELECT s.id, s.organization_id, s.plan_id, s.status, s.currency, s.amount_micros, s.interval, s.current_period_start, s.current_period_end, s.cancel_at_period_end, s.started_at, s.cancelled_at, s.created_at, s.updated_at
+FROM subscriptions AS s
+JOIN organizations AS o
+  ON o.id = s.organization_id
+WHERE s.organization_id = $1
+  AND o.status = 'active'
+  AND o.deleted_at IS NULL
+ORDER BY s.created_at DESC, s.id DESC
+LIMIT $3
+OFFSET $2
+`
+
+type ListSubscriptionsByOrganizationParams struct {
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	OffsetCount    int32     `db:"offset_count" json:"offset_count"`
+	LimitCount     int32     `db:"limit_count" json:"limit_count"`
+}
+
+func (q *Queries) ListSubscriptionsByOrganization(ctx context.Context, arg ListSubscriptionsByOrganizationParams) ([]Subscription, error) {
+	rows, err := q.db.Query(ctx, listSubscriptionsByOrganization, arg.OrganizationID, arg.OffsetCount, arg.LimitCount)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Subscription{}
+	for rows.Next() {
+		var i Subscription
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrganizationID,
+			&i.PlanID,
+			&i.Status,
+			&i.Currency,
+			&i.AmountMicros,
+			&i.Interval,
+			&i.CurrentPeriodStart,
+			&i.CurrentPeriodEnd,
+			&i.CancelAtPeriodEnd,
+			&i.StartedAt,
+			&i.CancelledAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const markSubscriptionPastDue = `-- name: MarkSubscriptionPastDue :one
 UPDATE subscriptions
 SET
@@ -431,25 +485,25 @@ func (q *Queries) MarkSubscriptionPastDue(ctx context.Context, arg MarkSubscript
 	return i, err
 }
 
-const setSubscriptionCancelAtPeriodEnd = `-- name: SetSubscriptionCancelAtPeriodEnd :one
+const updateSubscriptionCancelAtPeriodEnd = `-- name: UpdateSubscriptionCancelAtPeriodEnd :one
 UPDATE subscriptions
 SET
-    cancel_at_period_end = true,
+    cancel_at_period_end = $1,
     updated_at = NOW()
-WHERE id = $1
-  AND organization_id = $2
+WHERE id = $2
+  AND organization_id = $3
   AND status IN ('active', 'past_due')
-  AND cancel_at_period_end = false
 RETURNING id, organization_id, plan_id, status, currency, amount_micros, interval, current_period_start, current_period_end, cancel_at_period_end, started_at, cancelled_at, created_at, updated_at
 `
 
-type SetSubscriptionCancelAtPeriodEndParams struct {
-	ID             uuid.UUID `db:"id" json:"id"`
-	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+type UpdateSubscriptionCancelAtPeriodEndParams struct {
+	CancelAtPeriodEnd bool      `db:"cancel_at_period_end" json:"cancel_at_period_end"`
+	ID                uuid.UUID `db:"id" json:"id"`
+	OrganizationID    uuid.UUID `db:"organization_id" json:"organization_id"`
 }
 
-func (q *Queries) SetSubscriptionCancelAtPeriodEnd(ctx context.Context, arg SetSubscriptionCancelAtPeriodEndParams) (Subscription, error) {
-	row := q.db.QueryRow(ctx, setSubscriptionCancelAtPeriodEnd, arg.ID, arg.OrganizationID)
+func (q *Queries) UpdateSubscriptionCancelAtPeriodEnd(ctx context.Context, arg UpdateSubscriptionCancelAtPeriodEndParams) (Subscription, error) {
+	row := q.db.QueryRow(ctx, updateSubscriptionCancelAtPeriodEnd, arg.CancelAtPeriodEnd, arg.ID, arg.OrganizationID)
 	var i Subscription
 	err := row.Scan(
 		&i.ID,
