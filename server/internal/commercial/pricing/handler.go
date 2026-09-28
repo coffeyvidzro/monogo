@@ -1,7 +1,6 @@
 package pricing
 
 import (
-	"errors"
 	"net/http"
 	"strings"
 
@@ -41,22 +40,9 @@ func (h *Handler) Resolve(
 		},
 	)
 	if err != nil {
-		httputil.Error(w, pricingHTTPError(err))
+		httputil.Error(w, err)
 		return
 	}
 
 	httputil.OK(w, item)
-}
-
-func pricingHTTPError(err error) error {
-	switch {
-	case errors.Is(err, ErrInvalidInput):
-		return apperror.NewBadRequest(err.Error())
-	case errors.Is(err, ErrRateNotFound):
-		return apperror.NewNotFound("carrier rate not found")
-	case errors.Is(err, ErrRateConflict):
-		return apperror.NewConflict("carrier rate conflict")
-	default:
-		return apperror.NewInternal("commercial pricing operation failed", err)
-	}
 }

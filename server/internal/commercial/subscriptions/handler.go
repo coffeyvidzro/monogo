@@ -1,7 +1,6 @@
 package subscriptions
 
 import (
-	"errors"
 	"net/http"
 	"strconv"
 	"strings"
@@ -46,7 +45,7 @@ func (h *Handler) Create(
 		req,
 	)
 	if err != nil {
-		httputil.Error(w, subscriptionHTTPError(err))
+		httputil.Error(w, err)
 		return
 	}
 
@@ -69,7 +68,7 @@ func (h *Handler) Get(
 		id,
 	)
 	if err != nil {
-		httputil.Error(w, subscriptionHTTPError(err))
+		httputil.Error(w, err)
 		return
 	}
 
@@ -101,7 +100,7 @@ func (h *Handler) List(
 		},
 	)
 	if err != nil {
-		httputil.Error(w, subscriptionHTTPError(err))
+		httputil.Error(w, err)
 		return
 	}
 
@@ -136,7 +135,7 @@ func (h *Handler) Update(
 		req,
 	)
 	if err != nil {
-		httputil.Error(w, subscriptionHTTPError(err))
+		httputil.Error(w, err)
 		return
 	}
 
@@ -158,7 +157,7 @@ func (h *Handler) Delete(
 		organizationID,
 		id,
 	); err != nil {
-		httputil.Error(w, subscriptionHTTPError(err))
+		httputil.Error(w, err)
 		return
 	}
 
@@ -209,20 +208,4 @@ func subscriptionPagination(r *http.Request) (int32, int32, error) {
 	}
 
 	return limit, offset, nil
-}
-
-func subscriptionHTTPError(err error) error {
-	switch {
-	case errors.Is(err, ErrInvalidInput):
-		return apperror.NewBadRequest(err.Error())
-	case errors.Is(err, ErrSubscriptionNotFound):
-		return apperror.NewNotFound("subscription not found")
-	case errors.Is(err, ErrSubscriptionConflict),
-		errors.Is(err, ErrSubscriptionInvalidState):
-		return apperror.NewConflict(err.Error())
-	case errors.Is(err, ErrSubscriptionNotPermitted):
-		return apperror.NewForbidden("subscription is not permitted")
-	default:
-		return apperror.NewInternal("commercial subscription operation failed", err)
-	}
 }

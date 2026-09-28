@@ -7,6 +7,7 @@ import (
 
 	"github.com/coffeyvidzro/monogo/internal/database/pgconv"
 	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
+	"github.com/coffeyvidzro/monogo/pkg/apperror"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -27,7 +28,7 @@ func (s *Service) Create(
 	req CreateRequest,
 ) (Plan, error) {
 	if err := normalizeCreateRequest(&req); err != nil {
-		return Plan{}, err
+		return Plan{}, apperror.NewBadRequest(err.Error())
 	}
 
 	row, err := s.repo.Create(
@@ -40,10 +41,10 @@ func (s *Service) Create(
 		},
 	)
 	if isUniqueViolation(err) {
-		return Plan{}, ErrConflict
+		return Plan{}, apperror.NewConflict("plan conflict")
 	}
 	if err != nil {
-		return Plan{}, fmt.Errorf("create plan: %w", err)
+		return Plan{}, apperror.NewInternal("create plan", err)
 	}
 
 	return fromRow(row), nil
@@ -54,7 +55,7 @@ func (s *Service) Get(
 	id uuid.UUID,
 ) (Plan, error) {
 	if id == uuid.Nil {
-		return Plan{}, ErrNotFound
+		return Plan{}, apperror.NewNotFound("plan not found")
 	}
 
 	row, err := s.repo.GetByID(
@@ -62,10 +63,10 @@ func (s *Service) Get(
 		id,
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return Plan{}, ErrNotFound
+		return Plan{}, apperror.NewNotFound("plan not found")
 	}
 	if err != nil {
-		return Plan{}, fmt.Errorf("get plan: %w", err)
+		return Plan{}, apperror.NewInternal("get plan", err)
 	}
 
 	return fromRow(row), nil
@@ -77,7 +78,7 @@ func (s *Service) GetByCode(
 ) (Plan, error) {
 	code = normalizeCode(code)
 	if !codePattern.MatchString(code) {
-		return Plan{}, ErrNotFound
+		return Plan{}, apperror.NewNotFound("plan not found")
 	}
 
 	row, err := s.repo.GetByCode(
@@ -85,10 +86,10 @@ func (s *Service) GetByCode(
 		code,
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return Plan{}, ErrNotFound
+		return Plan{}, apperror.NewNotFound("plan not found")
 	}
 	if err != nil {
-		return Plan{}, fmt.Errorf("get plan by code: %w", err)
+		return Plan{}, apperror.NewInternal("get plan by code", err)
 	}
 
 	return fromRow(row), nil
@@ -99,7 +100,7 @@ func (s *Service) List(
 ) ([]Plan, error) {
 	rows, err := s.repo.List(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("list plans: %w", err)
+		return nil, apperror.NewInternal("list plans", err)
 	}
 
 	result := make([]Plan, 0, len(rows))
@@ -118,7 +119,7 @@ func (s *Service) Archive(
 	id uuid.UUID,
 ) (Plan, error) {
 	if id == uuid.Nil {
-		return Plan{}, ErrNotFound
+		return Plan{}, apperror.NewNotFound("plan not found")
 	}
 
 	row, err := s.repo.Archive(
@@ -126,10 +127,10 @@ func (s *Service) Archive(
 		id,
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return Plan{}, ErrNotFound
+		return Plan{}, apperror.NewNotFound("plan not found")
 	}
 	if err != nil {
-		return Plan{}, fmt.Errorf("archive plan: %w", err)
+		return Plan{}, apperror.NewInternal("archive plan", err)
 	}
 
 	return fromRow(row), nil

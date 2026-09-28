@@ -8,6 +8,7 @@ import (
 
 	"github.com/coffeyvidzro/monogo/internal/database/pgconv"
 	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
+	"github.com/coffeyvidzro/monogo/pkg/apperror"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -36,7 +37,7 @@ func (s *Service) Create(
 	req CreateRequest,
 ) (Wallet, error) {
 	if err := validateCreateRequest(req); err != nil {
-		return Wallet{}, err
+		return Wallet{}, apperror.NewBadRequest(err.Error())
 	}
 
 	row, err := s.repo.Create(
@@ -50,10 +51,10 @@ func (s *Service) Create(
 		)
 	}
 	if errors.Is(err, pgx.ErrNoRows) {
-		return Wallet{}, ErrNotFound
+		return Wallet{}, apperror.NewNotFound("wallet not found")
 	}
 	if err != nil {
-		return Wallet{}, fmt.Errorf("create wallet: %w", err)
+		return Wallet{}, apperror.NewInternal("create wallet", err)
 	}
 
 	return walletFromRow(row), nil
@@ -64,7 +65,7 @@ func (s *Service) Get(
 	organizationID uuid.UUID,
 ) (Wallet, error) {
 	if organizationID == uuid.Nil {
-		return Wallet{}, ErrNotFound
+		return Wallet{}, apperror.NewNotFound("wallet not found")
 	}
 
 	row, err := s.repo.GetActive(
@@ -72,10 +73,10 @@ func (s *Service) Get(
 		organizationID,
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return Wallet{}, ErrNotFound
+		return Wallet{}, apperror.NewNotFound("wallet not found")
 	}
 	if err != nil {
-		return Wallet{}, fmt.Errorf("get wallet: %w", err)
+		return Wallet{}, apperror.NewInternal("get wallet", err)
 	}
 
 	return walletFromRow(row), nil
@@ -108,7 +109,7 @@ func (s *Service) ListLedgerEntries(
 	req ListLedgerRequest,
 ) ([]LedgerEntry, error) {
 	if err := normalizeListLedgerRequest(&req); err != nil {
-		return nil, err
+		return nil, apperror.NewBadRequest(err.Error())
 	}
 
 	rows, err := s.repo.ListLedgerEntries(
@@ -116,7 +117,7 @@ func (s *Service) ListLedgerEntries(
 		req,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("list wallet ledger entries: %w", err)
+		return nil, apperror.NewInternal("list wallet ledger entries", err)
 	}
 
 	result := make([]LedgerEntry, 0, len(rows))
@@ -139,10 +140,10 @@ func (s *Service) Freeze(
 		organizationID,
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return Wallet{}, ErrInvalidState
+		return Wallet{}, apperror.NewConflict("wallet state does not allow operation")
 	}
 	if err != nil {
-		return Wallet{}, fmt.Errorf("freeze wallet: %w", err)
+		return Wallet{}, apperror.NewInternal("freeze wallet", err)
 	}
 
 	return walletFromRow(row), nil
@@ -157,10 +158,10 @@ func (s *Service) Activate(
 		organizationID,
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return Wallet{}, ErrInvalidState
+		return Wallet{}, apperror.NewConflict("wallet state does not allow operation")
 	}
 	if err != nil {
-		return Wallet{}, fmt.Errorf("activate wallet: %w", err)
+		return Wallet{}, apperror.NewInternal("activate wallet", err)
 	}
 
 	return walletFromRow(row), nil
@@ -175,10 +176,10 @@ func (s *Service) Close(
 		organizationID,
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return Wallet{}, ErrInvalidState
+		return Wallet{}, apperror.NewConflict("wallet state does not allow operation")
 	}
 	if err != nil {
-		return Wallet{}, fmt.Errorf("close wallet: %w", err)
+		return Wallet{}, apperror.NewInternal("close wallet", err)
 	}
 
 	return walletFromRow(row), nil
@@ -190,7 +191,7 @@ func (s *Service) applyMovement(
 	req MovementRequest,
 ) (LedgerEntry, error) {
 	if err := normalizeMovementRequest(&req); err != nil {
-		return LedgerEntry{}, err
+		return LedgerEntry{}, apperror.NewBadRequest(err.Error())
 	}
 
 	existing, err := s.repo.GetLedgerEntryByOperation(
@@ -200,18 +201,18 @@ func (s *Service) applyMovement(
 	)
 	if err == nil {
 		if !sameMovement(existing, direction, req) {
-			return LedgerEntry{}, ErrOperationConflict
+			return LedgerEntry{}, apperror.NewConflict("wallet operation conflicts with existing ledger entry")
 		}
 
 		return ledgerEntryFromRow(existing), nil
 	}
 	if !errors.Is(err, pgx.ErrNoRows) {
-		return LedgerEntry{}, fmt.Errorf("read wallet operation: %w", err)
+		return LedgerEntry{}, apperror.NewInternal("read wallet operation", err)
 	}
 
 	tx, err := s.db.Begin(ctx)
 	if err != nil {
-		return LedgerEntry{}, fmt.Errorf("begin wallet movement: %w", err)
+		return LedgerEntry{}, apperror.NewInternal("begin wallet movement", err)
 	}
 	defer func() {
 		_ = tx.Rollback(ctx)
@@ -224,10 +225,10 @@ func (s *Service) applyMovement(
 		req.OrganizationID,
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return LedgerEntry{}, ErrNotFound
+		return LedgerEntry{}, apperror.NewNotFound("wallet not found")
 	}
 	if err != nil {
-		return LedgerEntry{}, fmt.Errorf("lock wallet: %w", err)
+		return LedgerEntry{}, apperror.NewInternal("lock wallet", err)
 	}
 
 	existing, err = repo.GetLedgerEntryByOperation(
@@ -237,22 +238,22 @@ func (s *Service) applyMovement(
 	)
 	if err == nil {
 		if !sameMovement(existing, direction, req) {
-			return LedgerEntry{}, ErrOperationConflict
+			return LedgerEntry{}, apperror.NewConflict("wallet operation conflicts with existing ledger entry")
 		}
 		if err := tx.Commit(ctx); err != nil {
-			return LedgerEntry{}, fmt.Errorf("commit wallet replay: %w", err)
+			return LedgerEntry{}, apperror.NewInternal("commit wallet replay", err)
 		}
 
 		return ledgerEntryFromRow(existing), nil
 	}
 	if !errors.Is(err, pgx.ErrNoRows) {
-		return LedgerEntry{}, fmt.Errorf("read locked wallet operation: %w", err)
+		return LedgerEntry{}, apperror.NewInternal("read locked wallet operation", err)
 	}
 
 	delta := req.AmountMicros
 	if direction == DirectionDebit {
 		if wallet.BalanceMicros < req.AmountMicros {
-			return LedgerEntry{}, ErrInsufficientBalance
+			return LedgerEntry{}, apperror.NewPaymentRequired("insufficient wallet balance")
 		}
 		delta = -req.AmountMicros
 	}
@@ -264,12 +265,12 @@ func (s *Service) applyMovement(
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
 		if direction == DirectionDebit {
-			return LedgerEntry{}, ErrInsufficientBalance
+			return LedgerEntry{}, apperror.NewPaymentRequired("insufficient wallet balance")
 		}
-		return LedgerEntry{}, ErrInvalidState
+		return LedgerEntry{}, apperror.NewConflict("wallet state does not allow operation")
 	}
 	if err != nil {
-		return LedgerEntry{}, fmt.Errorf("apply wallet balance: %w", err)
+		return LedgerEntry{}, apperror.NewInternal("apply wallet balance", err)
 	}
 
 	occurredAt := req.OccurredAt
@@ -294,14 +295,14 @@ func (s *Service) applyMovement(
 	if err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
-			return LedgerEntry{}, ErrOperationConflict
+			return LedgerEntry{}, apperror.NewConflict("wallet operation conflicts with existing ledger entry")
 		}
 
-		return LedgerEntry{}, fmt.Errorf("create wallet ledger entry: %w", err)
+		return LedgerEntry{}, apperror.NewInternal("create wallet ledger entry", err)
 	}
 
 	if err := tx.Commit(ctx); err != nil {
-		return LedgerEntry{}, fmt.Errorf("commit wallet movement: %w", err)
+		return LedgerEntry{}, apperror.NewInternal("commit wallet movement", err)
 	}
 
 	return ledgerEntryFromRow(entry), nil

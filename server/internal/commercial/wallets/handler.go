@@ -1,7 +1,6 @@
 package wallets
 
 import (
-	"errors"
 	"net/http"
 	"strconv"
 	"strings"
@@ -37,7 +36,7 @@ func (h *Handler) Get(
 		organizationID,
 	)
 	if err != nil {
-		httputil.Error(w, walletHTTPError(err))
+		httputil.Error(w, err)
 		return
 	}
 
@@ -58,7 +57,7 @@ func (h *Handler) ListLedger(
 		r.Context(),
 		organizationID,
 	); err != nil {
-		httputil.Error(w, walletHTTPError(err))
+		httputil.Error(w, err)
 		return
 	}
 
@@ -77,7 +76,7 @@ func (h *Handler) ListLedger(
 		},
 	)
 	if err != nil {
-		httputil.Error(w, walletHTTPError(err))
+		httputil.Error(w, err)
 		return
 	}
 
@@ -119,21 +118,4 @@ func ledgerPagination(r *http.Request) (int32, int32, error) {
 	}
 
 	return limit, offset, nil
-}
-
-func walletHTTPError(err error) error {
-	switch {
-	case errors.Is(err, ErrInvalidInput):
-		return apperror.NewBadRequest(err.Error())
-	case errors.Is(err, ErrNotFound):
-		return apperror.NewNotFound("wallet not found")
-	case errors.Is(err, ErrInsufficientBalance):
-		return apperror.NewPaymentRequired("insufficient wallet balance")
-	case errors.Is(err, ErrInvalidState):
-		return apperror.NewConflict("wallet state does not allow operation")
-	case errors.Is(err, ErrOperationConflict):
-		return apperror.NewConflict("wallet operation conflicts with existing ledger entry")
-	default:
-		return apperror.NewInternal("commercial wallet operation failed", err)
-	}
 }

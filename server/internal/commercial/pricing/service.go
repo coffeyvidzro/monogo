@@ -8,6 +8,7 @@ import (
 
 	"github.com/coffeyvidzro/monogo/internal/database/pgconv"
 	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
+	"github.com/coffeyvidzro/monogo/pkg/apperror"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -30,7 +31,7 @@ func (s *Service) Create(
 	req CreateRateRequest,
 ) (Rate, error) {
 	if err := normalizeCreateRateRequest(&req); err != nil {
-		return Rate{}, err
+		return Rate{}, apperror.NewBadRequest(err.Error())
 	}
 
 	row, err := s.repo.Create(
@@ -47,13 +48,13 @@ func (s *Service) Create(
 	)
 	var pgErr *pgconn.PgError
 	if errors.As(err, &pgErr) && pgErr.Code == "23505" {
-		return Rate{}, ErrRateConflict
+		return Rate{}, apperror.NewConflict("carrier rate conflict")
 	}
 	if errors.Is(err, pgx.ErrNoRows) {
-		return Rate{}, ErrRateNotFound
+		return Rate{}, apperror.NewNotFound("carrier rate not found")
 	}
 	if err != nil {
-		return Rate{}, fmt.Errorf("create carrier rate: %w", err)
+		return Rate{}, apperror.NewInternal("create carrier rate", err)
 	}
 
 	return rateFromRow(row), nil
@@ -64,7 +65,7 @@ func (s *Service) Get(
 	id uuid.UUID,
 ) (Rate, error) {
 	if id == uuid.Nil {
-		return Rate{}, ErrRateNotFound
+		return Rate{}, apperror.NewNotFound("carrier rate not found")
 	}
 
 	row, err := s.repo.Get(
@@ -72,10 +73,10 @@ func (s *Service) Get(
 		id,
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return Rate{}, ErrRateNotFound
+		return Rate{}, apperror.NewNotFound("carrier rate not found")
 	}
 	if err != nil {
-		return Rate{}, fmt.Errorf("get carrier rate: %w", err)
+		return Rate{}, apperror.NewInternal("get carrier rate", err)
 	}
 
 	return rateFromRow(row), nil
@@ -86,7 +87,7 @@ func (s *Service) Resolve(
 	req ResolveRequest,
 ) (Rate, error) {
 	if err := normalizeResolveRequest(&req); err != nil {
-		return Rate{}, err
+		return Rate{}, apperror.NewBadRequest(err.Error())
 	}
 	if req.ResolvedAt.IsZero() {
 		req.ResolvedAt = s.now().UTC()
@@ -103,10 +104,10 @@ func (s *Service) Resolve(
 		},
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return Rate{}, ErrRateNotFound
+		return Rate{}, apperror.NewNotFound("carrier rate not found")
 	}
 	if err != nil {
-		return Rate{}, fmt.Errorf("resolve carrier rate: %w", err)
+		return Rate{}, apperror.NewInternal("resolve carrier rate", err)
 	}
 
 	return rateFromRow(row), nil

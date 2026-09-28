@@ -1,7 +1,6 @@
 package plans
 
 import (
-	"errors"
 	"net/http"
 
 	"github.com/coffeyvidzro/monogo/pkg/apperror"
@@ -26,7 +25,7 @@ func (h *Handler) List(
 ) {
 	items, err := h.service.List(r.Context())
 	if err != nil {
-		httputil.Error(w, planHTTPError(err))
+		httputil.Error(w, err)
 		return
 	}
 
@@ -53,22 +52,9 @@ func (h *Handler) Get(
 		id,
 	)
 	if err != nil {
-		httputil.Error(w, planHTTPError(err))
+		httputil.Error(w, err)
 		return
 	}
 
 	httputil.OK(w, item)
-}
-
-func planHTTPError(err error) error {
-	switch {
-	case errors.Is(err, ErrInvalidInput):
-		return apperror.NewBadRequest(err.Error())
-	case errors.Is(err, ErrNotFound):
-		return apperror.NewNotFound("plan not found")
-	case errors.Is(err, ErrConflict):
-		return apperror.NewConflict("plan conflict")
-	default:
-		return apperror.NewInternal("commercial plan operation failed", err)
-	}
 }
