@@ -94,18 +94,18 @@ func validateHealthObservation(observation HealthObservation, now time.Time) err
 func (i *SnapshotIngestor) IngestRate(
 	ctx context.Context,
 	observation RateObservation,
-) (sqlc.CarrierRate, error) {
+) (sqlc.ProviderRate, error) {
 	if i == nil || i.queries == nil {
-		return sqlc.CarrierRate{}, fmt.Errorf("routing snapshot storage is unavailable")
+		return sqlc.ProviderRate{}, fmt.Errorf("routing snapshot storage is unavailable")
 	}
 	if err := validateRateObservation(observation); err != nil {
-		return sqlc.CarrierRate{}, err
+		return sqlc.ProviderRate{}, err
 	}
 	expiresAt := pgtype.Timestamptz{}
 	if observation.ExpiresAt != nil {
 		expiresAt = pgconv.TimeToTimestamptz(*observation.ExpiresAt)
 	}
-	return i.queries.CreateCarrierRate(ctx, sqlc.CreateCarrierRateParams{
+	return i.queries.CreateProviderRate(ctx, sqlc.CreateProviderRateParams{
 		CarrierConnectionID: observation.CarrierConnectionID,
 		DestinationPrefix:   observation.DestinationPrefix,
 		RateMicros:          observation.RateMicros,

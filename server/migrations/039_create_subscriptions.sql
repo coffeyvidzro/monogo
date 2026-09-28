@@ -1,5 +1,5 @@
--- Subscription plans model recurring platform access separately from prepaid
--- usage charging. Usage rates remain a pricing concern and are not stored here.
+-- Subscription plans are the monthly platform fee and are separate from
+-- prepaid managed-carrier usage.
 
 CREATE TABLE subscription_plans (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -30,8 +30,6 @@ CREATE TRIGGER set_subscription_plans_updated_at
 BEFORE UPDATE ON subscription_plans
 FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
--- Price and currency are snapshotted on the subscription so changing a plan
--- later cannot silently rewrite an organization's existing commercial terms.
 CREATE TABLE subscriptions (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE RESTRICT,

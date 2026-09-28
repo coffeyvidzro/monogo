@@ -1,6 +1,7 @@
--- Rates use the platform billing currency and integer micros so route choices
--- are reproducible and never depend on floating-point money arithmetic.
-CREATE TABLE carrier_rates (
+-- Provider rates are upstream carrier prices used by managed routing and
+-- wholesale cost estimation. They are separate from customer-facing
+-- carrier_rates.
+CREATE TABLE provider_rates (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     carrier_connection_id UUID NOT NULL REFERENCES carrier_connections(id) ON DELETE CASCADE,
     destination_prefix TEXT NOT NULL,
@@ -16,8 +17,8 @@ CREATE TABLE carrier_rates (
     UNIQUE (carrier_connection_id, destination_prefix, effective_at)
 );
 
-CREATE INDEX idx_carrier_rates_lookup
-    ON carrier_rates (carrier_connection_id, destination_prefix, effective_at DESC);
+CREATE INDEX idx_provider_rates_lookup
+    ON provider_rates (carrier_connection_id, destination_prefix, effective_at DESC);
 
 -- Collectors upsert one current aggregate per endpoint. Basis points represent
 -- percentages from 0.00% through 100.00%; durations remain integer millis.

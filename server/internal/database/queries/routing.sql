@@ -1,19 +1,27 @@
--- name: CreateCarrierRate :one
-INSERT INTO carrier_rates (
+-- name: CreateProviderRate :one
+INSERT INTO provider_rates (
     carrier_connection_id,
     destination_prefix,
     rate_micros,
     billing_currency,
     effective_at,
     expires_at
-) VALUES (
-    sqlc.arg(carrier_connection_id),
+)
+SELECT
+    cc.id,
     sqlc.arg(destination_prefix),
     sqlc.arg(rate_micros),
     sqlc.arg(billing_currency),
     sqlc.arg(effective_at),
     sqlc.narg(expires_at)
-)
+FROM carrier_connections AS cc
+JOIN carrier_providers AS cp
+  ON cp.id = cc.provider_id
+WHERE cc.id = sqlc.arg(carrier_connection_id)
+  AND cc.scope = 'platform'
+  AND cc.organization_id IS NULL
+  AND cc.status = 'active'
+  AND cp.status = 'active'
 RETURNING *;
 
 -- name: UpsertCarrierRouteMetrics :one
@@ -65,11 +73,12 @@ SELECT
     metrics.observed_at
 FROM trunks AS t
 JOIN carrier_connections AS cc ON cc.id = t.carrier_connection_id
+JOIN carrier_providers AS cp ON cp.id = cc.provider_id
 JOIN trunk_endpoints AS te ON te.trunk_id = t.id
 JOIN carrier_route_metrics AS metrics ON metrics.trunk_endpoint_id = te.id
 JOIN LATERAL (
     SELECT cr.rate_micros
-    FROM carrier_rates AS cr
+    FROM provider_rates AS cr
     WHERE cr.carrier_connection_id = cc.id
       AND cr.billing_currency = 'USD'
       AND sqlc.arg(destination_digits)::TEXT LIKE cr.destination_prefix || '%'
@@ -85,6 +94,7 @@ WHERE t.organization_id IS NULL
   AND cc.scope = 'platform'
   AND cc.organization_id IS NULL
   AND cc.status = 'active'
+  AND cp.status = 'active'
   AND te.organization_id IS NULL
   AND te.enabled = true
   AND te.direction IN ('outbound', 'bidirectional');
