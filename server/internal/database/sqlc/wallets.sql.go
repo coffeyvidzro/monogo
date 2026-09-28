@@ -17,8 +17,7 @@ UPDATE wallets AS w
 SET
     status = 'active',
     updated_at = NOW()
-WHERE w.id = $1
-  AND w.organization_id = $2
+WHERE w.organization_id = $1
   AND w.status = 'frozen'
   AND EXISTS (
       SELECT 1
@@ -30,13 +29,8 @@ WHERE w.id = $1
 RETURNING w.id, w.organization_id, w.currency, w.status, w.balance_micros, w.created_at, w.updated_at
 `
 
-type ActivateWalletParams struct {
-	ID             uuid.UUID `db:"id" json:"id"`
-	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
-}
-
-func (q *Queries) ActivateWallet(ctx context.Context, arg ActivateWalletParams) (Wallet, error) {
-	row := q.db.QueryRow(ctx, activateWallet, arg.ID, arg.OrganizationID)
+func (q *Queries) ActivateWallet(ctx context.Context, organizationID uuid.UUID) (Wallet, error) {
+	row := q.db.QueryRow(ctx, activateWallet, organizationID)
 	var i Wallet
 	err := row.Scan(
 		&i.ID,
@@ -55,8 +49,7 @@ UPDATE wallets AS w
 SET
     balance_micros = w.balance_micros + $1,
     updated_at = NOW()
-WHERE w.id = $2
-  AND w.organization_id = $3
+WHERE w.organization_id = $2
   AND w.status = 'active'
   AND w.balance_micros + $1 >= 0
   AND EXISTS (
@@ -71,12 +64,11 @@ RETURNING w.id, w.organization_id, w.currency, w.status, w.balance_micros, w.cre
 
 type ApplyWalletBalanceParams struct {
 	DeltaMicros    int64     `db:"delta_micros" json:"delta_micros"`
-	ID             uuid.UUID `db:"id" json:"id"`
 	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
 }
 
 func (q *Queries) ApplyWalletBalance(ctx context.Context, arg ApplyWalletBalanceParams) (Wallet, error) {
-	row := q.db.QueryRow(ctx, applyWalletBalance, arg.DeltaMicros, arg.ID, arg.OrganizationID)
+	row := q.db.QueryRow(ctx, applyWalletBalance, arg.DeltaMicros, arg.OrganizationID)
 	var i Wallet
 	err := row.Scan(
 		&i.ID,
@@ -95,20 +87,14 @@ UPDATE wallets
 SET
     status = 'closed',
     updated_at = NOW()
-WHERE id = $1
-  AND organization_id = $2
+WHERE organization_id = $1
   AND status IN ('active', 'frozen')
   AND balance_micros = 0
 RETURNING id, organization_id, currency, status, balance_micros, created_at, updated_at
 `
 
-type CloseWalletParams struct {
-	ID             uuid.UUID `db:"id" json:"id"`
-	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
-}
-
-func (q *Queries) CloseWallet(ctx context.Context, arg CloseWalletParams) (Wallet, error) {
-	row := q.db.QueryRow(ctx, closeWallet, arg.ID, arg.OrganizationID)
+func (q *Queries) CloseWallet(ctx context.Context, organizationID uuid.UUID) (Wallet, error) {
+	row := q.db.QueryRow(ctx, closeWallet, organizationID)
 	var i Wallet
 	err := row.Scan(
 		&i.ID,
@@ -124,27 +110,20 @@ func (q *Queries) CloseWallet(ctx context.Context, arg CloseWalletParams) (Walle
 
 const createWallet = `-- name: CreateWallet :one
 INSERT INTO wallets (
-    organization_id,
-    currency
+    organization_id
 )
 SELECT
-    o.id,
-    $1
+    o.id
 FROM organizations AS o
-WHERE o.id = $2
+WHERE o.id = $1
   AND o.status = 'active'
   AND o.deleted_at IS NULL
-ON CONFLICT (organization_id, currency) DO NOTHING
+ON CONFLICT (organization_id) DO NOTHING
 RETURNING id, organization_id, currency, status, balance_micros, created_at, updated_at
 `
 
-type CreateWalletParams struct {
-	Currency       string    `db:"currency" json:"currency"`
-	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
-}
-
-func (q *Queries) CreateWallet(ctx context.Context, arg CreateWalletParams) (Wallet, error) {
-	row := q.db.QueryRow(ctx, createWallet, arg.Currency, arg.OrganizationID)
+func (q *Queries) CreateWallet(ctx context.Context, organizationID uuid.UUID) (Wallet, error) {
+	row := q.db.QueryRow(ctx, createWallet, organizationID)
 	var i Wallet
 	err := row.Scan(
 		&i.ID,
@@ -185,8 +164,7 @@ SELECT
 FROM wallets AS w
 JOIN organizations AS o
   ON o.id = w.organization_id
-WHERE w.id = $9
-  AND w.organization_id = $10
+WHERE w.organization_id = $9
   AND w.status = 'active'
   AND w.balance_micros = $5
   AND o.status = 'active'
@@ -203,7 +181,6 @@ type CreateWalletLedgerEntryParams struct {
 	ReferenceType      *string            `db:"reference_type" json:"reference_type"`
 	ReferenceID        *uuid.UUID         `db:"reference_id" json:"reference_id"`
 	OccurredAt         pgtype.Timestamptz `db:"occurred_at" json:"occurred_at"`
-	WalletID           uuid.UUID          `db:"wallet_id" json:"wallet_id"`
 	OrganizationID     uuid.UUID          `db:"organization_id" json:"organization_id"`
 }
 
@@ -217,7 +194,6 @@ func (q *Queries) CreateWalletLedgerEntry(ctx context.Context, arg CreateWalletL
 		arg.ReferenceType,
 		arg.ReferenceID,
 		arg.OccurredAt,
-		arg.WalletID,
 		arg.OrganizationID,
 	)
 	var i WalletLedgerEntry
@@ -243,19 +219,13 @@ UPDATE wallets
 SET
     status = 'frozen',
     updated_at = NOW()
-WHERE id = $1
-  AND organization_id = $2
+WHERE organization_id = $1
   AND status = 'active'
 RETURNING id, organization_id, currency, status, balance_micros, created_at, updated_at
 `
 
-type FreezeWalletParams struct {
-	ID             uuid.UUID `db:"id" json:"id"`
-	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
-}
-
-func (q *Queries) FreezeWallet(ctx context.Context, arg FreezeWalletParams) (Wallet, error) {
-	row := q.db.QueryRow(ctx, freezeWallet, arg.ID, arg.OrganizationID)
+func (q *Queries) FreezeWallet(ctx context.Context, organizationID uuid.UUID) (Wallet, error) {
+	row := q.db.QueryRow(ctx, freezeWallet, organizationID)
 	var i Wallet
 	err := row.Scan(
 		&i.ID,
@@ -269,59 +239,20 @@ func (q *Queries) FreezeWallet(ctx context.Context, arg FreezeWalletParams) (Wal
 	return i, err
 }
 
-const getActiveWalletByID = `-- name: GetActiveWalletByID :one
-SELECT w.id, w.organization_id, w.currency, w.status, w.balance_micros, w.created_at, w.updated_at
-FROM wallets AS w
-JOIN organizations AS o
-  ON o.id = w.organization_id
-WHERE w.id = $1
-  AND w.organization_id = $2
-  AND w.status = 'active'
-  AND o.status = 'active'
-  AND o.deleted_at IS NULL
-LIMIT 1
-`
-
-type GetActiveWalletByIDParams struct {
-	ID             uuid.UUID `db:"id" json:"id"`
-	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
-}
-
-func (q *Queries) GetActiveWalletByID(ctx context.Context, arg GetActiveWalletByIDParams) (Wallet, error) {
-	row := q.db.QueryRow(ctx, getActiveWalletByID, arg.ID, arg.OrganizationID)
-	var i Wallet
-	err := row.Scan(
-		&i.ID,
-		&i.OrganizationID,
-		&i.Currency,
-		&i.Status,
-		&i.BalanceMicros,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-	)
-	return i, err
-}
-
-const getActiveWalletByOrganizationCurrency = `-- name: GetActiveWalletByOrganizationCurrency :one
+const getActiveWalletByOrganization = `-- name: GetActiveWalletByOrganization :one
 SELECT w.id, w.organization_id, w.currency, w.status, w.balance_micros, w.created_at, w.updated_at
 FROM wallets AS w
 JOIN organizations AS o
   ON o.id = w.organization_id
 WHERE w.organization_id = $1
-  AND w.currency = $2
   AND w.status = 'active'
   AND o.status = 'active'
   AND o.deleted_at IS NULL
 LIMIT 1
 `
 
-type GetActiveWalletByOrganizationCurrencyParams struct {
-	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
-	Currency       string    `db:"currency" json:"currency"`
-}
-
-func (q *Queries) GetActiveWalletByOrganizationCurrency(ctx context.Context, arg GetActiveWalletByOrganizationCurrencyParams) (Wallet, error) {
-	row := q.db.QueryRow(ctx, getActiveWalletByOrganizationCurrency, arg.OrganizationID, arg.Currency)
+func (q *Queries) GetActiveWalletByOrganization(ctx context.Context, organizationID uuid.UUID) (Wallet, error) {
+	row := q.db.QueryRow(ctx, getActiveWalletByOrganization, organizationID)
 	var i Wallet
 	err := row.Scan(
 		&i.ID,
@@ -339,19 +270,17 @@ const getWalletLedgerEntryByOperationID = `-- name: GetWalletLedgerEntryByOperat
 SELECT id, wallet_id, organization_id, operation_id, direction, reason, amount_micros, balance_after_micros, reference_type, reference_id, occurred_at, created_at
 FROM wallet_ledger_entries
 WHERE organization_id = $1
-  AND wallet_id = $2
-  AND operation_id = $3
+  AND operation_id = $2
 LIMIT 1
 `
 
 type GetWalletLedgerEntryByOperationIDParams struct {
 	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
-	WalletID       uuid.UUID `db:"wallet_id" json:"wallet_id"`
 	OperationID    uuid.UUID `db:"operation_id" json:"operation_id"`
 }
 
 func (q *Queries) GetWalletLedgerEntryByOperationID(ctx context.Context, arg GetWalletLedgerEntryByOperationIDParams) (WalletLedgerEntry, error) {
-	row := q.db.QueryRow(ctx, getWalletLedgerEntryByOperationID, arg.OrganizationID, arg.WalletID, arg.OperationID)
+	row := q.db.QueryRow(ctx, getWalletLedgerEntryByOperationID, arg.OrganizationID, arg.OperationID)
 	var i WalletLedgerEntry
 	err := row.Scan(
 		&i.ID,
@@ -374,26 +303,19 @@ const listWalletLedgerEntries = `-- name: ListWalletLedgerEntries :many
 SELECT id, wallet_id, organization_id, operation_id, direction, reason, amount_micros, balance_after_micros, reference_type, reference_id, occurred_at, created_at
 FROM wallet_ledger_entries
 WHERE organization_id = $1
-  AND wallet_id = $2
 ORDER BY occurred_at DESC, id DESC
-LIMIT $4
-OFFSET $3
+LIMIT $3
+OFFSET $2
 `
 
 type ListWalletLedgerEntriesParams struct {
 	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
-	WalletID       uuid.UUID `db:"wallet_id" json:"wallet_id"`
 	OffsetCount    int32     `db:"offset_count" json:"offset_count"`
 	LimitCount     int32     `db:"limit_count" json:"limit_count"`
 }
 
 func (q *Queries) ListWalletLedgerEntries(ctx context.Context, arg ListWalletLedgerEntriesParams) ([]WalletLedgerEntry, error) {
-	rows, err := q.db.Query(ctx, listWalletLedgerEntries,
-		arg.OrganizationID,
-		arg.WalletID,
-		arg.OffsetCount,
-		arg.LimitCount,
-	)
+	rows, err := q.db.Query(ctx, listWalletLedgerEntries, arg.OrganizationID, arg.OffsetCount, arg.LimitCount)
 	if err != nil {
 		return nil, err
 	}
@@ -430,21 +352,15 @@ SELECT w.id, w.organization_id, w.currency, w.status, w.balance_micros, w.create
 FROM wallets AS w
 JOIN organizations AS o
   ON o.id = w.organization_id
-WHERE w.id = $1
-  AND w.organization_id = $2
+WHERE w.organization_id = $1
   AND w.status = 'active'
   AND o.status = 'active'
   AND o.deleted_at IS NULL
 FOR UPDATE OF w
 `
 
-type LockActiveWalletParams struct {
-	ID             uuid.UUID `db:"id" json:"id"`
-	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
-}
-
-func (q *Queries) LockActiveWallet(ctx context.Context, arg LockActiveWalletParams) (Wallet, error) {
-	row := q.db.QueryRow(ctx, lockActiveWallet, arg.ID, arg.OrganizationID)
+func (q *Queries) LockActiveWallet(ctx context.Context, organizationID uuid.UUID) (Wallet, error) {
+	row := q.db.QueryRow(ctx, lockActiveWallet, organizationID)
 	var i Wallet
 	err := row.Scan(
 		&i.ID,
