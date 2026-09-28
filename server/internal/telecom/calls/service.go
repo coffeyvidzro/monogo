@@ -94,6 +94,12 @@ func (s *Service) Create(ctx context.Context, organizationID uuid.UUID, req Crea
 	if err != nil {
 		return sqlc.Call{}, err
 	}
+	if err := s.subscriptions.RequireActive(
+		ctx,
+		organizationID,
+	); err != nil {
+		return sqlc.Call{}, err
+	}
 
 	call, err := s.repo.Create(ctx, organizationID, req)
 	if err != nil {
@@ -246,13 +252,6 @@ func (s *Service) authorizeManagedOutbound(
 	callID uuid.UUID,
 	decision routing.OutboundDecision,
 ) (routing.OutboundDecision, error) {
-	if err := s.subscriptions.RequireActive(
-		ctx,
-		organizationID,
-	); err != nil {
-		return routing.OutboundDecision{}, err
-	}
-
 	rate, err := s.pricing.Resolve(
 		ctx,
 		pricing.ResolveRequest{
@@ -396,6 +395,17 @@ func (s *Service) AdmitInbound(
 			ctx,
 			req.ChannelID,
 			apperror.NewInternal("lookup inbound SIP call", err),
+		)
+	}
+
+	if err := s.subscriptions.RequireActive(
+		ctx,
+		req.OrganizationID,
+	); err != nil {
+		return sqlc.Call{}, s.rejectInbound(
+			ctx,
+			req.ChannelID,
+			err,
 		)
 	}
 

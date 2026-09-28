@@ -7,6 +7,9 @@ focus is **Cloud + BYOC** (customers connect their own SIP carrier) and
 The first supported production path is Cloud + BYOC. See the
 [Cloud + BYOC operations guide](docs/cloud-byoc.md) for provisioning, network,
 authentication, health-check, and acceptance-test procedures.
+Platform subscriptions, BYOC entitlement, and prepaid managed-carrier usage
+are separate commercial concerns. See the [billing model](docs/billing.md) for
+the access rules.
 Recording deployment, retries, playback, deletion, and recovery are covered in
 the [recording storage guide](docs/recording-storage.md).
 The provider-neutral package boundaries for live AI audio are documented in
