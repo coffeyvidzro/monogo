@@ -51,8 +51,9 @@ type OutboundRoute struct {
 }
 
 type OutboundDecision struct {
-	ID     uuid.UUID
-	Routes []OutboundRoute
+	ID                uuid.UUID
+	DestinationDigits string
+	Routes            []OutboundRoute
 }
 
 func (d OutboundDecision) Primary() (OutboundRoute, bool) {

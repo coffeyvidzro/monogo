@@ -16,6 +16,10 @@ const (
 
 	DirectionCredit = "credit"
 	DirectionDebit  = "debit"
+
+	HoldStatusActive   = "active"
+	HoldStatusCaptured = "captured"
+	HoldStatusReleased = "released"
 )
 
 var (
@@ -27,13 +31,31 @@ var (
 )
 
 type Wallet struct {
-	ID             uuid.UUID `json:"id"`
-	OrganizationID uuid.UUID `json:"organization_id"`
-	Currency       string    `json:"currency"`
-	Status         string    `json:"status"`
-	BalanceMicros  int64     `json:"balance_micros"`
-	CreatedAt      time.Time `json:"created_at"`
-	UpdatedAt      time.Time `json:"updated_at"`
+	ID              uuid.UUID `json:"id"`
+	OrganizationID  uuid.UUID `json:"organization_id"`
+	Currency        string    `json:"currency"`
+	Status          string    `json:"status"`
+	BalanceMicros   int64     `json:"balance_micros"`
+	ReservedMicros  int64     `json:"reserved_micros"`
+	AvailableMicros int64     `json:"available_micros"`
+	CreatedAt       time.Time `json:"created_at"`
+	UpdatedAt       time.Time `json:"updated_at"`
+}
+
+type Hold struct {
+	ID             uuid.UUID
+	WalletID       uuid.UUID
+	OrganizationID uuid.UUID
+	OperationID    uuid.UUID
+	AmountMicros   int64
+	Reason         string
+	ReferenceType  *string
+	ReferenceID    *uuid.UUID
+	Status         string
+	CapturedAt     *time.Time
+	ReleasedAt     *time.Time
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
 }
 
 type LedgerEntry struct {
@@ -63,6 +85,15 @@ type MovementRequest struct {
 	ReferenceType  *string
 	ReferenceID    *uuid.UUID
 	OccurredAt     time.Time
+}
+
+type HoldRequest struct {
+	OrganizationID uuid.UUID
+	OperationID    uuid.UUID
+	AmountMicros   int64
+	Reason         string
+	ReferenceType  *string
+	ReferenceID    *uuid.UUID
 }
 
 type ListLedgerRequest struct {

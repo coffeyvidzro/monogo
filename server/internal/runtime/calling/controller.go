@@ -35,6 +35,7 @@ type OriginateRequest struct {
 	Privacy             bool
 	DTMFMode            string
 	MediaEncryption     string
+	MaxDurationSeconds  int32
 }
 
 type OriginateResult struct {
@@ -120,10 +121,21 @@ func egressVariables(req OriginateRequest, routeURI string) (map[string]string, 
 		return nil, fmt.Errorf("resolved carrier connection id is required")
 	}
 
+	if req.MaxDurationSeconds < 0 {
+		return nil, fmt.Errorf("maximum duration cannot be negative")
+	}
+
 	variables := map[string]string{
 		leamoutCallIDVar:           req.CallID.String(),
 		routeURIHeaderVar:          routeURI,
 		carrierConnectionHeaderVar: req.CarrierConnectionID.String(),
+	}
+
+	if req.MaxDurationSeconds > 0 {
+		variables["execute_on_answer"] = fmt.Sprintf(
+			"sched_hangup +%d ALLOTTED_TIMEOUT",
+			req.MaxDurationSeconds,
+		)
 	}
 
 	if req.Privacy {

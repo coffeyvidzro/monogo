@@ -54,6 +54,16 @@ func (r *Repository) LockActive(
 	)
 }
 
+func (r *Repository) LockForSettlement(
+	ctx context.Context,
+	organizationID uuid.UUID,
+) (sqlc.Wallet, error) {
+	return r.queries.LockWalletForSettlement(
+		ctx,
+		organizationID,
+	)
+}
+
 func (r *Repository) ApplyBalance(
 	ctx context.Context,
 	organizationID uuid.UUID,
@@ -65,6 +75,112 @@ func (r *Repository) ApplyBalance(
 	}
 
 	return r.queries.ApplyWalletBalance(
+		ctx,
+		params,
+	)
+}
+
+func (r *Repository) ReserveBalance(
+	ctx context.Context,
+	organizationID uuid.UUID,
+	amountMicros int64,
+) (sqlc.Wallet, error) {
+	params := sqlc.ReserveWalletBalanceParams{
+		AmountMicros:   amountMicros,
+		OrganizationID: organizationID,
+	}
+
+	return r.queries.ReserveWalletBalance(
+		ctx,
+		params,
+	)
+}
+
+func (r *Repository) CaptureReservedBalance(
+	ctx context.Context,
+	organizationID uuid.UUID,
+	amountMicros int64,
+) (sqlc.Wallet, error) {
+	params := sqlc.CaptureWalletReservedBalanceParams{
+		AmountMicros:   amountMicros,
+		OrganizationID: organizationID,
+	}
+
+	return r.queries.CaptureWalletReservedBalance(
+		ctx,
+		params,
+	)
+}
+
+func (r *Repository) ReleaseReservedBalance(
+	ctx context.Context,
+	organizationID uuid.UUID,
+	amountMicros int64,
+) (sqlc.Wallet, error) {
+	params := sqlc.ReleaseWalletReservedBalanceParams{
+		AmountMicros:   amountMicros,
+		OrganizationID: organizationID,
+	}
+
+	return r.queries.ReleaseWalletReservedBalance(
+		ctx,
+		params,
+	)
+}
+
+func (r *Repository) CreateHold(
+	ctx context.Context,
+	params sqlc.CreateWalletHoldParams,
+) (sqlc.WalletHold, error) {
+	return r.queries.CreateWalletHold(
+		ctx,
+		params,
+	)
+}
+
+func (r *Repository) GetHoldByOperation(
+	ctx context.Context,
+	organizationID uuid.UUID,
+	operationID uuid.UUID,
+) (sqlc.WalletHold, error) {
+	params := sqlc.GetWalletHoldByOperationIDParams{
+		OrganizationID: organizationID,
+		OperationID:    operationID,
+	}
+
+	return r.queries.GetWalletHoldByOperationID(
+		ctx,
+		params,
+	)
+}
+
+func (r *Repository) MarkHoldCaptured(
+	ctx context.Context,
+	organizationID uuid.UUID,
+	operationID uuid.UUID,
+) (sqlc.WalletHold, error) {
+	params := sqlc.MarkWalletHoldCapturedParams{
+		OrganizationID: organizationID,
+		OperationID:    operationID,
+	}
+
+	return r.queries.MarkWalletHoldCaptured(
+		ctx,
+		params,
+	)
+}
+
+func (r *Repository) MarkHoldReleased(
+	ctx context.Context,
+	organizationID uuid.UUID,
+	operationID uuid.UUID,
+) (sqlc.WalletHold, error) {
+	params := sqlc.MarkWalletHoldReleasedParams{
+		OrganizationID: organizationID,
+		OperationID:    operationID,
+	}
+
+	return r.queries.MarkWalletHoldReleased(
 		ctx,
 		params,
 	)

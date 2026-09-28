@@ -42,6 +42,7 @@ LIMIT 1;
 SELECT
     organization_id,
     carrier_connection_id,
+    routing_decision_id,
     direction,
     state,
     media_state

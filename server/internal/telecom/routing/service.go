@@ -113,5 +113,9 @@ func (s *Service) ResolveOutbound(
 	if err != nil {
 		return OutboundDecision{}, apperror.NewInternal("record managed routing decision", err)
 	}
-	return OutboundDecision{ID: decisionID, Routes: routes}, nil
+	return OutboundDecision{
+		ID:                decisionID,
+		DestinationDigits: digits,
+		Routes:            routes,
+	}, nil
 }

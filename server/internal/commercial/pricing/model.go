@@ -24,7 +24,7 @@ type Rate struct {
 	DestinationPrefix string     `json:"destination_prefix"`
 	Direction         string     `json:"direction"`
 	Currency          string     `json:"currency"`
-	RateMicros        int64      `json:"rate_micros"`
+	RateMicros        int64      `json:"rate_micros"` // USD micros per started 60-second managed voice minute.
 	EffectiveAt       time.Time  `json:"effective_at"`
 	ExpiresAt         *time.Time `json:"expires_at,omitempty"`
 	CreatedAt         time.Time  `json:"created_at"`

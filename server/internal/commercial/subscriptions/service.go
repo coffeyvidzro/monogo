@@ -124,6 +124,51 @@ func (s *Service) Current(
 	return subscriptionFromRow(row), nil
 }
 
+func (s *Service) RequireActive(
+	ctx context.Context,
+	organizationID uuid.UUID,
+) error {
+	if organizationID == uuid.Nil {
+		return apperror.NewBadRequest("organization id is required")
+	}
+
+	row, err := s.repo.GetCurrent(
+		ctx,
+		organizationID,
+	)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return apperror.NewPaymentRequired("active subscription required")
+	}
+	if err != nil {
+		return apperror.NewInternal("check subscription entitlement", err)
+	}
+
+	subscription := subscriptionFromRow(row)
+	if !subscriptionActiveAt(
+		subscription,
+		s.now().UTC(),
+	) {
+		return apperror.NewPaymentRequired("active subscription required")
+	}
+
+	return nil
+}
+
+func subscriptionActiveAt(
+	subscription Subscription,
+	at time.Time,
+) bool {
+	if subscription.Status != StatusActive {
+		return false
+	}
+	if subscription.CurrentPeriodStart == nil || subscription.CurrentPeriodEnd == nil {
+		return false
+	}
+
+	return !at.Before(*subscription.CurrentPeriodStart) &&
+		at.Before(*subscription.CurrentPeriodEnd)
+}
+
 func (s *Service) Activate(
 	ctx context.Context,
 	req ActivateRequest,
