@@ -126,7 +126,6 @@ func (s *Service) Create(ctx context.Context, organizationID uuid.UUID, req Crea
 			ctx,
 			organizationID,
 			call.ID,
-			req.ToURI,
 			decision,
 		)
 		if err != nil {
@@ -245,7 +244,6 @@ func (s *Service) authorizeManagedOutbound(
 	ctx context.Context,
 	organizationID uuid.UUID,
 	callID uuid.UUID,
-	destination string,
 	decision routing.OutboundDecision,
 ) (routing.OutboundDecision, error) {
 	if err := s.subscriptions.RequireActive(
@@ -259,7 +257,7 @@ func (s *Service) authorizeManagedOutbound(
 		ctx,
 		pricing.ResolveRequest{
 			OrganizationID:    organizationID,
-			DestinationDigits: destination,
+			DestinationDigits: decision.DestinationDigits,
 			Direction:         pricing.DirectionOutbound,
 			Currency:          wallets.CurrencyUSD,
 		},
