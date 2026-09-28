@@ -841,6 +841,23 @@ type Wallet struct {
 	Currency       string             `db:"currency" json:"currency"`
 	Status         string             `db:"status" json:"status"`
 	BalanceMicros  int64              `db:"balance_micros" json:"balance_micros"`
+	ReservedMicros int64              `db:"reserved_micros" json:"reserved_micros"`
+	CreatedAt      pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	UpdatedAt      pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+}
+
+type WalletHold struct {
+	ID             uuid.UUID          `db:"id" json:"id"`
+	WalletID       uuid.UUID          `db:"wallet_id" json:"wallet_id"`
+	OrganizationID uuid.UUID          `db:"organization_id" json:"organization_id"`
+	OperationID    uuid.UUID          `db:"operation_id" json:"operation_id"`
+	AmountMicros   int64              `db:"amount_micros" json:"amount_micros"`
+	Reason         string             `db:"reason" json:"reason"`
+	ReferenceType  *string            `db:"reference_type" json:"reference_type"`
+	ReferenceID    *uuid.UUID         `db:"reference_id" json:"reference_id"`
+	Status         string             `db:"status" json:"status"`
+	CapturedAt     pgtype.Timestamptz `db:"captured_at" json:"captured_at"`
+	ReleasedAt     pgtype.Timestamptz `db:"released_at" json:"released_at"`
 	CreatedAt      pgtype.Timestamptz `db:"created_at" json:"created_at"`
 	UpdatedAt      pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 }
