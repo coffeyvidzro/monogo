@@ -1,0 +1,13 @@
+package components
+
+import "fmt"
+
+templ Pagination(current int, total int, baseURL string) {
+	if total > 1 {
+		<nav class="join" aria-label="Pagination">
+			<a class="join-item btn" aria-label="Previous page" href={ templ.SafeURL(fmt.Sprintf("%s?page=%d", baseURL, max(1, current-1))) } disabled?={ current <= 1 }>«</a>
+			<span class="join-item btn">Page { fmt.Sprint(current) } of { fmt.Sprint(total) }</span>
+			<a class="join-item btn" aria-label="Next page" href={ templ.SafeURL(fmt.Sprintf("%s?page=%d", baseURL, min(total, current+1))) } disabled?={ current >= total }>»</a>
+		</nav>
+	}
+}

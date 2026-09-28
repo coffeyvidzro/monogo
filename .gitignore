@@ -1,1 +1,69 @@
+# Environment / secrets
+.env
+.env.*
+!.env.example
+
+# Generated TLS certificates
+deploy/*/certs/*.pem
+
+# Go build artifacts
 /bin/
+/dist/
+/build/
+*.o
+*.a
+*.so
+*.exe
+*.dll
+*.dylib
+*.test
+
+# Generated Templ sources
+*_templ.go
+*_templ.txt
+
+# Generated Backoffice assets
+server/internal/backoffice/assets/static/css/tailwindcss.css
+
+# Go profiling / coverage
+/coverage/
+*.out
+*.prof
+
+# Go workspace backups
+go.work
+go.work.sum
+go.mod.bak
+go.sum.bak
+
+# Dependencies
+node_modules/
+**/node_modules/
+
+# Temporary files
+/tmp/
+/tmp-*/
+*.tmp
+*.temp
+*.cache
+*.log
+
+# IDEs / editors
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Local databases
+*.db
+*.sqlite
+*.sqlite3
+
+# Python generated artifacts
+__pycache__/
+*.py[cod]

@@ -1,0 +1,32 @@
+package components
+
+
+templ Layout(title string, active string, content templ.Component) {
+	<!doctype html>
+	<html lang="en" data-theme="corporate">
+		<head>
+			<meta charset="utf-8"/>
+			<meta name="viewport" content="width=device-width, initial-scale=1"/>
+			<title>{ title } · Leamout Backoffice</title>
+			<link rel="icon" href="/favicon.ico"/>
+			<link rel="stylesheet" href="/static/css/tailwindcss.css"/>
+			<script defer src="/static/js/htmx.min.js"></script>
+			<script defer src="/static/js/hyperscript.min.js"></script>
+		</head>
+		<body class="min-h-screen bg-base-200 text-base-content">
+			<div class="drawer lg:drawer-open">
+				<input id="backoffice-drawer" type="checkbox" class="drawer-toggle"/>
+				<div class="drawer-content">
+					<header class="navbar border-b border-base-300 bg-base-100 px-4 lg:px-8">
+						<label for="backoffice-drawer" class="btn btn-square btn-ghost lg:hidden" aria-label="Open navigation">☰</label>
+						<div class="flex-1 font-semibold">Leamout Backoffice</div>
+						<button class="btn btn-ghost btn-sm" type="button" aria-label="Toggle color theme" _="on click if <html/>'s @data-theme is 'corporate' set <html/>'s @data-theme to 'business' then put 'Light theme' into me else set <html/>'s @data-theme to 'corporate' then put 'Dark theme' into me end">Dark theme</button>
+						<div class="badge badge-outline">:8081</div>
+					</header>
+					<main class="p-6 lg:p-8">@content</main>
+				</div>
+				@Navigation(active)
+			</div>
+		</body>
+	</html>
+}

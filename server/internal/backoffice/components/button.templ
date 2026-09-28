@@ -1,0 +1,32 @@
+// actions
+// https://daisyui.com/components/button
+package components
+
+type ButtonProps struct {
+	Type         string
+	Class        string
+	Disabled     bool
+	Loading      bool
+	LoadingClass string
+	Attrs        templ.Attributes
+}
+
+templ Button(props ButtonProps) {
+	<button
+		{ props.Attrs... }
+		if props.Type == "" {
+			type="button"
+		} else {
+			type={ props.Type }
+		}
+		class={ "btn", props.Class }
+		if props.Disabled {
+			disabled
+		}
+	>
+		if props.Loading {
+			<span class={ "loading loading-spinner", props.LoadingClass } aria-hidden="true"></span>
+		}
+		{ children... }
+	</button>
+}
