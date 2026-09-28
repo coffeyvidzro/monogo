@@ -6,7 +6,13 @@ import (
 	"github.com/coffeyvidzro/monogo/internal/commercial/wallets"
 	"github.com/coffeyvidzro/monogo/internal/commercial/wholesale"
 	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
+
+type Dependencies struct {
+	DB      *pgxpool.Pool
+	Queries *sqlc.Queries
+}
 
 type Module struct {
 	Wallets       WalletsModule
@@ -35,18 +41,27 @@ type WholesaleModule struct {
 	Service    *wholesale.Service
 }
 
-func New(queries *sqlc.Queries) *Module {
-	walletsRepository := wallets.NewRepository(queries)
-	walletsService := wallets.NewService(walletsRepository)
+func New(deps Dependencies) *Module {
+	walletsRepository := wallets.NewRepository(deps.Queries)
+	walletsService := wallets.NewService(
+		walletsRepository,
+		deps.DB,
+	)
 
-	subscriptionsRepository := subscriptions.NewRepository(queries)
-	subscriptionsService := subscriptions.NewService(subscriptionsRepository)
+	subscriptionsRepository := subscriptions.NewRepository(deps.Queries)
+	subscriptionsService := subscriptions.NewService(
+		subscriptionsRepository,
+	)
 
-	pricingRepository := pricing.NewRepository(queries)
-	pricingService := pricing.NewService(pricingRepository)
+	pricingRepository := pricing.NewRepository(deps.Queries)
+	pricingService := pricing.NewService(
+		pricingRepository,
+	)
 
-	wholesaleRepository := wholesale.NewRepository(queries)
-	wholesaleService := wholesale.NewService(wholesaleRepository)
+	wholesaleRepository := wholesale.NewRepository(deps.Queries)
+	wholesaleService := wholesale.NewService(
+		wholesaleRepository,
+	)
 
 	return &Module{
 		Wallets: WalletsModule{
