@@ -1,21 +1,21 @@
--- One prepaid wallet per organization and currency.
+-- One prepaid USD wallet per organization.
 -- Money uses integer micros: 1 USD = 1,000,000 micros.
 
 CREATE TABLE wallets (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE RESTRICT,
-    currency CHAR(3) NOT NULL,
+    currency CHAR(3) NOT NULL DEFAULT 'USD',
     status TEXT NOT NULL DEFAULT 'active',
     balance_micros BIGINT NOT NULL DEFAULT 0,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
 
-    CONSTRAINT uq_wallets_organization_currency
-        UNIQUE (organization_id, currency),
+    CONSTRAINT uq_wallets_organization
+        UNIQUE (organization_id),
     CONSTRAINT uq_wallets_id_organization
         UNIQUE (id, organization_id),
     CONSTRAINT chk_wallets_currency
-        CHECK (currency ~ '^[A-Z]{3}$'),
+        CHECK (currency = 'USD'),
     CONSTRAINT chk_wallets_status
         CHECK (status IN ('active', 'frozen', 'closed')),
     CONSTRAINT chk_wallets_balance_nonnegative
