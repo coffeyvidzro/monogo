@@ -18,6 +18,7 @@ const (
 )
 
 var (
+	ErrInvalidInput             = errors.New("invalid subscription input")
 	ErrPlanNotFound             = errors.New("subscription plan not found")
 	ErrPlanConflict             = errors.New("subscription plan conflict")
 	ErrSubscriptionNotFound     = errors.New("subscription not found")
