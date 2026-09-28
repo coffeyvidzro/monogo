@@ -65,7 +65,17 @@ type CreatePlanRequest struct {
 
 type SubscribeRequest struct {
 	OrganizationID uuid.UUID
-	PlanID         uuid.UUID
+	PlanID         uuid.UUID `json:"plan_id"`
+}
+
+type UpdateRequest struct {
+	CancelAtPeriodEnd *bool `json:"cancel_at_period_end"`
+}
+
+type ListRequest struct {
+	OrganizationID uuid.UUID
+	Limit          int32
+	Offset         int32
 }
 
 type ActivateRequest struct {

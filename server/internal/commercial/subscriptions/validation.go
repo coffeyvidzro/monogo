@@ -63,3 +63,28 @@ func validateActivateRequest(req ActivateRequest) error {
 
 	return nil
 }
+
+func validateUpdateRequest(req UpdateRequest) error {
+	if req.CancelAtPeriodEnd == nil {
+		return fmt.Errorf("%w: cancel_at_period_end is required", ErrInvalidInput)
+	}
+
+	return nil
+}
+
+func normalizeListRequest(req *ListRequest) error {
+	if req.OrganizationID == uuid.Nil {
+		return fmt.Errorf("%w: organization id is required", ErrInvalidInput)
+	}
+	if req.Offset < 0 {
+		return fmt.Errorf("%w: offset cannot be negative", ErrInvalidInput)
+	}
+	if req.Limit == 0 {
+		req.Limit = 50
+	}
+	if req.Limit < 1 || req.Limit > 100 {
+		return fmt.Errorf("%w: limit must be between 1 and 100", ErrInvalidInput)
+	}
+
+	return nil
+}

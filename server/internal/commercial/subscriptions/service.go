@@ -194,6 +194,33 @@ func (s *Service) Get(
 	return subscriptionFromRow(row), nil
 }
 
+func (s *Service) List(
+	ctx context.Context,
+	req ListRequest,
+) ([]Subscription, error) {
+	if err := normalizeListRequest(&req); err != nil {
+		return nil, err
+	}
+
+	rows, err := s.repo.List(
+		ctx,
+		req,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("list subscriptions: %w", err)
+	}
+
+	result := make([]Subscription, 0, len(rows))
+	for _, row := range rows {
+		result = append(
+			result,
+			subscriptionFromRow(row),
+		)
+	}
+
+	return result, nil
+}
+
 func (s *Service) Current(
 	ctx context.Context,
 	organizationID uuid.UUID,
@@ -263,21 +290,30 @@ func (s *Service) MarkPastDue(
 	return subscriptionFromRow(row), nil
 }
 
-func (s *Service) CancelAtPeriodEnd(
+func (s *Service) Update(
 	ctx context.Context,
 	organizationID uuid.UUID,
 	id uuid.UUID,
+	req UpdateRequest,
 ) (Subscription, error) {
-	row, err := s.repo.SetCancelAtPeriodEnd(
+	if organizationID == uuid.Nil || id == uuid.Nil {
+		return Subscription{}, ErrSubscriptionNotFound
+	}
+	if err := validateUpdateRequest(req); err != nil {
+		return Subscription{}, err
+	}
+
+	row, err := s.repo.UpdateCancelAtPeriodEnd(
 		ctx,
 		organizationID,
 		id,
+		*req.CancelAtPeriodEnd,
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Subscription{}, ErrSubscriptionInvalidState
 	}
 	if err != nil {
-		return Subscription{}, fmt.Errorf("schedule subscription cancellation: %w", err)
+		return Subscription{}, fmt.Errorf("update subscription: %w", err)
 	}
 
 	return subscriptionFromRow(row), nil

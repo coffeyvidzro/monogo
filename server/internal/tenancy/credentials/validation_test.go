@@ -13,6 +13,7 @@ func TestValidateScopesAcceptsAPIResourceScopes(t *testing.T) {
 		"voice-agents:write",
 		"wallets:read",
 		"subscriptions:read",
+		"subscriptions:write",
 		"pricing:read",
 	}
 	if err := ValidateScopes(scopes); err != nil {

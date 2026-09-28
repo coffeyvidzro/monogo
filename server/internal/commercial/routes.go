@@ -13,6 +13,7 @@ func RegisterRoutes(
 	router chi.Router,
 	module *Module,
 	organizationAccess func(string) func(http.Handler) http.Handler,
+	idempotency func(http.Handler) http.Handler,
 ) {
 	wallets.RegisterRoutes(
 		router,
@@ -24,6 +25,7 @@ func RegisterRoutes(
 		router,
 		module.Subscriptions.Handler,
 		organizationAccess("subscriptions"),
+		idempotency,
 	)
 
 	pricing.RegisterRoutes(

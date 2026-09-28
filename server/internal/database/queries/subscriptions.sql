@@ -77,6 +77,18 @@ WHERE s.id = sqlc.arg(id)
   AND o.deleted_at IS NULL
 LIMIT 1;
 
+-- name: ListSubscriptionsByOrganization :many
+SELECT s.*
+FROM subscriptions AS s
+JOIN organizations AS o
+  ON o.id = s.organization_id
+WHERE s.organization_id = sqlc.arg(organization_id)
+  AND o.status = 'active'
+  AND o.deleted_at IS NULL
+ORDER BY s.created_at DESC, s.id DESC
+LIMIT sqlc.arg(limit_count)
+OFFSET sqlc.arg(offset_count);
+
 -- name: GetCurrentSubscriptionByOrganization :one
 SELECT s.*
 FROM subscriptions AS s
@@ -119,15 +131,14 @@ WHERE id = sqlc.arg(id)
   AND status = 'active'
 RETURNING *;
 
--- name: SetSubscriptionCancelAtPeriodEnd :one
+-- name: UpdateSubscriptionCancelAtPeriodEnd :one
 UPDATE subscriptions
 SET
-    cancel_at_period_end = true,
+    cancel_at_period_end = sqlc.arg(cancel_at_period_end),
     updated_at = NOW()
 WHERE id = sqlc.arg(id)
   AND organization_id = sqlc.arg(organization_id)
   AND status IN ('active', 'past_due')
-  AND cancel_at_period_end = false
 RETURNING *;
 
 -- name: CancelSubscription :one

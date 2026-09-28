@@ -95,6 +95,22 @@ func (r *Repository) GetSubscription(
 	)
 }
 
+func (r *Repository) List(
+	ctx context.Context,
+	req ListRequest,
+) ([]sqlc.Subscription, error) {
+	params := sqlc.ListSubscriptionsByOrganizationParams{
+		OrganizationID: req.OrganizationID,
+		OffsetCount:    req.Offset,
+		LimitCount:     req.Limit,
+	}
+
+	return r.queries.ListSubscriptionsByOrganization(
+		ctx,
+		params,
+	)
+}
+
 func (r *Repository) GetCurrent(
 	ctx context.Context,
 	organizationID uuid.UUID,
@@ -131,17 +147,19 @@ func (r *Repository) MarkPastDue(
 	)
 }
 
-func (r *Repository) SetCancelAtPeriodEnd(
+func (r *Repository) UpdateCancelAtPeriodEnd(
 	ctx context.Context,
 	organizationID uuid.UUID,
 	id uuid.UUID,
+	cancelAtPeriodEnd bool,
 ) (sqlc.Subscription, error) {
-	params := sqlc.SetSubscriptionCancelAtPeriodEndParams{
-		ID:             id,
-		OrganizationID: organizationID,
+	params := sqlc.UpdateSubscriptionCancelAtPeriodEndParams{
+		CancelAtPeriodEnd: cancelAtPeriodEnd,
+		ID:                id,
+		OrganizationID:    organizationID,
 	}
 
-	return r.queries.SetSubscriptionCancelAtPeriodEnd(
+	return r.queries.UpdateSubscriptionCancelAtPeriodEnd(
 		ctx,
 		params,
 	)

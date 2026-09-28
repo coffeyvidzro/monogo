@@ -43,6 +43,7 @@ const (
 	ScopeRealtimeWrite          Scope = "realtime:write"
 	ScopeWalletsRead            Scope = "wallets:read"
 	ScopeSubscriptionsRead      Scope = "subscriptions:read"
+	ScopeSubscriptionsWrite     Scope = "subscriptions:write"
 	ScopePricingRead            Scope = "pricing:read"
 )
 
@@ -69,6 +70,7 @@ func (s Scope) IsValid() bool {
 		ScopeRealtimeRead, ScopeRealtimeWrite,
 		ScopeWalletsRead,
 		ScopeSubscriptionsRead,
+		ScopeSubscriptionsWrite,
 		ScopePricingRead:
 		return true
 	default:

@@ -66,7 +66,12 @@ func newRouter(cfg config.Config, logger *logging.Logger, modules *modules) *chi
 		)
 		platform.RegisterRoutes(r, modules.platform, organizationAccess)
 		ai.RegisterRoutes(r, modules.ai, organizationAccess)
-		commercial.RegisterRoutes(r, modules.commercial, organizationAccess)
+		commercial.RegisterRoutes(
+			r,
+			modules.commercial,
+			organizationAccess,
+			modules.platform.Idempotency.Middleware.Handle,
+		)
 		telecom.RegisterRoutes(
 			r,
 			modules.telecom,
