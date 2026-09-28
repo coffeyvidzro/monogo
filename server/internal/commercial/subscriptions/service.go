@@ -3,12 +3,11 @@ package subscriptions
 import (
 	"context"
 	"errors"
-	"fmt"
-	"strings"
 	"time"
 
 	"github.com/coffeyvidzro/monogo/internal/database/pgconv"
 	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
+	"github.com/coffeyvidzro/monogo/pkg/apperror"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -26,130 +25,12 @@ func NewService(repo *Repository) *Service {
 	}
 }
 
-func (s *Service) CreatePlan(
-	ctx context.Context,
-	req CreatePlanRequest,
-) (Plan, error) {
-	if err := normalizeCreatePlanRequest(&req); err != nil {
-		return Plan{}, err
-	}
-
-	row, err := s.repo.CreatePlan(
-		ctx,
-		sqlc.CreateSubscriptionPlanParams{
-			Code:         req.Code,
-			Name:         req.Name,
-			Currency:     req.Currency,
-			AmountMicros: req.AmountMicros,
-		},
-	)
-	if isUniqueViolation(err) {
-		return Plan{}, ErrPlanConflict
-	}
-	if err != nil {
-		return Plan{}, fmt.Errorf("create subscription plan: %w", err)
-	}
-
-	return planFromRow(row), nil
-}
-
-func (s *Service) GetPlan(
-	ctx context.Context,
-	id uuid.UUID,
-) (Plan, error) {
-	if id == uuid.Nil {
-		return Plan{}, ErrPlanNotFound
-	}
-
-	row, err := s.repo.GetPlanByID(
-		ctx,
-		id,
-	)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return Plan{}, ErrPlanNotFound
-	}
-	if err != nil {
-		return Plan{}, fmt.Errorf("get subscription plan: %w", err)
-	}
-
-	return planFromRow(row), nil
-}
-
-func (s *Service) GetPlanByCode(
-	ctx context.Context,
-	code string,
-) (Plan, error) {
-	req := CreatePlanRequest{
-		Code:     code,
-		Name:     "placeholder",
-		Currency: "USD",
-	}
-	req.Code = normalizePlanCode(req.Code)
-	if !planCodePattern.MatchString(req.Code) {
-		return Plan{}, ErrPlanNotFound
-	}
-
-	row, err := s.repo.GetPlanByCode(
-		ctx,
-		req.Code,
-	)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return Plan{}, ErrPlanNotFound
-	}
-	if err != nil {
-		return Plan{}, fmt.Errorf("get subscription plan by code: %w", err)
-	}
-
-	return planFromRow(row), nil
-}
-
-func (s *Service) ListPlans(
-	ctx context.Context,
-) ([]Plan, error) {
-	rows, err := s.repo.ListPlans(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("list subscription plans: %w", err)
-	}
-
-	result := make([]Plan, 0, len(rows))
-	for _, row := range rows {
-		result = append(
-			result,
-			planFromRow(row),
-		)
-	}
-
-	return result, nil
-}
-
-func (s *Service) ArchivePlan(
-	ctx context.Context,
-	id uuid.UUID,
-) (Plan, error) {
-	if id == uuid.Nil {
-		return Plan{}, ErrPlanNotFound
-	}
-
-	row, err := s.repo.ArchivePlan(
-		ctx,
-		id,
-	)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return Plan{}, ErrPlanNotFound
-	}
-	if err != nil {
-		return Plan{}, fmt.Errorf("archive subscription plan: %w", err)
-	}
-
-	return planFromRow(row), nil
-}
-
 func (s *Service) Subscribe(
 	ctx context.Context,
 	req SubscribeRequest,
 ) (Subscription, error) {
 	if err := validateSubscribeRequest(req); err != nil {
-		return Subscription{}, err
+		return Subscription{}, apperror.NewBadRequest(err.Error())
 	}
 
 	row, err := s.repo.CreateSubscription(
@@ -158,13 +39,13 @@ func (s *Service) Subscribe(
 		req.PlanID,
 	)
 	if isUniqueViolation(err) {
-		return Subscription{}, ErrSubscriptionConflict
+		return Subscription{}, apperror.NewConflict("organization already has a current subscription")
 	}
 	if errors.Is(err, pgx.ErrNoRows) {
-		return Subscription{}, ErrSubscriptionNotPermitted
+		return Subscription{}, apperror.NewForbidden("subscription is not permitted")
 	}
 	if err != nil {
-		return Subscription{}, fmt.Errorf("create subscription: %w", err)
+		return Subscription{}, apperror.NewInternal("create subscription", err)
 	}
 
 	return subscriptionFromRow(row), nil
@@ -176,7 +57,7 @@ func (s *Service) Get(
 	id uuid.UUID,
 ) (Subscription, error) {
 	if organizationID == uuid.Nil || id == uuid.Nil {
-		return Subscription{}, ErrSubscriptionNotFound
+		return Subscription{}, apperror.NewNotFound("subscription not found")
 	}
 
 	row, err := s.repo.GetSubscription(
@@ -185,13 +66,40 @@ func (s *Service) Get(
 		id,
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return Subscription{}, ErrSubscriptionNotFound
+		return Subscription{}, apperror.NewNotFound("subscription not found")
 	}
 	if err != nil {
-		return Subscription{}, fmt.Errorf("get subscription: %w", err)
+		return Subscription{}, apperror.NewInternal("get subscription", err)
 	}
 
 	return subscriptionFromRow(row), nil
+}
+
+func (s *Service) List(
+	ctx context.Context,
+	req ListRequest,
+) ([]Subscription, error) {
+	if err := normalizeListRequest(&req); err != nil {
+		return nil, apperror.NewBadRequest(err.Error())
+	}
+
+	rows, err := s.repo.List(
+		ctx,
+		req,
+	)
+	if err != nil {
+		return nil, apperror.NewInternal("list subscriptions", err)
+	}
+
+	result := make([]Subscription, 0, len(rows))
+	for _, row := range rows {
+		result = append(
+			result,
+			subscriptionFromRow(row),
+		)
+	}
+
+	return result, nil
 }
 
 func (s *Service) Current(
@@ -199,7 +107,7 @@ func (s *Service) Current(
 	organizationID uuid.UUID,
 ) (Subscription, error) {
 	if organizationID == uuid.Nil {
-		return Subscription{}, ErrSubscriptionNotFound
+		return Subscription{}, apperror.NewNotFound("subscription not found")
 	}
 
 	row, err := s.repo.GetCurrent(
@@ -207,10 +115,10 @@ func (s *Service) Current(
 		organizationID,
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return Subscription{}, ErrSubscriptionNotFound
+		return Subscription{}, apperror.NewNotFound("subscription not found")
 	}
 	if err != nil {
-		return Subscription{}, fmt.Errorf("get current subscription: %w", err)
+		return Subscription{}, apperror.NewInternal("get current subscription", err)
 	}
 
 	return subscriptionFromRow(row), nil
@@ -221,7 +129,7 @@ func (s *Service) Activate(
 	req ActivateRequest,
 ) (Subscription, error) {
 	if err := validateActivateRequest(req); err != nil {
-		return Subscription{}, err
+		return Subscription{}, apperror.NewBadRequest(err.Error())
 	}
 
 	row, err := s.repo.Activate(
@@ -234,10 +142,10 @@ func (s *Service) Activate(
 		},
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return Subscription{}, ErrSubscriptionInvalidState
+		return Subscription{}, apperror.NewConflict("subscription state does not allow operation")
 	}
 	if err != nil {
-		return Subscription{}, fmt.Errorf("activate subscription: %w", err)
+		return Subscription{}, apperror.NewInternal("activate subscription", err)
 	}
 
 	return subscriptionFromRow(row), nil
@@ -254,30 +162,39 @@ func (s *Service) MarkPastDue(
 		id,
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return Subscription{}, ErrSubscriptionInvalidState
+		return Subscription{}, apperror.NewConflict("subscription state does not allow operation")
 	}
 	if err != nil {
-		return Subscription{}, fmt.Errorf("mark subscription past due: %w", err)
+		return Subscription{}, apperror.NewInternal("mark subscription past due", err)
 	}
 
 	return subscriptionFromRow(row), nil
 }
 
-func (s *Service) CancelAtPeriodEnd(
+func (s *Service) Update(
 	ctx context.Context,
 	organizationID uuid.UUID,
 	id uuid.UUID,
+	req UpdateRequest,
 ) (Subscription, error) {
-	row, err := s.repo.SetCancelAtPeriodEnd(
+	if organizationID == uuid.Nil || id == uuid.Nil {
+		return Subscription{}, apperror.NewNotFound("subscription not found")
+	}
+	if err := validateUpdateRequest(req); err != nil {
+		return Subscription{}, apperror.NewBadRequest(err.Error())
+	}
+
+	row, err := s.repo.UpdateCancelAtPeriodEnd(
 		ctx,
 		organizationID,
 		id,
+		*req.CancelAtPeriodEnd,
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return Subscription{}, ErrSubscriptionInvalidState
+		return Subscription{}, apperror.NewConflict("subscription state does not allow operation")
 	}
 	if err != nil {
-		return Subscription{}, fmt.Errorf("schedule subscription cancellation: %w", err)
+		return Subscription{}, apperror.NewInternal("update subscription", err)
 	}
 
 	return subscriptionFromRow(row), nil
@@ -289,7 +206,7 @@ func (s *Service) Cancel(
 	id uuid.UUID,
 ) (Subscription, error) {
 	if organizationID == uuid.Nil || id == uuid.Nil {
-		return Subscription{}, ErrSubscriptionNotFound
+		return Subscription{}, apperror.NewNotFound("subscription not found")
 	}
 
 	row, err := s.repo.Cancel(
@@ -301,36 +218,18 @@ func (s *Service) Cancel(
 		},
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return Subscription{}, ErrSubscriptionInvalidState
+		return Subscription{}, apperror.NewConflict("subscription state does not allow operation")
 	}
 	if err != nil {
-		return Subscription{}, fmt.Errorf("cancel subscription: %w", err)
+		return Subscription{}, apperror.NewInternal("cancel subscription", err)
 	}
 
 	return subscriptionFromRow(row), nil
 }
 
-func normalizePlanCode(value string) string {
-	return strings.ToLower(strings.TrimSpace(value))
-}
-
 func isUniqueViolation(err error) bool {
 	var pgErr *pgconn.PgError
 	return errors.As(err, &pgErr) && pgErr.Code == "23505"
-}
-
-func planFromRow(row sqlc.SubscriptionPlan) Plan {
-	return Plan{
-		ID:           row.ID,
-		Code:         row.Code,
-		Name:         row.Name,
-		Currency:     row.Currency,
-		Interval:     row.Interval,
-		AmountMicros: row.AmountMicros,
-		Status:       row.Status,
-		CreatedAt:    pgconv.TimestamptzToTime(row.CreatedAt),
-		UpdatedAt:    pgconv.TimestamptzToTime(row.UpdatedAt),
-	}
 }
 
 func subscriptionFromRow(row sqlc.Subscription) Subscription {

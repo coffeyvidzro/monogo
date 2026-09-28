@@ -1,46 +1,3 @@
--- name: CreateSubscriptionPlan :one
-INSERT INTO subscription_plans (
-    code,
-    name,
-    currency,
-    amount_micros
-) VALUES (
-    sqlc.arg(code),
-    sqlc.arg(name),
-    sqlc.arg(currency),
-    sqlc.arg(amount_micros)
-)
-RETURNING *;
-
--- name: GetActiveSubscriptionPlanByID :one
-SELECT *
-FROM subscription_plans
-WHERE id = sqlc.arg(id)
-  AND status = 'active'
-LIMIT 1;
-
--- name: GetActiveSubscriptionPlanByCode :one
-SELECT *
-FROM subscription_plans
-WHERE code = sqlc.arg(code)
-  AND status = 'active'
-LIMIT 1;
-
--- name: ListActiveSubscriptionPlans :many
-SELECT *
-FROM subscription_plans
-WHERE status = 'active'
-ORDER BY amount_micros ASC, code ASC;
-
--- name: ArchiveSubscriptionPlan :one
-UPDATE subscription_plans
-SET
-    status = 'archived',
-    updated_at = NOW()
-WHERE id = sqlc.arg(id)
-  AND status = 'active'
-RETURNING *;
-
 -- name: CreateSubscription :one
 INSERT INTO subscriptions (
     organization_id,
@@ -76,6 +33,18 @@ WHERE s.id = sqlc.arg(id)
   AND o.status = 'active'
   AND o.deleted_at IS NULL
 LIMIT 1;
+
+-- name: ListSubscriptionsByOrganization :many
+SELECT s.*
+FROM subscriptions AS s
+JOIN organizations AS o
+  ON o.id = s.organization_id
+WHERE s.organization_id = sqlc.arg(organization_id)
+  AND o.status = 'active'
+  AND o.deleted_at IS NULL
+ORDER BY s.created_at DESC, s.id DESC
+LIMIT sqlc.arg(limit_count)
+OFFSET sqlc.arg(offset_count);
 
 -- name: GetCurrentSubscriptionByOrganization :one
 SELECT s.*
@@ -119,15 +88,14 @@ WHERE id = sqlc.arg(id)
   AND status = 'active'
 RETURNING *;
 
--- name: SetSubscriptionCancelAtPeriodEnd :one
+-- name: UpdateSubscriptionCancelAtPeriodEnd :one
 UPDATE subscriptions
 SET
-    cancel_at_period_end = true,
+    cancel_at_period_end = sqlc.arg(cancel_at_period_end),
     updated_at = NOW()
 WHERE id = sqlc.arg(id)
   AND organization_id = sqlc.arg(organization_id)
   AND status IN ('active', 'past_due')
-  AND cancel_at_period_end = false
 RETURNING *;
 
 -- name: CancelSubscription :one

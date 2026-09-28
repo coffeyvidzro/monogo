@@ -8,9 +8,6 @@ import (
 )
 
 const (
-	PlanStatusActive   = "active"
-	PlanStatusArchived = "archived"
-
 	StatusPending   = "pending"
 	StatusActive    = "active"
 	StatusPastDue   = "past_due"
@@ -19,25 +16,11 @@ const (
 
 var (
 	ErrInvalidInput             = errors.New("invalid subscription input")
-	ErrPlanNotFound             = errors.New("subscription plan not found")
-	ErrPlanConflict             = errors.New("subscription plan conflict")
 	ErrSubscriptionNotFound     = errors.New("subscription not found")
 	ErrSubscriptionConflict     = errors.New("organization already has a current subscription")
 	ErrSubscriptionInvalidState = errors.New("subscription state does not allow operation")
 	ErrSubscriptionNotPermitted = errors.New("subscription cannot be created")
 )
-
-type Plan struct {
-	ID           uuid.UUID `json:"id"`
-	Code         string    `json:"code"`
-	Name         string    `json:"name"`
-	Currency     string    `json:"currency"`
-	Interval     string    `json:"interval"`
-	AmountMicros int64     `json:"amount_micros"`
-	Status       string    `json:"status"`
-	CreatedAt    time.Time `json:"created_at"`
-	UpdatedAt    time.Time `json:"updated_at"`
-}
 
 type Subscription struct {
 	ID                 uuid.UUID  `json:"id"`
@@ -56,16 +39,19 @@ type Subscription struct {
 	UpdatedAt          time.Time  `json:"updated_at"`
 }
 
-type CreatePlanRequest struct {
-	Code         string
-	Name         string
-	Currency     string
-	AmountMicros int64
-}
-
 type SubscribeRequest struct {
 	OrganizationID uuid.UUID
-	PlanID         uuid.UUID
+	PlanID         uuid.UUID `json:"plan_id"`
+}
+
+type UpdateRequest struct {
+	CancelAtPeriodEnd *bool `json:"cancel_at_period_end"`
+}
+
+type ListRequest struct {
+	OrganizationID uuid.UUID
+	Limit          int32
+	Offset         int32
 }
 
 type ActivateRequest struct {
