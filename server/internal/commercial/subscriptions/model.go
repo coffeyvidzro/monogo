@@ -27,32 +27,32 @@ var (
 )
 
 type Plan struct {
-	ID           uuid.UUID
-	Code         string
-	Name         string
-	Currency     string
-	Interval     string
-	AmountMicros int64
-	Status       string
-	CreatedAt    time.Time
-	UpdatedAt    time.Time
+	ID           uuid.UUID `json:"id"`
+	Code         string    `json:"code"`
+	Name         string    `json:"name"`
+	Currency     string    `json:"currency"`
+	Interval     string    `json:"interval"`
+	AmountMicros int64     `json:"amount_micros"`
+	Status       string    `json:"status"`
+	CreatedAt    time.Time `json:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at"`
 }
 
 type Subscription struct {
-	ID                 uuid.UUID
-	OrganizationID     uuid.UUID
-	PlanID             uuid.UUID
-	Status             string
-	Currency           string
-	AmountMicros       int64
-	Interval           string
-	CurrentPeriodStart *time.Time
-	CurrentPeriodEnd   *time.Time
-	CancelAtPeriodEnd  bool
-	StartedAt          *time.Time
-	CancelledAt        *time.Time
-	CreatedAt          time.Time
-	UpdatedAt          time.Time
+	ID                 uuid.UUID  `json:"id"`
+	OrganizationID     uuid.UUID  `json:"organization_id"`
+	PlanID             uuid.UUID  `json:"plan_id"`
+	Status             string     `json:"status"`
+	Currency           string     `json:"currency"`
+	AmountMicros       int64      `json:"amount_micros"`
+	Interval           string     `json:"interval"`
+	CurrentPeriodStart *time.Time `json:"current_period_start,omitempty"`
+	CurrentPeriodEnd   *time.Time `json:"current_period_end,omitempty"`
+	CancelAtPeriodEnd  bool       `json:"cancel_at_period_end"`
+	StartedAt          *time.Time `json:"started_at,omitempty"`
+	CancelledAt        *time.Time `json:"cancelled_at,omitempty"`
+	CreatedAt          time.Time  `json:"created_at"`
+	UpdatedAt          time.Time  `json:"updated_at"`
 }
 
 type CreatePlanRequest struct {

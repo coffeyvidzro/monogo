@@ -17,6 +17,7 @@ const (
 )
 
 var (
+	ErrInvalidInput        = errors.New("invalid wallet input")
 	ErrNotFound            = errors.New("wallet not found")
 	ErrInvalidState        = errors.New("wallet state does not allow operation")
 	ErrInsufficientBalance = errors.New("insufficient wallet balance")
@@ -24,28 +25,28 @@ var (
 )
 
 type Wallet struct {
-	ID             uuid.UUID
-	OrganizationID uuid.UUID
-	Currency       string
-	Status         string
-	BalanceMicros  int64
-	CreatedAt      time.Time
-	UpdatedAt      time.Time
+	ID             uuid.UUID `json:"id"`
+	OrganizationID uuid.UUID `json:"organization_id"`
+	Currency       string    `json:"currency"`
+	Status         string    `json:"status"`
+	BalanceMicros  int64     `json:"balance_micros"`
+	CreatedAt      time.Time `json:"created_at"`
+	UpdatedAt      time.Time `json:"updated_at"`
 }
 
 type LedgerEntry struct {
-	ID                 uuid.UUID
-	WalletID           uuid.UUID
-	OrganizationID     uuid.UUID
-	OperationID        uuid.UUID
-	Direction          string
-	Reason             string
-	AmountMicros       int64
-	BalanceAfterMicros int64
-	ReferenceType      *string
-	ReferenceID        *uuid.UUID
-	OccurredAt         time.Time
-	CreatedAt          time.Time
+	ID                 uuid.UUID  `json:"id"`
+	WalletID           uuid.UUID  `json:"wallet_id"`
+	OrganizationID     uuid.UUID  `json:"organization_id"`
+	OperationID        uuid.UUID  `json:"operation_id"`
+	Direction          string     `json:"direction"`
+	Reason             string     `json:"reason"`
+	AmountMicros       int64      `json:"amount_micros"`
+	BalanceAfterMicros int64      `json:"balance_after_micros"`
+	ReferenceType      *string    `json:"reference_type,omitempty"`
+	ReferenceID        *uuid.UUID `json:"reference_id,omitempty"`
+	OccurredAt         time.Time  `json:"occurred_at"`
+	CreatedAt          time.Time  `json:"created_at"`
 }
 
 type CreateRequest struct {

@@ -24,16 +24,19 @@ type Module struct {
 type WalletsModule struct {
 	Repository *wallets.Repository
 	Service    *wallets.Service
+	Handler    *wallets.Handler
 }
 
 type SubscriptionsModule struct {
 	Repository *subscriptions.Repository
 	Service    *subscriptions.Service
+	Handler    *subscriptions.Handler
 }
 
 type PricingModule struct {
 	Repository *pricing.Repository
 	Service    *pricing.Service
+	Handler    *pricing.Handler
 }
 
 type WholesaleModule struct {
@@ -67,14 +70,17 @@ func New(deps Dependencies) *Module {
 		Wallets: WalletsModule{
 			Repository: walletsRepository,
 			Service:    walletsService,
+			Handler:    wallets.NewHandler(walletsService),
 		},
 		Subscriptions: SubscriptionsModule{
 			Repository: subscriptionsRepository,
 			Service:    subscriptionsService,
+			Handler:    subscriptions.NewHandler(subscriptionsService),
 		},
 		Pricing: PricingModule{
 			Repository: pricingRepository,
 			Service:    pricingService,
+			Handler:    pricing.NewHandler(pricingService),
 		},
 		Wholesale: WholesaleModule{
 			Repository: wholesaleRepository,
