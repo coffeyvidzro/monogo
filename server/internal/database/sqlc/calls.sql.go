@@ -316,6 +316,7 @@ const getCallLifecycleSnapshot = `-- name: GetCallLifecycleSnapshot :one
 SELECT
     organization_id,
     carrier_connection_id,
+    routing_decision_id,
     direction,
     state,
     media_state
@@ -327,6 +328,7 @@ LIMIT 1
 type GetCallLifecycleSnapshotRow struct {
 	OrganizationID      uuid.UUID  `db:"organization_id" json:"organization_id"`
 	CarrierConnectionID *uuid.UUID `db:"carrier_connection_id" json:"carrier_connection_id"`
+	RoutingDecisionID   *uuid.UUID `db:"routing_decision_id" json:"routing_decision_id"`
 	Direction           string     `db:"direction" json:"direction"`
 	State               string     `db:"state" json:"state"`
 	MediaState          string     `db:"media_state" json:"media_state"`
@@ -338,6 +340,7 @@ func (q *Queries) GetCallLifecycleSnapshot(ctx context.Context, id uuid.UUID) (G
 	err := row.Scan(
 		&i.OrganizationID,
 		&i.CarrierConnectionID,
+		&i.RoutingDecisionID,
 		&i.Direction,
 		&i.State,
 		&i.MediaState,

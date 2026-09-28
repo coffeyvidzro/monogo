@@ -1,7 +1,6 @@
 -- Provider rates are upstream carrier prices used by managed routing and
 -- wholesale cost estimation. They are separate from customer-facing
--- carrier_rates. rate_micros is USD micros per started 60-second managed
--- outbound voice minute.
+-- carrier_rates.
 CREATE TABLE provider_rates (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     carrier_connection_id UUID NOT NULL REFERENCES carrier_connections(id) ON DELETE CASCADE,

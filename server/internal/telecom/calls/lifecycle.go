@@ -129,6 +129,22 @@ func (s *Service) settleManagedVoiceLifecycle(
 			)
 		}
 	case LifecycleFailed, LifecycleCancelled:
+		if snapshot.State == string(StateAnswered) ||
+			snapshot.State == string(StateActive) {
+			if _, err := s.wallets.Capture(
+				ctx,
+				snapshot.OrganizationID,
+				operationID,
+			); err != nil {
+				return apperror.NewInternal(
+					"capture answered managed voice prepaid hold",
+					err,
+				)
+			}
+
+			return nil
+		}
+
 		if _, err := s.wallets.Release(
 			ctx,
 			snapshot.OrganizationID,
