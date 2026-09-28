@@ -92,3 +92,44 @@ func (c *mediaClient) StopSession(ctx context.Context, id uuid.UUID) error {
 	}
 	return nil
 }
+
+func (c *mediaClient) DeliverToolResult(
+	ctx context.Context,
+	sessionID uuid.UUID,
+	result session.ToolResult,
+) error {
+	if sessionID == uuid.Nil {
+		return fmt.Errorf("media session id is required")
+	}
+	payload, err := json.Marshal(result)
+	if err != nil {
+		return fmt.Errorf("marshal media tool result: %w", err)
+	}
+	req, err := http.NewRequestWithContext(
+		ctx,
+		http.MethodPost,
+		c.baseURL+"/internal/v1/sessions/"+sessionID.String()+"/tool-results",
+		bytes.NewReader(payload),
+	)
+	if err != nil {
+		return fmt.Errorf("create media tool result request: %w", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+c.token)
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return fmt.Errorf("deliver media tool result: %w", err)
+	}
+	defer func() {
+		_ = resp.Body.Close()
+	}()
+	body, _ := io.ReadAll(io.LimitReader(resp.Body, maxMediaControlResponse))
+	if resp.StatusCode != http.StatusNoContent {
+		return fmt.Errorf(
+			"deliver media tool result: HTTP %d: %s",
+			resp.StatusCode,
+			strings.TrimSpace(string(body)),
+		)
+	}
+	return nil
+}

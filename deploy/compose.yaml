@@ -146,6 +146,7 @@ services:
       MEDIA_PUBLIC_WS_URL: "ws://media:8090/v1/audio-forks"
       MEDIA_TOKEN_SECRET: ${MEDIA_TOKEN_SECRET:?MEDIA_TOKEN_SECRET is required}
       MEDIA_CONTROL_TOKEN: ${MEDIA_CONTROL_TOKEN:?MEDIA_CONTROL_TOKEN is required}
+      NATS_URL: "nats://nats:4222"
       MEDIA_MAX_SESSIONS: ${MEDIA_MAX_SESSIONS:-100}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       DEEPGRAM_API_KEY: ${DEEPGRAM_API_KEY:-}
@@ -157,6 +158,9 @@ services:
       interval: 3s
       timeout: 3s
       retries: 20
+    depends_on:
+      nats:
+        condition: service_started
     networks: [control]
 
   caddy:

@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"reflect"
 	"strings"
 	"sync/atomic"
 
@@ -42,12 +43,52 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.websocket.ServeHTTP(w, r)
 	case r.Method == http.MethodPost && r.URL.Path == "/internal/v1/sessions":
 		h.createSession(w, r)
+	case r.Method == http.MethodPost &&
+		strings.HasSuffix(r.URL.Path, "/tool-results") &&
+		strings.HasPrefix(r.URL.Path, "/internal/v1/sessions/"):
+		h.deliverToolResult(w, r)
 	case r.Method == http.MethodDelete &&
 		strings.HasPrefix(r.URL.Path, "/internal/v1/sessions/"):
 		h.stopSession(w, r)
 	default:
 		http.NotFound(w, r)
 	}
+}
+
+func (h *handler) deliverToolResult(w http.ResponseWriter, r *http.Request) {
+	if !h.authorized(r) {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+	r.Body = http.MaxBytesReader(w, r.Body, 64<<10)
+	defer func() {
+		_ = r.Body.Close()
+	}()
+	rawID := strings.TrimSuffix(
+		strings.TrimPrefix(r.URL.Path, "/internal/v1/sessions/"),
+		"/tool-results",
+	)
+	id, err := uuid.Parse(rawID)
+	if err != nil {
+		http.Error(w, "invalid media session id", http.StatusBadRequest)
+		return
+	}
+	var result session.ToolResult
+	decoder := json.NewDecoder(r.Body)
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&result); err != nil {
+		http.Error(w, "invalid tool result", http.StatusBadRequest)
+		return
+	}
+	if err := h.manager.DeliverToolResult(r.Context(), id, result); err != nil {
+		if errors.Is(err, session.ErrSessionNotFound) {
+			http.Error(w, "media session not found", http.StatusNotFound)
+			return
+		}
+		http.Error(w, err.Error(), http.StatusConflict)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 type createSessionResponse struct {
@@ -84,7 +125,7 @@ func (h *handler) createSession(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		existing, ok := h.manager.Config(cfg.ID)
-		if !ok || existing != cfg {
+		if !ok || !reflect.DeepEqual(existing, cfg) {
 			http.Error(w, "media session id conflicts with another configuration", http.StatusConflict)
 			return
 		}

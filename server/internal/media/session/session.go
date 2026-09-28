@@ -83,6 +83,7 @@ type Config struct {
 	ID             uuid.UUID   `json:"id"`
 	OrganizationID uuid.UUID   `json:"organization_id"`
 	CallID         uuid.UUID   `json:"call_id"`
+	VoiceAgentID   uuid.UUID   `json:"voice_agent_id"`
 	ChannelID      uuid.UUID   `json:"channel_id"`
 	Engine         Engine      `json:"engine"`
 	InputFormat    AudioFormat `json:"input_format"`
@@ -90,6 +91,15 @@ type Config struct {
 	Language       string      `json:"language,omitempty"`
 	Instructions   string      `json:"instructions,omitempty"`
 	Voice          string      `json:"voice,omitempty"`
+	Tools          []Tool      `json:"tools,omitempty"`
+}
+
+// Tool describes one function available to a realtime engine.
+type Tool struct {
+	ID          uuid.UUID `json:"id"`
+	Name        string    `json:"name"`
+	Description string    `json:"description,omitempty"`
+	Parameters  []byte    `json:"parameters"`
 }
 
 // Validate checks identity and media invariants shared by all engines.
@@ -131,6 +141,7 @@ const (
 	EventResponseStopped EventType = "response.stopped"
 	EventToolCall        EventType = "tool.call"
 	EventUsage           EventType = "usage"
+	EventInterrupted     EventType = "interrupted"
 	EventError           EventType = "error"
 )
 
@@ -140,8 +151,38 @@ type Event struct {
 	Type            EventType
 	Text            string
 	ProviderID      string
+	ToolName        string
 	ProviderPayload []byte
 	OccurredAt      time.Time
+}
+
+// PublishedEvent is a sequenced, tenant-bound event emitted by a media session.
+type PublishedEvent struct {
+	SessionID      uuid.UUID `json:"session_id"`
+	OrganizationID uuid.UUID `json:"organization_id"`
+	CallID         uuid.UUID `json:"call_id"`
+	VoiceAgentID   uuid.UUID `json:"voice_agent_id"`
+	Generation     uint64    `json:"generation"`
+	Type           EventType `json:"type"`
+	Text           string    `json:"text,omitempty"`
+	ProviderID     string    `json:"provider_id,omitempty"`
+	ToolName       string    `json:"tool_name,omitempty"`
+	Payload        []byte    `json:"payload,omitempty"`
+	OccurredAt     time.Time `json:"occurred_at"`
+}
+
+// EventPublisher accepts the low-rate lifecycle events produced by a session.
+type EventPublisher interface {
+	Publish(context.Context, PublishedEvent) error
+}
+
+// ToolResult returns one generation-fenced tool execution outcome to an engine.
+type ToolResult struct {
+	Generation uint64 `json:"generation"`
+	CallID     string `json:"call_id"`
+	Name       string `json:"name"`
+	Content    []byte `json:"content"`
+	IsError    bool   `json:"is_error"`
 }
 
 // Stream is one live provider session. Implementations must make Close
@@ -151,6 +192,7 @@ type Stream interface {
 	Interrupt(context.Context) error
 	Audio() <-chan AudioFrame
 	Events() <-chan Event
+	SendToolResult(context.Context, ToolResult) error
 	Close(context.Context) error
 }
 

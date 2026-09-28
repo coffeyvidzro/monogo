@@ -82,7 +82,11 @@ Provider transports are implemented independently of orchestration:
 These adapters intentionally establish one provider stream per media session;
 live recognition and synthesis WebSockets are stateful and are not reused by a
 different call. The reusable clients share HTTP transports and configuration.
-Composable-engine orchestration and integrated-engine runtime registration
-remain the next layer to connect these provider streams to the session manager.
-Silero VAD is retained for optional local turn control rather than required in
-the default Flux path.
+The session manager publishes low-rate, generation-sequenced lifecycle events
+to JetStream while PCM remains on the direct FreeSWITCH WebSocket. The worker
+deduplicates those events before persisting final user and assistant turns,
+usage, interruptions, and terminal provider errors. Integrated-engine tool
+calls are executed by the durable worker and returned through the authenticated
+media control API; the media manager rejects results that do not match the
+pending call and generation. Silero VAD is retained for optional local turn
+control rather than required in the default Flux path.

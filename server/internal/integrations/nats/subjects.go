@@ -12,4 +12,6 @@ const (
 	JobsSubject   = JobsSubjectPrefix + ">"
 	EventsSubject = EventsSubjectPrefix + ">"
 	DLQSubject    = DLQSubjectPrefix + ">"
+
+	VoiceAgentMediaEventSubject = EventsSubjectPrefix + "voice_agent.media"
 )

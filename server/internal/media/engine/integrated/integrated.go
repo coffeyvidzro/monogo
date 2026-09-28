@@ -27,6 +27,15 @@ func (e Engine) Start(ctx context.Context, cfg session.Config) (session.Stream, 
 		client = openai.NewClient(nil)
 	}
 	providerConfig := e.Config
+	providerConfig.Tools = make([]openai.Tool, 0, len(cfg.Tools))
+	for _, tool := range cfg.Tools {
+		providerConfig.Tools = append(providerConfig.Tools, openai.Tool{
+			Type:        "function",
+			Name:        tool.Name,
+			Description: tool.Description,
+			Parameters:  append([]byte(nil), tool.Parameters...),
+		})
+	}
 	if voice := strings.TrimSpace(cfg.Voice); voice != "" {
 		providerConfig.Voice = voice
 	}

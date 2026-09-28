@@ -106,6 +106,10 @@ func (s *stream) Interrupt(context.Context) error {
 func (s *stream) Audio() <-chan session.AudioFrame { return s.audio }
 func (s *stream) Events() <-chan session.Event     { return s.events }
 
+func (s *stream) SendToolResult(context.Context, session.ToolResult) error {
+	return fmt.Errorf("composable engine tool results are not implemented")
+}
+
 func (s *stream) Close(ctx context.Context) error {
 	s.closeOnce.Do(func() { s.cancel() })
 	if err := s.transcriber.Close(ctx); err != nil && ctx.Err() == nil {

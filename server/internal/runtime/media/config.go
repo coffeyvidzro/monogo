@@ -10,6 +10,7 @@ import (
 )
 
 type Config struct {
+	NATSURL          string        `env:"NATS_URL"`
 	ListenAddress    string        `env:"MEDIA_LISTEN_ADDRESS" envDefault:":8090"`
 	PublicWebSocket  string        `env:"MEDIA_PUBLIC_WS_URL" envDefault:"ws://media:8090/v1/audio-forks"`
 	TokenSecret      string        `env:"MEDIA_TOKEN_SECRET,required"`
@@ -33,6 +34,7 @@ func loadConfig() (Config, error) {
 		return Config{}, fmt.Errorf("parse media environment: %w", err)
 	}
 	cfg.ListenAddress = strings.TrimSpace(cfg.ListenAddress)
+	cfg.NATSURL = strings.TrimSpace(cfg.NATSURL)
 	cfg.PublicWebSocket = strings.TrimRight(strings.TrimSpace(cfg.PublicWebSocket), "/")
 	cfg.TokenSecret = strings.TrimSpace(cfg.TokenSecret)
 	cfg.ControlToken = strings.TrimSpace(cfg.ControlToken)

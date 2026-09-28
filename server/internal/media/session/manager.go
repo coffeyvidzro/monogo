@@ -29,9 +29,15 @@ type Manager struct {
 	attachTimeout time.Duration
 	draining      bool
 	changed       chan struct{}
+	publisher     EventPublisher
 }
 
-func NewManager(capacity int, attachTimeout time.Duration, engines map[Engine]Starter) (*Manager, error) {
+func NewManager(
+	capacity int,
+	attachTimeout time.Duration,
+	engines map[Engine]Starter,
+	publishers ...EventPublisher,
+) (*Manager, error) {
 	if capacity <= 0 {
 		return nil, fmt.Errorf("media session capacity must be positive")
 	}
@@ -48,9 +54,17 @@ func NewManager(capacity int, attachTimeout time.Duration, engines map[Engine]St
 		}
 		copyEngines[name] = engine
 	}
+	var publisher EventPublisher
+	if len(publishers) > 0 {
+		publisher = publishers[0]
+	}
 	return &Manager{
-		engines: copyEngines, sessions: make(map[uuid.UUID]*managedSession),
-		capacity: capacity, attachTimeout: attachTimeout, changed: make(chan struct{}, 1),
+		engines:       copyEngines,
+		sessions:      make(map[uuid.UUID]*managedSession),
+		capacity:      capacity,
+		attachTimeout: attachTimeout,
+		changed:       make(chan struct{}, 1),
+		publisher:     publisher,
 	}, nil
 }
 
@@ -80,7 +94,13 @@ func (m *Manager) Start(ctx context.Context, cfg Config) error {
 		return fmt.Errorf("media engine %q is not configured", cfg.Engine)
 	}
 	managedCtx, cancel := context.WithCancel(context.Background())
-	managed := &managedSession{config: cfg, ctx: managedCtx, cancel: cancel, complete: make(chan struct{})}
+	managed := &managedSession{
+		config:       cfg,
+		ctx:          managedCtx,
+		cancel:       cancel,
+		complete:     make(chan struct{}),
+		pendingTools: make(map[string]uint64),
+	}
 	stream, err := starter.Start(managedCtx, cfg)
 	if err != nil {
 		m.mu.Unlock()
@@ -141,7 +161,7 @@ func (m *Manager) Attach(ctx context.Context, connection Connection) error {
 	stream := managed.stream
 	managed.mu.Unlock()
 
-	err := pump(ctx, managed.ctx, connection, stream)
+	err := pump(ctx, managed.ctx, connection, stream, managed, m.publisher)
 	managed.finish()
 	managed.markComplete()
 	m.remove(metadata.SessionID, managed)
@@ -149,6 +169,43 @@ func (m *Manager) Attach(ctx context.Context, connection Connection) error {
 		return nil
 	}
 	return err
+}
+
+// DeliverToolResult applies a result only to the live generation that requested it.
+func (m *Manager) DeliverToolResult(
+	ctx context.Context,
+	id uuid.UUID,
+	result ToolResult,
+) error {
+	if ctx == nil {
+		return fmt.Errorf("tool result context is required")
+	}
+	m.mu.Lock()
+	managed, exists := m.sessions[id]
+	m.mu.Unlock()
+	if !exists {
+		return ErrSessionNotFound
+	}
+	managed.mu.Lock()
+	stream := managed.stream
+	pendingGeneration, pending := managed.pendingTools[result.CallID]
+	finished := managed.finished
+	managed.mu.Unlock()
+	if finished || stream == nil {
+		return ErrSessionNotFound
+	}
+	if result.Generation == 0 || !pending || result.Generation != pendingGeneration {
+		return fmt.Errorf("stale media tool result generation")
+	}
+	if err := stream.SendToolResult(ctx, result); err != nil {
+		return err
+	}
+	managed.mu.Lock()
+	if managed.pendingTools[result.CallID] == result.Generation {
+		delete(managed.pendingTools, result.CallID)
+	}
+	managed.mu.Unlock()
+	return nil
 }
 
 func (m *Manager) Stop(ctx context.Context, id uuid.UUID) error {
@@ -256,6 +313,8 @@ type managedSession struct {
 	attached     bool
 	attachTimer  *time.Timer
 	finished     bool
+	generation   uint64
+	pendingTools map[string]uint64
 	finishOnce   sync.Once
 	completeOnce sync.Once
 }
@@ -307,7 +366,14 @@ func (s *managedSession) markComplete() {
 	s.completeOnce.Do(func() { close(s.complete) })
 }
 
-func pump(parent, sessionCtx context.Context, connection Connection, stream Stream) error {
+func pump(
+	parent context.Context,
+	sessionCtx context.Context,
+	connection Connection,
+	stream Stream,
+	managed *managedSession,
+	publisher EventPublisher,
+) error {
 	ctx, cancel := context.WithCancel(parent)
 	defer cancel()
 	group, groupCtx := errgroup.WithContext(ctx)
@@ -353,6 +419,32 @@ func pump(parent, sessionCtx context.Context, connection Connection, stream Stre
 				if !ok {
 					return io.EOF
 				}
+				managed.mu.Lock()
+				managed.generation++
+				generation := managed.generation
+				if event.Type == EventToolCall && event.ProviderID != "" {
+					managed.pendingTools[event.ProviderID] = generation
+				}
+				config := managed.config
+				managed.mu.Unlock()
+				if publisher != nil && publishable(event.Type) {
+					published := PublishedEvent{
+						SessionID:      config.ID,
+						OrganizationID: config.OrganizationID,
+						CallID:         config.CallID,
+						VoiceAgentID:   config.VoiceAgentID,
+						Generation:     generation,
+						Type:           event.Type,
+						Text:           event.Text,
+						ProviderID:     event.ProviderID,
+						ToolName:       event.ToolName,
+						Payload:        event.ProviderPayload,
+						OccurredAt:     event.OccurredAt,
+					}
+					if err := publisher.Publish(groupCtx, published); err != nil {
+						return fmt.Errorf("publish media session event: %w", err)
+					}
+				}
 				switch event.Type {
 				case EventResponseStarted:
 					suppressPlayback.Store(false)
@@ -361,6 +453,23 @@ func pump(parent, sessionCtx context.Context, connection Connection, stream Stre
 					playbackActive.Store(false)
 				case EventSpeechStarted:
 					if playbackActive.Swap(false) {
+						managed.mu.Lock()
+						managed.generation++
+						interruptionGeneration := managed.generation
+						managed.mu.Unlock()
+						if publisher != nil {
+							if err := publisher.Publish(groupCtx, PublishedEvent{
+								SessionID:      config.ID,
+								OrganizationID: config.OrganizationID,
+								CallID:         config.CallID,
+								VoiceAgentID:   config.VoiceAgentID,
+								Generation:     interruptionGeneration,
+								Type:           EventInterrupted,
+								OccurredAt:     event.OccurredAt,
+							}); err != nil {
+								return fmt.Errorf("publish media interruption: %w", err)
+							}
+						}
 						suppressPlayback.Store(true)
 						if err := stream.Interrupt(groupCtx); err != nil {
 							return err
@@ -378,6 +487,21 @@ func pump(parent, sessionCtx context.Context, connection Connection, stream Stre
 		}
 	})
 	return group.Wait()
+}
+
+func publishable(eventType EventType) bool {
+	switch eventType {
+	case EventSpeechStarted,
+		EventInterrupted,
+		EventTranscriptFinal,
+		EventResponseStopped,
+		EventToolCall,
+		EventUsage,
+		EventError:
+		return true
+	default:
+		return false
+	}
 }
 
 func isNormalDisconnect(err error) bool {

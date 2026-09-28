@@ -178,7 +178,6 @@ def setup_carrier():
         expected={201},
     )
 
-
 def setup_voice_application():
     number = api(
         "POST", "/v1/numbers/",
@@ -283,6 +282,22 @@ def setup_voice_agent():
             "name": "hangup_call",
             "description": "Hang up the current call.",
             "parameters": {"type": "object", "properties": {}},
+        },
+        expected={201},
+    )
+
+    api(
+        "POST",
+        f"/v1/voice-agents/{agent['id']}/tools/",
+        {
+            "type": "builtin",
+            "name": "send_dtmf",
+            "description": "Send DTMF digits to the active call.",
+            "parameters": {
+                "type": "object",
+                "properties": {"digits": {"type": "string"}},
+                "required": ["digits"],
+            },
         },
         expected={201},
     )
@@ -492,6 +507,44 @@ def verify_audio_roundtrip():
         f"audio_fork={json.dumps(fork, sort_keys=True)}"
     )
 
+
+def verify_media_ai_loop():
+    def completed():
+        provider = fake_openai_state()
+        if provider.get("interruptions", 0) < 1:
+            return False
+        if provider.get("tool_results", 0) < 1:
+            return False
+        turns = psql(
+            "SELECT role || ':' || content FROM voice_agent_turns "
+            f"WHERE session_id='{STATE['session_id']}' ORDER BY sequence"
+        ).splitlines()
+        events = psql(
+            "SELECT event_type || ':' || count(*)::text FROM voice_agent_media_events "
+            f"WHERE session_id='{STATE['session_id']}' GROUP BY event_type"
+        ).splitlines()
+        event_counts = dict(item.split(":", 1) for item in events if ":" in item)
+        if len([turn for turn in turns if turn.startswith("user:")]) != 1:
+            return False
+        if not any(turn == "assistant:Customer lookup completed." for turn in turns):
+            return False
+        if not any(turn.startswith("tool:") for turn in turns):
+            return False
+        if event_counts.get("usage") != "1" or event_counts.get("error") != "1":
+            return False
+        executions = psql(
+            "SELECT count(*) FROM voice_agent_tool_executions "
+            f"WHERE session_id='{STATE['session_id']}' AND state='succeeded'"
+        )
+        if executions != "1":
+            return False
+        return provider
+
+    state = wait_for("durable media and AI loop", completed, timeout=20)
+    result = state.get("last_tool_result") or {}
+    if result.get("call_id") != "call-lookup-42":
+        raise AcceptanceError(f"unexpected tool result: {result}")
+
 def hangup_and_verify_completion():
     api("POST", f"/v1/calls/{STATE['call_id']}/hangup", expected={200})
 
@@ -532,8 +585,10 @@ def main():
     print("PASS 07 active call retained immutable durable agent snapshot")
     verify_audio_roundtrip()
     print("PASS 08 bidirectional Voice Agent audio completed through media plane")
+    verify_media_ai_loop()
+    print("PASS 09 interruption, durable turns, tool result, usage, error, and dedup verified")
     hangup_and_verify_completion()
-    print("PASS 09 call hangup completed the durable Voice Agent session")
+    print("PASS 10 call hangup completed the durable Voice Agent session")
     print("Voice Agent v1 lifecycle acceptance passed")
 
 

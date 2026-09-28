@@ -104,6 +104,101 @@ func TestManagerBargeInInterruptsAndClearsPlayback(t *testing.T) {
 	}
 }
 
+func TestManagerPublishesToolCallAndFencesResultGeneration(t *testing.T) {
+	format := session.AudioFormat{
+		SampleRateHz: 24000,
+		Channels:     1,
+	}
+	cfg := session.Config{
+		ID:             uuid.New(),
+		OrganizationID: uuid.New(),
+		CallID:         uuid.New(),
+		VoiceAgentID:   uuid.New(),
+		ChannelID:      uuid.New(),
+		Engine:         session.EngineIntegrated,
+		InputFormat:    format,
+		OutputFormat:   format,
+	}
+	stream := newFakeStream()
+	publisher := &fakePublisher{
+		events: make(chan session.PublishedEvent, 1),
+	}
+	manager, err := session.NewManager(
+		1,
+		time.Minute,
+		map[session.Engine]session.Starter{
+			session.EngineIntegrated: fakeStarter{
+				stream: stream,
+			},
+		},
+		publisher,
+	)
+	if err != nil {
+		t.Fatalf("NewManager() error = %v", err)
+	}
+	if err := manager.Start(context.Background(), cfg); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	connection := newFakeConnection(cfg)
+	done := make(chan error, 1)
+	go func() {
+		done <- manager.Attach(context.Background(), connection)
+	}()
+	stream.events <- session.Event{
+		Type:       session.EventToolCall,
+		Text:       `{"customer_id":"42"}`,
+		ProviderID: "call-1",
+		ToolName:   "lookup_customer",
+		OccurredAt: time.Now().UTC(),
+	}
+
+	var published session.PublishedEvent
+	select {
+	case published = <-publisher.events:
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for published tool call")
+	}
+	if published.Generation == 0 || published.ToolName != "lookup_customer" {
+		t.Fatalf("published event = %#v", published)
+	}
+	stale := session.ToolResult{
+		Generation: published.Generation + 1,
+		CallID:     published.ProviderID,
+		Name:       published.ToolName,
+		Content:    []byte(`{"ok":true}`),
+	}
+	if err := manager.DeliverToolResult(context.Background(), cfg.ID, stale); err == nil {
+		t.Fatal("DeliverToolResult() accepted stale generation")
+	}
+	result := stale
+	result.Generation = published.Generation
+	if err := manager.DeliverToolResult(context.Background(), cfg.ID, result); err != nil {
+		t.Fatalf("DeliverToolResult() error = %v", err)
+	}
+	select {
+	case got := <-stream.toolResults:
+		if got.Generation != published.Generation || got.CallID != "call-1" {
+			t.Fatalf("tool result = %#v", got)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for tool result")
+	}
+	if err := manager.DeliverToolResult(context.Background(), cfg.ID, result); err == nil {
+		t.Fatal("DeliverToolResult() accepted duplicate result")
+	}
+	connection.closeInput()
+	<-done
+}
+
+type fakePublisher struct {
+	events chan session.PublishedEvent
+}
+
+func (p *fakePublisher) Publish(_ context.Context, event session.PublishedEvent) error {
+	p.events <- event
+	return nil
+}
+
 type fakeStarter struct {
 	stream *fakeStream
 }
@@ -118,6 +213,7 @@ type fakeStream struct {
 	interrupted   chan struct{}
 	interruptOnce sync.Once
 	closeOnce     sync.Once
+	toolResults   chan session.ToolResult
 }
 
 func newFakeStream() *fakeStream {
@@ -125,6 +221,7 @@ func newFakeStream() *fakeStream {
 		audio:       make(chan session.AudioFrame, 1),
 		events:      make(chan session.Event, 4),
 		interrupted: make(chan struct{}),
+		toolResults: make(chan session.ToolResult, 1),
 	}
 }
 
@@ -135,6 +232,11 @@ func (s *fakeStream) Interrupt(context.Context) error {
 }
 func (s *fakeStream) Audio() <-chan session.AudioFrame { return s.audio }
 func (s *fakeStream) Events() <-chan session.Event     { return s.events }
+
+func (s *fakeStream) SendToolResult(_ context.Context, result session.ToolResult) error {
+	s.toolResults <- result
+	return nil
+}
 func (s *fakeStream) Close(context.Context) error {
 	s.closeOnce.Do(func() {
 		close(s.audio)

@@ -28,8 +28,15 @@ type ClientEvent struct {
 	Type       string         `json:"type"`
 	EventID    string         `json:"event_id,omitempty"`
 	Session    *SessionUpdate `json:"session,omitempty"`
+	Item       *Item          `json:"item,omitempty"`
 	Audio      string         `json:"audio,omitempty"`
 	ResponseID string         `json:"response_id,omitempty"`
+}
+
+type Item struct {
+	Type   string `json:"type"`
+	CallID string `json:"call_id"`
+	Output string `json:"output"`
 }
 
 type SessionUpdate struct {

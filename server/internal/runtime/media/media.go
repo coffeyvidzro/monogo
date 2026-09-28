@@ -12,6 +12,7 @@ import (
 	"github.com/coffeyvidzro/monogo/internal/integrations/cartesia"
 	"github.com/coffeyvidzro/monogo/internal/integrations/deepgram"
 	"github.com/coffeyvidzro/monogo/internal/integrations/groq"
+	natsintegration "github.com/coffeyvidzro/monogo/internal/integrations/nats"
 	"github.com/coffeyvidzro/monogo/internal/integrations/openai"
 	"github.com/coffeyvidzro/monogo/internal/media/engine/composable"
 	"github.com/coffeyvidzro/monogo/internal/media/engine/echo"
@@ -40,7 +41,30 @@ func RunWithConfig(ctx context.Context, cfg Config) error {
 		return err
 	}
 	logger := logging.New().With("process", "media")
-	manager, err := session.NewManager(cfg.MaxSessions, cfg.TokenTTL, mediaEngines(cfg))
+	var err error
+	var natsClient *natsintegration.Client
+	var publisher session.EventPublisher
+	if cfg.NATSURL != "" {
+		natsClient, err = natsintegration.New(
+			ctx,
+			natsintegration.DefaultConfig(cfg.NATSURL),
+		)
+		if err != nil {
+			return fmt.Errorf("initialize media event transport: %w", err)
+		}
+		defer func() {
+			_ = natsClient.Close()
+		}()
+		publisher = &eventPublisher{
+			nats: natsClient,
+		}
+	}
+	manager, err := session.NewManager(
+		cfg.MaxSessions,
+		cfg.TokenTTL,
+		mediaEngines(cfg),
+		publisher,
+	)
 	if err != nil {
 		return fmt.Errorf("initialize media session manager: %w", err)
 	}

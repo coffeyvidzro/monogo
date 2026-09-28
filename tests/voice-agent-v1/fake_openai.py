@@ -15,6 +15,9 @@ STATE = {
     "session_updates": 0,
     "audio_appends": 0,
     "responses": 0,
+    "interruptions": 0,
+    "tool_results": 0,
+    "last_tool_result": None,
     "last_session": None,
 }
 LOCK = threading.Lock()
@@ -129,6 +132,7 @@ class Handler(BaseHTTPRequestHandler):
             STATE["connections"] += 1
 
         sent_response = False
+        sent_final_response = False
         while True:
             try:
                 opcode, payload = read_frame(self.rfile)
@@ -153,6 +157,78 @@ class Handler(BaseHTTPRequestHandler):
                 with LOCK:
                     STATE["session_updates"] += 1
                     STATE["last_session"] = event.get("session")
+                continue
+
+            if event.get("type") == "response.cancel":
+                with LOCK:
+                    STATE["interruptions"] += 1
+                continue
+
+            if event.get("type") == "conversation.item.create":
+                item = event.get("item") or {}
+                if item.get("type") != "function_call_output":
+                    continue
+                with LOCK:
+                    STATE["tool_results"] += 1
+                    STATE["last_tool_result"] = item
+                if sent_final_response:
+                    continue
+                sent_final_response = True
+                write_json(
+                    self.wfile,
+                    {
+                        "type": "response.created",
+                        "event_id": "evt-final-response-start",
+                        "response_id": "resp-2",
+                    },
+                )
+                write_json(
+                    self.wfile,
+                    {
+                        "type": "response.output_audio_transcript.done",
+                        "event_id": "evt-final-transcript",
+                        "response_id": "resp-2",
+                        "transcript": "Customer lookup completed.",
+                    },
+                )
+                write_json(
+                    self.wfile,
+                    {
+                        "type": "response.audio.delta",
+                        "event_id": "evt-final-audio",
+                        "response_id": "resp-2",
+                        "delta": AUDIO,
+                    },
+                )
+                write_json(
+                    self.wfile,
+                    {
+                        "type": "response.done",
+                        "event_id": "evt-final-response-done",
+                        "response_id": "resp-2",
+                        "response": {
+                            "id": "resp-2",
+                            "status": "completed",
+                            "usage": {
+                                "input_tokens": 12,
+                                "output_tokens": 4,
+                            },
+                        },
+                    },
+                )
+                write_json(
+                    self.wfile,
+                    {
+                        "type": "error",
+                        "event_id": "evt-terminal-error",
+                        "error": {
+                            "code": "fixture_terminal_error",
+                            "message": "acceptance fixture terminal error",
+                        },
+                    },
+                )
+                with LOCK:
+                    STATE["responses"] += 1
                 continue
 
             if event.get("type") != "input_audio_buffer.append":
@@ -184,18 +260,27 @@ class Handler(BaseHTTPRequestHandler):
             write_json(
                 self.wfile,
                 {
-                    "type": "response.done",
-                    "event_id": "evt-response-done",
-                    "response_id": "resp-1",
-                    "response": {
-                        "id": "resp-1",
-                        "status": "completed",
-                        "usage": {},
-                    },
+                    "type": "input_audio_buffer.speech_started",
+                    "event_id": "evt-interruption",
                 },
             )
-            with LOCK:
-                STATE["responses"] += 1
+            transcript = {
+                "type": "conversation.item.input_audio_transcription.completed",
+                "event_id": "evt-user-transcript",
+                "transcript": "Please look up customer 42.",
+            }
+            write_json(self.wfile, transcript)
+            write_json(self.wfile, transcript)
+            write_json(
+                self.wfile,
+                {
+                    "type": "response.function_call_arguments.done",
+                    "event_id": "evt-tool-call",
+                    "call_id": "call-lookup-42",
+                    "name": "send_dtmf",
+                    "arguments": '{"digits":"42"}',
+                },
+            )
 
 
 def main():

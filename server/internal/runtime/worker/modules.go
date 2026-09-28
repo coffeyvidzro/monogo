@@ -144,6 +144,7 @@ func newModules(ctx context.Context, cfg config.Config, logger *logging.Logger) 
 		closeDependencies()
 		return nil, fmt.Errorf("initialize Voice Agent runtime: %w", err)
 	}
+	voiceAIRuntime.ConfigureEvents(postgresClient.Pool(), natsClient)
 
 	callConsumer := calls.NewConsumer(callsService)
 	callReconciliation, err := calls.NewReconciliationJob(

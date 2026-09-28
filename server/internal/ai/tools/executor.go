@@ -37,6 +37,16 @@ type ExecuteRequest struct {
 	Arguments      json.RawMessage
 }
 
+type ExecuteNamedRequest struct {
+	OrganizationID uuid.UUID
+	VoiceAgentID   uuid.UUID
+	SessionID      uuid.UUID
+	CallID         uuid.UUID
+	ToolName       string
+	ToolCallID     string
+	Arguments      json.RawMessage
+}
+
 type ExecuteResult struct {
 	ToolID      uuid.UUID
 	ToolCallID  string
@@ -47,6 +57,39 @@ type ExecuteResult struct {
 	StartedAt   time.Time
 	CompletedAt time.Time
 	Replayed    bool
+}
+
+func (e *Executor) List(
+	ctx context.Context,
+	organizationID uuid.UUID,
+	voiceAgentID uuid.UUID,
+) ([]sqlc.VoiceAgentTool, error) {
+	return e.service.List(ctx, organizationID, voiceAgentID)
+}
+
+func (e *Executor) ExecuteNamed(
+	ctx context.Context,
+	req ExecuteNamedRequest,
+) (ExecuteResult, error) {
+	name := strings.TrimSpace(req.ToolName)
+	available, err := e.service.List(ctx, req.OrganizationID, req.VoiceAgentID)
+	if err != nil {
+		return ExecuteResult{}, err
+	}
+	for _, tool := range available {
+		if tool.Enabled && tool.Name == name {
+			return e.Execute(ctx, ExecuteRequest{
+				OrganizationID: req.OrganizationID,
+				VoiceAgentID:   req.VoiceAgentID,
+				SessionID:      req.SessionID,
+				CallID:         req.CallID,
+				ToolID:         tool.ID,
+				ToolCallID:     req.ToolCallID,
+				Arguments:      req.Arguments,
+			})
+		}
+	}
+	return ExecuteResult{}, apperror.NewNotFound("enabled voice agent tool not found")
 }
 
 type Executor struct {

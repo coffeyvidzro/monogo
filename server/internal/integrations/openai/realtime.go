@@ -119,14 +119,15 @@ func (c *Client) Start(ctx context.Context, cfg Config, sessionConfig session.Co
 }
 
 type realtimeStream struct {
-	ctx        context.Context
-	cancel     context.CancelFunc
-	connection *websocket.Conn
-	format     session.AudioFormat
-	events     chan session.Event
-	audio      chan session.AudioFrame
-	writeMu    sync.Mutex
-	closeOnce  sync.Once
+	ctx          context.Context
+	cancel       context.CancelFunc
+	connection   *websocket.Conn
+	format       session.AudioFormat
+	events       chan session.Event
+	audio        chan session.AudioFrame
+	writeMu      sync.Mutex
+	closeOnce    sync.Once
+	responseText strings.Builder
 }
 
 func (s *realtimeStream) SendAudio(ctx context.Context, frame session.AudioFrame) error {
@@ -156,6 +157,31 @@ func (s *realtimeStream) Audio() <-chan session.AudioFrame {
 
 func (s *realtimeStream) Events() <-chan session.Event {
 	return s.events
+}
+
+func (s *realtimeStream) SendToolResult(ctx context.Context, result session.ToolResult) error {
+	if strings.TrimSpace(result.CallID) == "" {
+		return fmt.Errorf("OpenAI Realtime tool call id is required")
+	}
+	content := string(result.Content)
+	if result.IsError {
+		content = "tool execution failed: " + content
+	}
+	if err := s.writeJSON(ctx, ClientEvent{
+		Type:    "conversation.item.create",
+		EventID: uuid.NewString(),
+		Item: &Item{
+			Type:   "function_call_output",
+			CallID: result.CallID,
+			Output: content,
+		},
+	}); err != nil {
+		return err
+	}
+	return s.writeJSON(ctx, ClientEvent{
+		Type:    "response.create",
+		EventID: uuid.NewString(),
+	})
 }
 
 func (s *realtimeStream) Close(context.Context) error {
@@ -246,14 +272,37 @@ func (s *realtimeStream) handle(event ServerEvent) {
 			OccurredAt: now,
 		})
 	case "response.created":
+		s.responseText.Reset()
 		s.emitEvent(session.Event{Type: session.EventResponseStarted, ProviderID: providerID, OccurredAt: now})
 	case "response.done":
 		s.emitEvent(session.Event{
 			Type:            session.EventResponseStopped,
+			Text:            strings.TrimSpace(s.responseText.String()),
 			ProviderID:      providerID,
 			ProviderPayload: marshalRaw(event.Response),
 			OccurredAt:      now,
 		})
+		if event.Response != nil && len(event.Response.Usage) > 0 {
+			s.emitEvent(session.Event{
+				Type:            session.EventUsage,
+				ProviderID:      event.Response.ID,
+				ProviderPayload: append([]byte(nil), event.Response.Usage...),
+				OccurredAt:      now,
+			})
+		}
+	case "response.output_audio_transcript.delta":
+		s.responseText.WriteString(event.Delta)
+		s.emitEvent(session.Event{
+			Type:       session.EventResponseDelta,
+			Text:       event.Delta,
+			ProviderID: providerID,
+			OccurredAt: now,
+		})
+	case "response.output_audio_transcript.done":
+		if event.Transcript != "" {
+			s.responseText.Reset()
+			s.responseText.WriteString(event.Transcript)
+		}
 	case "response.audio.delta", "response.output_audio.delta":
 		audio, err := base64.StdEncoding.DecodeString(event.Delta)
 		if err != nil {
@@ -269,11 +318,12 @@ func (s *realtimeStream) handle(event ServerEvent) {
 		case s.audio <- frame:
 		case <-s.ctx.Done():
 		}
-	case "response.function_call_arguments.delta", "response.function_call_arguments.done":
+	case "response.function_call_arguments.done":
 		s.emitEvent(session.Event{
 			Type:       session.EventToolCall,
-			Text:       event.Arguments + event.Delta,
+			Text:       event.Arguments,
 			ProviderID: event.CallID,
+			ToolName:   event.Name,
 			OccurredAt: now,
 		})
 	case "error":

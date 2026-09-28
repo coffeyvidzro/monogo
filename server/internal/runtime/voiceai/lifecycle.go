@@ -80,10 +80,19 @@ func (r *Runtime) attach(ctx context.Context, call sqlc.Call, channelID string) 
 		ID:             record.ID,
 		OrganizationID: call.OrganizationID,
 		CallID:         call.ID,
+		VoiceAgentID:   record.VoiceAgentID,
 		ChannelID:      channelUUID,
 		InputFormat:    format,
 		OutputFormat:   format,
 	})
+	if cfg.Engine == session.EngineIntegrated {
+		tools, err := r.orchestrator.MediaTools(ctx, call.OrganizationID, record.VoiceAgentID)
+		if err != nil {
+			_ = r.failSession(ctx, call, time.Now().UTC())
+			return fmt.Errorf("resolve Voice Agent media tools: %w", err)
+		}
+		cfg.Tools = tools
+	}
 
 	websocketURL, err := r.media.CreateSession(ctx, cfg)
 	if err != nil {

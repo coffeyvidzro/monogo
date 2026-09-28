@@ -5,7 +5,9 @@ import (
 
 	"github.com/coffeyvidzro/monogo/internal/ai/orchestration"
 	"github.com/coffeyvidzro/monogo/internal/integrations/freeswitch"
+	natsintegration "github.com/coffeyvidzro/monogo/internal/integrations/nats"
 	"github.com/coffeyvidzro/monogo/internal/platform/logging"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type Runtime struct {
@@ -13,6 +15,8 @@ type Runtime struct {
 	media        *mediaClient
 	freeSwitch   *freeswitch.Client
 	logger       *logging.Logger
+	db           *pgxpool.Pool
+	nats         *natsintegration.Client
 }
 
 func New(

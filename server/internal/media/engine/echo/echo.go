@@ -68,4 +68,7 @@ func (s *stream) SendAudio(ctx context.Context, frame session.AudioFrame) error 
 func (s *stream) Interrupt(context.Context) error  { return nil }
 func (s *stream) Audio() <-chan session.AudioFrame { return s.audio }
 func (s *stream) Events() <-chan session.Event     { return s.events }
-func (s *stream) Close(context.Context) error      { s.cancel(); return nil }
+func (s *stream) SendToolResult(context.Context, session.ToolResult) error {
+	return fmt.Errorf("echo engine does not support tool results")
+}
+func (s *stream) Close(context.Context) error { s.cancel(); return nil }
