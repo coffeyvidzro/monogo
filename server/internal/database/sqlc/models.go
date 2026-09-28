@@ -49,26 +49,33 @@ type AuthTransaction struct {
 }
 
 type Call struct {
-	ID                  uuid.UUID          `db:"id" json:"id"`
-	OrganizationID      uuid.UUID          `db:"organization_id" json:"organization_id"`
-	ApplicationID       *uuid.UUID         `db:"application_id" json:"application_id"`
-	CarrierConnectionID *uuid.UUID         `db:"carrier_connection_id" json:"carrier_connection_id"`
-	TrunkID             *uuid.UUID         `db:"trunk_id" json:"trunk_id"`
-	TrunkEndpointID     *uuid.UUID         `db:"trunk_endpoint_id" json:"trunk_endpoint_id"`
-	Direction           string             `db:"direction" json:"direction"`
-	State               string             `db:"state" json:"state"`
-	MediaState          string             `db:"media_state" json:"media_state"`
-	FromUri             string             `db:"from_uri" json:"from_uri"`
-	ToUri               string             `db:"to_uri" json:"to_uri"`
-	SipCallID           *string            `db:"sip_call_id" json:"sip_call_id"`
-	ProviderID          *uuid.UUID         `db:"provider_id" json:"provider_id"`
-	StartedAt           pgtype.Timestamptz `db:"started_at" json:"started_at"`
-	AnsweredAt          pgtype.Timestamptz `db:"answered_at" json:"answered_at"`
-	EndedAt             pgtype.Timestamptz `db:"ended_at" json:"ended_at"`
-	HangupReason        *string            `db:"hangup_reason" json:"hangup_reason"`
-	CreatedAt           pgtype.Timestamptz `db:"created_at" json:"created_at"`
-	UpdatedAt           pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
-	RoutingDecisionID   *uuid.UUID         `db:"routing_decision_id" json:"routing_decision_id"`
+	ID                                  uuid.UUID          `db:"id" json:"id"`
+	OrganizationID                      uuid.UUID          `db:"organization_id" json:"organization_id"`
+	ApplicationID                       *uuid.UUID         `db:"application_id" json:"application_id"`
+	CarrierConnectionID                 *uuid.UUID         `db:"carrier_connection_id" json:"carrier_connection_id"`
+	TrunkID                             *uuid.UUID         `db:"trunk_id" json:"trunk_id"`
+	TrunkEndpointID                     *uuid.UUID         `db:"trunk_endpoint_id" json:"trunk_endpoint_id"`
+	Direction                           string             `db:"direction" json:"direction"`
+	State                               string             `db:"state" json:"state"`
+	MediaState                          string             `db:"media_state" json:"media_state"`
+	FromUri                             string             `db:"from_uri" json:"from_uri"`
+	ToUri                               string             `db:"to_uri" json:"to_uri"`
+	SipCallID                           *string            `db:"sip_call_id" json:"sip_call_id"`
+	ProviderID                          *uuid.UUID         `db:"provider_id" json:"provider_id"`
+	StartedAt                           pgtype.Timestamptz `db:"started_at" json:"started_at"`
+	AnsweredAt                          pgtype.Timestamptz `db:"answered_at" json:"answered_at"`
+	EndedAt                             pgtype.Timestamptz `db:"ended_at" json:"ended_at"`
+	HangupReason                        *string            `db:"hangup_reason" json:"hangup_reason"`
+	CreatedAt                           pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	UpdatedAt                           pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+	RoutingDecisionID                   *uuid.UUID         `db:"routing_decision_id" json:"routing_decision_id"`
+	CustomerCarrierRateID               *uuid.UUID         `db:"customer_carrier_rate_id" json:"customer_carrier_rate_id"`
+	CustomerRateCurrency                *string            `db:"customer_rate_currency" json:"customer_rate_currency"`
+	CustomerRateMicros                  *int64             `db:"customer_rate_micros" json:"customer_rate_micros"`
+	CustomerRateBillingUnit             *string            `db:"customer_rate_billing_unit" json:"customer_rate_billing_unit"`
+	CustomerRateBillingIncrementSeconds *int32             `db:"customer_rate_billing_increment_seconds" json:"customer_rate_billing_increment_seconds"`
+	CustomerRateMinimumDurationSeconds  *int32             `db:"customer_rate_minimum_duration_seconds" json:"customer_rate_minimum_duration_seconds"`
+	CommercialAuthorizedAt              pgtype.Timestamptz `db:"commercial_authorized_at" json:"commercial_authorized_at"`
 }
 
 type CallParticipant struct {
@@ -155,12 +162,12 @@ type CarrierRate struct {
 	Direction               string             `db:"direction" json:"direction"`
 	Currency                string             `db:"currency" json:"currency"`
 	RateMicros              int64              `db:"rate_micros" json:"rate_micros"`
-	BillingUnit             string             `db:"billing_unit" json:"billing_unit"`
-	BillingIncrementSeconds int32              `db:"billing_increment_seconds" json:"billing_increment_seconds"`
-	MinimumDurationSeconds  int32              `db:"minimum_duration_seconds" json:"minimum_duration_seconds"`
 	EffectiveAt             pgtype.Timestamptz `db:"effective_at" json:"effective_at"`
 	ExpiresAt               pgtype.Timestamptz `db:"expires_at" json:"expires_at"`
 	CreatedAt               pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	BillingUnit             string             `db:"billing_unit" json:"billing_unit"`
+	BillingIncrementSeconds int32              `db:"billing_increment_seconds" json:"billing_increment_seconds"`
+	MinimumDurationSeconds  int32              `db:"minimum_duration_seconds" json:"minimum_duration_seconds"`
 }
 
 type CarrierRouteMetric struct {

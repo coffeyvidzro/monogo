@@ -44,7 +44,7 @@ WHERE $1::UUID IS NULL
          AND o.status = 'active'
          AND o.deleted_at IS NULL
    )
-RETURNING id, organization_id, destination_prefix, direction, currency, rate_micros, billing_unit, billing_increment_seconds, minimum_duration_seconds, effective_at, expires_at, created_at
+RETURNING id, organization_id, destination_prefix, direction, currency, rate_micros, effective_at, expires_at, created_at, billing_unit, billing_increment_seconds, minimum_duration_seconds
 `
 
 type CreateCarrierRateParams struct {
@@ -81,18 +81,18 @@ func (q *Queries) CreateCarrierRate(ctx context.Context, arg CreateCarrierRatePa
 		&i.Direction,
 		&i.Currency,
 		&i.RateMicros,
-		&i.BillingUnit,
-		&i.BillingIncrementSeconds,
-		&i.MinimumDurationSeconds,
 		&i.EffectiveAt,
 		&i.ExpiresAt,
 		&i.CreatedAt,
+		&i.BillingUnit,
+		&i.BillingIncrementSeconds,
+		&i.MinimumDurationSeconds,
 	)
 	return i, err
 }
 
 const getCarrierRateByID = `-- name: GetCarrierRateByID :one
-SELECT id, organization_id, destination_prefix, direction, currency, rate_micros, billing_unit, billing_increment_seconds, minimum_duration_seconds, effective_at, expires_at, created_at
+SELECT id, organization_id, destination_prefix, direction, currency, rate_micros, effective_at, expires_at, created_at, billing_unit, billing_increment_seconds, minimum_duration_seconds
 FROM carrier_rates
 WHERE id = $1
 LIMIT 1
@@ -108,18 +108,18 @@ func (q *Queries) GetCarrierRateByID(ctx context.Context, id uuid.UUID) (Carrier
 		&i.Direction,
 		&i.Currency,
 		&i.RateMicros,
-		&i.BillingUnit,
-		&i.BillingIncrementSeconds,
-		&i.MinimumDurationSeconds,
 		&i.EffectiveAt,
 		&i.ExpiresAt,
 		&i.CreatedAt,
+		&i.BillingUnit,
+		&i.BillingIncrementSeconds,
+		&i.MinimumDurationSeconds,
 	)
 	return i, err
 }
 
 const resolveCarrierRate = `-- name: ResolveCarrierRate :one
-SELECT cr.id, cr.organization_id, cr.destination_prefix, cr.direction, cr.currency, cr.rate_micros, cr.billing_unit, cr.billing_increment_seconds, cr.minimum_duration_seconds, cr.effective_at, cr.expires_at, cr.created_at
+SELECT cr.id, cr.organization_id, cr.destination_prefix, cr.direction, cr.currency, cr.rate_micros, cr.effective_at, cr.expires_at, cr.created_at, cr.billing_unit, cr.billing_increment_seconds, cr.minimum_duration_seconds
 FROM carrier_rates AS cr
 JOIN organizations AS o
   ON o.id = $1
@@ -162,12 +162,12 @@ func (q *Queries) ResolveCarrierRate(ctx context.Context, arg ResolveCarrierRate
 		&i.Direction,
 		&i.Currency,
 		&i.RateMicros,
-		&i.BillingUnit,
-		&i.BillingIncrementSeconds,
-		&i.MinimumDurationSeconds,
 		&i.EffectiveAt,
 		&i.ExpiresAt,
 		&i.CreatedAt,
+		&i.BillingUnit,
+		&i.BillingIncrementSeconds,
+		&i.MinimumDurationSeconds,
 	)
 	return i, err
 }
