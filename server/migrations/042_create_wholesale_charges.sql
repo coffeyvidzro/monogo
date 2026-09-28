@@ -1,15 +1,12 @@
--- Wholesale charges are Leamout's supplier cost for managed carrier usage.
--- The upstream provider CDR remains the immutable evidence for each charge.
+-- Actual supplier cost incurred by Leamout for one reconciled provider CDR.
 
 CREATE TABLE wholesale_charges (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     provider_cdr_id UUID NOT NULL REFERENCES provider_cdrs(id) ON DELETE RESTRICT,
-
     currency CHAR(3) NOT NULL,
     rate_micros BIGINT NOT NULL,
     billable_seconds BIGINT NOT NULL,
     amount_micros BIGINT NOT NULL,
-
     rated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
 

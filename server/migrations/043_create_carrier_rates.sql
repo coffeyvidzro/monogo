@@ -1,16 +1,13 @@
--- Customer-facing managed carrier pricing. These rates describe what
--- Leamout charges customers and are intentionally separate from provider_rates,
--- which describes what upstream carriers charge Leamout.
+-- Customer-facing managed carrier pricing. This is what Leamout charges
+-- customers and is separate from provider_rates, which is supplier pricing.
 
 CREATE TABLE carrier_rates (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     organization_id UUID REFERENCES organizations(id) ON DELETE RESTRICT,
-
     destination_prefix TEXT NOT NULL,
     direction TEXT NOT NULL DEFAULT 'outbound',
     currency CHAR(3) NOT NULL DEFAULT 'USD',
     rate_micros BIGINT NOT NULL,
-
     effective_at TIMESTAMPTZ NOT NULL,
     expires_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),

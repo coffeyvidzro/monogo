@@ -1,11 +1,10 @@
--- Immutable upstream call-detail records received from carrier providers.
--- These records are supplier evidence and are reconciled to Leamout-managed
--- calls before wholesale cost is recorded.
+-- Immutable upstream call-detail records reconciled to Leamout-managed calls.
+-- They are supplier evidence for wholesale cost accounting.
 
 CREATE TABLE provider_cdrs (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    provider_id UUID NOT NULL REFERENCES carrier_providers(id) ON DELETE RESTRICT,
-    carrier_connection_id UUID NOT NULL REFERENCES carrier_connections(id) ON DELETE RESTRICT,
+    provider_id UUID NOT NULL,
+    carrier_connection_id UUID NOT NULL,
     call_id UUID NOT NULL REFERENCES calls(id) ON DELETE RESTRICT,
 
     provider_cdr_id TEXT NOT NULL,
@@ -23,6 +22,9 @@ CREATE TABLE provider_cdrs (
     received_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
 
+    CONSTRAINT fk_provider_cdrs_carrier
+        FOREIGN KEY (carrier_connection_id, provider_id)
+        REFERENCES carrier_connections (id, provider_id) ON DELETE RESTRICT,
     CONSTRAINT uq_provider_cdrs_provider_record
         UNIQUE (provider_id, provider_cdr_id),
     CONSTRAINT chk_provider_cdrs_provider_record
