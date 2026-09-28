@@ -67,33 +67,6 @@ func (q *Queries) ActivateSubscription(ctx context.Context, arg ActivateSubscrip
 	return i, err
 }
 
-const archiveSubscriptionPlan = `-- name: ArchiveSubscriptionPlan :one
-UPDATE subscription_plans
-SET
-    status = 'archived',
-    updated_at = NOW()
-WHERE id = $1
-  AND status = 'active'
-RETURNING id, code, name, currency, interval, amount_micros, status, created_at, updated_at
-`
-
-func (q *Queries) ArchiveSubscriptionPlan(ctx context.Context, id uuid.UUID) (SubscriptionPlan, error) {
-	row := q.db.QueryRow(ctx, archiveSubscriptionPlan, id)
-	var i SubscriptionPlan
-	err := row.Scan(
-		&i.ID,
-		&i.Code,
-		&i.Name,
-		&i.Currency,
-		&i.Interval,
-		&i.AmountMicros,
-		&i.Status,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-	)
-	return i, err
-}
-
 const cancelSubscription = `-- name: CancelSubscription :one
 UPDATE subscriptions
 SET
@@ -188,100 +161,6 @@ func (q *Queries) CreateSubscription(ctx context.Context, arg CreateSubscription
 	return i, err
 }
 
-const createSubscriptionPlan = `-- name: CreateSubscriptionPlan :one
-INSERT INTO subscription_plans (
-    code,
-    name,
-    currency,
-    amount_micros
-) VALUES (
-    $1,
-    $2,
-    $3,
-    $4
-)
-RETURNING id, code, name, currency, interval, amount_micros, status, created_at, updated_at
-`
-
-type CreateSubscriptionPlanParams struct {
-	Code         string `db:"code" json:"code"`
-	Name         string `db:"name" json:"name"`
-	Currency     string `db:"currency" json:"currency"`
-	AmountMicros int64  `db:"amount_micros" json:"amount_micros"`
-}
-
-func (q *Queries) CreateSubscriptionPlan(ctx context.Context, arg CreateSubscriptionPlanParams) (SubscriptionPlan, error) {
-	row := q.db.QueryRow(ctx, createSubscriptionPlan,
-		arg.Code,
-		arg.Name,
-		arg.Currency,
-		arg.AmountMicros,
-	)
-	var i SubscriptionPlan
-	err := row.Scan(
-		&i.ID,
-		&i.Code,
-		&i.Name,
-		&i.Currency,
-		&i.Interval,
-		&i.AmountMicros,
-		&i.Status,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-	)
-	return i, err
-}
-
-const getActiveSubscriptionPlanByCode = `-- name: GetActiveSubscriptionPlanByCode :one
-SELECT id, code, name, currency, interval, amount_micros, status, created_at, updated_at
-FROM subscription_plans
-WHERE code = $1
-  AND status = 'active'
-LIMIT 1
-`
-
-func (q *Queries) GetActiveSubscriptionPlanByCode(ctx context.Context, code string) (SubscriptionPlan, error) {
-	row := q.db.QueryRow(ctx, getActiveSubscriptionPlanByCode, code)
-	var i SubscriptionPlan
-	err := row.Scan(
-		&i.ID,
-		&i.Code,
-		&i.Name,
-		&i.Currency,
-		&i.Interval,
-		&i.AmountMicros,
-		&i.Status,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-	)
-	return i, err
-}
-
-const getActiveSubscriptionPlanByID = `-- name: GetActiveSubscriptionPlanByID :one
-SELECT id, code, name, currency, interval, amount_micros, status, created_at, updated_at
-FROM subscription_plans
-WHERE id = $1
-  AND status = 'active'
-LIMIT 1
-`
-
-func (q *Queries) GetActiveSubscriptionPlanByID(ctx context.Context, id uuid.UUID) (SubscriptionPlan, error) {
-	row := q.db.QueryRow(ctx, getActiveSubscriptionPlanByID, id)
-	var i SubscriptionPlan
-	err := row.Scan(
-		&i.ID,
-		&i.Code,
-		&i.Name,
-		&i.Currency,
-		&i.Interval,
-		&i.AmountMicros,
-		&i.Status,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-	)
-	return i, err
-}
-
 const getCurrentSubscriptionByOrganization = `-- name: GetCurrentSubscriptionByOrganization :one
 SELECT s.id, s.organization_id, s.plan_id, s.status, s.currency, s.amount_micros, s.interval, s.current_period_start, s.current_period_end, s.cancel_at_period_end, s.started_at, s.cancelled_at, s.created_at, s.updated_at
 FROM subscriptions AS s
@@ -354,43 +233,6 @@ func (q *Queries) GetSubscriptionByID(ctx context.Context, arg GetSubscriptionBy
 		&i.UpdatedAt,
 	)
 	return i, err
-}
-
-const listActiveSubscriptionPlans = `-- name: ListActiveSubscriptionPlans :many
-SELECT id, code, name, currency, interval, amount_micros, status, created_at, updated_at
-FROM subscription_plans
-WHERE status = 'active'
-ORDER BY amount_micros ASC, code ASC
-`
-
-func (q *Queries) ListActiveSubscriptionPlans(ctx context.Context) ([]SubscriptionPlan, error) {
-	rows, err := q.db.Query(ctx, listActiveSubscriptionPlans)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []SubscriptionPlan{}
-	for rows.Next() {
-		var i SubscriptionPlan
-		if err := rows.Scan(
-			&i.ID,
-			&i.Code,
-			&i.Name,
-			&i.Currency,
-			&i.Interval,
-			&i.AmountMicros,
-			&i.Status,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
 }
 
 const listSubscriptionsByOrganization = `-- name: ListSubscriptionsByOrganization :many
