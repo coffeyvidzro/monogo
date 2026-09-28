@@ -47,3 +47,16 @@ difference must remain visible for reconciliation and margin reporting.
 Billing, top-up, renewal, and account-recovery operations must remain available
 when commercial service access is restricted. A customer must not be prevented
 from resolving the condition that caused the restriction.
+
+## Implementation status
+
+Organization-scoped platform, AI, and telecom HTTP APIs enforce the active
+subscription requirement. Commercial APIs for plans, subscriptions, wallet
+visibility, and future top-up workflows are deliberately exempt so an
+organization can restore access.
+
+Managed outbound voice enforces prepaid authorization and settlement. Other
+managed carrier products must add equivalent retail pricing, wallet holds, and
+settlement before they are made available as production products. In
+particular, managed inbound calling, managed number purchasing and renewal, and
+managed messaging are not yet covered by the PAYG settlement flow.
