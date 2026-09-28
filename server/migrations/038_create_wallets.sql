@@ -7,6 +7,7 @@ CREATE TABLE wallets (
     currency CHAR(3) NOT NULL DEFAULT 'USD',
     status TEXT NOT NULL DEFAULT 'active',
     balance_micros BIGINT NOT NULL DEFAULT 0,
+    reserved_micros BIGINT NOT NULL DEFAULT 0,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
 
@@ -19,7 +20,11 @@ CREATE TABLE wallets (
     CONSTRAINT chk_wallets_status
         CHECK (status IN ('active', 'frozen', 'closed')),
     CONSTRAINT chk_wallets_balance_nonnegative
-        CHECK (balance_micros >= 0)
+        CHECK (balance_micros >= 0),
+    CONSTRAINT chk_wallets_reserved_nonnegative
+        CHECK (reserved_micros >= 0),
+    CONSTRAINT chk_wallets_reserved_within_balance
+        CHECK (reserved_micros <= balance_micros)
 );
 
 CREATE INDEX idx_wallets_organization
@@ -27,6 +32,78 @@ CREATE INDEX idx_wallets_organization
 
 CREATE TRIGGER set_wallets_updated_at
 BEFORE UPDATE ON wallets
+FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
+-- Temporary authorization of prepaid funds before Leamout incurs supplier
+-- exposure. Holds do not move customer money and therefore do not create
+-- ledger entries until captured.
+
+CREATE TABLE wallet_holds (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    wallet_id UUID NOT NULL,
+    organization_id UUID NOT NULL,
+    operation_id UUID NOT NULL,
+    amount_micros BIGINT NOT NULL,
+    reason TEXT NOT NULL,
+    reference_type TEXT,
+    reference_id UUID,
+    status TEXT NOT NULL DEFAULT 'active',
+    captured_at TIMESTAMPTZ,
+    released_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+    CONSTRAINT fk_wallet_holds_wallet
+        FOREIGN KEY (wallet_id, organization_id)
+        REFERENCES wallets (id, organization_id) ON DELETE RESTRICT,
+    CONSTRAINT uq_wallet_holds_operation
+        UNIQUE (operation_id),
+    CONSTRAINT chk_wallet_holds_amount
+        CHECK (amount_micros > 0),
+    CONSTRAINT chk_wallet_holds_reason
+        CHECK (reason ~ '^[a-z][a-z0-9_]{0,63}$'),
+    CONSTRAINT chk_wallet_holds_reference
+        CHECK (
+            (reference_type IS NULL AND reference_id IS NULL)
+            OR
+            (
+                reference_type ~ '^[a-z][a-z0-9_]{0,63}$'
+                AND reference_id IS NOT NULL
+            )
+        ),
+    CONSTRAINT chk_wallet_holds_status
+        CHECK (status IN ('active', 'captured', 'released')),
+    CONSTRAINT chk_wallet_holds_transition
+        CHECK (
+            (
+                status = 'active'
+                AND captured_at IS NULL
+                AND released_at IS NULL
+            )
+            OR
+            (
+                status = 'captured'
+                AND captured_at IS NOT NULL
+                AND released_at IS NULL
+            )
+            OR
+            (
+                status = 'released'
+                AND captured_at IS NULL
+                AND released_at IS NOT NULL
+            )
+        )
+);
+
+CREATE INDEX idx_wallet_holds_wallet_status
+    ON wallet_holds (wallet_id, status, created_at DESC);
+
+CREATE INDEX idx_wallet_holds_reference
+    ON wallet_holds (reference_type, reference_id)
+    WHERE reference_id IS NOT NULL;
+
+CREATE TRIGGER set_wallet_holds_updated_at
+BEFORE UPDATE ON wallet_holds
 FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
 -- Immutable settled movements of prepaid customer funds.
