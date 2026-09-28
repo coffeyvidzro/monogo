@@ -717,6 +717,22 @@ type VoiceAgentBinding struct {
 	CreatedAt          pgtype.Timestamptz `db:"created_at" json:"created_at"`
 }
 
+type VoiceAgentMediaEvent struct {
+	ID                  uuid.UUID          `db:"id" json:"id"`
+	OrganizationID      uuid.UUID          `db:"organization_id" json:"organization_id"`
+	SessionID           uuid.UUID          `db:"session_id" json:"session_id"`
+	Generation          int64              `db:"generation" json:"generation"`
+	EventType           string             `db:"event_type" json:"event_type"`
+	ProviderID          *string            `db:"provider_id" json:"provider_id"`
+	ToolName            *string            `db:"tool_name" json:"tool_name"`
+	TextContent         *string            `db:"text_content" json:"text_content"`
+	Payload             []byte             `db:"payload" json:"payload"`
+	OccurredAt          pgtype.Timestamptz `db:"occurred_at" json:"occurred_at"`
+	ProcessingStartedAt pgtype.Timestamptz `db:"processing_started_at" json:"processing_started_at"`
+	ProcessedAt         pgtype.Timestamptz `db:"processed_at" json:"processed_at"`
+	CreatedAt           pgtype.Timestamptz `db:"created_at" json:"created_at"`
+}
+
 type VoiceAgentSession struct {
 	ID                     uuid.UUID          `db:"id" json:"id"`
 	OrganizationID         uuid.UUID          `db:"organization_id" json:"organization_id"`
