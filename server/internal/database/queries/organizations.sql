@@ -1,10 +1,24 @@
 -- name: CreateOrganization :one
-INSERT INTO organizations (
-    name
-) VALUES (
-    sqlc.arg(name)
+WITH new_organization AS (
+    INSERT INTO organizations (
+        name
+    ) VALUES (
+        sqlc.arg(name)
+    )
+    RETURNING *
+), organization_wallet AS (
+    INSERT INTO wallets (
+        organization_id
+    )
+    SELECT
+        o.id
+    FROM new_organization AS o
+    RETURNING organization_id
 )
-RETURNING *;
+SELECT o.*
+FROM new_organization AS o
+JOIN organization_wallet AS w
+  ON w.organization_id = o.id;
 
 -- name: CreateOrganizationWithOwner :one
 WITH new_organization AS (
@@ -14,7 +28,7 @@ WITH new_organization AS (
     SELECT sqlc.arg(name)
     FROM users AS u
     WHERE u.id = sqlc.arg(user_id)
-    AND u.disabled_at IS NULL
+      AND u.disabled_at IS NULL
     RETURNING *
 ), owner_membership AS (
     INSERT INTO organization_members (
@@ -28,10 +42,21 @@ WITH new_organization AS (
         'owner'
     FROM new_organization AS o
     RETURNING organization_id
+), organization_wallet AS (
+    INSERT INTO wallets (
+        organization_id
+    )
+    SELECT
+        o.id
+    FROM new_organization AS o
+    RETURNING organization_id
 )
 SELECT o.*
 FROM new_organization AS o
-JOIN owner_membership AS om ON om.organization_id = o.id;
+JOIN owner_membership AS om
+  ON om.organization_id = o.id
+JOIN organization_wallet AS w
+  ON w.organization_id = o.id;
 
 -- name: GetOrganizationByID :one
 SELECT *
@@ -71,6 +96,3 @@ AND tm.status = 'active'
 AND t.status = 'active'
 AND t.deleted_at IS NULL
 ORDER BY t.created_at DESC;
-
-
-
