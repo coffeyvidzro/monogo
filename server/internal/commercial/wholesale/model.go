@@ -13,11 +13,11 @@ const (
 )
 
 var (
-	ErrProviderCDRNotFound  = errors.New("provider CDR not found")
-	ErrProviderCDRRejected  = errors.New("provider CDR was not accepted")
-	ErrProviderCDRConflict  = errors.New("provider CDR conflicts with existing record")
-	ErrChargeNotFound       = errors.New("wholesale charge not found")
-	ErrChargeConflict       = errors.New("wholesale charge conflicts with existing record")
+	ErrProviderCDRNotFound = errors.New("provider CDR not found")
+	ErrProviderCDRRejected = errors.New("provider CDR was not accepted")
+	ErrProviderCDRConflict = errors.New("provider CDR conflicts with existing record")
+	ErrChargeNotFound      = errors.New("wholesale charge not found")
+	ErrChargeConflict      = errors.New("wholesale charge conflicts with existing record")
 )
 
 type ProviderCDR struct {

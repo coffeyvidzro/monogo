@@ -18,12 +18,12 @@ const (
 )
 
 var (
-	ErrPlanNotFound              = errors.New("subscription plan not found")
-	ErrPlanConflict              = errors.New("subscription plan conflict")
-	ErrSubscriptionNotFound      = errors.New("subscription not found")
-	ErrSubscriptionConflict      = errors.New("organization already has a current subscription")
-	ErrSubscriptionInvalidState  = errors.New("subscription state does not allow operation")
-	ErrSubscriptionNotPermitted  = errors.New("subscription cannot be created")
+	ErrPlanNotFound             = errors.New("subscription plan not found")
+	ErrPlanConflict             = errors.New("subscription plan conflict")
+	ErrSubscriptionNotFound     = errors.New("subscription not found")
+	ErrSubscriptionConflict     = errors.New("organization already has a current subscription")
+	ErrSubscriptionInvalidState = errors.New("subscription state does not allow operation")
+	ErrSubscriptionNotPermitted = errors.New("subscription cannot be created")
 )
 
 type Plan struct {
