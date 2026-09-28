@@ -9,7 +9,6 @@ import (
 	"github.com/coffeyvidzro/monogo/internal/platform/middleware"
 	"github.com/coffeyvidzro/monogo/pkg/apperror"
 	"github.com/coffeyvidzro/monogo/pkg/httputil"
-	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 )
 
@@ -23,7 +22,7 @@ func NewHandler(service *Service) *Handler {
 	}
 }
 
-func (h *Handler) GetByCurrency(
+func (h *Handler) Get(
 	w http.ResponseWriter,
 	r *http.Request,
 ) {
@@ -33,10 +32,9 @@ func (h *Handler) GetByCurrency(
 		return
 	}
 
-	item, err := h.service.GetByCurrency(
+	item, err := h.service.Get(
 		r.Context(),
 		organizationID,
-		chi.URLParam(r, "currency"),
 	)
 	if err != nil {
 		httputil.Error(w, walletHTTPError(err))
@@ -56,12 +54,10 @@ func (h *Handler) ListLedger(
 		return
 	}
 
-	wallet, err := h.service.GetByCurrency(
+	if _, err := h.service.Get(
 		r.Context(),
 		organizationID,
-		chi.URLParam(r, "currency"),
-	)
-	if err != nil {
+	); err != nil {
 		httputil.Error(w, walletHTTPError(err))
 		return
 	}
@@ -76,7 +72,6 @@ func (h *Handler) ListLedger(
 		r.Context(),
 		ListLedgerRequest{
 			OrganizationID: organizationID,
-			WalletID:       wallet.ID,
 			Limit:          limit,
 			Offset:         offset,
 		},
@@ -89,7 +84,6 @@ func (h *Handler) ListLedger(
 	httputil.OK(
 		w,
 		map[string]any{
-			"wallet":         wallet,
 			"ledger_entries": entries,
 		},
 	)

@@ -10,14 +10,9 @@ import (
 
 var ledgerTokenPattern = regexp.MustCompile(`^[a-z][a-z0-9_]{0,63}$`)
 
-func normalizeCreateRequest(req *CreateRequest) error {
+func validateCreateRequest(req CreateRequest) error {
 	if req.OrganizationID == uuid.Nil {
 		return fmt.Errorf("%w: organization id is required", ErrInvalidInput)
-	}
-
-	req.Currency = strings.ToUpper(strings.TrimSpace(req.Currency))
-	if len(req.Currency) != 3 {
-		return fmt.Errorf("%w: currency must be a three-letter code", ErrInvalidInput)
 	}
 
 	return nil
@@ -26,9 +21,6 @@ func normalizeCreateRequest(req *CreateRequest) error {
 func normalizeMovementRequest(req *MovementRequest) error {
 	if req.OrganizationID == uuid.Nil {
 		return fmt.Errorf("%w: organization id is required", ErrInvalidInput)
-	}
-	if req.WalletID == uuid.Nil {
-		return fmt.Errorf("%w: wallet id is required", ErrInvalidInput)
 	}
 	if req.OperationID == uuid.Nil {
 		return fmt.Errorf("%w: operation id is required", ErrInvalidInput)
@@ -62,9 +54,6 @@ func normalizeMovementRequest(req *MovementRequest) error {
 func normalizeListLedgerRequest(req *ListLedgerRequest) error {
 	if req.OrganizationID == uuid.Nil {
 		return fmt.Errorf("%w: organization id is required", ErrInvalidInput)
-	}
-	if req.WalletID == uuid.Nil {
-		return fmt.Errorf("%w: wallet id is required", ErrInvalidInput)
 	}
 	if req.Offset < 0 {
 		return fmt.Errorf("%w: offset cannot be negative", ErrInvalidInput)

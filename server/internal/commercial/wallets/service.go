@@ -35,20 +35,18 @@ func (s *Service) Create(
 	ctx context.Context,
 	req CreateRequest,
 ) (Wallet, error) {
-	if err := normalizeCreateRequest(&req); err != nil {
+	if err := validateCreateRequest(req); err != nil {
 		return Wallet{}, err
 	}
 
 	row, err := s.repo.Create(
 		ctx,
 		req.OrganizationID,
-		req.Currency,
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
-		row, err = s.repo.GetActiveByCurrency(
+		row, err = s.repo.GetActive(
 			ctx,
 			req.OrganizationID,
-			req.Currency,
 		)
 	}
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -64,50 +62,20 @@ func (s *Service) Create(
 func (s *Service) Get(
 	ctx context.Context,
 	organizationID uuid.UUID,
-	id uuid.UUID,
 ) (Wallet, error) {
-	if organizationID == uuid.Nil || id == uuid.Nil {
+	if organizationID == uuid.Nil {
 		return Wallet{}, ErrNotFound
 	}
 
 	row, err := s.repo.GetActive(
 		ctx,
 		organizationID,
-		id,
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Wallet{}, ErrNotFound
 	}
 	if err != nil {
 		return Wallet{}, fmt.Errorf("get wallet: %w", err)
-	}
-
-	return walletFromRow(row), nil
-}
-
-func (s *Service) GetByCurrency(
-	ctx context.Context,
-	organizationID uuid.UUID,
-	currency string,
-) (Wallet, error) {
-	req := CreateRequest{
-		OrganizationID: organizationID,
-		Currency:       currency,
-	}
-	if err := normalizeCreateRequest(&req); err != nil {
-		return Wallet{}, err
-	}
-
-	row, err := s.repo.GetActiveByCurrency(
-		ctx,
-		req.OrganizationID,
-		req.Currency,
-	)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return Wallet{}, ErrNotFound
-	}
-	if err != nil {
-		return Wallet{}, fmt.Errorf("get wallet by currency: %w", err)
 	}
 
 	return walletFromRow(row), nil
@@ -165,12 +133,10 @@ func (s *Service) ListLedgerEntries(
 func (s *Service) Freeze(
 	ctx context.Context,
 	organizationID uuid.UUID,
-	id uuid.UUID,
 ) (Wallet, error) {
 	row, err := s.repo.Freeze(
 		ctx,
 		organizationID,
-		id,
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Wallet{}, ErrInvalidState
@@ -185,12 +151,10 @@ func (s *Service) Freeze(
 func (s *Service) Activate(
 	ctx context.Context,
 	organizationID uuid.UUID,
-	id uuid.UUID,
 ) (Wallet, error) {
 	row, err := s.repo.Activate(
 		ctx,
 		organizationID,
-		id,
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Wallet{}, ErrInvalidState
@@ -205,12 +169,10 @@ func (s *Service) Activate(
 func (s *Service) Close(
 	ctx context.Context,
 	organizationID uuid.UUID,
-	id uuid.UUID,
 ) (Wallet, error) {
 	row, err := s.repo.Close(
 		ctx,
 		organizationID,
-		id,
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Wallet{}, ErrInvalidState
@@ -234,7 +196,6 @@ func (s *Service) applyMovement(
 	existing, err := s.repo.GetLedgerEntryByOperation(
 		ctx,
 		req.OrganizationID,
-		req.WalletID,
 		req.OperationID,
 	)
 	if err == nil {
@@ -261,7 +222,6 @@ func (s *Service) applyMovement(
 	wallet, err := repo.LockActive(
 		ctx,
 		req.OrganizationID,
-		req.WalletID,
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return LedgerEntry{}, ErrNotFound
@@ -273,7 +233,6 @@ func (s *Service) applyMovement(
 	existing, err = repo.GetLedgerEntryByOperation(
 		ctx,
 		req.OrganizationID,
-		req.WalletID,
 		req.OperationID,
 	)
 	if err == nil {
@@ -301,7 +260,6 @@ func (s *Service) applyMovement(
 	updated, err := repo.ApplyBalance(
 		ctx,
 		req.OrganizationID,
-		req.WalletID,
 		delta,
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -330,7 +288,6 @@ func (s *Service) applyMovement(
 			ReferenceType:      req.ReferenceType,
 			ReferenceID:        req.ReferenceID,
 			OccurredAt:         pgconv.TimeToTimestamptz(occurredAt),
-			WalletID:           req.WalletID,
 			OrganizationID:     req.OrganizationID,
 		},
 	)

@@ -1,37 +1,22 @@
 -- name: CreateWallet :one
 INSERT INTO wallets (
-    organization_id,
-    currency
+    organization_id
 )
 SELECT
-    o.id,
-    sqlc.arg(currency)
+    o.id
 FROM organizations AS o
 WHERE o.id = sqlc.arg(organization_id)
   AND o.status = 'active'
   AND o.deleted_at IS NULL
-ON CONFLICT (organization_id, currency) DO NOTHING
+ON CONFLICT (organization_id) DO NOTHING
 RETURNING *;
 
--- name: GetActiveWalletByID :one
-SELECT w.*
-FROM wallets AS w
-JOIN organizations AS o
-  ON o.id = w.organization_id
-WHERE w.id = sqlc.arg(id)
-  AND w.organization_id = sqlc.arg(organization_id)
-  AND w.status = 'active'
-  AND o.status = 'active'
-  AND o.deleted_at IS NULL
-LIMIT 1;
-
--- name: GetActiveWalletByOrganizationCurrency :one
+-- name: GetActiveWalletByOrganization :one
 SELECT w.*
 FROM wallets AS w
 JOIN organizations AS o
   ON o.id = w.organization_id
 WHERE w.organization_id = sqlc.arg(organization_id)
-  AND w.currency = sqlc.arg(currency)
   AND w.status = 'active'
   AND o.status = 'active'
   AND o.deleted_at IS NULL
@@ -42,8 +27,7 @@ SELECT w.*
 FROM wallets AS w
 JOIN organizations AS o
   ON o.id = w.organization_id
-WHERE w.id = sqlc.arg(id)
-  AND w.organization_id = sqlc.arg(organization_id)
+WHERE w.organization_id = sqlc.arg(organization_id)
   AND w.status = 'active'
   AND o.status = 'active'
   AND o.deleted_at IS NULL
@@ -54,8 +38,7 @@ UPDATE wallets AS w
 SET
     balance_micros = w.balance_micros + sqlc.arg(delta_micros),
     updated_at = NOW()
-WHERE w.id = sqlc.arg(id)
-  AND w.organization_id = sqlc.arg(organization_id)
+WHERE w.organization_id = sqlc.arg(organization_id)
   AND w.status = 'active'
   AND w.balance_micros + sqlc.arg(delta_micros) >= 0
   AND EXISTS (
@@ -94,8 +77,7 @@ SELECT
 FROM wallets AS w
 JOIN organizations AS o
   ON o.id = w.organization_id
-WHERE w.id = sqlc.arg(wallet_id)
-  AND w.organization_id = sqlc.arg(organization_id)
+WHERE w.organization_id = sqlc.arg(organization_id)
   AND w.status = 'active'
   AND w.balance_micros = sqlc.arg(balance_after_micros)
   AND o.status = 'active'
@@ -106,7 +88,6 @@ RETURNING *;
 SELECT *
 FROM wallet_ledger_entries
 WHERE organization_id = sqlc.arg(organization_id)
-  AND wallet_id = sqlc.arg(wallet_id)
   AND operation_id = sqlc.arg(operation_id)
 LIMIT 1;
 
@@ -114,7 +95,6 @@ LIMIT 1;
 SELECT *
 FROM wallet_ledger_entries
 WHERE organization_id = sqlc.arg(organization_id)
-  AND wallet_id = sqlc.arg(wallet_id)
 ORDER BY occurred_at DESC, id DESC
 LIMIT sqlc.arg(limit_count)
 OFFSET sqlc.arg(offset_count);
@@ -124,8 +104,7 @@ UPDATE wallets
 SET
     status = 'frozen',
     updated_at = NOW()
-WHERE id = sqlc.arg(id)
-  AND organization_id = sqlc.arg(organization_id)
+WHERE organization_id = sqlc.arg(organization_id)
   AND status = 'active'
 RETURNING *;
 
@@ -134,8 +113,7 @@ UPDATE wallets AS w
 SET
     status = 'active',
     updated_at = NOW()
-WHERE w.id = sqlc.arg(id)
-  AND w.organization_id = sqlc.arg(organization_id)
+WHERE w.organization_id = sqlc.arg(organization_id)
   AND w.status = 'frozen'
   AND EXISTS (
       SELECT 1
@@ -151,8 +129,7 @@ UPDATE wallets
 SET
     status = 'closed',
     updated_at = NOW()
-WHERE id = sqlc.arg(id)
-  AND organization_id = sqlc.arg(organization_id)
+WHERE organization_id = sqlc.arg(organization_id)
   AND status IN ('active', 'frozen')
   AND balance_micros = 0
 RETURNING *;

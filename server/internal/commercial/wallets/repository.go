@@ -27,76 +27,40 @@ func (r *Repository) WithTx(tx pgx.Tx) *Repository {
 func (r *Repository) Create(
 	ctx context.Context,
 	organizationID uuid.UUID,
-	currency string,
 ) (sqlc.Wallet, error) {
-	params := sqlc.CreateWalletParams{
-		Currency:       currency,
-		OrganizationID: organizationID,
-	}
-
 	return r.queries.CreateWallet(
 		ctx,
-		params,
+		organizationID,
 	)
 }
 
 func (r *Repository) GetActive(
 	ctx context.Context,
 	organizationID uuid.UUID,
-	id uuid.UUID,
 ) (sqlc.Wallet, error) {
-	params := sqlc.GetActiveWalletByIDParams{
-		ID:             id,
-		OrganizationID: organizationID,
-	}
-
-	return r.queries.GetActiveWalletByID(
+	return r.queries.GetActiveWalletByOrganization(
 		ctx,
-		params,
-	)
-}
-
-func (r *Repository) GetActiveByCurrency(
-	ctx context.Context,
-	organizationID uuid.UUID,
-	currency string,
-) (sqlc.Wallet, error) {
-	params := sqlc.GetActiveWalletByOrganizationCurrencyParams{
-		OrganizationID: organizationID,
-		Currency:       currency,
-	}
-
-	return r.queries.GetActiveWalletByOrganizationCurrency(
-		ctx,
-		params,
+		organizationID,
 	)
 }
 
 func (r *Repository) LockActive(
 	ctx context.Context,
 	organizationID uuid.UUID,
-	id uuid.UUID,
 ) (sqlc.Wallet, error) {
-	params := sqlc.LockActiveWalletParams{
-		ID:             id,
-		OrganizationID: organizationID,
-	}
-
 	return r.queries.LockActiveWallet(
 		ctx,
-		params,
+		organizationID,
 	)
 }
 
 func (r *Repository) ApplyBalance(
 	ctx context.Context,
 	organizationID uuid.UUID,
-	id uuid.UUID,
 	deltaMicros int64,
 ) (sqlc.Wallet, error) {
 	params := sqlc.ApplyWalletBalanceParams{
 		DeltaMicros:    deltaMicros,
-		ID:             id,
 		OrganizationID: organizationID,
 	}
 
@@ -119,12 +83,10 @@ func (r *Repository) CreateLedgerEntry(
 func (r *Repository) GetLedgerEntryByOperation(
 	ctx context.Context,
 	organizationID uuid.UUID,
-	walletID uuid.UUID,
 	operationID uuid.UUID,
 ) (sqlc.WalletLedgerEntry, error) {
 	params := sqlc.GetWalletLedgerEntryByOperationIDParams{
 		OrganizationID: organizationID,
-		WalletID:       walletID,
 		OperationID:    operationID,
 	}
 
@@ -140,7 +102,6 @@ func (r *Repository) ListLedgerEntries(
 ) ([]sqlc.WalletLedgerEntry, error) {
 	params := sqlc.ListWalletLedgerEntriesParams{
 		OrganizationID: req.OrganizationID,
-		WalletID:       req.WalletID,
 		OffsetCount:    req.Offset,
 		LimitCount:     req.Limit,
 	}
@@ -154,47 +115,29 @@ func (r *Repository) ListLedgerEntries(
 func (r *Repository) Freeze(
 	ctx context.Context,
 	organizationID uuid.UUID,
-	id uuid.UUID,
 ) (sqlc.Wallet, error) {
-	params := sqlc.FreezeWalletParams{
-		ID:             id,
-		OrganizationID: organizationID,
-	}
-
 	return r.queries.FreezeWallet(
 		ctx,
-		params,
+		organizationID,
 	)
 }
 
 func (r *Repository) Activate(
 	ctx context.Context,
 	organizationID uuid.UUID,
-	id uuid.UUID,
 ) (sqlc.Wallet, error) {
-	params := sqlc.ActivateWalletParams{
-		ID:             id,
-		OrganizationID: organizationID,
-	}
-
 	return r.queries.ActivateWallet(
 		ctx,
-		params,
+		organizationID,
 	)
 }
 
 func (r *Repository) Close(
 	ctx context.Context,
 	organizationID uuid.UUID,
-	id uuid.UUID,
 ) (sqlc.Wallet, error) {
-	params := sqlc.CloseWalletParams{
-		ID:             id,
-		OrganizationID: organizationID,
-	}
-
 	return r.queries.CloseWallet(
 		ctx,
-		params,
+		organizationID,
 	)
 }

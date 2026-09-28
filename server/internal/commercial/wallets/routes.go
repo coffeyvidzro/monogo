@@ -11,10 +11,10 @@ func RegisterRoutes(
 	handler *Handler,
 	authMiddleware func(http.Handler) http.Handler,
 ) {
-	router.Route("/wallets", func(r chi.Router) {
+	router.Route("/wallet", func(r chi.Router) {
 		r.Use(authMiddleware)
 
-		r.Get("/{currency}", handler.GetByCurrency)
-		r.Get("/{currency}/ledger", handler.ListLedger)
+		r.Get("/", handler.Get)
+		r.Get("/ledger", handler.ListLedger)
 	})
 }

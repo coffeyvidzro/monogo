@@ -8,6 +8,8 @@ import (
 )
 
 const (
+	CurrencyUSD = "USD"
+
 	StatusActive = "active"
 	StatusFrozen = "frozen"
 	StatusClosed = "closed"
@@ -51,12 +53,10 @@ type LedgerEntry struct {
 
 type CreateRequest struct {
 	OrganizationID uuid.UUID
-	Currency       string
 }
 
 type MovementRequest struct {
 	OrganizationID uuid.UUID
-	WalletID       uuid.UUID
 	OperationID    uuid.UUID
 	AmountMicros   int64
 	Reason         string
@@ -67,7 +67,6 @@ type MovementRequest struct {
 
 type ListLedgerRequest struct {
 	OrganizationID uuid.UUID
-	WalletID       uuid.UUID
 	Limit          int32
 	Offset         int32
 }
