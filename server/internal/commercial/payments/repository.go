@@ -65,14 +65,14 @@ func (r *Repository) NextAttempt(
 	)
 }
 
-func (r *Repository) AttachProviderReference(
+func (r *Repository) AttachProviderPaymentID(
 	ctx context.Context,
-	req AttachProviderReferenceRequest,
+	req AttachProviderPaymentIDRequest,
 ) (sqlc.Payment, error) {
-	return r.queries.AttachPaymentProviderReference(
+	return r.queries.AttachProviderPaymentID(
 		ctx,
-		sqlc.AttachPaymentProviderReferenceParams{
-			ProviderReference: &req.ProviderReference,
+		sqlc.AttachProviderPaymentIDParams{
+			ProviderPaymentID: &req.ProviderPaymentID,
 			ID:                req.PaymentID,
 			CheckoutID:        req.CheckoutID,
 			OrganizationID:    req.OrganizationID,
@@ -90,7 +90,7 @@ func (r *Repository) MarkSucceeded(
 	return r.queries.MarkPaymentAttemptSucceeded(
 		ctx,
 		sqlc.MarkPaymentAttemptSucceededParams{
-			CompletedAt:    pgconv.TimeToTimestamptz(completedAt),
+			PaidAt:         pgconv.TimeToTimestamptz(completedAt),
 			ID:             id,
 			CheckoutID:     checkoutID,
 			OrganizationID: organizationID,
@@ -110,7 +110,7 @@ func (r *Repository) MarkFailed(
 		ctx,
 		sqlc.MarkPaymentAttemptFailedParams{
 			FailureCode:    &failureCode,
-			CompletedAt:    pgconv.TimeToTimestamptz(completedAt),
+			PaidAt:         pgconv.TimeToTimestamptz(completedAt),
 			ID:             id,
 			CheckoutID:     checkoutID,
 			OrganizationID: organizationID,
