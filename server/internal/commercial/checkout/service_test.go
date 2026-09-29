@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/coffeyvidzro/monogo/internal/commercial/payments"
 	"github.com/coffeyvidzro/monogo/internal/commercial/subscriptions"
 	"github.com/coffeyvidzro/monogo/internal/commercial/wallets"
 	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
@@ -441,10 +442,15 @@ func newCheckoutTestService(
 		wallets.NewRepository(queries),
 		pool,
 	)
+	paymentsService := payments.NewService(
+		payments.NewRepository(queries),
+	)
 	service := NewService(
 		NewRepository(queries),
+		paymentsService,
 		subscriptionsService,
 		walletsService,
+		pool,
 	)
 
 	return service, pool, organizationID, subscriptionID
