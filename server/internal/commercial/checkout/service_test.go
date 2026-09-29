@@ -285,6 +285,7 @@ func TestFailedCheckoutDoesNotApplySubscription(t *testing.T) {
 		context.Background(),
 		organizationID,
 		checkout.ID,
+		"card_declined",
 		&message,
 		now.Add(time.Minute),
 	)
@@ -481,6 +482,7 @@ func createCheckoutTestSchema(
 			payment_method TEXT,
 			next_action TEXT NOT NULL DEFAULT 'wait',
 			provider_message TEXT,
+			failure_code TEXT,
 			expires_at TIMESTAMPTZ NOT NULL,
 			completed_at TIMESTAMPTZ,
 			created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -492,6 +494,7 @@ func createCheckoutTestSchema(
 			checkout_id UUID NOT NULL,
 			organization_id UUID NOT NULL,
 			provider TEXT NOT NULL,
+			payment_method TEXT NOT NULL,
 			attempt INTEGER NOT NULL,
 			provider_payment_id TEXT,
 			amount_micros BIGINT NOT NULL,
