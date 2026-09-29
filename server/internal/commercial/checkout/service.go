@@ -344,4 +344,3 @@ func (s *Service) completeWalletTopup(
 	)
 	return err
 }
-
