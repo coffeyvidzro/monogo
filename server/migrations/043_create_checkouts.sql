@@ -11,7 +11,10 @@ CREATE TABLE checkouts (
     payment_method TEXT,
     next_action TEXT NOT NULL DEFAULT 'wait',
     provider_message TEXT,
+    period_start TIMESTAMPTZ,
+    period_end TIMESTAMPTZ,
     expires_at TIMESTAMPTZ NOT NULL,
+    failure_code TEXT,
     completed_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -21,27 +24,23 @@ CREATE TABLE checkouts (
     CONSTRAINT chk_checkouts_purpose
         CHECK (purpose IN ('subscription', 'wallet_topup')),
     CONSTRAINT chk_checkouts_reference
-        CHECK (reference ~ '^[A-Za-z0-9.=_-]+$'),
+        CHECK (reference ~ '^[A-Za-z0-9._=-]+$'),
     CONSTRAINT chk_checkouts_amount
         CHECK (amount_micros > 0),
     CONSTRAINT chk_checkouts_currency
         CHECK (currency ~ '^[A-Z]{3}$'),
     CONSTRAINT chk_checkouts_status
         CHECK (status IN ('pending', 'processing', 'succeeded', 'failed', 'cancelled', 'expired')),
-    CONSTRAINT chk_checkouts_provider
-        CHECK (provider IS NULL OR provider IN ('stripe', 'paystack')),
-    CONSTRAINT chk_checkouts_payment_method
+    CONSTRAINT chk_checkouts_payment_binding
         CHECK (
             (provider IS NULL AND payment_method IS NULL)
-            OR
-            (
-                provider = 'stripe'
-                AND payment_method = 'card'
-            )
-            OR
-            (
-                provider = 'paystack'
-                AND payment_method = 'mobile_money'
+            OR (
+                provider IS NOT NULL
+                AND payment_method IS NOT NULL
+                AND (
+                    (provider = 'stripe' AND payment_method = 'card')
+                    OR (provider = 'paystack' AND payment_method = 'mobile_money')
+                )
             )
         ),
     CONSTRAINT chk_checkouts_action
@@ -55,22 +54,27 @@ CREATE TABLE checkouts (
                 'unsupported'
             )
         ),
-    CONSTRAINT chk_checkouts_message
-        CHECK (
-            provider_message IS NULL
-            OR length(btrim(provider_message)) > 0
-        ),
     CONSTRAINT chk_checkouts_purchase_shape
         CHECK (
             (
                 purpose = 'subscription'
                 AND subscription_id IS NOT NULL
+                AND period_start IS NOT NULL
+                AND period_end IS NOT NULL
+                AND period_end > period_start
             )
             OR
             (
                 purpose = 'wallet_topup'
                 AND subscription_id IS NULL
+                AND period_start IS NULL
+                AND period_end IS NULL
             )
+        ),
+    CONSTRAINT chk_checkouts_message
+        CHECK (
+            provider_message IS NULL
+            OR length(btrim(provider_message)) > 0
         ),
     CONSTRAINT chk_checkouts_expiry
         CHECK (expires_at > created_at),
@@ -80,8 +84,7 @@ CREATE TABLE checkouts (
                 status IN ('pending', 'processing')
                 AND completed_at IS NULL
             )
-            OR
-            (
+            OR (
                 status IN ('succeeded', 'failed', 'cancelled', 'expired')
                 AND completed_at IS NOT NULL
             )
@@ -90,6 +93,11 @@ CREATE TABLE checkouts (
         CHECK (
             status IN ('pending', 'processing')
             OR next_action = 'none'
+        ),
+    CONSTRAINT chk_checkouts_failure
+        CHECK (
+            (status = 'failed' AND failure_code IS NOT NULL)
+            OR (status <> 'failed' AND failure_code IS NULL)
         )
 );
 
