@@ -53,3 +53,25 @@ type AttachProviderPaymentIDRequest struct {
 	PaymentID          uuid.UUID
 	ProviderPaymentID string
 }
+
+type ProviderEvent struct {
+	ID              uuid.UUID
+	PaymentID       uuid.UUID
+	OrganizationID  uuid.UUID
+	Provider        string
+	ProviderEventID string
+	EventType       string
+	PayloadSHA256   string
+	Payload         []byte
+	ReceivedAt      time.Time
+	ProcessedAt     *time.Time
+}
+
+type RecordProviderEventRequest struct {
+	Provider          string
+	ProviderPaymentID string
+	ProviderEventID   string
+	EventType         string
+	Payload           []byte
+	ReceivedAt        time.Time
+}
