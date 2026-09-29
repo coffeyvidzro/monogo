@@ -256,24 +256,6 @@ type ManagedNumberOrder struct {
 	UpdatedAt           pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 }
 
-type NumberRenewal struct {
-	ID             uuid.UUID          `db:"id" json:"id"`
-	OrganizationID uuid.UUID          `db:"organization_id" json:"organization_id"`
-	PhoneNumberID  uuid.UUID          `db:"phone_number_id" json:"phone_number_id"`
-	PeriodStart    pgtype.Timestamptz `db:"period_start" json:"period_start"`
-	PeriodEnd      pgtype.Timestamptz `db:"period_end" json:"period_end"`
-	OperationID    uuid.UUID          `db:"operation_id" json:"operation_id"`
-	Status         string             `db:"status" json:"status"`
-	AmountMicros   *int64             `db:"amount_micros" json:"amount_micros"`
-	Currency       *string            `db:"currency" json:"currency"`
-	AttemptCount   int32              `db:"attempt_count" json:"attempt_count"`
-	NextAttemptAt  pgtype.Timestamptz `db:"next_attempt_at" json:"next_attempt_at"`
-	PaidAt         pgtype.Timestamptz `db:"paid_at" json:"paid_at"`
-	LastError      *string            `db:"last_error" json:"last_error"`
-	CreatedAt      pgtype.Timestamptz `db:"created_at" json:"created_at"`
-	UpdatedAt      pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
-}
-
 type Message struct {
 	ID                    uuid.UUID          `db:"id" json:"id"`
 	OrganizationID        uuid.UUID          `db:"organization_id" json:"organization_id"`
@@ -334,6 +316,24 @@ type NumberLifecycleOperation struct {
 	UpdatedAt         pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 	ReconcileAfter    pgtype.Timestamptz `db:"reconcile_after" json:"reconcile_after"`
 	ReconcileAttempts int32              `db:"reconcile_attempts" json:"reconcile_attempts"`
+}
+
+type NumberRenewal struct {
+	ID             uuid.UUID          `db:"id" json:"id"`
+	OrganizationID uuid.UUID          `db:"organization_id" json:"organization_id"`
+	PhoneNumberID  uuid.UUID          `db:"phone_number_id" json:"phone_number_id"`
+	PeriodStart    pgtype.Timestamptz `db:"period_start" json:"period_start"`
+	PeriodEnd      pgtype.Timestamptz `db:"period_end" json:"period_end"`
+	OperationID    uuid.UUID          `db:"operation_id" json:"operation_id"`
+	Status         string             `db:"status" json:"status"`
+	AmountMicros   *int64             `db:"amount_micros" json:"amount_micros"`
+	Currency       *string            `db:"currency" json:"currency"`
+	AttemptCount   int32              `db:"attempt_count" json:"attempt_count"`
+	NextAttemptAt  pgtype.Timestamptz `db:"next_attempt_at" json:"next_attempt_at"`
+	PaidAt         pgtype.Timestamptz `db:"paid_at" json:"paid_at"`
+	LastError      *string            `db:"last_error" json:"last_error"`
+	CreatedAt      pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	UpdatedAt      pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 }
 
 type OpensipsCarrierDigestCredential struct {
