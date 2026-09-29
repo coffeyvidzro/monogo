@@ -2,262 +2,198 @@ package checkout
 
 import (
 	"context"
+	"errors"
 	"time"
 
-	"github.com/coffeyvidzro/monogo/internal/commercial/payments"
 	"github.com/coffeyvidzro/monogo/internal/commercial/subscriptions"
 	"github.com/coffeyvidzro/monogo/internal/commercial/wallets"
+	"github.com/coffeyvidzro/monogo/internal/database/pgconv"
+	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
 	"github.com/coffeyvidzro/monogo/pkg/apperror"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 type Service struct {
-	payments      *payments.Service
+	repo          *Repository
 	subscriptions *subscriptions.Service
 	wallets       *wallets.Service
 	now           func() time.Time
 }
 
 func NewService(
-	paymentsService *payments.Service,
+	repo *Repository,
 	subscriptionsService *subscriptions.Service,
 	walletsService *wallets.Service,
 ) *Service {
 	return &Service{
-		payments:      paymentsService,
+		repo:          repo,
 		subscriptions: subscriptionsService,
 		wallets:       walletsService,
 		now:           time.Now,
 	}
 }
 
-func (s *Service) CreateSubscription(
+func (s *Service) Create(
 	ctx context.Context,
-	req CreateSubscriptionRequest,
+	req CreateRequest,
 ) (Checkout, error) {
-	if err := validateCreateSubscriptionRequest(req); err != nil {
+	if err := validateCreateRequest(&req); err != nil {
 		return Checkout{}, apperror.NewBadRequest(err.Error())
 	}
 
-	subscription, err := s.subscriptions.Get(
+	var (
+		subscriptionID *uuid.UUID
+		amountMicros   int64
+		currency       string
+		periodStart    *time.Time
+		periodEnd      *time.Time
+	)
+
+	switch req.Purpose {
+	case PurposeSubscription:
+		subscription, err := s.subscriptions.Get(ctx, req.OrganizationID, *req.SubscriptionID)
+		if err != nil {
+			return Checkout{}, err
+		}
+		if subscription.Status != subscriptions.StatusPending {
+			return Checkout{}, apperror.NewConflict("subscription is not awaiting checkout")
+		}
+		if subscription.AmountMicros <= 0 {
+			return Checkout{}, apperror.NewBadRequest("subscription does not require checkout")
+		}
+
+		start := s.now().UTC()
+		end := start.AddDate(0, 1, 0)
+		subscriptionID = &subscription.ID
+		amountMicros = subscription.AmountMicros
+		currency = subscription.Currency
+		periodStart = &start
+		periodEnd = &end
+
+	case PurposeWalletTopup:
+		wallet, err := s.wallets.Create(
+			ctx,
+			wallets.CreateRequest{OrganizationID: req.OrganizationID},
+		)
+		if err != nil {
+			return Checkout{}, err
+		}
+		amountMicros = req.AmountMicros
+		currency = wallet.Currency
+	}
+
+	row, err := s.repo.Create(
 		ctx,
 		req.OrganizationID,
-		req.SubscriptionID,
+		req.Purpose,
+		subscriptionID,
+		amountMicros,
+		currency,
+		periodStart,
+		periodEnd,
 	)
+	if isUniqueViolation(err) {
+		return Checkout{}, apperror.NewConflict("active checkout already exists")
+	}
 	if err != nil {
-		return Checkout{}, err
-	}
-	if subscription.Status != subscriptions.StatusPending {
-		return Checkout{}, apperror.NewConflict("subscription is not awaiting initial payment")
-	}
-	if subscription.AmountMicros <= 0 {
-		return Checkout{}, apperror.NewBadRequest("subscription does not require payment")
+		return Checkout{}, apperror.NewInternal("create checkout", err)
 	}
 
-	periodStart := s.now().UTC()
-	periodEnd := periodStart.AddDate(0, 1, 0)
-	subscriptionID := subscription.ID
-	payment, err := s.payments.Create(
-		ctx,
-		payments.CreateRequest{
-			OrganizationID: req.OrganizationID,
-			Purpose:        payments.PurposeSubscription,
-			Provider:       req.Provider,
-			SubscriptionID: &subscriptionID,
-			AmountMicros:   subscription.AmountMicros,
-			Currency:       subscription.Currency,
-			PeriodStart:    &periodStart,
-			PeriodEnd:      &periodEnd,
-		},
-	)
-	if err != nil {
-		return Checkout{}, err
-	}
-
-	return Checkout{Payment: payment}, nil
-}
-
-func (s *Service) CreateWalletTopup(
-	ctx context.Context,
-	req CreateWalletTopupRequest,
-) (Checkout, error) {
-	if err := validateCreateWalletTopupRequest(req); err != nil {
-		return Checkout{}, apperror.NewBadRequest(err.Error())
-	}
-
-	wallet, err := s.wallets.Create(
-		ctx,
-		wallets.CreateRequest{
-			OrganizationID: req.OrganizationID,
-		},
-	)
-	if err != nil {
-		return Checkout{}, err
-	}
-
-	payment, err := s.payments.Create(
-		ctx,
-		payments.CreateRequest{
-			OrganizationID: req.OrganizationID,
-			Purpose:        payments.PurposeWalletTopup,
-			Provider:       req.Provider,
-			AmountMicros:   req.AmountMicros,
-			Currency:       wallet.Currency,
-		},
-	)
-	if err != nil {
-		return Checkout{}, err
-	}
-
-	return Checkout{Payment: payment}, nil
+	return checkoutFromRow(row), nil
 }
 
 func (s *Service) Get(
 	ctx context.Context,
 	organizationID uuid.UUID,
-	paymentID uuid.UUID,
+	id uuid.UUID,
 ) (Checkout, error) {
-	payment, err := s.payments.Get(ctx, organizationID, paymentID)
-	if err != nil {
-		return Checkout{}, err
+	if organizationID == uuid.Nil || id == uuid.Nil {
+		return Checkout{}, apperror.NewNotFound("checkout not found")
 	}
 
-	return Checkout{Payment: payment}, nil
+	row, err := s.repo.Get(ctx, organizationID, id)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Checkout{}, apperror.NewNotFound("checkout not found")
+	}
+	if err != nil {
+		return Checkout{}, apperror.NewInternal("get checkout", err)
+	}
+
+	return checkoutFromRow(row), nil
 }
 
-func (s *Service) Complete(
+func (s *Service) Confirm(
 	ctx context.Context,
-	req CompleteRequest,
+	req ConfirmRequest,
 ) (Checkout, error) {
-	if err := validateCompleteRequest(req); err != nil {
+	if err := validateConfirmRequest(&req); err != nil {
 		return Checkout{}, apperror.NewBadRequest(err.Error())
 	}
-	if req.OccurredAt.IsZero() {
-		req.OccurredAt = s.now().UTC()
-	}
 
-	payment, err := s.payments.Succeed(
+	row, err := s.repo.Confirm(
 		ctx,
-		payments.SucceedRequest{
-			OrganizationID:  req.OrganizationID,
-			PaymentID:       req.PaymentID,
-			ProviderEventID: req.ProviderEventID,
-			OccurredAt:      req.OccurredAt,
-		},
+		req.OrganizationID,
+		req.CheckoutID,
+		req.Provider,
+		s.now().UTC(),
 	)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Checkout{}, apperror.NewConflict("checkout cannot be confirmed")
+	}
 	if err != nil {
-		return Checkout{}, err
+		return Checkout{}, apperror.NewInternal("confirm checkout", err)
 	}
 
-	if err := s.applyCompletion(ctx, payment, req.OccurredAt); err != nil {
-		return Checkout{}, err
-	}
-
-	return Checkout{Payment: payment}, nil
+	return checkoutFromRow(row), nil
 }
 
-func (s *Service) Fail(
+func (s *Service) Continue(
 	ctx context.Context,
-	req FailRequest,
+	req ContinueRequest,
 ) (Checkout, error) {
-	if err := validateFailRequest(req); err != nil {
+	if err := validateContinueRequest(&req); err != nil {
 		return Checkout{}, apperror.NewBadRequest(err.Error())
 	}
-	if req.OccurredAt.IsZero() {
-		req.OccurredAt = s.now().UTC()
-	}
 
-	payment, err := s.payments.Fail(
+	row, err := s.repo.Continue(
 		ctx,
-		payments.FailRequest{
-			OrganizationID:  req.OrganizationID,
-			PaymentID:       req.PaymentID,
-			ProviderEventID: req.ProviderEventID,
-			FailureCode:     req.FailureCode,
-			OccurredAt:      req.OccurredAt,
-		},
+		req.OrganizationID,
+		req.CheckoutID,
+		req.Provider,
 	)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Checkout{}, apperror.NewConflict("checkout cannot continue")
+	}
 	if err != nil {
-		return Checkout{}, err
+		return Checkout{}, apperror.NewInternal("continue checkout", err)
 	}
 
-	return Checkout{Payment: payment}, nil
+	return checkoutFromRow(row), nil
 }
 
-func (s *Service) applyCompletion(
-	ctx context.Context,
-	payment payments.Payment,
-	occurredAt time.Time,
-) error {
-	switch payment.Purpose {
-	case payments.PurposeSubscription:
-		return s.completeSubscription(ctx, payment)
-	case payments.PurposeWalletTopup:
-		return s.completeWalletTopup(ctx, payment, occurredAt)
-	default:
-		return apperror.NewInternal("complete checkout", payments.ErrConflict)
+func checkoutFromRow(row sqlc.Checkout) Checkout {
+	return Checkout{
+		ID:             row.ID,
+		OrganizationID: row.OrganizationID,
+		Purpose:        row.Purpose,
+		Status:         row.Status,
+		SubscriptionID: row.SubscriptionID,
+		AmountMicros:   row.AmountMicros,
+		Currency:       row.Currency,
+		PeriodStart:    pgconv.TimestamptzToTimePtr(row.PeriodStart),
+		PeriodEnd:      pgconv.TimestamptzToTimePtr(row.PeriodEnd),
+		FailureCode:    row.FailureCode,
+		ConfirmedAt:    pgconv.TimestamptzToTimePtr(row.ConfirmedAt),
+		CompletedAt:    pgconv.TimestamptzToTimePtr(row.CompletedAt),
+		FailedAt:       pgconv.TimestamptzToTimePtr(row.FailedAt),
+		CreatedAt:      pgconv.TimestamptzToTime(row.CreatedAt),
+		UpdatedAt:      pgconv.TimestamptzToTime(row.UpdatedAt),
 	}
 }
 
-func (s *Service) completeSubscription(
-	ctx context.Context,
-	payment payments.Payment,
-) error {
-	if payment.SubscriptionID == nil ||
-		payment.PeriodStart == nil ||
-		payment.PeriodEnd == nil {
-		return apperror.NewInternal("complete subscription checkout", payments.ErrConflict)
-	}
-
-	subscription, err := s.subscriptions.Get(
-		ctx,
-		payment.OrganizationID,
-		*payment.SubscriptionID,
-	)
-	if err != nil {
-		return err
-	}
-
-	if subscription.Status == subscriptions.StatusActive &&
-		sameTime(subscription.CurrentPeriodStart, *payment.PeriodStart) &&
-		sameTime(subscription.CurrentPeriodEnd, *payment.PeriodEnd) {
-		return nil
-	}
-
-	_, err = s.subscriptions.Activate(
-		ctx,
-		subscriptions.ActivateRequest{
-			OrganizationID:     payment.OrganizationID,
-			SubscriptionID:     *payment.SubscriptionID,
-			CurrentPeriodStart: *payment.PeriodStart,
-			CurrentPeriodEnd:   *payment.PeriodEnd,
-		},
-	)
-	return err
-}
-
-func (s *Service) completeWalletTopup(
-	ctx context.Context,
-	payment payments.Payment,
-	occurredAt time.Time,
-) error {
-	referenceType := "payment"
-	referenceID := payment.ID
-	_, err := s.wallets.Credit(
-		ctx,
-		wallets.MovementRequest{
-			OrganizationID: payment.OrganizationID,
-			OperationID:    payment.ID,
-			AmountMicros:   payment.AmountMicros,
-			Reason:         "wallet_topup",
-			ReferenceType:  &referenceType,
-			ReferenceID:    &referenceID,
-			OccurredAt:     occurredAt,
-		},
-	)
-	return err
-}
-
-func sameTime(value *time.Time, expected time.Time) bool {
-	return value != nil && value.Equal(expected)
+func isUniqueViolation(err error) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) && pgErr.Code == "23505"
 }
