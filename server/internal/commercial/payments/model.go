@@ -28,6 +28,7 @@ type Payment struct {
 	CheckoutID        uuid.UUID
 	OrganizationID    uuid.UUID
 	Provider          string
+	PaymentMethod     string
 	Attempt           int32
 	ProviderPaymentID *string
 	AmountMicros      int64
@@ -43,6 +44,7 @@ type CreateAttemptRequest struct {
 	CheckoutID     uuid.UUID
 	OrganizationID uuid.UUID
 	Provider       string
+	PaymentMethod  string
 	AmountMicros   int64
 	Currency       string
 }
