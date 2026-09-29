@@ -22,7 +22,7 @@ RETURNING *;
 -- name: GetCheckoutByID :one
 SELECT *
 FROM checkouts
-WHERE id = sqlc.arg(id)
+WHERE id = sqlc.arg(checkout_id)
   AND organization_id = sqlc.arg(organization_id)
 LIMIT 1;
 
