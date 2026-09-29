@@ -300,11 +300,11 @@ func (r *Repository) CompleteManagedOrder(
 }
 
 func (r *Repository) ScheduleRenewals(ctx context.Context, now time.Time) error {
-	_, err := r.queries.AdvancePaidManagedNumberRenewals(ctx)
+	_, err := r.queries.AdvancePaidNumberRenewals(ctx)
 	if err != nil {
 		return err
 	}
-	_, err = r.queries.ScheduleManagedNumberRenewals(ctx, pgconv.TimeToTimestamptz(now))
+	_, err = r.queries.ScheduleNumberRenewals(ctx, pgconv.TimeToTimestamptz(now))
 	return err
 }
 
@@ -312,10 +312,10 @@ func (r *Repository) ListRenewalsDue(
 	ctx context.Context,
 	now time.Time,
 	batch int32,
-) ([]sqlc.ListManagedNumberRenewalsDueRow, error) {
-	return r.queries.ListManagedNumberRenewalsDue(
+) ([]sqlc.ListNumberRenewalsDueRow, error) {
+	return r.queries.ListNumberRenewalsDue(
 		ctx,
-		sqlc.ListManagedNumberRenewalsDueParams{
+		sqlc.ListNumberRenewalsDueParams{
 			Now:   pgconv.TimeToTimestamptz(now),
 			Batch: batch,
 		},
@@ -326,10 +326,10 @@ func (r *Repository) ClaimRenewal(
 	ctx context.Context,
 	id uuid.UUID,
 	now time.Time,
-) (sqlc.ManagedNumberRenewal, error) {
-	return r.queries.ClaimManagedNumberRenewal(
+) (sqlc.NumberRenewal, error) {
+	return r.queries.ClaimNumberRenewal(
 		ctx,
-		sqlc.ClaimManagedNumberRenewalParams{
+		sqlc.ClaimNumberRenewalParams{
 			ID:  id,
 			Now: pgconv.TimeToTimestamptz(now),
 		},
@@ -338,14 +338,14 @@ func (r *Repository) ClaimRenewal(
 
 func (r *Repository) CompleteRenewal(
 	ctx context.Context,
-	renewal sqlc.ManagedNumberRenewal,
+	renewal sqlc.NumberRenewal,
 	amountMicros int64,
 	currency string,
 	paidAt time.Time,
 ) error {
-	_, err := r.queries.MarkManagedNumberRenewalPaid(
+	_, err := r.queries.MarkNumberRenewalPaid(
 		ctx,
-		sqlc.MarkManagedNumberRenewalPaidParams{
+		sqlc.MarkNumberRenewalPaidParams{
 			AmountMicros: &amountMicros,
 			Currency:     &currency,
 			PaidAt:       pgconv.TimeToTimestamptz(paidAt),
@@ -355,9 +355,9 @@ func (r *Repository) CompleteRenewal(
 	if err != nil {
 		return err
 	}
-	rows, err := r.queries.AdvanceManagedNumberRenewal(
+	rows, err := r.queries.AdvanceNumberRenewal(
 		ctx,
-		sqlc.AdvanceManagedNumberRenewalParams{
+		sqlc.AdvanceNumberRenewalParams{
 			PeriodEnd:     renewal.PeriodEnd,
 			PhoneNumberID: renewal.PhoneNumberID,
 			PeriodStart:   renewal.PeriodStart,
@@ -367,7 +367,7 @@ func (r *Repository) CompleteRenewal(
 		return err
 	}
 	if rows != 1 {
-		return fmt.Errorf("managed number renewal period changed concurrently")
+		return fmt.Errorf("number renewal period changed concurrently")
 	}
 	return nil
 }
@@ -379,9 +379,9 @@ func (r *Repository) RetryRenewal(
 	cause error,
 ) error {
 	message := cause.Error()
-	_, err := r.queries.RetryManagedNumberRenewal(
+	_, err := r.queries.RetryNumberRenewal(
 		ctx,
-		sqlc.RetryManagedNumberRenewalParams{
+		sqlc.RetryNumberRenewalParams{
 			NextAttemptAt: pgconv.TimeToTimestamptz(nextAttemptAt),
 			LastError:     &message,
 			ID:            id,
