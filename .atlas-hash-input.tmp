@@ -1717,3 +1717,660 @@ BEFORE UPDATE ON managed_number_orders
 FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
 @@END
+@@FILE:028_create_number_lifecycle.sql
+-- Composite references below make tenant ownership a database invariant.
+ALTER TABLE phone_numbers
+    ADD CONSTRAINT uq_phone_numbers_id_organization UNIQUE (id, organization_id);
+
+-- Long-running number changes are modeled separately from phone_numbers so a
+-- provider callback can be correlated and every transition remains auditable.
+CREATE TABLE number_lifecycle_operations (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE RESTRICT,
+    phone_number_id UUID,
+    provider_id UUID NOT NULL REFERENCES carrier_providers(id) ON DELETE RESTRICT,
+    idempotency_key TEXT NOT NULL,
+    operation TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending',
+    provider_reference TEXT,
+    requested_number TEXT NOT NULL,
+    request_payload JSONB NOT NULL DEFAULT '{}'::JSONB,
+    failure_code TEXT,
+    failure_message TEXT,
+    submitted_at TIMESTAMPTZ,
+    completed_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (organization_id, idempotency_key),
+    FOREIGN KEY (phone_number_id, organization_id)
+        REFERENCES phone_numbers(id, organization_id) ON DELETE RESTRICT,
+    CHECK (length(btrim(idempotency_key)) BETWEEN 1 AND 255),
+    CHECK (requested_number ~ '^\+[1-9][0-9]{6,14}$'),
+    CHECK (operation IN ('assign', 'port_in', 'port_out', 'release')),
+    CHECK (status IN ('pending', 'submitted', 'in_progress', 'completed', 'failed', 'manual_review')),
+    CHECK (status NOT IN ('submitted', 'in_progress', 'completed') OR submitted_at IS NOT NULL),
+    CHECK (status <> 'completed' OR completed_at IS NOT NULL),
+    CHECK ((status = 'failed' AND failure_message IS NOT NULL)
+           OR (status <> 'failed' AND failure_code IS NULL AND failure_message IS NULL))
+);
+
+CREATE UNIQUE INDEX uq_number_lifecycle_provider_reference
+    ON number_lifecycle_operations (provider_id, provider_reference)
+    WHERE provider_reference IS NOT NULL;
+CREATE INDEX idx_number_lifecycle_reconciliation
+    ON number_lifecycle_operations (updated_at)
+    WHERE status IN ('submitted', 'in_progress');
+
+CREATE TRIGGER set_number_lifecycle_operations_updated_at
+BEFORE UPDATE ON number_lifecycle_operations
+FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
+-- Emergency addresses are versioned instead of overwritten. A number may
+-- retain one active registration while one replacement is pending or validating.
+-- Historical rows remain available for the audit trail.
+CREATE TABLE emergency_registrations (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE RESTRICT,
+    phone_number_id UUID NOT NULL,
+    provider_id UUID NOT NULL REFERENCES carrier_providers(id) ON DELETE RESTRICT,
+    status TEXT NOT NULL DEFAULT 'pending',
+    name TEXT NOT NULL,
+    address_line1 TEXT NOT NULL,
+    address_line2 TEXT,
+    locality TEXT NOT NULL,
+    region TEXT NOT NULL,
+    postal_code TEXT NOT NULL,
+    country_code CHAR(2) NOT NULL,
+    provider_reference TEXT,
+    validation_message TEXT,
+    activated_at TIMESTAMPTZ,
+    deactivated_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    FOREIGN KEY (phone_number_id, organization_id)
+        REFERENCES phone_numbers(id, organization_id) ON DELETE RESTRICT,
+    CHECK (status IN ('pending', 'validating', 'active', 'rejected', 'deactivated')),
+    CHECK (country_code ~ '^[A-Z]{2}$'),
+    CHECK (status <> 'active' OR (provider_reference IS NOT NULL AND activated_at IS NOT NULL)),
+    CHECK (status <> 'deactivated' OR deactivated_at IS NOT NULL)
+);
+
+-- Separate partial uniqueness rules permit one active registration and one
+-- in-flight replacement for the same number without admitting duplicates.
+CREATE UNIQUE INDEX uq_emergency_registrations_active
+    ON emergency_registrations (phone_number_id)
+    WHERE status = 'active';
+
+CREATE UNIQUE INDEX uq_emergency_registrations_pending
+    ON emergency_registrations (phone_number_id)
+    WHERE status IN ('pending', 'validating');
+CREATE UNIQUE INDEX uq_emergency_registrations_provider_reference
+    ON emergency_registrations (provider_id, provider_reference)
+    WHERE provider_reference IS NOT NULL;
+
+CREATE TRIGGER set_emergency_registrations_updated_at
+BEFORE UPDATE ON emergency_registrations
+FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
+@@END
+@@FILE:029_create_carrier_routing.sql
+-- Provider voice rates are upstream carrier prices used by managed routing and
+-- wholesale cost estimation. They are separate from customer-facing
+-- voice_rates.
+CREATE TABLE provider_voice_rates (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    carrier_connection_id UUID NOT NULL REFERENCES carrier_connections(id) ON DELETE CASCADE,
+    destination_prefix TEXT NOT NULL,
+    rate_micros BIGINT NOT NULL,
+    billing_currency CHAR(3) NOT NULL DEFAULT 'USD',
+    effective_at TIMESTAMPTZ NOT NULL,
+    expires_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    CHECK (destination_prefix ~ '^[1-9][0-9]{0,14}$'),
+    CHECK (rate_micros >= 0),
+    CHECK (billing_currency ~ '^[A-Z]{3}$'),
+    CHECK (expires_at IS NULL OR expires_at > effective_at),
+    UNIQUE (carrier_connection_id, destination_prefix, effective_at)
+);
+
+CREATE INDEX idx_provider_voice_rates_lookup
+    ON provider_voice_rates (carrier_connection_id, destination_prefix, effective_at DESC);
+
+-- Collectors upsert one current aggregate per endpoint. Basis points represent
+-- percentages from 0.00% through 100.00%; durations remain integer millis.
+CREATE TABLE carrier_route_metrics (
+    trunk_endpoint_id UUID PRIMARY KEY REFERENCES trunk_endpoints(id) ON DELETE CASCADE,
+    asr_basis_points INTEGER NOT NULL,
+    aloc_milliseconds BIGINT NOT NULL,
+    latency_milliseconds INTEGER NOT NULL,
+    packet_loss_basis_points INTEGER NOT NULL,
+    sample_count BIGINT NOT NULL,
+    observed_at TIMESTAMPTZ NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    CHECK (asr_basis_points BETWEEN 0 AND 10000),
+    CHECK (aloc_milliseconds >= 0),
+    CHECK (latency_milliseconds >= 0),
+    CHECK (packet_loss_basis_points BETWEEN 0 AND 10000),
+    CHECK (sample_count > 0)
+);
+
+CREATE INDEX idx_carrier_route_metrics_observed
+    ON carrier_route_metrics (observed_at DESC);
+
+CREATE TRIGGER set_carrier_route_metrics_updated_at
+BEFORE UPDATE ON carrier_route_metrics
+FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
+-- A decision and its immutable candidate snapshots explain exactly why one
+-- carrier won without consulting rate or metric rows that may later change.
+CREATE TABLE routing_decisions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE RESTRICT,
+    destination TEXT NOT NULL,
+    selected_carrier_connection_id UUID NOT NULL REFERENCES carrier_connections(id) ON DELETE RESTRICT,
+    selected_trunk_id UUID NOT NULL REFERENCES trunks(id) ON DELETE RESTRICT,
+    selected_trunk_endpoint_id UUID NOT NULL REFERENCES trunk_endpoints(id) ON DELETE RESTRICT,
+    candidate_count INTEGER NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (id, organization_id),
+    CHECK (destination ~ '^\+[1-9][0-9]{6,14}$'),
+    CHECK (candidate_count > 0)
+);
+
+CREATE INDEX idx_routing_decisions_organization_created
+    ON routing_decisions (organization_id, created_at DESC);
+
+ALTER TABLE calls
+    ADD COLUMN routing_decision_id UUID,
+    ADD CONSTRAINT fk_calls_routing_decision_organization
+        FOREIGN KEY (routing_decision_id, organization_id)
+        REFERENCES routing_decisions(id, organization_id) ON DELETE RESTRICT;
+
+CREATE UNIQUE INDEX uq_calls_routing_decision
+    ON calls (routing_decision_id)
+    WHERE routing_decision_id IS NOT NULL;
+
+CREATE TABLE routing_decision_candidates (
+    routing_decision_id UUID NOT NULL REFERENCES routing_decisions(id) ON DELETE CASCADE,
+    rank INTEGER NOT NULL,
+    carrier_connection_id UUID NOT NULL REFERENCES carrier_connections(id) ON DELETE RESTRICT,
+    trunk_id UUID NOT NULL REFERENCES trunks(id) ON DELETE RESTRICT,
+    trunk_endpoint_id UUID NOT NULL REFERENCES trunk_endpoints(id) ON DELETE RESTRICT,
+    rate_micros BIGINT NOT NULL,
+    asr_basis_points INTEGER NOT NULL,
+    aloc_milliseconds BIGINT NOT NULL,
+    latency_milliseconds INTEGER NOT NULL,
+    packet_loss_basis_points INTEGER NOT NULL,
+    metrics_observed_at TIMESTAMPTZ NOT NULL,
+    score_micros BIGINT NOT NULL,
+    PRIMARY KEY (routing_decision_id, rank),
+    UNIQUE (routing_decision_id, trunk_endpoint_id),
+    CHECK (rank > 0),
+    CHECK (rate_micros >= 0),
+    CHECK (asr_basis_points BETWEEN 0 AND 10000),
+    CHECK (aloc_milliseconds >= 0),
+    CHECK (latency_milliseconds >= 0),
+    CHECK (packet_loss_basis_points BETWEEN 0 AND 10000),
+    CHECK (score_micros >= 0)
+);
+
+@@END
+@@FILE:030_create_routing_attempts.sql
+-- Every actual carrier attempt is retained separately from the immutable route
+-- plan. At most three attempts are allowed for one decision.
+CREATE TABLE routing_attempts (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    routing_decision_id UUID NOT NULL REFERENCES routing_decisions(id) ON DELETE RESTRICT,
+    call_id UUID NOT NULL REFERENCES calls(id) ON DELETE RESTRICT,
+    attempt INTEGER NOT NULL,
+    carrier_connection_id UUID NOT NULL REFERENCES carrier_connections(id) ON DELETE RESTRICT,
+    trunk_id UUID NOT NULL REFERENCES trunks(id) ON DELETE RESTRICT,
+    trunk_endpoint_id UUID NOT NULL REFERENCES trunk_endpoints(id) ON DELETE RESTRICT,
+    outcome TEXT NOT NULL,
+    failure_class TEXT,
+    sip_status INTEGER,
+    duration_milliseconds BIGINT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (routing_decision_id, attempt),
+    CHECK (attempt BETWEEN 1 AND 3),
+    CHECK (outcome IN ('succeeded', 'retryable_failure', 'terminal_failure')),
+    CHECK (failure_class IS NULL OR failure_class IN ('validation', 'transport', 'timeout', 'sip', 'capacity', 'internal')),
+    CHECK (sip_status IS NULL OR sip_status BETWEEN 100 AND 699),
+    CHECK (duration_milliseconds >= 0),
+    CHECK ((outcome = 'succeeded' AND failure_class IS NULL AND sip_status IS NULL)
+           OR (outcome <> 'succeeded' AND failure_class IS NOT NULL))
+);
+
+CREATE INDEX idx_routing_attempts_call
+    ON routing_attempts (call_id, attempt);
+CREATE INDEX idx_routing_attempts_outcome_created
+    ON routing_attempts (outcome, created_at DESC);
+
+@@END
+@@FILE:031_extend_number_lifecycle.sql
+ALTER TABLE number_lifecycle_operations
+    ADD COLUMN reconcile_after TIMESTAMPTZ NOT NULL DEFAULT now(),
+    ADD COLUMN reconcile_attempts INTEGER NOT NULL DEFAULT 0,
+    ADD CONSTRAINT chk_number_lifecycle_reconcile_attempts CHECK (reconcile_attempts >= 0);
+
+CREATE INDEX idx_number_lifecycle_due
+    ON number_lifecycle_operations (reconcile_after, created_at)
+    WHERE status IN ('pending', 'submitted', 'in_progress');
+
+ALTER TABLE emergency_registrations
+    ADD COLUMN idempotency_key TEXT,
+    ADD COLUMN request_hash TEXT,
+    ADD COLUMN reconcile_after TIMESTAMPTZ NOT NULL DEFAULT now(),
+    ADD COLUMN reconcile_attempts INTEGER NOT NULL DEFAULT 0,
+    ADD CONSTRAINT chk_emergency_registration_idempotency
+        CHECK (idempotency_key IS NULL OR length(btrim(idempotency_key)) BETWEEN 1 AND 255),
+    ADD CONSTRAINT chk_emergency_registration_hash
+        CHECK (request_hash IS NULL OR request_hash ~ '^[0-9a-f]{64}$'),
+    ADD CONSTRAINT chk_emergency_registration_reconcile_attempts
+        CHECK (reconcile_attempts >= 0),
+    ADD CONSTRAINT uq_emergency_registration_idempotency
+        UNIQUE (organization_id, idempotency_key);
+
+CREATE INDEX idx_emergency_registration_due
+    ON emergency_registrations (reconcile_after, created_at)
+    WHERE status IN ('pending', 'validating');
+
+CREATE TABLE port_in_cases (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE RESTRICT,
+    lifecycle_operation_id UUID NOT NULL UNIQUE REFERENCES number_lifecycle_operations(id) ON DELETE RESTRICT,
+    losing_carrier TEXT NOT NULL,
+    account_number TEXT NOT NULL,
+    account_pin_ciphertext BYTEA,
+    authorized_name TEXT NOT NULL,
+    service_address JSONB NOT NULL,
+    desired_port_date DATE,
+    status TEXT NOT NULL DEFAULT 'draft',
+    provider_case_reference TEXT,
+    rejection_code TEXT,
+    rejection_message TEXT,
+    foc_at TIMESTAMPTZ,
+    activated_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (id, organization_id),
+    CHECK (length(btrim(losing_carrier)) > 0),
+    CHECK (length(btrim(account_number)) > 0),
+    CHECK (length(btrim(authorized_name)) > 0),
+    CHECK (status IN ('draft', 'checking_portability', 'documents_required', 'submitted',
+                      'in_progress', 'foc_received', 'activated', 'rejected', 'cancelled')),
+    CHECK (status <> 'foc_received' OR foc_at IS NOT NULL),
+    CHECK (status <> 'activated' OR activated_at IS NOT NULL),
+    CHECK ((status = 'rejected' AND rejection_message IS NOT NULL)
+           OR (status <> 'rejected' AND rejection_code IS NULL AND rejection_message IS NULL))
+);
+
+CREATE UNIQUE INDEX uq_port_in_provider_case
+    ON port_in_cases (provider_case_reference)
+    WHERE provider_case_reference IS NOT NULL;
+
+CREATE TRIGGER set_port_in_cases_updated_at
+BEFORE UPDATE ON port_in_cases
+FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
+CREATE TABLE port_in_documents (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE RESTRICT,
+    port_in_case_id UUID NOT NULL,
+    document_type TEXT NOT NULL,
+    object_key TEXT NOT NULL,
+    sha256 TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending',
+    provider_reference TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    FOREIGN KEY (port_in_case_id, organization_id)
+        REFERENCES port_in_cases(id, organization_id) ON DELETE RESTRICT,
+    UNIQUE (port_in_case_id, document_type, sha256),
+    CHECK (document_type IN ('loa', 'invoice', 'ownership', 'identity', 'other')),
+    CHECK (length(btrim(object_key)) > 0),
+    CHECK (sha256 ~ '^[0-9a-f]{64}$'),
+    CHECK (status IN ('pending', 'accepted', 'rejected'))
+);
+
+CREATE TRIGGER set_port_in_documents_updated_at
+BEFORE UPDATE ON port_in_documents
+FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
+@@END
+@@FILE:032_create_voice_agents.sql
+-- 1. Voice Agents Table
+CREATE TABLE IF NOT EXISTS voice_agents (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+
+    name TEXT NOT NULL,
+    engine TEXT NOT NULL,
+    instructions TEXT NOT NULL,
+    voice TEXT,
+    language TEXT,
+    status TEXT NOT NULL DEFAULT 'active',
+    engine_config JSONB NOT NULL DEFAULT '{}'::jsonb,
+
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+    CONSTRAINT uq_voice_agents_id_organization UNIQUE (id, organization_id),
+    CONSTRAINT uq_voice_agents_organization_name UNIQUE (organization_id, name),
+    CONSTRAINT chk_voice_agents_name CHECK (length(btrim(name)) BETWEEN 1 AND 255),
+    CONSTRAINT chk_voice_agents_engine CHECK (engine IN ('composable', 'integrated')),
+    CONSTRAINT chk_voice_agents_instructions CHECK (length(btrim(instructions)) BETWEEN 1 AND 20000),
+    CONSTRAINT chk_voice_agents_voice CHECK (voice IS NULL OR length(btrim(voice)) BETWEEN 1 AND 255),
+    CONSTRAINT chk_voice_agents_language CHECK (language IS NULL OR length(btrim(language)) BETWEEN 1 AND 64),
+    CONSTRAINT chk_voice_agents_status CHECK (status IN ('active', 'disabled')),
+    CONSTRAINT chk_voice_agents_engine_config CHECK (jsonb_typeof(engine_config) = 'object')
+);
+
+CREATE INDEX IF NOT EXISTS idx_voice_agents_organization_status
+    ON voice_agents (organization_id, status);
+
+-- 2. Voice Applications Unique Index (Prerequisite for Composite FK)
+CREATE UNIQUE INDEX IF NOT EXISTS uq_voice_applications_id_organization
+    ON voice_applications (id, organization_id);
+
+-- 3. Voice Agent Bindings Table
+CREATE TABLE IF NOT EXISTS voice_agent_bindings (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    voice_agent_id UUID NOT NULL,
+    voice_application_id UUID NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+    CONSTRAINT fk_voice_agent_bindings_agent_scope
+        FOREIGN KEY (voice_agent_id, organization_id)
+        REFERENCES voice_agents(id, organization_id)
+        ON DELETE CASCADE,
+    CONSTRAINT fk_voice_agent_bindings_application_scope
+        FOREIGN KEY (voice_application_id, organization_id)
+        REFERENCES voice_applications(id, organization_id)
+        ON DELETE CASCADE,
+    CONSTRAINT uq_voice_agent_bindings_application UNIQUE (voice_application_id),
+    CONSTRAINT uq_voice_agent_bindings_agent_application UNIQUE (voice_agent_id, voice_application_id)
+);
+
+
+
+-- 4. Trigger for Updated At
+CREATE TRIGGER set_voice_agents_updated_at
+BEFORE UPDATE ON voice_agents
+FOR EACH ROW
+EXECUTE FUNCTION set_updated_at();
+
+@@END
+@@FILE:033_create_voice_agent_tools.sql
+CREATE TABLE IF NOT EXISTS voice_agent_tools (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    voice_agent_id UUID NOT NULL,
+
+    type TEXT NOT NULL DEFAULT 'webhook',
+    name TEXT NOT NULL,
+    description TEXT NOT NULL,
+    parameters JSONB NOT NULL DEFAULT '{}'::jsonb,
+    endpoint_url TEXT,
+    timeout_ms INTEGER NOT NULL DEFAULT 3000,
+    enabled BOOLEAN NOT NULL DEFAULT true,
+
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+    -- Constraints & Scoping
+    CONSTRAINT uq_voice_agent_tools_agent_name UNIQUE (voice_agent_id, name),
+    
+    CONSTRAINT fk_voice_agent_tools_agent_scope
+        FOREIGN KEY (voice_agent_id, organization_id)
+        REFERENCES voice_agents(id, organization_id)
+        ON DELETE CASCADE,
+
+    -- Validation Rules
+    CONSTRAINT chk_voice_agent_tools_type CHECK (type IN ('builtin', 'webhook')),
+    CONSTRAINT chk_voice_agent_tools_name CHECK (length(btrim(name)) BETWEEN 1 AND 128),
+    CONSTRAINT chk_voice_agent_tools_description CHECK (length(btrim(description)) BETWEEN 1 AND 2000),
+    CONSTRAINT chk_voice_agent_tools_parameters CHECK (jsonb_typeof(parameters) = 'object'),
+    CONSTRAINT chk_voice_agent_tools_endpoint CHECK (
+        (type = 'builtin' AND endpoint_url IS NULL)
+        OR
+        (type = 'webhook' AND endpoint_url ~ '^https?://')
+    ),
+    CONSTRAINT chk_voice_agent_tools_timeout CHECK (timeout_ms BETWEEN 100 AND 30000)
+);
+
+-- Optimized Index for Runtime Tool Resolution
+CREATE INDEX IF NOT EXISTS idx_voice_agent_tools_agent_enabled
+    ON voice_agent_tools (organization_id, voice_agent_id, enabled);
+
+-- Trigger for Updated At
+CREATE TRIGGER set_voice_agent_tools_updated_at
+BEFORE UPDATE ON voice_agent_tools
+FOR EACH ROW
+EXECUTE FUNCTION set_updated_at();
+
+@@END
+@@FILE:034_create_voice_agent_sessions.sql
+CREATE TABLE IF NOT EXISTS voice_agent_sessions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    call_id UUID NOT NULL,
+    voice_agent_id UUID NOT NULL,
+
+    engine TEXT NOT NULL,
+    instructions_snapshot TEXT NOT NULL,
+    engine_config_snapshot JSONB NOT NULL DEFAULT '{}'::jsonb,
+    voice TEXT,
+    language TEXT,
+    state TEXT NOT NULL DEFAULT 'active',
+
+    turn_count INTEGER NOT NULL DEFAULT 0,
+    interruption_count INTEGER NOT NULL DEFAULT 0,
+    first_response_latency_ms INTEGER,
+    avg_turn_latency_ms INTEGER,
+
+    started_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    ended_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+    -- Constraints & Multi-Tenant Scoping
+    CONSTRAINT uq_voice_agent_sessions_id_organization UNIQUE (id, organization_id),
+    
+    CONSTRAINT fk_voice_agent_sessions_call_scope
+        FOREIGN KEY (call_id, organization_id)
+        REFERENCES calls(id, organization_id)
+        ON DELETE CASCADE,
+
+    CONSTRAINT fk_voice_agent_sessions_agent_scope
+        FOREIGN KEY (voice_agent_id, organization_id)
+        REFERENCES voice_agents(id, organization_id)
+        ON DELETE RESTRICT,
+
+    -- Data Validation Constraints
+    CONSTRAINT chk_voice_agent_sessions_engine CHECK (engine IN ('composable', 'integrated')),
+    CONSTRAINT chk_voice_agent_sessions_instructions CHECK (length(btrim(instructions_snapshot)) BETWEEN 1 AND 20000),
+    CONSTRAINT chk_voice_agent_sessions_engine_config CHECK (jsonb_typeof(engine_config_snapshot) = 'object'),
+    CONSTRAINT chk_voice_agent_sessions_voice CHECK (voice IS NULL OR length(btrim(voice)) BETWEEN 1 AND 255),
+    CONSTRAINT chk_voice_agent_sessions_language CHECK (language IS NULL OR length(btrim(language)) BETWEEN 1 AND 64),
+    CONSTRAINT chk_voice_agent_sessions_state CHECK (state IN ('active', 'completed', 'failed', 'cancelled')),
+    CONSTRAINT chk_voice_agent_sessions_turn_count CHECK (turn_count >= 0),
+    CONSTRAINT chk_voice_agent_sessions_interruption_count CHECK (interruption_count >= 0),
+    CONSTRAINT chk_voice_agent_sessions_first_response_latency CHECK (
+        first_response_latency_ms IS NULL OR first_response_latency_ms >= 0
+    ),
+    CONSTRAINT chk_voice_agent_sessions_avg_turn_latency CHECK (
+        avg_turn_latency_ms IS NULL OR avg_turn_latency_ms >= 0
+    ),
+    CONSTRAINT chk_voice_agent_sessions_timestamps CHECK (
+        ended_at IS NULL OR ended_at >= started_at
+    ),
+    CONSTRAINT chk_voice_agent_sessions_lifecycle CHECK (
+        (state = 'active' AND ended_at IS NULL)
+        OR
+        (state <> 'active' AND ended_at IS NOT NULL)
+    )
+);
+
+-- Partial Index: Enforce One Active Session Per Call
+CREATE UNIQUE INDEX IF NOT EXISTS uq_voice_agent_sessions_active_call
+    ON voice_agent_sessions (call_id)
+    WHERE state = 'active';
+
+-- High-Frequency Query Indexes
+CREATE INDEX IF NOT EXISTS idx_voice_agent_sessions_organization_agent
+    ON voice_agent_sessions (organization_id, voice_agent_id, started_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_voice_agent_sessions_call
+    ON voice_agent_sessions (call_id, started_at DESC);
+
+
+-- Trigger for Updated At
+CREATE TRIGGER set_voice_agent_sessions_updated_at
+BEFORE UPDATE ON voice_agent_sessions
+FOR EACH ROW
+EXECUTE FUNCTION set_updated_at();
+
+@@END
+@@FILE:035_create_voice_agent_turns.sql
+CREATE TABLE IF NOT EXISTS voice_agent_turns (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    session_id UUID NOT NULL,
+
+    sequence INTEGER NOT NULL,
+    role TEXT NOT NULL,
+    content TEXT NOT NULL DEFAULT '',
+    provider_id TEXT,
+    tool_name TEXT,
+    tool_call_id TEXT,
+    metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+
+    speech_started_at TIMESTAMPTZ,
+    speech_ended_at TIMESTAMPTZ,
+    stt_latency_ms INTEGER,
+    llm_ttft_ms INTEGER,
+    tts_ttfb_ms INTEGER,
+    turn_latency_ms INTEGER,
+
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+    CONSTRAINT fk_voice_agent_turns_session_scope
+        FOREIGN KEY (session_id, organization_id)
+        REFERENCES voice_agent_sessions(id, organization_id)
+        ON DELETE CASCADE,
+    CONSTRAINT uq_voice_agent_turns_session_sequence UNIQUE (session_id, sequence),
+    CONSTRAINT chk_voice_agent_turns_sequence CHECK (sequence > 0),
+    CONSTRAINT chk_voice_agent_turns_role CHECK (role IN ('user', 'assistant', 'tool', 'system')),
+    CONSTRAINT chk_voice_agent_turns_content_or_tool CHECK (
+        length(btrim(content)) > 0 OR tool_call_id IS NOT NULL
+    ),
+    
+    CONSTRAINT chk_voice_agent_turns_tool_roles CHECK (
+        (role = 'tool' AND tool_call_id IS NOT NULL) OR (role <> 'tool')
+    ),
+
+    CONSTRAINT chk_voice_agent_turns_metadata CHECK (jsonb_typeof(metadata) = 'object'),
+    CONSTRAINT chk_voice_agent_turns_speech_timestamps CHECK (
+        speech_ended_at IS NULL
+        OR speech_started_at IS NULL
+        OR speech_ended_at >= speech_started_at
+    ),
+    CONSTRAINT chk_voice_agent_turns_stt_latency CHECK (stt_latency_ms IS NULL OR stt_latency_ms >= 0),
+    CONSTRAINT chk_voice_agent_turns_llm_ttft CHECK (llm_ttft_ms IS NULL OR llm_ttft_ms >= 0),
+    CONSTRAINT chk_voice_agent_turns_tts_ttfb CHECK (tts_ttfb_ms IS NULL OR tts_ttfb_ms >= 0),
+    CONSTRAINT chk_voice_agent_turns_turn_latency CHECK (turn_latency_ms IS NULL OR turn_latency_ms >= 0)
+);
+
+
+@@END
+@@FILE:036_create_voice_agent_tool_execution.sql
+CREATE TABLE IF NOT EXISTS voice_agent_tool_secrets (
+    tool_id UUID PRIMARY KEY REFERENCES voice_agent_tools(id) ON DELETE CASCADE,
+    organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    voice_agent_id UUID NOT NULL,
+    secret_ciphertext TEXT NOT NULL,
+
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    rotated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+    CONSTRAINT fk_voice_agent_tool_secrets_agent_scope
+        FOREIGN KEY (voice_agent_id, organization_id)
+        REFERENCES voice_agents(id, organization_id)
+        ON DELETE CASCADE,
+
+    CONSTRAINT chk_voice_agent_tool_secrets_ciphertext
+        CHECK (length(btrim(secret_ciphertext)) > 0)
+);
+
+CREATE INDEX IF NOT EXISTS idx_voice_agent_tool_secrets_scope
+    ON voice_agent_tool_secrets (organization_id, voice_agent_id);
+
+CREATE TABLE IF NOT EXISTS voice_agent_tool_executions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    session_id UUID NOT NULL REFERENCES voice_agent_sessions(id) ON DELETE CASCADE,
+    voice_agent_id UUID NOT NULL,
+    tool_id UUID NOT NULL REFERENCES voice_agent_tools(id) ON DELETE CASCADE,
+    call_id UUID NOT NULL REFERENCES calls(id) ON DELETE CASCADE,
+
+    tool_call_id TEXT NOT NULL,
+    state TEXT NOT NULL DEFAULT 'processing',
+    arguments JSONB NOT NULL DEFAULT '{}'::jsonb,
+
+    response_status INTEGER,
+    response_content_type TEXT,
+    response_body BYTEA,
+    error_message TEXT,
+
+    started_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    completed_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+    CONSTRAINT fk_voice_agent_tool_executions_agent_scope
+        FOREIGN KEY (voice_agent_id, organization_id)
+        REFERENCES voice_agents(id, organization_id)
+        ON DELETE CASCADE,
+
+    CONSTRAINT chk_voice_agent_tool_executions_call_id
+        CHECK (call_id <> '00000000-0000-0000-0000-000000000000'::uuid),
+
+    CONSTRAINT chk_voice_agent_tool_executions_tool_call_id
+        CHECK (length(btrim(tool_call_id)) BETWEEN 1 AND 255),
+
+    CONSTRAINT chk_voice_agent_tool_executions_state
+        CHECK (state IN ('processing', 'succeeded', 'failed')),
+
+    CONSTRAINT chk_voice_agent_tool_executions_arguments
+        CHECK (jsonb_typeof(arguments) = 'object'),
+
+    CONSTRAINT chk_voice_agent_tool_executions_response_status
+        CHECK (response_status IS NULL OR response_status BETWEEN 100 AND 599),
+
+    CONSTRAINT chk_voice_agent_tool_executions_lifecycle
+        CHECK (
+            (state = 'processing' AND completed_at IS NULL AND error_message IS NULL)
+            OR
+            (state = 'succeeded' AND completed_at IS NOT NULL AND error_message IS NULL)
+            OR
+            (state = 'failed' AND completed_at IS NOT NULL AND error_message IS NOT NULL)
+        ),
+
+    CONSTRAINT uq_voice_agent_tool_executions_call
+        UNIQUE (organization_id, session_id, tool_call_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_voice_agent_tool_executions_session
+    ON voice_agent_tool_executions (organization_id, session_id, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_voice_agent_tool_executions_tool
+    ON voice_agent_tool_executions (organization_id, tool_id, created_at DESC);
+
+CREATE TRIGGER set_voice_agent_tool_executions_updated_at
+BEFORE UPDATE ON voice_agent_tool_executions
+FOR EACH ROW
+EXECUTE FUNCTION set_updated_at();
+
+@@END
