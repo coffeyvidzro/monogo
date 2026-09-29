@@ -730,8 +730,8 @@ func createConfirmedCheckoutForContinuation(
 		ConfirmRequest{
 			OrganizationID: organizationID,
 			CheckoutID:     checkout.ID,
-			Provider:       ProviderStripe,
-			PaymentMethod:  PaymentMethodCard,
+			Provider:       ProviderPaystack,
+			PaymentMethod:  PaymentMethodMobileMoney,
 		},
 	); err != nil {
 		t.Fatalf("confirm checkout: %v", err)
