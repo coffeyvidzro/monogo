@@ -15,9 +15,7 @@ type Repository struct {
 }
 
 func NewRepository(queries *sqlc.Queries) *Repository {
-	return &Repository{
-		queries: queries,
-	}
+	return &Repository{queries: queries}
 }
 
 func (r *Repository) Create(
@@ -25,10 +23,12 @@ func (r *Repository) Create(
 	organizationID uuid.UUID,
 	purpose string,
 	subscriptionID *uuid.UUID,
+	reference string,
 	amountMicros int64,
 	currency string,
 	periodStart *time.Time,
 	periodEnd *time.Time,
+	expiresAt time.Time,
 ) (sqlc.Checkout, error) {
 	var start pgtype.Timestamptz
 	if periodStart != nil {
@@ -46,10 +46,12 @@ func (r *Repository) Create(
 			OrganizationID: organizationID,
 			Purpose:        purpose,
 			SubscriptionID: subscriptionID,
+			Reference:      reference,
 			AmountMicros:   amountMicros,
 			Currency:       currency,
 			PeriodStart:    start,
 			PeriodEnd:      end,
+			ExpiresAt:      pgconv.TimeToTimestamptz(expiresAt),
 		},
 	)
 }
@@ -70,68 +72,33 @@ func (r *Repository) Get(
 
 func (r *Repository) Confirm(
 	ctx context.Context,
-	organizationID uuid.UUID,
-	id uuid.UUID,
-	provider string,
-	confirmedAt time.Time,
+	req ConfirmRequest,
+	now time.Time,
 ) (sqlc.Checkout, error) {
 	return r.queries.ConfirmCheckout(
 		ctx,
 		sqlc.ConfirmCheckoutParams{
-			ConfirmedAt:    pgconv.TimeToTimestamptz(confirmedAt),
-			ID:             id,
-			OrganizationID: organizationID,
-			Provider:       provider,
+			Provider:       &req.Provider,
+			PaymentMethod:  &req.PaymentMethod,
+			ID:             req.CheckoutID,
+			OrganizationID: req.OrganizationID,
+			NowAt:          pgconv.TimeToTimestamptz(now),
 		},
 	)
 }
 
-func (r *Repository) Continue(
+func (r *Repository) GetForContinuation(
 	ctx context.Context,
 	organizationID uuid.UUID,
 	id uuid.UUID,
-	provider string,
+	now time.Time,
 ) (sqlc.Checkout, error) {
-	return r.queries.ContinueCheckout(
+	return r.queries.GetCheckoutForContinuation(
 		ctx,
-		sqlc.ContinueCheckoutParams{
+		sqlc.GetCheckoutForContinuationParams{
 			ID:             id,
 			OrganizationID: organizationID,
-			Provider:       provider,
-		},
-	)
-}
-
-func (r *Repository) Complete(
-	ctx context.Context,
-	organizationID uuid.UUID,
-	id uuid.UUID,
-	completedAt time.Time,
-) (sqlc.Checkout, error) {
-	return r.queries.CompleteCheckout(
-		ctx,
-		sqlc.CompleteCheckoutParams{
-			CompletedAt:    pgconv.TimeToTimestamptz(completedAt),
-			ID:             id,
-			OrganizationID: organizationID,
-		},
-	)
-}
-
-func (r *Repository) Fail(
-	ctx context.Context,
-	organizationID uuid.UUID,
-	id uuid.UUID,
-	failureCode string,
-	failedAt time.Time,
-) (sqlc.Checkout, error) {
-	return r.queries.FailCheckout(
-		ctx,
-		sqlc.FailCheckoutParams{
-			FailureCode:    &failureCode,
-			FailedAt:       pgconv.TimeToTimestamptz(failedAt),
-			ID:             id,
-			OrganizationID: organizationID,
+			NowAt:          pgconv.TimeToTimestamptz(now),
 		},
 	)
 }
