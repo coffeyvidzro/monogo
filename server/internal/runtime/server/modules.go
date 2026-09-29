@@ -141,7 +141,7 @@ func newModules(ctx context.Context, cfg config.Config) (*modules, error) {
 		CallsAdmission:       calling.NewAdmissionLimiter(redisClient),
 		CallsSubscriptions:   commercialModule.Subscriptions.Service,
 		CallsPricing:         commercialModule.Pricing.Service,
-		ProviderCharges:        commercialModule.ProviderCharges.Service,
+		ProviderCharges:      commercialModule.ProviderCharges.Service,
 		CallsWallets:         commercialModule.Wallets.Service,
 		ConferenceController: conferences.NewFreeSWITCHController(freeSwitch),
 		CredentialCipher:     credentialCipher,
