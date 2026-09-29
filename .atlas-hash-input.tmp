@@ -342,3 +342,882 @@ FOR EACH ROW
 EXECUTE FUNCTION set_updated_at();
 
 @@END
+@@FILE:010_create_subscribers.sql
+CREATE TABLE IF NOT EXISTS subscribers (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    sip_domain_id UUID NOT NULL REFERENCES sip_domains(id) ON DELETE CASCADE,
+
+    username VARCHAR(64) NOT NULL,
+    domain CITEXT NOT NULL,
+
+    ha1_md5 VARCHAR(255),
+    ha1_sha256 VARCHAR(255),
+    ha1_sha512_256 VARCHAR(255),
+    display_name VARCHAR(255),
+    status TEXT NOT NULL DEFAULT 'active',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+    UNIQUE (sip_domain_id, username),
+    UNIQUE (domain, username)
+);
+
+CREATE INDEX idx_subscribers_organization_id ON subscribers (organization_id);
+CREATE INDEX idx_subscribers_sip_domain_id ON subscribers (sip_domain_id);
+CREATE INDEX idx_subscribers_status ON subscribers (status);
+CREATE INDEX idx_subscribers_domain_username ON subscribers (domain, username);
+
+CREATE TRIGGER set_subscribers_updated_at
+BEFORE UPDATE ON subscribers
+FOR EACH ROW
+EXECUTE FUNCTION set_updated_at();
+
+@@END
+@@FILE:011_create_webhook.sql
+CREATE TABLE IF NOT EXISTS webhook_endpoints (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    url TEXT NOT NULL,
+    signing_secret BYTEA NOT NULL,
+    enabled BOOLEAN NOT NULL DEFAULT true,
+    subscribed_events TEXT[] NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    disabled_at TIMESTAMPTZ,
+    consecutive_failures INTEGER NOT NULL DEFAULT 0,
+    last_failure_at TIMESTAMPTZ,
+    disabled_reason TEXT,
+
+    CONSTRAINT chk_webhook_endpoint_url CHECK (
+        length(trim(url)) > 0 AND url ~ '^https://'
+    ),
+    CONSTRAINT chk_webhook_endpoint_secret CHECK (octet_length(signing_secret) > 0),
+    CONSTRAINT chk_webhook_endpoint_events CHECK (
+        cardinality(subscribed_events) > 0
+        AND array_position(subscribed_events, '') IS NULL
+    ),
+    CONSTRAINT chk_webhook_endpoint_disabled CHECK (
+        (enabled AND disabled_at IS NULL)
+        OR (NOT enabled AND disabled_at IS NOT NULL)
+    ),
+    CONSTRAINT chk_webhook_endpoint_consecutive_failures CHECK (
+        consecutive_failures >= 0
+    ),
+    CONSTRAINT chk_webhook_endpoint_disabled_reason CHECK (
+        disabled_reason IS NULL OR disabled_reason IN ('manual', 'failure_threshold')
+    )
+);
+
+CREATE INDEX IF NOT EXISTS idx_webhook_endpoints_organization_created
+    ON webhook_endpoints (organization_id, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_webhook_endpoints_organization_enabled
+    ON webhook_endpoints (organization_id, id)
+    WHERE enabled;
+
+CREATE TABLE IF NOT EXISTS webhook_events (
+    id UUID PRIMARY KEY,
+    organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    event_type TEXT NOT NULL,
+    object_type TEXT NOT NULL,
+    object_id UUID,
+    payload JSONB NOT NULL,
+    occurred_at TIMESTAMPTZ NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+    CONSTRAINT chk_webhook_event_type CHECK (
+        length(trim(event_type)) > 0 AND event_type !~ '[[:space:]]'
+    ),
+    CONSTRAINT chk_webhook_event_object_type CHECK (length(trim(object_type)) > 0),
+    CONSTRAINT chk_webhook_event_payload CHECK (jsonb_typeof(payload) = 'object')
+);
+
+CREATE INDEX IF NOT EXISTS idx_webhook_events_organization_created
+    ON webhook_events (organization_id, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_webhook_events_object
+    ON webhook_events (organization_id, object_type, object_id, occurred_at DESC);
+
+CREATE TABLE IF NOT EXISTS webhook_deliveries (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    event_id UUID NOT NULL REFERENCES webhook_events(id) ON DELETE CASCADE,
+    endpoint_id UUID NOT NULL REFERENCES webhook_endpoints(id) ON DELETE CASCADE,
+    status TEXT NOT NULL DEFAULT 'pending',
+    attempt_count INTEGER NOT NULL DEFAULT 0,
+    replay_count INTEGER NOT NULL DEFAULT 0,
+    next_attempt_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    last_attempt_at TIMESTAMPTZ,
+    last_replayed_at TIMESTAMPTZ,
+    response_status INTEGER,
+    response_body TEXT,
+    last_error TEXT,
+    delivered_at TIMESTAMPTZ,
+    locked_at TIMESTAMPTZ,
+    locked_by TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+    CONSTRAINT uq_webhook_delivery_event_endpoint UNIQUE (event_id, endpoint_id),
+    CONSTRAINT chk_webhook_delivery_status CHECK (
+        status IN ('pending', 'retrying', 'succeeded', 'failed', 'canceled')
+    ),
+    CONSTRAINT chk_webhook_delivery_attempts CHECK (attempt_count >= 0),
+    CONSTRAINT chk_webhook_delivery_response_status CHECK (
+        response_status IS NULL OR response_status BETWEEN 100 AND 599
+    ),
+    CONSTRAINT chk_webhook_delivery_lock_pair CHECK (
+        (locked_at IS NULL AND locked_by IS NULL)
+        OR (locked_at IS NOT NULL AND locked_by IS NOT NULL)
+    ),
+    CONSTRAINT chk_webhook_delivery_succeeded CHECK (
+        status <> 'succeeded' OR delivered_at IS NOT NULL
+    )
+);
+
+CREATE INDEX IF NOT EXISTS idx_webhook_deliveries_pending
+    ON webhook_deliveries (next_attempt_at, created_at)
+    WHERE status IN ('pending', 'retrying');
+
+CREATE INDEX IF NOT EXISTS idx_webhook_deliveries_event_created
+    ON webhook_deliveries (event_id, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_webhook_deliveries_endpoint_created
+    ON webhook_deliveries (endpoint_id, created_at DESC);
+
+@@END
+@@FILE:012_create_outbox.sql
+CREATE TABLE IF NOT EXISTS outbox_events (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    subject TEXT NOT NULL,
+    aggregate_type TEXT NOT NULL,
+    aggregate_id UUID NOT NULL,
+    payload JSONB NOT NULL,
+    headers JSONB NOT NULL DEFAULT '{}'::jsonb,
+    available_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    published_at TIMESTAMPTZ,
+    attempts INTEGER NOT NULL DEFAULT 0,
+    last_error TEXT,
+    locked_at TIMESTAMPTZ,
+    locked_by TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+    CONSTRAINT chk_outbox_subject CHECK (length(trim(subject)) > 0 AND subject !~ '[[:space:]]'),
+    CONSTRAINT chk_outbox_aggregate_type CHECK (length(trim(aggregate_type)) > 0),
+    CONSTRAINT chk_outbox_headers_object CHECK (jsonb_typeof(headers) = 'object'),
+    CONSTRAINT chk_outbox_attempts_non_negative CHECK (attempts >= 0),
+    CONSTRAINT chk_outbox_lock_pair CHECK (
+        (locked_at IS NULL AND locked_by IS NULL)
+        OR (locked_at IS NOT NULL AND locked_by IS NOT NULL)
+    )
+);
+
+CREATE INDEX IF NOT EXISTS idx_outbox_events_pending
+    ON outbox_events (available_at, created_at)
+    WHERE published_at IS NULL;
+
+CREATE INDEX IF NOT EXISTS idx_outbox_events_locked
+    ON outbox_events (locked_at)
+    WHERE published_at IS NULL AND locked_at IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_outbox_events_aggregate
+    ON outbox_events (aggregate_type, aggregate_id, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS processed_events (
+    consumer_name TEXT NOT NULL,
+    event_id UUID NOT NULL,
+    processed_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+
+    PRIMARY KEY (consumer_name, event_id),
+    CONSTRAINT chk_processed_events_consumer CHECK (length(trim(consumer_name)) > 0),
+    CONSTRAINT chk_processed_events_metadata_object CHECK (jsonb_typeof(metadata) = 'object')
+);
+
+@@END
+@@FILE:013_create_carrier_providers.sql
+CREATE TABLE IF NOT EXISTS carrier_providers (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    slug TEXT NOT NULL,
+    name TEXT NOT NULL,
+    adapter TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'active',
+
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+    CONSTRAINT uq_carrier_providers_slug UNIQUE (slug),
+    CONSTRAINT chk_carrier_providers_slug CHECK (
+        slug ~ '^[a-z0-9]+(?:-[a-z0-9]+)*$'
+    ),
+    CONSTRAINT chk_carrier_providers_name CHECK (
+        length(btrim(name)) > 0
+    ),
+    CONSTRAINT chk_carrier_providers_adapter CHECK (
+        length(btrim(adapter)) > 0
+    ),
+    CONSTRAINT chk_carrier_providers_status CHECK (
+        status IN ('active', 'disabled')
+    )
+);
+
+CREATE INDEX IF NOT EXISTS idx_carrier_providers_status
+    ON carrier_providers (status);
+
+CREATE TRIGGER set_carrier_providers_updated_at
+BEFORE UPDATE ON carrier_providers
+FOR EACH ROW
+EXECUTE FUNCTION set_updated_at();
+
+INSERT INTO carrier_providers (id, slug, name, adapter, status)
+VALUES
+    (
+        'eb3a4a81-ca51-44a7-9410-0841428ae43c',
+        'generic-sip',
+        'Generic SIP',
+        'sip',
+        'active'
+    ),
+    (
+        '4bfe6a6c-5658-42f6-9d74-29a54b7eed2d',
+        'leamout',
+        'Leamout Carrier',
+        'sip',
+        'active'
+    )
+ON CONFLICT (slug) DO NOTHING;
+
+@@END
+@@FILE:014_create_carrier_connections.sql
+CREATE TABLE IF NOT EXISTS carrier_connections (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    organization_id UUID REFERENCES organizations(id) ON DELETE CASCADE,
+    provider_id UUID NOT NULL REFERENCES carrier_providers(id) ON DELETE RESTRICT,
+
+    scope TEXT NOT NULL DEFAULT 'organization',
+    name TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'active',
+
+    outbound_auth_method TEXT NOT NULL DEFAULT 'none',
+    auth_username TEXT,
+    auth_secret_ciphertext TEXT,
+
+    inbound_enabled BOOLEAN NOT NULL DEFAULT false,
+    inbound_auth_method TEXT NOT NULL DEFAULT 'ip',
+    inbound_username TEXT,
+    inbound_secret_ciphertext TEXT,
+
+    max_cps INTEGER NOT NULL DEFAULT 10,
+    max_concurrent_calls INTEGER NOT NULL DEFAULT 100,
+    max_daily_minutes BIGINT,
+
+    codecs TEXT[] NOT NULL DEFAULT '{PCMU,PCMA}',
+    supports_video BOOLEAN NOT NULL DEFAULT false,
+    supports_fax BOOLEAN NOT NULL DEFAULT false,
+
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+    CONSTRAINT uq_carrier_connections_org_name UNIQUE (organization_id, name),
+    CONSTRAINT uq_carrier_connections_id_org UNIQUE (id, organization_id),
+    CONSTRAINT uq_carrier_connections_id_provider UNIQUE (id, provider_id),
+    CONSTRAINT chk_carrier_connections_scope CHECK (
+        scope IN ('organization', 'platform')
+    ),
+    CONSTRAINT chk_carrier_connections_owner CHECK (
+        (scope = 'organization' AND organization_id IS NOT NULL)
+        OR (scope = 'platform' AND organization_id IS NULL)
+    ),
+    CONSTRAINT chk_carrier_connections_name CHECK (
+        length(btrim(name)) > 0
+    ),
+    CONSTRAINT chk_carrier_connections_status CHECK (
+        status IN ('active', 'disabled')
+    ),
+    CONSTRAINT chk_carrier_connections_auth_method CHECK (
+        outbound_auth_method IN ('none', 'digest')
+    ),
+    CONSTRAINT chk_carrier_connections_auth_fields CHECK (
+        (
+            outbound_auth_method = 'none'
+            AND auth_username IS NULL
+            AND auth_secret_ciphertext IS NULL
+        ) OR (
+            outbound_auth_method = 'digest'
+            AND auth_username IS NOT NULL
+            AND length(btrim(auth_username)) > 0
+            AND auth_secret_ciphertext IS NOT NULL
+            AND length(auth_secret_ciphertext) > 0
+        )
+    ),
+    CONSTRAINT chk_carrier_connections_cps CHECK (
+        max_cps > 0
+    ),
+    CONSTRAINT chk_carrier_connections_concurrent CHECK (
+        max_concurrent_calls > 0
+    ),
+    CONSTRAINT chk_carrier_connections_daily CHECK (
+        max_daily_minutes IS NULL OR max_daily_minutes > 0
+    ),
+    CONSTRAINT chk_carrier_connections_inbound CHECK (
+        inbound_auth_method IN ('ip', 'digest', 'none')
+    ),
+    CONSTRAINT chk_carrier_connections_inbound_auth_fields CHECK (
+        (
+            inbound_auth_method IN ('ip', 'none')
+            AND inbound_username IS NULL
+            AND inbound_secret_ciphertext IS NULL
+        ) OR (
+            inbound_auth_method = 'digest'
+            AND inbound_username IS NOT NULL
+            AND length(btrim(inbound_username)) > 0
+            AND inbound_secret_ciphertext IS NOT NULL
+            AND length(inbound_secret_ciphertext) > 0
+        )
+    )
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_carrier_connections_platform_name
+    ON carrier_connections (name)
+    WHERE scope = 'platform';
+
+CREATE INDEX IF NOT EXISTS idx_carrier_connections_organization_status
+    ON carrier_connections (organization_id, status);
+
+CREATE INDEX IF NOT EXISTS idx_carrier_connections_scope_status
+    ON carrier_connections (scope, status);
+
+CREATE INDEX IF NOT EXISTS idx_carrier_connections_provider_id
+    ON carrier_connections (provider_id);
+
+-- Provider-side resources that represent a platform carrier connection stay
+-- internal. For DIDWW managed ingress, voice_in_trunk stores the DIDWW Voice IN
+-- trunk assigned to the corresponding Leamout platform carrier connection.
+CREATE TABLE IF NOT EXISTS carrier_connection_provider_resources (
+    carrier_connection_id UUID NOT NULL,
+    provider_id UUID NOT NULL,
+    resource_type TEXT NOT NULL,
+    provider_resource_id TEXT NOT NULL,
+
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+    PRIMARY KEY (carrier_connection_id, resource_type),
+    CONSTRAINT fk_carrier_connection_provider_resources_connection
+        FOREIGN KEY (carrier_connection_id, provider_id)
+        REFERENCES carrier_connections (id, provider_id)
+        ON DELETE CASCADE,
+    CONSTRAINT uq_carrier_connection_provider_resources_provider_resource
+        UNIQUE (provider_id, resource_type, provider_resource_id),
+    CONSTRAINT chk_carrier_connection_provider_resources_type CHECK (
+        resource_type IN ('voice_in_trunk')
+    ),
+    CONSTRAINT chk_carrier_connection_provider_resources_id CHECK (
+        length(btrim(provider_resource_id)) > 0
+    )
+);
+
+CREATE INDEX IF NOT EXISTS idx_carrier_connection_provider_resources_provider
+    ON carrier_connection_provider_resources (provider_id, resource_type);
+
+CREATE TRIGGER set_carrier_connection_provider_resources_updated_at
+BEFORE UPDATE ON carrier_connection_provider_resources
+FOR EACH ROW
+EXECUTE FUNCTION set_updated_at();
+
+CREATE TABLE IF NOT EXISTS carrier_connection_source_ips (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    organization_id UUID,
+    carrier_connection_id UUID NOT NULL REFERENCES carrier_connections(id) ON DELETE CASCADE,
+    cidr CIDR NOT NULL,
+
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+    CONSTRAINT uq_carrier_connection_source_ips_connection_cidr
+        UNIQUE (carrier_connection_id, cidr)
+);
+
+CREATE INDEX IF NOT EXISTS idx_carrier_connection_source_ips_organization_id
+    ON carrier_connection_source_ips (organization_id);
+
+CREATE INDEX IF NOT EXISTS idx_carrier_connection_source_ips_cidr
+    ON carrier_connection_source_ips USING gist (cidr inet_ops);
+
+CREATE FUNCTION derive_carrier_source_ip_organization_id()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    SELECT organization_id
+    INTO NEW.organization_id
+    FROM carrier_connections
+    WHERE id = NEW.carrier_connection_id;
+    RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER derive_carrier_source_ip_organization_id
+BEFORE INSERT OR UPDATE OF carrier_connection_id ON carrier_connection_source_ips
+FOR EACH ROW
+EXECUTE FUNCTION derive_carrier_source_ip_organization_id();
+
+CREATE TRIGGER set_carrier_connections_updated_at
+BEFORE UPDATE ON carrier_connections
+FOR EACH ROW
+EXECUTE FUNCTION set_updated_at();
+
+@@END
+@@FILE:015_create_trunks.sql
+CREATE TABLE IF NOT EXISTS trunks (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    organization_id UUID,
+    carrier_connection_id UUID REFERENCES carrier_connections(id) ON DELETE RESTRICT,
+
+    provisioning_mode TEXT NOT NULL DEFAULT 'byoc',
+    name TEXT NOT NULL,
+    direction TEXT NOT NULL DEFAULT 'bidirectional',
+    status TEXT NOT NULL DEFAULT 'active',
+    managed_default BOOLEAN NOT NULL DEFAULT false,
+
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+    CONSTRAINT uq_trunks_org_name UNIQUE (organization_id, name),
+    CONSTRAINT uq_trunks_id_org UNIQUE (id, organization_id),
+    CONSTRAINT chk_trunks_provisioning_mode CHECK (
+        provisioning_mode IN ('byoc', 'managed')
+    ),
+    CONSTRAINT chk_trunks_ownership_shape CHECK (
+        (
+            organization_id IS NOT NULL
+            AND provisioning_mode = 'byoc'
+            AND carrier_connection_id IS NOT NULL
+        )
+        OR (
+            organization_id IS NOT NULL
+            AND provisioning_mode = 'managed'
+        )
+        OR (
+            organization_id IS NULL
+            AND provisioning_mode = 'managed'
+            AND carrier_connection_id IS NOT NULL
+        )
+    ),
+    CONSTRAINT chk_trunks_managed_default CHECK (
+        managed_default = false
+        OR (
+            organization_id IS NULL
+            AND provisioning_mode = 'managed'
+            AND carrier_connection_id IS NOT NULL
+        )
+    ),
+    CONSTRAINT chk_trunks_name CHECK (
+        length(btrim(name)) > 0
+    ),
+    CONSTRAINT chk_trunks_direction CHECK (
+        direction IN ('inbound', 'outbound', 'bidirectional')
+    ),
+    CONSTRAINT chk_trunks_status CHECK (
+        status IN ('active', 'disabled')
+    )
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_trunks_platform_name
+    ON trunks (name)
+    WHERE organization_id IS NULL;
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_trunks_managed_default
+    ON trunks (managed_default)
+    WHERE organization_id IS NULL AND managed_default = true;
+
+CREATE INDEX IF NOT EXISTS idx_trunks_organization_status
+    ON trunks (organization_id, status);
+
+CREATE INDEX IF NOT EXISTS idx_trunks_connection_id
+    ON trunks (carrier_connection_id)
+    WHERE carrier_connection_id IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_trunks_organization_mode
+    ON trunks (organization_id, provisioning_mode, status)
+    WHERE organization_id IS NOT NULL;
+
+CREATE TABLE IF NOT EXISTS trunk_endpoints (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    organization_id UUID,
+    trunk_id UUID NOT NULL REFERENCES trunks(id) ON DELETE CASCADE,
+
+    host TEXT NOT NULL,
+    port INTEGER NOT NULL DEFAULT 5060,
+    transport TEXT NOT NULL DEFAULT 'udp',
+    direction TEXT NOT NULL DEFAULT 'bidirectional',
+    priority INTEGER NOT NULL DEFAULT 10,
+    weight INTEGER NOT NULL DEFAULT 100,
+    enabled BOOLEAN NOT NULL DEFAULT true,
+    health_status TEXT NOT NULL DEFAULT 'unknown',
+    consecutive_failures INTEGER NOT NULL DEFAULT 0,
+    last_checked_at TIMESTAMPTZ,
+    last_response_code INTEGER,
+    last_latency_ms INTEGER,
+    last_error TEXT,
+    cooldown_until TIMESTAMPTZ,
+
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+    CONSTRAINT uq_trunk_endpoints_target
+        UNIQUE (trunk_id, host, port, transport, direction),
+    CONSTRAINT uq_trunk_endpoints_id_org UNIQUE (id, organization_id),
+    CONSTRAINT chk_trunk_endpoints_host CHECK (
+        length(btrim(host)) > 0
+        AND host !~ '\\s'
+    ),
+    CONSTRAINT chk_trunk_endpoints_port CHECK (
+        port BETWEEN 1 AND 65535
+    ),
+    CONSTRAINT chk_trunk_endpoints_transport CHECK (
+        transport IN ('udp', 'tcp', 'tls')
+    ),
+    CONSTRAINT chk_trunk_endpoints_direction CHECK (
+        direction IN ('inbound', 'outbound', 'bidirectional')
+    ),
+    CONSTRAINT chk_trunk_endpoints_priority CHECK (
+        priority >= 0
+    ),
+    CONSTRAINT chk_trunk_endpoints_weight CHECK (
+        weight > 0
+    ),
+    CONSTRAINT chk_trunk_endpoint_health_status CHECK (
+        health_status IN ('unknown', 'healthy', 'unhealthy')
+    ),
+    CONSTRAINT chk_trunk_endpoint_consecutive_failures CHECK (
+        consecutive_failures >= 0
+    ),
+    CONSTRAINT chk_trunk_endpoint_response_code CHECK (
+        last_response_code IS NULL OR last_response_code BETWEEN 100 AND 699
+    ),
+    CONSTRAINT chk_trunk_endpoint_latency CHECK (
+        last_latency_ms IS NULL OR last_latency_ms >= 0
+    )
+);
+
+CREATE INDEX IF NOT EXISTS idx_trunk_endpoints_trunk_enabled
+    ON trunk_endpoints (trunk_id, enabled, priority);
+
+CREATE INDEX IF NOT EXISTS idx_trunk_endpoints_organization_id
+    ON trunk_endpoints (organization_id);
+
+CREATE INDEX IF NOT EXISTS idx_trunk_endpoints_health_probe
+    ON trunk_endpoints (health_status, cooldown_until, last_checked_at)
+    WHERE enabled = true;
+
+
+
+CREATE TRIGGER set_trunks_updated_at
+BEFORE UPDATE ON trunks
+FOR EACH ROW
+EXECUTE FUNCTION set_updated_at();
+
+CREATE TRIGGER set_trunk_endpoints_updated_at
+BEFORE UPDATE ON trunk_endpoints
+FOR EACH ROW
+EXECUTE FUNCTION set_updated_at();
+
+@@END
+@@FILE:016_create_phone_numbers.sql
+CREATE TABLE IF NOT EXISTS phone_numbers (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+
+    number TEXT NOT NULL,
+    country_code CHAR(2) NOT NULL,
+    provisioning_mode TEXT NOT NULL DEFAULT 'byoc',
+    carrier_connection_id UUID REFERENCES carrier_connections(id) ON DELETE SET NULL,
+    provider_id UUID REFERENCES carrier_providers(id) ON DELETE RESTRICT,
+    provider_resource_id TEXT,
+    voice_enabled BOOLEAN NOT NULL DEFAULT true,
+    sms_enabled BOOLEAN NOT NULL DEFAULT false,
+    status TEXT NOT NULL DEFAULT 'active',
+    error_code TEXT,
+    error_message TEXT,
+
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+    CONSTRAINT uq_phone_numbers_id_org_provider UNIQUE (
+        id,
+        organization_id,
+        provider_id
+    ),
+    CONSTRAINT chk_phone_numbers_number CHECK (
+        number ~ '^\+[1-9][0-9]{6,14}$'
+    ),
+    CONSTRAINT chk_phone_numbers_country_code CHECK (
+        country_code ~ '^[A-Z]{2}$'
+    ),
+    CONSTRAINT chk_phone_numbers_provisioning_mode CHECK (
+        provisioning_mode IN ('byoc', 'managed')
+    ),
+    CONSTRAINT chk_phone_numbers_status CHECK (
+        status IN ('provisioning', 'active', 'disabled', 'porting', 'failed', 'released')
+    ),
+    CONSTRAINT chk_phone_numbers_provider_ownership CHECK (
+        (
+            provisioning_mode = 'byoc'
+            AND provider_id IS NULL
+            AND provider_resource_id IS NULL
+            AND status NOT IN ('provisioning', 'failed')
+        )
+        OR (
+            provisioning_mode = 'managed'
+            AND provider_id IS NOT NULL
+            AND (
+                provider_resource_id IS NULL
+                OR length(btrim(provider_resource_id)) > 0
+            )
+            AND (
+                status IN ('provisioning', 'failed')
+                OR provider_resource_id IS NOT NULL
+            )
+        )
+    ),
+    CONSTRAINT chk_phone_numbers_error_state CHECK (
+        (
+            status = 'failed'
+            AND error_message IS NOT NULL
+            AND length(btrim(error_message)) > 0
+        )
+        OR (
+            status <> 'failed'
+            AND error_code IS NULL
+            AND error_message IS NULL
+        )
+    )
+);
+
+-- Failed/released rows are historical attempts or ownership. They must not
+-- permanently reserve an E.164 number for a later acquisition.
+CREATE UNIQUE INDEX IF NOT EXISTS uq_phone_numbers_number_live
+    ON phone_numbers (number)
+    WHERE status NOT IN ('failed', 'released');
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_phone_numbers_provider_resource
+    ON phone_numbers (provider_id, provider_resource_id)
+    WHERE provider_id IS NOT NULL AND provider_resource_id IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_phone_numbers_organization_status
+    ON phone_numbers (organization_id, status);
+
+CREATE INDEX IF NOT EXISTS idx_phone_numbers_organization_provisioning_status
+    ON phone_numbers (organization_id, provisioning_mode, status);
+
+CREATE INDEX IF NOT EXISTS idx_phone_numbers_organization_country
+    ON phone_numbers (organization_id, country_code);
+
+CREATE INDEX IF NOT EXISTS idx_phone_numbers_number_prefix
+    ON phone_numbers (number text_pattern_ops);
+
+CREATE INDEX IF NOT EXISTS idx_phone_numbers_carrier_connection_id
+    ON phone_numbers (carrier_connection_id)
+    WHERE carrier_connection_id IS NOT NULL;
+
+-- BYOC numbers may bind only to their organization's carrier connection.
+-- Managed numbers may bind only to a Leamout platform connection owned by the
+-- same upstream provider as the number.
+CREATE FUNCTION validate_phone_number_carrier_scope()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    connection_scope TEXT;
+    connection_organization_id UUID;
+    connection_provider_id UUID;
+BEGIN
+    IF NEW.carrier_connection_id IS NULL THEN
+        RETURN NEW;
+    END IF;
+
+    SELECT scope, organization_id, provider_id
+    INTO connection_scope, connection_organization_id, connection_provider_id
+    FROM carrier_connections
+    WHERE id = NEW.carrier_connection_id;
+
+    IF NEW.provisioning_mode = 'byoc' THEN
+        IF connection_scope <> 'organization'
+           OR connection_organization_id IS DISTINCT FROM NEW.organization_id THEN
+            RAISE EXCEPTION 'BYOC phone number must use an organization-owned carrier connection'
+                USING ERRCODE = '23514';
+        END IF;
+    ELSIF NEW.provisioning_mode = 'managed' THEN
+        IF connection_scope <> 'platform'
+           OR connection_provider_id IS DISTINCT FROM NEW.provider_id THEN
+            RAISE EXCEPTION 'managed phone number must use a platform carrier connection for the same provider'
+                USING ERRCODE = '23514';
+        END IF;
+    END IF;
+
+    RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER validate_phone_number_carrier_scope
+BEFORE INSERT OR UPDATE OF carrier_connection_id, provisioning_mode, organization_id, provider_id
+ON phone_numbers
+FOR EACH ROW
+EXECUTE FUNCTION validate_phone_number_carrier_scope();
+
+CREATE TRIGGER set_phone_numbers_updated_at
+BEFORE UPDATE ON phone_numbers
+FOR EACH ROW
+EXECUTE FUNCTION set_updated_at();
+
+@@END
+@@FILE:017_create_voice_applications.sql
+CREATE TABLE IF NOT EXISTS voice_applications (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+
+    name TEXT NOT NULL,
+    ring_timeout_seconds INTEGER NOT NULL DEFAULT 30,
+    caller_id TEXT,
+    status TEXT NOT NULL DEFAULT 'active',
+    voice_url TEXT,
+    callback_url TEXT,
+
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+    CONSTRAINT uq_voice_applications_organization_name UNIQUE (organization_id, name),
+    CONSTRAINT chk_voice_applications_name CHECK (length(trim(name)) > 0),
+    CONSTRAINT chk_voice_applications_ring_timeout CHECK (ring_timeout_seconds BETWEEN 1 AND 300),
+    CONSTRAINT chk_voice_applications_caller_id CHECK (
+        caller_id IS NULL OR length(trim(caller_id)) > 0
+    ),
+    CONSTRAINT chk_voice_applications_status CHECK (status IN ('active', 'disabled')),
+    CONSTRAINT chk_voice_applications_voice_url CHECK (
+        voice_url IS NULL OR voice_url ~ '^https?://'
+    ),
+    CONSTRAINT chk_voice_applications_callback_url CHECK (
+        callback_url IS NULL OR callback_url ~ '^https?://'
+    )
+);
+
+CREATE INDEX IF NOT EXISTS idx_voice_applications_organization_status
+    ON voice_applications (organization_id, status);
+
+CREATE TABLE IF NOT EXISTS voice_bindings (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    voice_application_id UUID NOT NULL
+        REFERENCES voice_applications(id) ON DELETE CASCADE,
+
+    -- Exactly one target may be bound.
+    phone_number_id UUID REFERENCES phone_numbers(id) ON DELETE CASCADE,
+    sip_domain_id UUID REFERENCES sip_domains(id) ON DELETE CASCADE,
+    subscriber_id UUID REFERENCES subscribers(id) ON DELETE CASCADE,
+
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+    CONSTRAINT chk_voice_bindings_single_target CHECK (
+        (phone_number_id IS NOT NULL)::int
+        + (sip_domain_id IS NOT NULL)::int
+        + (subscriber_id IS NOT NULL)::int = 1
+    )
+);
+
+-- A DID may route to only one voice application. Applications may still own
+-- many DIDs through separate bindings.
+CREATE UNIQUE INDEX IF NOT EXISTS uq_voice_bindings_phone_number
+    ON voice_bindings (phone_number_id)
+    WHERE phone_number_id IS NOT NULL;
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_voice_bindings_application_sip_domain
+    ON voice_bindings (voice_application_id, sip_domain_id)
+    WHERE sip_domain_id IS NOT NULL;
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_voice_bindings_application_subscriber
+    ON voice_bindings (voice_application_id, subscriber_id)
+    WHERE subscriber_id IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_voice_bindings_sip_domain
+    ON voice_bindings (sip_domain_id)
+    WHERE sip_domain_id IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_voice_bindings_subscriber
+    ON voice_bindings (subscriber_id)
+    WHERE subscriber_id IS NOT NULL;
+
+CREATE TRIGGER set_voice_applications_updated_at
+BEFORE UPDATE ON voice_applications
+FOR EACH ROW
+EXECUTE FUNCTION set_updated_at();
+
+@@END
+@@FILE:018_create_calls.sql
+CREATE TABLE IF NOT EXISTS calls (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    application_id UUID REFERENCES voice_applications(id) ON DELETE SET NULL,
+    carrier_connection_id UUID REFERENCES carrier_connections(id) ON DELETE RESTRICT,
+    trunk_id UUID REFERENCES trunks(id) ON DELETE RESTRICT,
+    trunk_endpoint_id UUID REFERENCES trunk_endpoints(id) ON DELETE RESTRICT,
+    direction TEXT NOT NULL,
+    state TEXT NOT NULL DEFAULT 'initiating',
+    media_state TEXT NOT NULL DEFAULT 'active',
+    from_uri TEXT NOT NULL,
+    to_uri TEXT NOT NULL,
+    sip_call_id TEXT,
+    provider_id UUID,
+    started_at TIMESTAMPTZ,
+    answered_at TIMESTAMPTZ,
+    ended_at TIMESTAMPTZ,
+    hangup_reason TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+    CONSTRAINT uq_calls_id_organization UNIQUE (id, organization_id),
+    CONSTRAINT chk_calls_direction CHECK (direction IN ('inbound', 'outbound')),
+    CONSTRAINT chk_calls_state CHECK (
+        state IN ('initiating', 'ringing', 'answered', 'active', 'completed', 'failed', 'cancelled')
+    ),
+    CONSTRAINT chk_calls_media_state CHECK (media_state IN ('active', 'held')),
+    CONSTRAINT chk_calls_from_uri CHECK (length(trim(from_uri)) > 0),
+    CONSTRAINT chk_calls_to_uri CHECK (length(trim(to_uri)) > 0),
+    CONSTRAINT chk_calls_timestamps CHECK (
+        answered_at IS NULL OR started_at IS NULL OR answered_at >= started_at
+    ),
+    CONSTRAINT chk_calls_ended_at CHECK (
+        ended_at IS NULL OR started_at IS NULL OR ended_at >= started_at
+    )
+);
+
+CREATE INDEX IF NOT EXISTS idx_calls_organization_created
+    ON calls (organization_id, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_calls_organization_state
+    ON calls (organization_id, state, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_calls_application_created
+    ON calls (application_id, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_calls_carrier_connection_id
+    ON calls (carrier_connection_id)
+    WHERE carrier_connection_id IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_calls_trunk_id
+    ON calls (trunk_id)
+    WHERE trunk_id IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_calls_trunk_endpoint_id
+    ON calls (trunk_endpoint_id)
+    WHERE trunk_endpoint_id IS NOT NULL;
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_calls_sip_call_id
+    ON calls (sip_call_id)
+    WHERE sip_call_id IS NOT NULL;
+
+CREATE TRIGGER set_calls_updated_at
+BEFORE UPDATE ON calls
+FOR EACH ROW
+EXECUTE FUNCTION set_updated_at();
+
+@@END
