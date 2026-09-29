@@ -3,19 +3,23 @@ INSERT INTO checkouts (
     organization_id,
     purpose,
     subscription_id,
+    reference,
     amount_micros,
     currency,
     period_start,
-    period_end
+    period_end,
+    expires_at
 )
 VALUES (
     sqlc.arg(organization_id),
     sqlc.arg(purpose),
     sqlc.narg(subscription_id),
+    sqlc.arg(reference),
     sqlc.arg(amount_micros),
     sqlc.arg(currency),
     sqlc.narg(period_start),
-    sqlc.narg(period_end)
+    sqlc.narg(period_end),
+    sqlc.arg(expires_at)
 )
 RETURNING *;
 
@@ -31,10 +35,13 @@ WITH updated_checkout AS (
     UPDATE checkouts
     SET
         status = 'processing',
-        confirmed_at = COALESCE(confirmed_at, sqlc.arg(confirmed_at))
+        provider = sqlc.arg(provider),
+        payment_method = sqlc.arg(payment_method),
+        next_action = 'wait'
     WHERE id = sqlc.arg(id)
       AND organization_id = sqlc.arg(organization_id)
-      AND status = 'open'
+      AND status = 'pending'
+      AND expires_at > sqlc.arg(now_at)
     RETURNING *
 ),
 created_payment AS (
@@ -49,7 +56,7 @@ created_payment AS (
     SELECT
         id,
         organization_id,
-        sqlc.arg(provider),
+        provider,
         1,
         amount_micros,
         currency
@@ -61,58 +68,31 @@ FROM updated_checkout
 JOIN created_payment
   ON created_payment.checkout_id = updated_checkout.id;
 
--- name: ContinueCheckout :one
-WITH target_checkout AS (
-    SELECT *
-    FROM checkouts
-    WHERE id = sqlc.arg(id)
-      AND organization_id = sqlc.arg(organization_id)
-      AND status = 'failed'
-    FOR UPDATE
-),
-next_attempt AS (
-    SELECT COALESCE(MAX(p.attempt), 0) + 1 AS attempt
-    FROM payments AS p
-    JOIN target_checkout AS c
-      ON c.id = p.checkout_id
-),
-created_payment AS (
-    INSERT INTO payments (
-        checkout_id,
-        organization_id,
-        provider,
-        attempt,
-        amount_micros,
-        currency
-    )
-    SELECT
-        c.id,
-        c.organization_id,
-        sqlc.arg(provider),
-        n.attempt,
-        c.amount_micros,
-        c.currency
-    FROM target_checkout AS c
-    CROSS JOIN next_attempt AS n
-    RETURNING checkout_id
-),
-updated_checkout AS (
-    UPDATE checkouts AS c
-    SET
-        status = 'processing',
-        failure_code = NULL,
-        failed_at = NULL
-    FROM created_payment AS p
-    WHERE c.id = p.checkout_id
-    RETURNING c.*
-)
+-- name: GetCheckoutForContinuation :one
 SELECT *
-FROM updated_checkout;
+FROM checkouts
+WHERE id = sqlc.arg(id)
+  AND organization_id = sqlc.arg(organization_id)
+  AND status = 'processing'
+  AND expires_at > sqlc.arg(now_at)
+LIMIT 1;
+
+-- name: UpdateCheckoutAction :one
+UPDATE checkouts
+SET
+    next_action = sqlc.arg(next_action),
+    provider_message = sqlc.narg(provider_message)
+WHERE id = sqlc.arg(id)
+  AND organization_id = sqlc.arg(organization_id)
+  AND status = 'processing'
+RETURNING *;
 
 -- name: CompleteCheckout :one
 UPDATE checkouts
 SET
-    status = 'completed',
+    status = 'succeeded',
+    next_action = 'none',
+    provider_message = NULL,
     completed_at = sqlc.arg(completed_at)
 WHERE id = sqlc.arg(id)
   AND organization_id = sqlc.arg(organization_id)
@@ -123,9 +103,22 @@ RETURNING *;
 UPDATE checkouts
 SET
     status = 'failed',
-    failure_code = sqlc.arg(failure_code),
-    failed_at = sqlc.arg(failed_at)
+    next_action = 'none',
+    provider_message = sqlc.narg(provider_message),
+    completed_at = sqlc.arg(completed_at)
 WHERE id = sqlc.arg(id)
   AND organization_id = sqlc.arg(organization_id)
   AND status = 'processing'
+RETURNING *;
+
+-- name: ExpireCheckout :one
+UPDATE checkouts
+SET
+    status = 'expired',
+    next_action = 'none',
+    completed_at = sqlc.arg(completed_at)
+WHERE id = sqlc.arg(id)
+  AND organization_id = sqlc.arg(organization_id)
+  AND status IN ('pending', 'processing')
+  AND expires_at <= sqlc.arg(completed_at)
 RETURNING *;
