@@ -44,14 +44,14 @@ type Payment struct {
 
 type CreateSubscriptionRequest struct {
 	OrganizationID uuid.UUID
-	SubscriptionID uuid.UUID
-	Provider       string
+	SubscriptionID uuid.UUID `json:"subscription_id"`
+	Provider       string    `json:"provider"`
 }
 
 type CreateWalletTopupRequest struct {
 	OrganizationID uuid.UUID
-	Provider       string
-	AmountMicros   int64
+	Provider       string `json:"provider"`
+	AmountMicros   int64  `json:"amount_micros"`
 }
 
 type AttachProviderReferenceRequest struct {
