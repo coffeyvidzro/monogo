@@ -265,6 +265,39 @@ func (q *Queries) ExpireCheckout(ctx context.Context, arg ExpireCheckoutParams) 
 	return i, err
 }
 
+const expireDueCheckouts = `-- name: ExpireDueCheckouts :execrows
+WITH due AS (
+    SELECT id
+    FROM checkouts
+    WHERE status IN ('pending', 'processing')
+      AND expires_at <= $1
+    ORDER BY expires_at, id
+    FOR UPDATE SKIP LOCKED
+    LIMIT $2
+)
+UPDATE checkouts AS c
+SET
+    status = 'expired',
+    next_action = 'none',
+    provider_message = NULL,
+    completed_at = $1
+FROM due
+WHERE c.id = due.id
+`
+
+type ExpireDueCheckoutsParams struct {
+	CompletedAt pgtype.Timestamptz `db:"completed_at" json:"completed_at"`
+	LimitCount  int32              `db:"limit_count" json:"limit_count"`
+}
+
+func (q *Queries) ExpireDueCheckouts(ctx context.Context, arg ExpireDueCheckoutsParams) (int64, error) {
+	result, err := q.db.Exec(ctx, expireDueCheckouts, arg.CompletedAt, arg.LimitCount)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const failCheckout = `-- name: FailCheckout :one
 UPDATE checkouts AS c
 SET
@@ -443,38 +476,4 @@ func (q *Queries) UpdateCheckoutAction(ctx context.Context, arg UpdateCheckoutAc
 		&i.UpdatedAt,
 	)
 	return i, err
-}
-
-
-const expireDueCheckouts = `-- name: ExpireDueCheckouts :execrows
-WITH due AS (
-    SELECT id
-    FROM checkouts
-    WHERE status IN ('pending', 'processing')
-      AND expires_at <= $1
-    ORDER BY expires_at, id
-    FOR UPDATE SKIP LOCKED
-    LIMIT $2
-)
-UPDATE checkouts AS c
-SET
-    status = 'expired',
-    next_action = 'none',
-    provider_message = NULL,
-    completed_at = $1
-FROM due
-WHERE c.id = due.id
-`
-
-type ExpireDueCheckoutsParams struct {
-	CompletedAt pgtype.Timestamptz `db:"completed_at" json:"completed_at"`
-	LimitCount  int32              `db:"limit_count" json:"limit_count"`
-}
-
-func (q *Queries) ExpireDueCheckouts(ctx context.Context, arg ExpireDueCheckoutsParams) (int64, error) {
-	result, err := q.db.Exec(ctx, expireDueCheckouts, arg.CompletedAt, arg.LimitCount)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected(), nil
 }

@@ -48,7 +48,7 @@ type modules struct {
 	recordingReconciliation *recordings.ReconciliationJob
 	recordingIngestion      *recordings.IngestionJob
 	idempotencyCleanup      *idempotency.CleanupJob
-	checkoutExpiration       *checkout.ExpirationJob
+	checkoutExpiration      *checkout.ExpirationJob
 	trunkHealth             *trunks.HealthCheckJob
 	numberReconciliation    *numbers.ReconciliationJob
 	numberRenewal           *numbers.RenewalJob
@@ -290,7 +290,7 @@ func newModules(ctx context.Context, cfg config.Config, logger *logging.Logger) 
 		recordingReconciliation: recordingReconciliation,
 		recordingIngestion:      recordingIngestion,
 		idempotencyCleanup:      idempotencyCleanup,
-		checkoutExpiration:       checkoutExpiration,
+		checkoutExpiration:      checkoutExpiration,
 		trunkHealth:             trunkHealth,
 		numberReconciliation:    numberReconciliation,
 		numberRenewal:           numberRenewal,

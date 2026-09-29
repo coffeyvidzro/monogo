@@ -352,7 +352,6 @@ func (s *Service) completeWalletTopup(
 	return err
 }
 
-
 func (s *Service) ExpireDue(
 	ctx context.Context,
 	limit int32,
