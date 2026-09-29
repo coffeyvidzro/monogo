@@ -48,3 +48,29 @@ func validateAttachProviderPaymentIDRequest(req *AttachProviderPaymentIDRequest)
 
 	return nil
 }
+
+
+func validateRecordProviderEventRequest(req *RecordProviderEventRequest) error {
+	req.Provider = strings.ToLower(strings.TrimSpace(req.Provider))
+	req.ProviderPaymentID = strings.TrimSpace(req.ProviderPaymentID)
+	req.ProviderEventID = strings.TrimSpace(req.ProviderEventID)
+	req.EventType = strings.TrimSpace(req.EventType)
+
+	if !providerPattern.MatchString(req.Provider) {
+		return fmt.Errorf("%w: provider is invalid", ErrInvalidInput)
+	}
+	if req.ProviderPaymentID == "" {
+		return fmt.Errorf("%w: provider payment id is required", ErrInvalidInput)
+	}
+	if req.ProviderEventID == "" {
+		return fmt.Errorf("%w: provider event id is required", ErrInvalidInput)
+	}
+	if req.EventType == "" {
+		return fmt.Errorf("%w: event type is required", ErrInvalidInput)
+	}
+	if len(req.Payload) == 0 {
+		return fmt.Errorf("%w: payload is required", ErrInvalidInput)
+	}
+
+	return nil
+}
