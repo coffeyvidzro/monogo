@@ -9,7 +9,7 @@ import (
 
 const (
 	PurposeSubscription = "subscription"
-	PurposeWalletTopup   = "wallet_topup"
+	PurposeWalletTopup  = "wallet_topup"
 
 	StatusPending   = "pending"
 	StatusSucceeded = "succeeded"
@@ -56,21 +56,21 @@ type CreateWalletTopupRequest struct {
 
 type AttachProviderReferenceRequest struct {
 	OrganizationID    uuid.UUID
-	PaymentID          uuid.UUID
+	PaymentID         uuid.UUID
 	ProviderReference string
 }
 
 type SettleRequest struct {
-	OrganizationID uuid.UUID
-	PaymentID      uuid.UUID
+	OrganizationID  uuid.UUID
+	PaymentID       uuid.UUID
 	ProviderEventID string
-	OccurredAt     time.Time
+	OccurredAt      time.Time
 }
 
 type FailRequest struct {
-	OrganizationID uuid.UUID
-	PaymentID      uuid.UUID
+	OrganizationID  uuid.UUID
+	PaymentID       uuid.UUID
 	ProviderEventID string
-	FailureCode    string
-	OccurredAt     time.Time
+	FailureCode     string
+	OccurredAt      time.Time
 }

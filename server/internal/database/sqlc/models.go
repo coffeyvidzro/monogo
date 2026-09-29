@@ -437,6 +437,25 @@ type OutboxEvent struct {
 	UpdatedAt     pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 }
 
+type Payment struct {
+	ID                uuid.UUID          `db:"id" json:"id"`
+	OrganizationID    uuid.UUID          `db:"organization_id" json:"organization_id"`
+	Purpose           string             `db:"purpose" json:"purpose"`
+	Provider          string             `db:"provider" json:"provider"`
+	SubscriptionID    *uuid.UUID         `db:"subscription_id" json:"subscription_id"`
+	AmountMicros      int64              `db:"amount_micros" json:"amount_micros"`
+	Currency          string             `db:"currency" json:"currency"`
+	Status            string             `db:"status" json:"status"`
+	ProviderReference *string            `db:"provider_reference" json:"provider_reference"`
+	ProviderEventID   *string            `db:"provider_event_id" json:"provider_event_id"`
+	PeriodStart       pgtype.Timestamptz `db:"period_start" json:"period_start"`
+	PeriodEnd         pgtype.Timestamptz `db:"period_end" json:"period_end"`
+	FailureCode       *string            `db:"failure_code" json:"failure_code"`
+	CompletedAt       pgtype.Timestamptz `db:"completed_at" json:"completed_at"`
+	CreatedAt         pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	UpdatedAt         pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+}
+
 type PhoneNumber struct {
 	ID                  uuid.UUID          `db:"id" json:"id"`
 	OrganizationID      uuid.UUID          `db:"organization_id" json:"organization_id"`
