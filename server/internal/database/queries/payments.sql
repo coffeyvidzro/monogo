@@ -1,54 +1,50 @@
--- name: CreateSubscriptionPayment :one
+-- name: CreatePaymentAttempt :one
 INSERT INTO payments (
+    checkout_id,
     organization_id,
-    purpose,
     provider,
-    subscription_id,
-    amount_micros,
-    currency,
-    period_start,
-    period_end
-)
-VALUES (
-    sqlc.arg(organization_id),
-    'subscription',
-    sqlc.arg(provider),
-    sqlc.arg(subscription_id),
-    sqlc.arg(amount_micros),
-    sqlc.arg(currency),
-    sqlc.arg(period_start),
-    sqlc.arg(period_end)
-)
-RETURNING *;
-
--- name: CreateWalletTopupPayment :one
-INSERT INTO payments (
-    organization_id,
-    purpose,
-    provider,
+    attempt,
     amount_micros,
     currency
 )
 VALUES (
+    sqlc.arg(checkout_id),
     sqlc.arg(organization_id),
-    'wallet_topup',
     sqlc.arg(provider),
+    sqlc.arg(attempt),
     sqlc.arg(amount_micros),
     sqlc.arg(currency)
 )
 RETURNING *;
 
--- name: GetPaymentByID :one
+-- name: GetPaymentAttemptByID :one
 SELECT *
 FROM payments
 WHERE id = sqlc.arg(id)
+  AND checkout_id = sqlc.arg(checkout_id)
   AND organization_id = sqlc.arg(organization_id)
 LIMIT 1;
+
+-- name: GetActivePaymentAttemptByCheckout :one
+SELECT *
+FROM payments
+WHERE checkout_id = sqlc.arg(checkout_id)
+  AND organization_id = sqlc.arg(organization_id)
+  AND status = 'pending'
+ORDER BY attempt DESC
+LIMIT 1;
+
+-- name: GetNextPaymentAttemptNumber :one
+SELECT COALESCE(MAX(attempt), 0)::bigint + 1 AS next_attempt
+FROM payments
+WHERE checkout_id = sqlc.arg(checkout_id)
+  AND organization_id = sqlc.arg(organization_id);
 
 -- name: AttachPaymentProviderReference :one
 UPDATE payments
 SET provider_reference = sqlc.arg(provider_reference)
 WHERE id = sqlc.arg(id)
+  AND checkout_id = sqlc.arg(checkout_id)
   AND organization_id = sqlc.arg(organization_id)
   AND status = 'pending'
   AND (
@@ -57,37 +53,25 @@ WHERE id = sqlc.arg(id)
   )
 RETURNING *;
 
--- name: ClaimPaymentProviderEvent :one
-UPDATE payments
-SET provider_event_id = sqlc.arg(provider_event_id)
-WHERE id = sqlc.arg(id)
-  AND organization_id = sqlc.arg(organization_id)
-  AND status = 'pending'
-  AND (
-      provider_event_id IS NULL
-      OR provider_event_id = sqlc.arg(provider_event_id)
-  )
-RETURNING *;
-
--- name: MarkPaymentSucceeded :one
+-- name: MarkPaymentAttemptSucceeded :one
 UPDATE payments
 SET
     status = 'succeeded',
     completed_at = sqlc.arg(completed_at)
 WHERE id = sqlc.arg(id)
+  AND checkout_id = sqlc.arg(checkout_id)
   AND organization_id = sqlc.arg(organization_id)
   AND status = 'pending'
-  AND provider_event_id = sqlc.arg(provider_event_id)
 RETURNING *;
 
--- name: MarkPaymentFailed :one
+-- name: MarkPaymentAttemptFailed :one
 UPDATE payments
 SET
     status = 'failed',
     failure_code = sqlc.arg(failure_code),
     completed_at = sqlc.arg(completed_at)
 WHERE id = sqlc.arg(id)
+  AND checkout_id = sqlc.arg(checkout_id)
   AND organization_id = sqlc.arg(organization_id)
   AND status = 'pending'
-  AND provider_event_id = sqlc.arg(provider_event_id)
 RETURNING *;
