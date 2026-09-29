@@ -36,13 +36,6 @@ func (s *Service) WithTx(tx pgx.Tx) *Service {
 	}
 }
 
-func (s *Service) WithTx(tx pgx.Tx) *Service {
-	return &Service{
-		repo: s.repo.WithTx(tx),
-		now:  s.now,
-	}
-}
-
 func (s *Service) CreateAttempt(
 	ctx context.Context,
 	req CreateAttemptRequest,
