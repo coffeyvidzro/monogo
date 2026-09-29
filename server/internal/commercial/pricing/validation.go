@@ -9,8 +9,9 @@ import (
 )
 
 var digitsPattern = regexp.MustCompile(`^[1-9][0-9]{0,14}$`)
+var countryCodePattern = regexp.MustCompile(`^[A-Z]{2}$`)
 
-func normalizeCreateRateRequest(req *CreateRateRequest) error {
+func normalizeCreateVoiceRateRequest(req *CreateVoiceRateRequest) error {
 	if req.OrganizationID != nil && *req.OrganizationID == uuid.Nil {
 		return fmt.Errorf("%w: organization id is invalid", ErrInvalidInput)
 	}
@@ -30,8 +31,8 @@ func normalizeCreateRateRequest(req *CreateRateRequest) error {
 	if len(req.Currency) != 3 {
 		return fmt.Errorf("%w: currency must be a three-letter code", ErrInvalidInput)
 	}
-	if req.RateMicros < 0 {
-		return fmt.Errorf("%w: rate cannot be negative", ErrInvalidInput)
+	if req.RateMicros <= 0 {
+		return fmt.Errorf("%w: rate must be positive", ErrInvalidInput)
 	}
 	if req.EffectiveAt.IsZero() {
 		return fmt.Errorf("%w: effective time is required", ErrInvalidInput)
@@ -43,7 +44,7 @@ func normalizeCreateRateRequest(req *CreateRateRequest) error {
 	return nil
 }
 
-func normalizeResolveRequest(req *ResolveRequest) error {
+func normalizeResolveVoiceRateRequest(req *ResolveVoiceRateRequest) error {
 	if req.OrganizationID == uuid.Nil {
 		return fmt.Errorf("%w: organization id is required", ErrInvalidInput)
 	}
@@ -61,6 +62,34 @@ func normalizeResolveRequest(req *ResolveRequest) error {
 		return err
 	}
 	req.Direction = direction
+
+	req.Currency = strings.ToUpper(strings.TrimSpace(req.Currency))
+	if len(req.Currency) != 3 {
+		return fmt.Errorf("%w: currency must be a three-letter code", ErrInvalidInput)
+	}
+
+	return nil
+}
+
+func normalizeResolveProductRateRequest(req *ResolveProductRateRequest) error {
+	if req.OrganizationID == uuid.Nil {
+		return fmt.Errorf("%w: organization id is required", ErrInvalidInput)
+	}
+
+	req.Product = strings.TrimSpace(req.Product)
+	switch req.Product {
+	case ProductSMSOutbound,
+		ProductWhatsAppOutbound,
+		ProductNumberPurchase,
+		ProductNumberRenewal:
+	default:
+		return fmt.Errorf("%w: product is invalid", ErrInvalidInput)
+	}
+
+	req.Selector = strings.ToUpper(strings.TrimSpace(req.Selector))
+	if req.Selector != "*" && !countryCodePattern.MatchString(req.Selector) {
+		return fmt.Errorf("%w: selector must be a country code or *", ErrInvalidInput)
+	}
 
 	req.Currency = strings.ToUpper(strings.TrimSpace(req.Currency))
 	if len(req.Currency) != 3 {

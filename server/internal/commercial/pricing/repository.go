@@ -17,31 +17,41 @@ func NewRepository(queries *sqlc.Queries) *Repository {
 	}
 }
 
-func (r *Repository) Create(
+func (r *Repository) CreateVoiceRate(
 	ctx context.Context,
-	params sqlc.CreateCarrierRateParams,
-) (sqlc.CarrierRate, error) {
-	return r.queries.CreateCarrierRate(
+	params sqlc.CreateVoiceRateParams,
+) (sqlc.VoiceRate, error) {
+	return r.queries.CreateVoiceRate(
 		ctx,
 		params,
 	)
 }
 
-func (r *Repository) Get(
+func (r *Repository) GetVoiceRate(
 	ctx context.Context,
 	id uuid.UUID,
-) (sqlc.CarrierRate, error) {
-	return r.queries.GetCarrierRateByID(
+) (sqlc.VoiceRate, error) {
+	return r.queries.GetVoiceRateByID(
 		ctx,
 		id,
 	)
 }
 
-func (r *Repository) Resolve(
+func (r *Repository) ResolveVoiceRate(
 	ctx context.Context,
-	params sqlc.ResolveCarrierRateParams,
-) (sqlc.CarrierRate, error) {
-	return r.queries.ResolveCarrierRate(
+	params sqlc.ResolveVoiceRateParams,
+) (sqlc.VoiceRate, error) {
+	return r.queries.ResolveVoiceRate(
+		ctx,
+		params,
+	)
+}
+
+func (r *Repository) ResolveProductRate(
+	ctx context.Context,
+	params sqlc.ResolveProductRateParams,
+) (sqlc.ProductRate, error) {
+	return r.queries.ResolveProductRate(
 		ctx,
 		params,
 	)

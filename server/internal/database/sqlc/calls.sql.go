@@ -314,24 +314,30 @@ func (q *Queries) GetCallBySIPCallIDGlobal(ctx context.Context, sipCallID *strin
 
 const getCallLifecycleSnapshot = `-- name: GetCallLifecycleSnapshot :one
 SELECT
-    organization_id,
-    carrier_connection_id,
-    routing_decision_id,
-    direction,
-    state,
-    media_state
-FROM calls
-WHERE id = $1
+    c.organization_id,
+    c.carrier_connection_id,
+    c.routing_decision_id,
+    c.direction,
+    c.state,
+    c.media_state,
+    c.answered_at,
+    cc.scope AS carrier_scope
+FROM calls AS c
+LEFT JOIN carrier_connections AS cc
+  ON cc.id = c.carrier_connection_id
+WHERE c.id = $1
 LIMIT 1
 `
 
 type GetCallLifecycleSnapshotRow struct {
-	OrganizationID      uuid.UUID  `db:"organization_id" json:"organization_id"`
-	CarrierConnectionID *uuid.UUID `db:"carrier_connection_id" json:"carrier_connection_id"`
-	RoutingDecisionID   *uuid.UUID `db:"routing_decision_id" json:"routing_decision_id"`
-	Direction           string     `db:"direction" json:"direction"`
-	State               string     `db:"state" json:"state"`
-	MediaState          string     `db:"media_state" json:"media_state"`
+	OrganizationID      uuid.UUID          `db:"organization_id" json:"organization_id"`
+	CarrierConnectionID *uuid.UUID         `db:"carrier_connection_id" json:"carrier_connection_id"`
+	RoutingDecisionID   *uuid.UUID         `db:"routing_decision_id" json:"routing_decision_id"`
+	Direction           string             `db:"direction" json:"direction"`
+	State               string             `db:"state" json:"state"`
+	MediaState          string             `db:"media_state" json:"media_state"`
+	AnsweredAt          pgtype.Timestamptz `db:"answered_at" json:"answered_at"`
+	CarrierScope        *string            `db:"carrier_scope" json:"carrier_scope"`
 }
 
 func (q *Queries) GetCallLifecycleSnapshot(ctx context.Context, id uuid.UUID) (GetCallLifecycleSnapshotRow, error) {
@@ -344,6 +350,8 @@ func (q *Queries) GetCallLifecycleSnapshot(ctx context.Context, id uuid.UUID) (G
 		&i.Direction,
 		&i.State,
 		&i.MediaState,
+		&i.AnsweredAt,
+		&i.CarrierScope,
 	)
 	return i, err
 }
@@ -387,7 +395,8 @@ const getInboundCallContext = `-- name: GetInboundCallContext :one
 SELECT
     cc.max_cps,
     cc.max_concurrent_calls,
-    cc.max_daily_minutes
+    cc.max_daily_minutes,
+    pn.provisioning_mode
 FROM phone_numbers AS pn
 JOIN carrier_connections AS cc
   ON cc.id = pn.carrier_connection_id
@@ -437,6 +446,7 @@ type GetInboundCallContextRow struct {
 	MaxCps             int32  `db:"max_cps" json:"max_cps"`
 	MaxConcurrentCalls int32  `db:"max_concurrent_calls" json:"max_concurrent_calls"`
 	MaxDailyMinutes    *int64 `db:"max_daily_minutes" json:"max_daily_minutes"`
+	ProvisioningMode   string `db:"provisioning_mode" json:"provisioning_mode"`
 }
 
 // Revalidate the DID-derived tenant and route tuple before the call service
@@ -450,7 +460,12 @@ func (q *Queries) GetInboundCallContext(ctx context.Context, arg GetInboundCallC
 		arg.ApplicationID,
 	)
 	var i GetInboundCallContextRow
-	err := row.Scan(&i.MaxCps, &i.MaxConcurrentCalls, &i.MaxDailyMinutes)
+	err := row.Scan(
+		&i.MaxCps,
+		&i.MaxConcurrentCalls,
+		&i.MaxDailyMinutes,
+		&i.ProvisioningMode,
+	)
 	return i, err
 }
 

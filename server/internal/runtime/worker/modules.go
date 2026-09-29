@@ -49,6 +49,7 @@ type modules struct {
 	idempotencyCleanup      *idempotency.CleanupJob
 	trunkHealth             *trunks.HealthCheckJob
 	numberReconciliation    *numbers.ReconciliationJob
+	numberRenewal           *numbers.RenewalJob
 	lifecycleReconciliation *lifecycle.ReconciliationJob
 	messaging               *messagingRuntime
 }
@@ -243,11 +244,20 @@ func newModules(ctx context.Context, cfg config.Config, logger *logging.Logger) 
 	}
 	numberService := numbers.NewService(numbers.NewRepository(queries), provider)
 	numberService.ConfigureManaged(postgresClient.Pool())
+	numberService.ConfigureBilling(
+		commercialModule.Pricing.Service,
+		commercialModule.Wallets.Service,
+	)
 	lifecycleService := lifecycle.NewService(lifecycle.NewRepository(queries), postgresClient.Pool(), didww.NewLifecycleProvider(provider))
 	lifecycleReconciliation, err := lifecycle.NewReconciliationJob(lifecycleService, 50)
 	if err != nil {
 		closeDependencies()
 		return nil, fmt.Errorf("initialize number lifecycle reconciliation: %w", err)
+	}
+	numberRenewal, err := numbers.NewRenewalJob(numberService, 50)
+	if err != nil {
+		closeDependencies()
+		return nil, fmt.Errorf("initialize managed number renewal: %w", err)
 	}
 	numberReconciliation, err := numbers.NewReconciliationJob(numberService, 50)
 	if err != nil {
@@ -273,6 +283,7 @@ func newModules(ctx context.Context, cfg config.Config, logger *logging.Logger) 
 		idempotencyCleanup:      idempotencyCleanup,
 		trunkHealth:             trunkHealth,
 		numberReconciliation:    numberReconciliation,
+		numberRenewal:           numberRenewal,
 		lifecycleReconciliation: lifecycleReconciliation,
 		messaging:               messagingRuntime,
 	}, nil

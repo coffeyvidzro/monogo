@@ -5,7 +5,6 @@ import (
 	"github.com/coffeyvidzro/monogo/internal/commercial/pricing"
 	"github.com/coffeyvidzro/monogo/internal/commercial/subscriptions"
 	"github.com/coffeyvidzro/monogo/internal/commercial/wallets"
-	"github.com/coffeyvidzro/monogo/internal/commercial/wholesale"
 	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -20,7 +19,6 @@ type Module struct {
 	Plans         PlansModule
 	Subscriptions SubscriptionsModule
 	Pricing       PricingModule
-	Wholesale     WholesaleModule
 }
 
 type WalletsModule struct {
@@ -47,11 +45,6 @@ type PricingModule struct {
 	Handler    *pricing.Handler
 }
 
-type WholesaleModule struct {
-	Repository *wholesale.Repository
-	Service    *wholesale.Service
-}
-
 func New(deps Dependencies) *Module {
 	walletsRepository := wallets.NewRepository(deps.Queries)
 	walletsService := wallets.NewService(
@@ -74,11 +67,6 @@ func New(deps Dependencies) *Module {
 		pricingRepository,
 	)
 
-	wholesaleRepository := wholesale.NewRepository(deps.Queries)
-	wholesaleService := wholesale.NewService(
-		wholesaleRepository,
-	)
-
 	return &Module{
 		Wallets: WalletsModule{
 			Repository: walletsRepository,
@@ -99,10 +87,6 @@ func New(deps Dependencies) *Module {
 			Repository: pricingRepository,
 			Service:    pricingService,
 			Handler:    pricing.NewHandler(pricingService),
-		},
-		Wholesale: WholesaleModule{
-			Repository: wholesaleRepository,
-			Service:    wholesaleService,
 		},
 	}
 }

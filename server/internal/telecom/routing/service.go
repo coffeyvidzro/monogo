@@ -42,7 +42,7 @@ func (s *Service) ResolveInbound(
 		return InboundDecision{}, err
 	}
 
-	limits, err := s.repo.GetInboundContext(ctx, req)
+	inbound, err := s.repo.GetInboundContext(ctx, req)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return InboundDecision{}, apperror.NewNotFound("no eligible inbound route")
 	}
@@ -57,7 +57,8 @@ func (s *Service) ResolveInbound(
 		VoiceBindingID:      req.VoiceBindingID,
 		CarrierConnectionID: req.CarrierConnectionID,
 		CalledNumber:        req.CalledNumber,
-		Limits:              limits,
+		ProvisioningMode:    inbound.ProvisioningMode,
+		Limits:              inbound.Limits,
 	}, nil
 }
 

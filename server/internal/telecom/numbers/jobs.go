@@ -51,3 +51,56 @@ func (j *ReconciliationJob) Run(ctx context.Context) error {
 		}
 	}
 }
+
+type RenewalJob struct {
+	service  *Service
+	batch    int
+	interval time.Duration
+}
+
+func NewRenewalJob(service *Service, batch int) (*RenewalJob, error) {
+	if service == nil || service.repo == nil || service.repo.queries == nil ||
+		service.pricing == nil || service.wallets == nil {
+		return nil, fmt.Errorf("number renewal dependencies are required")
+	}
+	if batch < 1 || batch > 500 {
+		return nil, fmt.Errorf("number renewal batch must be between 1 and 500")
+	}
+	return &RenewalJob{
+		service:  service,
+		batch:    batch,
+		interval: time.Hour,
+	}, nil
+}
+
+func (j *RenewalJob) RunOnce(ctx context.Context) error {
+	now := j.service.now().UTC()
+	if err := j.service.repo.ScheduleRenewals(ctx, now); err != nil {
+		return fmt.Errorf("schedule number renewals: %w", err)
+	}
+	renewals, err := j.service.repo.ListRenewalsDue(ctx, now, int32(j.batch))
+	if err != nil {
+		return fmt.Errorf("list number renewals: %w", err)
+	}
+	for _, renewal := range renewals {
+		if err := j.service.processRenewal(ctx, renewal); err != nil {
+			return fmt.Errorf("process number renewal %s: %w", renewal.ID, err)
+		}
+	}
+	return nil
+}
+
+func (j *RenewalJob) Run(ctx context.Context) error {
+	ticker := time.NewTicker(j.interval)
+	defer ticker.Stop()
+	for {
+		if err := j.RunOnce(ctx); err != nil {
+			return err
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-ticker.C:
+		}
+	}
+}

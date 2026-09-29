@@ -1,5 +1,5 @@
--- name: CreateProviderRate :one
-INSERT INTO provider_rates (
+-- name: CreateProviderVoiceRate :one
+INSERT INTO provider_voice_rates (
     carrier_connection_id,
     destination_prefix,
     rate_micros,
@@ -78,7 +78,7 @@ JOIN trunk_endpoints AS te ON te.trunk_id = t.id
 JOIN carrier_route_metrics AS metrics ON metrics.trunk_endpoint_id = te.id
 JOIN LATERAL (
     SELECT cr.rate_micros
-    FROM provider_rates AS cr
+    FROM provider_voice_rates AS cr
     WHERE cr.carrier_connection_id = cc.id
       AND cr.billing_currency = 'USD'
       AND sqlc.arg(destination_digits)::TEXT LIKE cr.destination_prefix || '%'

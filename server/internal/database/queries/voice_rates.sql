@@ -1,5 +1,5 @@
--- name: CreateCarrierRate :one
-INSERT INTO carrier_rates (
+-- name: CreateVoiceRate :one
+INSERT INTO voice_rates (
     organization_id,
     destination_prefix,
     direction,
@@ -26,27 +26,27 @@ WHERE sqlc.narg(organization_id)::UUID IS NULL
    )
 RETURNING *;
 
--- name: GetCarrierRateByID :one
+-- name: GetVoiceRateByID :one
 SELECT *
-FROM carrier_rates
+FROM voice_rates
 WHERE id = sqlc.arg(id)
 LIMIT 1;
 
--- name: ResolveCarrierRate :one
-SELECT cr.*
-FROM carrier_rates AS cr
+-- name: ResolveVoiceRate :one
+SELECT vr.*
+FROM voice_rates AS vr
 JOIN organizations AS o
   ON o.id = sqlc.arg(organization_id)
  AND o.status = 'active'
  AND o.deleted_at IS NULL
-WHERE (cr.organization_id = o.id OR cr.organization_id IS NULL)
-  AND cr.direction = sqlc.arg(direction)
-  AND cr.currency = sqlc.arg(currency)
-  AND sqlc.arg(destination_digits)::TEXT LIKE cr.destination_prefix || '%'
-  AND cr.effective_at <= sqlc.arg(resolved_at)
-  AND (cr.expires_at IS NULL OR cr.expires_at > sqlc.arg(resolved_at))
+WHERE (vr.organization_id = o.id OR vr.organization_id IS NULL)
+  AND vr.direction = sqlc.arg(direction)
+  AND vr.currency = sqlc.arg(currency)
+  AND sqlc.arg(destination_digits)::TEXT LIKE vr.destination_prefix || '%'
+  AND vr.effective_at <= sqlc.arg(resolved_at)
+  AND (vr.expires_at IS NULL OR vr.expires_at > sqlc.arg(resolved_at))
 ORDER BY
-    (cr.organization_id IS NOT NULL) DESC,
-    length(cr.destination_prefix) DESC,
-    cr.effective_at DESC
+    (vr.organization_id IS NOT NULL) DESC,
+    length(vr.destination_prefix) DESC,
+    vr.effective_at DESC
 LIMIT 1;

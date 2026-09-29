@@ -37,6 +37,14 @@ func newRouter(cfg config.Config, logger *logging.Logger, modules *modules) *chi
 		return func(next http.Handler) http.Handler {
 			requireAuthenticated := modules.organizationsContext.RequireAuthenticated(modules.authn)
 			requireAccess := modules.organizationsContext.RequireAccess(resource)
+			requireSubscription := middleware.RequireSubscription(modules.commercial.Subscriptions.Service)
+			return requireAuthenticated(modules.rateLimit.Handle(requireAccess(requireSubscription(next))))
+		}
+	}
+	commercialAccess := func(resource string) func(http.Handler) http.Handler {
+		return func(next http.Handler) http.Handler {
+			requireAuthenticated := modules.organizationsContext.RequireAuthenticated(modules.authn)
+			requireAccess := modules.organizationsContext.RequireAccess(resource)
 			return requireAuthenticated(modules.rateLimit.Handle(requireAccess(next)))
 		}
 	}
@@ -69,7 +77,7 @@ func newRouter(cfg config.Config, logger *logging.Logger, modules *modules) *chi
 		commercial.RegisterRoutes(
 			r,
 			modules.commercial,
-			organizationAccess,
+			commercialAccess,
 			modules.platform.Idempotency.Middleware.Handle,
 		)
 		telecom.RegisterRoutes(

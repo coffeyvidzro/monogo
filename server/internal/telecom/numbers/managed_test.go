@@ -3,6 +3,7 @@ package numbers
 import (
 	"encoding/json"
 	"testing"
+	"time"
 
 	"github.com/coffeyvidzro/monogo/internal/integrations/carriers/didww"
 	"github.com/google/uuid"
@@ -28,6 +29,20 @@ func TestNormalizeManagedPurchaseRequiresTenantAndIdempotency(t *testing.T) {
 		if err := normalizeManagedPurchase(tc.org, tc.key, &tc.req); err == nil {
 			t.Fatalf("expected rejection for %+v", tc)
 		}
+	}
+}
+
+func TestManagedNumberOperationIDIsStablePerOrder(t *testing.T) {
+	orderID := uuid.New()
+	first := managedNumberOperationID(orderID)
+	second := managedNumberOperationID(orderID)
+	other := managedNumberOperationID(uuid.New())
+
+	if first != second {
+		t.Fatalf("replayed operation id = %s, want %s", second, first)
+	}
+	if first == other {
+		t.Fatal("different orders produced the same billing operation id")
 	}
 }
 
@@ -60,5 +75,31 @@ func TestDIDUsesOnlyConfiguredVoiceInTrunk(t *testing.T) {
 	did.Relationships["voice_in_trunk"] = relationship
 	if didUsesTrunk(did, "trusted") {
 		t.Fatal("wrong relationship type matched")
+	}
+}
+
+func TestRenewalRetryDelayIsCapped(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		attempt int32
+		want    time.Duration
+	}{
+		{
+			attempt: 1,
+			want:    time.Hour,
+		},
+		{
+			attempt: 2,
+			want:    2 * time.Hour,
+		},
+		{
+			attempt: 10,
+			want:    24 * time.Hour,
+		},
+	}
+	for _, testCase := range cases {
+		if got := renewalRetryDelay(testCase.attempt); got != testCase.want {
+			t.Fatalf("attempt %d: got %s, want %s", testCase.attempt, got, testCase.want)
+		}
 	}
 }

@@ -45,7 +45,8 @@ INSERT INTO phone_numbers (
     provider_id,
     provider_resource_id,
     voice_enabled,
-    sms_enabled
+    sms_enabled,
+    next_renewal_at
 )
 SELECT
     sqlc.arg(organization_id) AS organization_id,
@@ -56,7 +57,8 @@ SELECT
     sqlc.arg(provider_id) AS provider_id,
     sqlc.arg(provider_resource_id) AS provider_resource_id,
     COALESCE(sqlc.narg(voice_enabled), true) AS voice_enabled,
-    COALESCE(sqlc.narg(sms_enabled), false) AS sms_enabled
+    COALESCE(sqlc.narg(sms_enabled), false) AS sms_enabled,
+    sqlc.arg(next_renewal_at) AS next_renewal_at
 FROM organizations AS o
 JOIN carrier_providers AS cp
   ON cp.id = sqlc.arg(provider_id)

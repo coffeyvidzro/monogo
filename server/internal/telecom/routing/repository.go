@@ -17,6 +17,11 @@ type Repository struct {
 	db      *pgxpool.Pool
 }
 
+type inboundContext struct {
+	ProvisioningMode string
+	Limits           Limits
+}
+
 func NewRepository(queries *sqlc.Queries, db *pgxpool.Pool) *Repository {
 	return &Repository{queries: queries, db: db}
 }
@@ -24,18 +29,18 @@ func NewRepository(queries *sqlc.Queries, db *pgxpool.Pool) *Repository {
 func (r *Repository) GetInboundContext(
 	ctx context.Context,
 	req InboundRequest,
-) (Limits, error) {
+) (inboundContext, error) {
 	binding, err := r.queries.GetVoiceBindingByID(ctx, sqlc.GetVoiceBindingByIDParams{
 		ID:             req.VoiceBindingID,
 		OrganizationID: req.OrganizationID,
 	})
 	if err != nil {
-		return Limits{}, err
+		return inboundContext{}, err
 	}
 	if binding.VoiceApplicationID != req.ApplicationID ||
 		binding.PhoneNumberID == nil ||
 		*binding.PhoneNumberID != req.PhoneNumberID {
-		return Limits{}, pgx.ErrNoRows
+		return inboundContext{}, pgx.ErrNoRows
 	}
 
 	carrierConnectionID := req.CarrierConnectionID
@@ -47,12 +52,15 @@ func (r *Repository) GetInboundContext(
 		ApplicationID:       req.ApplicationID,
 	})
 	if err != nil {
-		return Limits{}, err
+		return inboundContext{}, err
 	}
-	return Limits{
-		MaxCPS:             row.MaxCps,
-		MaxConcurrentCalls: row.MaxConcurrentCalls,
-		MaxDailyMinutes:    row.MaxDailyMinutes,
+	return inboundContext{
+		ProvisioningMode: row.ProvisioningMode,
+		Limits: Limits{
+			MaxCPS:             row.MaxCps,
+			MaxConcurrentCalls: row.MaxConcurrentCalls,
+			MaxDailyMinutes:    row.MaxDailyMinutes,
+		},
 	}, nil
 }
 

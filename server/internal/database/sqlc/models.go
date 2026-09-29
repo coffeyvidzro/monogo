@@ -148,18 +148,6 @@ type CarrierProvider struct {
 	UpdatedAt pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 }
 
-type CarrierRate struct {
-	ID                uuid.UUID          `db:"id" json:"id"`
-	OrganizationID    *uuid.UUID         `db:"organization_id" json:"organization_id"`
-	DestinationPrefix string             `db:"destination_prefix" json:"destination_prefix"`
-	Direction         string             `db:"direction" json:"direction"`
-	Currency          string             `db:"currency" json:"currency"`
-	RateMicros        int64              `db:"rate_micros" json:"rate_micros"`
-	EffectiveAt       pgtype.Timestamptz `db:"effective_at" json:"effective_at"`
-	ExpiresAt         pgtype.Timestamptz `db:"expires_at" json:"expires_at"`
-	CreatedAt         pgtype.Timestamptz `db:"created_at" json:"created_at"`
-}
-
 type CarrierRouteMetric struct {
 	TrunkEndpointID       uuid.UUID          `db:"trunk_endpoint_id" json:"trunk_endpoint_id"`
 	AsrBasisPoints        int32              `db:"asr_basis_points" json:"asr_basis_points"`
@@ -330,6 +318,24 @@ type NumberLifecycleOperation struct {
 	ReconcileAttempts int32              `db:"reconcile_attempts" json:"reconcile_attempts"`
 }
 
+type NumberRenewal struct {
+	ID             uuid.UUID          `db:"id" json:"id"`
+	OrganizationID uuid.UUID          `db:"organization_id" json:"organization_id"`
+	PhoneNumberID  uuid.UUID          `db:"phone_number_id" json:"phone_number_id"`
+	PeriodStart    pgtype.Timestamptz `db:"period_start" json:"period_start"`
+	PeriodEnd      pgtype.Timestamptz `db:"period_end" json:"period_end"`
+	OperationID    uuid.UUID          `db:"operation_id" json:"operation_id"`
+	Status         string             `db:"status" json:"status"`
+	AmountMicros   *int64             `db:"amount_micros" json:"amount_micros"`
+	Currency       *string            `db:"currency" json:"currency"`
+	AttemptCount   int32              `db:"attempt_count" json:"attempt_count"`
+	NextAttemptAt  pgtype.Timestamptz `db:"next_attempt_at" json:"next_attempt_at"`
+	PaidAt         pgtype.Timestamptz `db:"paid_at" json:"paid_at"`
+	LastError      *string            `db:"last_error" json:"last_error"`
+	CreatedAt      pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	UpdatedAt      pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+}
+
 type OpensipsCarrierDigestCredential struct {
 	CarrierConnectionID uuid.UUID   `db:"carrier_connection_id" json:"carrier_connection_id"`
 	OrganizationID      uuid.UUID   `db:"organization_id" json:"organization_id"`
@@ -447,6 +453,7 @@ type PhoneNumber struct {
 	ErrorMessage        *string            `db:"error_message" json:"error_message"`
 	CreatedAt           pgtype.Timestamptz `db:"created_at" json:"created_at"`
 	UpdatedAt           pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+	NextRenewalAt       pgtype.Timestamptz `db:"next_renewal_at" json:"next_renewal_at"`
 }
 
 type PortInCase struct {
@@ -489,26 +496,19 @@ type ProcessedEvent struct {
 	Metadata     []byte             `db:"metadata" json:"metadata"`
 }
 
-type ProviderCdr struct {
-	ID                  uuid.UUID          `db:"id" json:"id"`
-	ProviderID          uuid.UUID          `db:"provider_id" json:"provider_id"`
-	CarrierConnectionID uuid.UUID          `db:"carrier_connection_id" json:"carrier_connection_id"`
-	CallID              uuid.UUID          `db:"call_id" json:"call_id"`
-	ProviderCdrID       string             `db:"provider_cdr_id" json:"provider_cdr_id"`
-	Direction           string             `db:"direction" json:"direction"`
-	Source              *string            `db:"source" json:"source"`
-	Destination         *string            `db:"destination" json:"destination"`
-	StartedAt           pgtype.Timestamptz `db:"started_at" json:"started_at"`
-	AnsweredAt          pgtype.Timestamptz `db:"answered_at" json:"answered_at"`
-	EndedAt             pgtype.Timestamptz `db:"ended_at" json:"ended_at"`
-	DurationSeconds     int64              `db:"duration_seconds" json:"duration_seconds"`
-	BillableSeconds     int64              `db:"billable_seconds" json:"billable_seconds"`
-	RawPayload          []byte             `db:"raw_payload" json:"raw_payload"`
-	ReceivedAt          pgtype.Timestamptz `db:"received_at" json:"received_at"`
-	CreatedAt           pgtype.Timestamptz `db:"created_at" json:"created_at"`
+type ProductRate struct {
+	ID             uuid.UUID          `db:"id" json:"id"`
+	OrganizationID *uuid.UUID         `db:"organization_id" json:"organization_id"`
+	Product        string             `db:"product" json:"product"`
+	Selector       string             `db:"selector" json:"selector"`
+	Currency       string             `db:"currency" json:"currency"`
+	RateMicros     int64              `db:"rate_micros" json:"rate_micros"`
+	EffectiveAt    pgtype.Timestamptz `db:"effective_at" json:"effective_at"`
+	ExpiresAt      pgtype.Timestamptz `db:"expires_at" json:"expires_at"`
+	CreatedAt      pgtype.Timestamptz `db:"created_at" json:"created_at"`
 }
 
-type ProviderRate struct {
+type ProviderVoiceRate struct {
 	ID                  uuid.UUID          `db:"id" json:"id"`
 	CarrierConnectionID uuid.UUID          `db:"carrier_connection_id" json:"carrier_connection_id"`
 	DestinationPrefix   string             `db:"destination_prefix" json:"destination_prefix"`
@@ -835,6 +835,18 @@ type VoiceBinding struct {
 	CreatedAt          pgtype.Timestamptz `db:"created_at" json:"created_at"`
 }
 
+type VoiceRate struct {
+	ID                uuid.UUID          `db:"id" json:"id"`
+	OrganizationID    *uuid.UUID         `db:"organization_id" json:"organization_id"`
+	DestinationPrefix string             `db:"destination_prefix" json:"destination_prefix"`
+	Direction         string             `db:"direction" json:"direction"`
+	Currency          string             `db:"currency" json:"currency"`
+	RateMicros        int64              `db:"rate_micros" json:"rate_micros"`
+	EffectiveAt       pgtype.Timestamptz `db:"effective_at" json:"effective_at"`
+	ExpiresAt         pgtype.Timestamptz `db:"expires_at" json:"expires_at"`
+	CreatedAt         pgtype.Timestamptz `db:"created_at" json:"created_at"`
+}
+
 type Wallet struct {
 	ID             uuid.UUID          `db:"id" json:"id"`
 	OrganizationID uuid.UUID          `db:"organization_id" json:"organization_id"`
@@ -921,15 +933,4 @@ type WebhookEvent struct {
 	Payload        []byte             `db:"payload" json:"payload"`
 	OccurredAt     pgtype.Timestamptz `db:"occurred_at" json:"occurred_at"`
 	CreatedAt      pgtype.Timestamptz `db:"created_at" json:"created_at"`
-}
-
-type WholesaleCharge struct {
-	ID              uuid.UUID          `db:"id" json:"id"`
-	ProviderCdrID   uuid.UUID          `db:"provider_cdr_id" json:"provider_cdr_id"`
-	Currency        string             `db:"currency" json:"currency"`
-	RateMicros      int64              `db:"rate_micros" json:"rate_micros"`
-	BillableSeconds int64              `db:"billable_seconds" json:"billable_seconds"`
-	AmountMicros    int64              `db:"amount_micros" json:"amount_micros"`
-	RatedAt         pgtype.Timestamptz `db:"rated_at" json:"rated_at"`
-	CreatedAt       pgtype.Timestamptz `db:"created_at" json:"created_at"`
 }
