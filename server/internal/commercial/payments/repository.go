@@ -116,3 +116,68 @@ func (r *Repository) MarkFailed(
 		},
 	)
 }
+
+
+func (r *Repository) GetByProviderPaymentID(
+	ctx context.Context,
+	provider string,
+	providerPaymentID string,
+) (sqlc.Payment, error) {
+	return r.queries.GetPaymentAttemptByProviderPaymentID(
+		ctx,
+		sqlc.GetPaymentAttemptByProviderPaymentIDParams{
+			Provider:          provider,
+			ProviderPaymentID: &providerPaymentID,
+		},
+	)
+}
+
+func (r *Repository) CreateProviderEvent(
+	ctx context.Context,
+	payment sqlc.Payment,
+	req RecordProviderEventRequest,
+	payloadSHA256 string,
+	receivedAt time.Time,
+) (sqlc.PaymentProviderEvent, error) {
+	return r.queries.CreatePaymentProviderEvent(
+		ctx,
+		sqlc.CreatePaymentProviderEventParams{
+			PaymentID:       payment.ID,
+			OrganizationID:  payment.OrganizationID,
+			Provider:        req.Provider,
+			ProviderEventID: req.ProviderEventID,
+			EventType:       req.EventType,
+			PayloadSha256:   payloadSHA256,
+			Payload:          req.Payload,
+			ReceivedAt:       pgconv.TimeToTimestamptz(receivedAt),
+		},
+	)
+}
+
+func (r *Repository) GetProviderEventByIdentity(
+	ctx context.Context,
+	provider string,
+	providerEventID string,
+) (sqlc.PaymentProviderEvent, error) {
+	return r.queries.GetPaymentProviderEventByIdentity(
+		ctx,
+		sqlc.GetPaymentProviderEventByIdentityParams{
+			Provider:        provider,
+			ProviderEventID: providerEventID,
+		},
+	)
+}
+
+func (r *Repository) MarkProviderEventProcessed(
+	ctx context.Context,
+	id uuid.UUID,
+	processedAt time.Time,
+) (sqlc.PaymentProviderEvent, error) {
+	return r.queries.MarkPaymentProviderEventProcessed(
+		ctx,
+		sqlc.MarkPaymentProviderEventProcessedParams{
+			ProcessedAt: pgconv.TimeToTimestamptz(processedAt),
+			ID:          id,
+		},
+	)
+}
