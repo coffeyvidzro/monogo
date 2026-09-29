@@ -30,7 +30,7 @@ SELECT *
 FROM payments
 WHERE checkout_id = sqlc.arg(checkout_id)
   AND organization_id = sqlc.arg(organization_id)
-  AND status = 'pending'
+  AND status IN ('pending', 'processing')
 ORDER BY attempt DESC
 LIMIT 1;
 
@@ -40,16 +40,18 @@ FROM payments
 WHERE checkout_id = sqlc.arg(checkout_id)
   AND organization_id = sqlc.arg(organization_id);
 
--- name: AttachPaymentProviderReference :one
+-- name: AttachProviderPaymentID :one
 UPDATE payments
-SET provider_reference = sqlc.arg(provider_reference)
+SET
+    provider_payment_id = sqlc.arg(provider_payment_id),
+    status = 'processing'
 WHERE id = sqlc.arg(id)
   AND checkout_id = sqlc.arg(checkout_id)
   AND organization_id = sqlc.arg(organization_id)
-  AND status = 'pending'
+  AND status IN ('pending', 'processing')
   AND (
-      provider_reference IS NULL
-      OR provider_reference = sqlc.arg(provider_reference)
+      provider_payment_id IS NULL
+      OR provider_payment_id = sqlc.arg(provider_payment_id)
   )
 RETURNING *;
 
@@ -57,21 +59,21 @@ RETURNING *;
 UPDATE payments
 SET
     status = 'succeeded',
-    completed_at = sqlc.arg(completed_at)
+    failure_code = NULL,
+    paid_at = sqlc.arg(paid_at)
 WHERE id = sqlc.arg(id)
   AND checkout_id = sqlc.arg(checkout_id)
   AND organization_id = sqlc.arg(organization_id)
-  AND status = 'pending'
+  AND status IN ('pending', 'processing')
 RETURNING *;
 
 -- name: MarkPaymentAttemptFailed :one
 UPDATE payments
 SET
     status = 'failed',
-    failure_code = sqlc.arg(failure_code),
-    completed_at = sqlc.arg(completed_at)
+    failure_code = sqlc.arg(failure_code)
 WHERE id = sqlc.arg(id)
   AND checkout_id = sqlc.arg(checkout_id)
   AND organization_id = sqlc.arg(organization_id)
-  AND status = 'pending'
+  AND status IN ('pending', 'processing')
 RETURNING *;
