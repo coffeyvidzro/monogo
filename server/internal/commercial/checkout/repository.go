@@ -102,7 +102,6 @@ func (r *Repository) GetForContinuation(
 	)
 }
 
-
 func (r *Repository) Complete(
 	ctx context.Context,
 	organizationID uuid.UUID,

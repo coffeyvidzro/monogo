@@ -116,7 +116,6 @@ func (r *Repository) MarkFailed(
 	)
 }
 
-
 func (r *Repository) GetByProviderPaymentID(
 	ctx context.Context,
 	provider string,
@@ -147,8 +146,8 @@ func (r *Repository) CreateProviderEvent(
 			ProviderEventID: req.ProviderEventID,
 			EventType:       req.EventType,
 			PayloadSha256:   payloadSHA256,
-			Payload:          req.Payload,
-			ReceivedAt:       pgconv.TimeToTimestamptz(receivedAt),
+			Payload:         req.Payload,
+			ReceivedAt:      pgconv.TimeToTimestamptz(receivedAt),
 		},
 	)
 }

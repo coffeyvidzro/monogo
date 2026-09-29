@@ -12,342 +12,329 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const attachPaymentProviderReference = `-- name: AttachPaymentProviderReference :one
+const attachProviderPaymentID = `-- name: AttachProviderPaymentID :one
 UPDATE payments
-SET provider_reference = $1
+SET
+    provider_payment_id = $1,
+    status = 'processing'
 WHERE id = $2
-  AND organization_id = $3
-  AND status = 'pending'
+  AND checkout_id = $3
+  AND organization_id = $4
+  AND status IN ('pending', 'processing')
   AND (
-      provider_reference IS NULL
-      OR provider_reference = $1
+      provider_payment_id IS NULL
+      OR provider_payment_id = $1
   )
-RETURNING id, organization_id, purpose, provider, subscription_id, amount_micros, currency, status, provider_reference, provider_event_id, period_start, period_end, failure_code, completed_at, created_at, updated_at
+RETURNING id, checkout_id, organization_id, provider, attempt, provider_payment_id, amount_micros, currency, status, failure_code, paid_at, metadata, created_at, updated_at
 `
 
-type AttachPaymentProviderReferenceParams struct {
-	ProviderReference *string   `db:"provider_reference" json:"provider_reference"`
+type AttachProviderPaymentIDParams struct {
+	ProviderPaymentID *string   `db:"provider_payment_id" json:"provider_payment_id"`
 	ID                uuid.UUID `db:"id" json:"id"`
+	CheckoutID        uuid.UUID `db:"checkout_id" json:"checkout_id"`
 	OrganizationID    uuid.UUID `db:"organization_id" json:"organization_id"`
 }
 
-func (q *Queries) AttachPaymentProviderReference(ctx context.Context, arg AttachPaymentProviderReferenceParams) (Payment, error) {
-	row := q.db.QueryRow(ctx, attachPaymentProviderReference, arg.ProviderReference, arg.ID, arg.OrganizationID)
-	var i Payment
-	err := row.Scan(
-		&i.ID,
-		&i.OrganizationID,
-		&i.Purpose,
-		&i.Provider,
-		&i.SubscriptionID,
-		&i.AmountMicros,
-		&i.Currency,
-		&i.Status,
-		&i.ProviderReference,
-		&i.ProviderEventID,
-		&i.PeriodStart,
-		&i.PeriodEnd,
-		&i.FailureCode,
-		&i.CompletedAt,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-	)
-	return i, err
-}
-
-const claimPaymentProviderEvent = `-- name: ClaimPaymentProviderEvent :one
-UPDATE payments
-SET provider_event_id = $1
-WHERE id = $2
-  AND organization_id = $3
-  AND status = 'pending'
-  AND (
-      provider_event_id IS NULL
-      OR provider_event_id = $1
-  )
-RETURNING id, organization_id, purpose, provider, subscription_id, amount_micros, currency, status, provider_reference, provider_event_id, period_start, period_end, failure_code, completed_at, created_at, updated_at
-`
-
-type ClaimPaymentProviderEventParams struct {
-	ProviderEventID *string   `db:"provider_event_id" json:"provider_event_id"`
-	ID              uuid.UUID `db:"id" json:"id"`
-	OrganizationID  uuid.UUID `db:"organization_id" json:"organization_id"`
-}
-
-func (q *Queries) ClaimPaymentProviderEvent(ctx context.Context, arg ClaimPaymentProviderEventParams) (Payment, error) {
-	row := q.db.QueryRow(ctx, claimPaymentProviderEvent, arg.ProviderEventID, arg.ID, arg.OrganizationID)
-	var i Payment
-	err := row.Scan(
-		&i.ID,
-		&i.OrganizationID,
-		&i.Purpose,
-		&i.Provider,
-		&i.SubscriptionID,
-		&i.AmountMicros,
-		&i.Currency,
-		&i.Status,
-		&i.ProviderReference,
-		&i.ProviderEventID,
-		&i.PeriodStart,
-		&i.PeriodEnd,
-		&i.FailureCode,
-		&i.CompletedAt,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-	)
-	return i, err
-}
-
-const createSubscriptionPayment = `-- name: CreateSubscriptionPayment :one
-INSERT INTO payments (
-    organization_id,
-    purpose,
-    provider,
-    subscription_id,
-    amount_micros,
-    currency,
-    period_start,
-    period_end
-)
-VALUES (
-    $1,
-    'subscription',
-    $2,
-    $3,
-    $4,
-    $5,
-    $6,
-    $7
-)
-RETURNING id, organization_id, purpose, provider, subscription_id, amount_micros, currency, status, provider_reference, provider_event_id, period_start, period_end, failure_code, completed_at, created_at, updated_at
-`
-
-type CreateSubscriptionPaymentParams struct {
-	OrganizationID uuid.UUID          `db:"organization_id" json:"organization_id"`
-	Provider       string             `db:"provider" json:"provider"`
-	SubscriptionID *uuid.UUID         `db:"subscription_id" json:"subscription_id"`
-	AmountMicros   int64              `db:"amount_micros" json:"amount_micros"`
-	Currency       string             `db:"currency" json:"currency"`
-	PeriodStart    pgtype.Timestamptz `db:"period_start" json:"period_start"`
-	PeriodEnd      pgtype.Timestamptz `db:"period_end" json:"period_end"`
-}
-
-func (q *Queries) CreateSubscriptionPayment(ctx context.Context, arg CreateSubscriptionPaymentParams) (Payment, error) {
-	row := q.db.QueryRow(ctx, createSubscriptionPayment,
+func (q *Queries) AttachProviderPaymentID(ctx context.Context, arg AttachProviderPaymentIDParams) (Payment, error) {
+	row := q.db.QueryRow(ctx, attachProviderPaymentID,
+		arg.ProviderPaymentID,
+		arg.ID,
+		arg.CheckoutID,
 		arg.OrganizationID,
-		arg.Provider,
-		arg.SubscriptionID,
-		arg.AmountMicros,
-		arg.Currency,
-		arg.PeriodStart,
-		arg.PeriodEnd,
 	)
 	var i Payment
 	err := row.Scan(
 		&i.ID,
+		&i.CheckoutID,
 		&i.OrganizationID,
-		&i.Purpose,
 		&i.Provider,
-		&i.SubscriptionID,
+		&i.Attempt,
+		&i.ProviderPaymentID,
 		&i.AmountMicros,
 		&i.Currency,
 		&i.Status,
-		&i.ProviderReference,
-		&i.ProviderEventID,
-		&i.PeriodStart,
-		&i.PeriodEnd,
 		&i.FailureCode,
-		&i.CompletedAt,
+		&i.PaidAt,
+		&i.Metadata,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
 	return i, err
 }
 
-const createWalletTopupPayment = `-- name: CreateWalletTopupPayment :one
+const createPaymentAttempt = `-- name: CreatePaymentAttempt :one
 INSERT INTO payments (
+    checkout_id,
     organization_id,
-    purpose,
     provider,
+    attempt,
     amount_micros,
     currency
 )
 VALUES (
     $1,
-    'wallet_topup',
     $2,
     $3,
-    $4
+    $4,
+    $5,
+    $6
 )
-RETURNING id, organization_id, purpose, provider, subscription_id, amount_micros, currency, status, provider_reference, provider_event_id, period_start, period_end, failure_code, completed_at, created_at, updated_at
+RETURNING id, checkout_id, organization_id, provider, attempt, provider_payment_id, amount_micros, currency, status, failure_code, paid_at, metadata, created_at, updated_at
 `
 
-type CreateWalletTopupPaymentParams struct {
+type CreatePaymentAttemptParams struct {
+	CheckoutID     uuid.UUID `db:"checkout_id" json:"checkout_id"`
 	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
 	Provider       string    `db:"provider" json:"provider"`
+	Attempt        int32     `db:"attempt" json:"attempt"`
 	AmountMicros   int64     `db:"amount_micros" json:"amount_micros"`
 	Currency       string    `db:"currency" json:"currency"`
 }
 
-func (q *Queries) CreateWalletTopupPayment(ctx context.Context, arg CreateWalletTopupPaymentParams) (Payment, error) {
-	row := q.db.QueryRow(ctx, createWalletTopupPayment,
+func (q *Queries) CreatePaymentAttempt(ctx context.Context, arg CreatePaymentAttemptParams) (Payment, error) {
+	row := q.db.QueryRow(ctx, createPaymentAttempt,
+		arg.CheckoutID,
 		arg.OrganizationID,
 		arg.Provider,
+		arg.Attempt,
 		arg.AmountMicros,
 		arg.Currency,
 	)
 	var i Payment
 	err := row.Scan(
 		&i.ID,
+		&i.CheckoutID,
 		&i.OrganizationID,
-		&i.Purpose,
 		&i.Provider,
-		&i.SubscriptionID,
+		&i.Attempt,
+		&i.ProviderPaymentID,
 		&i.AmountMicros,
 		&i.Currency,
 		&i.Status,
-		&i.ProviderReference,
-		&i.ProviderEventID,
-		&i.PeriodStart,
-		&i.PeriodEnd,
 		&i.FailureCode,
-		&i.CompletedAt,
+		&i.PaidAt,
+		&i.Metadata,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
 	return i, err
 }
 
-const getPaymentByID = `-- name: GetPaymentByID :one
-SELECT id, organization_id, purpose, provider, subscription_id, amount_micros, currency, status, provider_reference, provider_event_id, period_start, period_end, failure_code, completed_at, created_at, updated_at
+const getActivePaymentAttemptByCheckout = `-- name: GetActivePaymentAttemptByCheckout :one
+SELECT id, checkout_id, organization_id, provider, attempt, provider_payment_id, amount_micros, currency, status, failure_code, paid_at, metadata, created_at, updated_at
 FROM payments
-WHERE id = $1
+WHERE checkout_id = $1
   AND organization_id = $2
+  AND status IN ('pending', 'processing')
+ORDER BY attempt DESC
 LIMIT 1
 `
 
-type GetPaymentByIDParams struct {
-	ID             uuid.UUID `db:"id" json:"id"`
+type GetActivePaymentAttemptByCheckoutParams struct {
+	CheckoutID     uuid.UUID `db:"checkout_id" json:"checkout_id"`
 	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
 }
 
-func (q *Queries) GetPaymentByID(ctx context.Context, arg GetPaymentByIDParams) (Payment, error) {
-	row := q.db.QueryRow(ctx, getPaymentByID, arg.ID, arg.OrganizationID)
+func (q *Queries) GetActivePaymentAttemptByCheckout(ctx context.Context, arg GetActivePaymentAttemptByCheckoutParams) (Payment, error) {
+	row := q.db.QueryRow(ctx, getActivePaymentAttemptByCheckout, arg.CheckoutID, arg.OrganizationID)
 	var i Payment
 	err := row.Scan(
 		&i.ID,
+		&i.CheckoutID,
 		&i.OrganizationID,
-		&i.Purpose,
 		&i.Provider,
-		&i.SubscriptionID,
+		&i.Attempt,
+		&i.ProviderPaymentID,
 		&i.AmountMicros,
 		&i.Currency,
 		&i.Status,
-		&i.ProviderReference,
-		&i.ProviderEventID,
-		&i.PeriodStart,
-		&i.PeriodEnd,
 		&i.FailureCode,
-		&i.CompletedAt,
+		&i.PaidAt,
+		&i.Metadata,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
 	return i, err
 }
 
-const markPaymentFailed = `-- name: MarkPaymentFailed :one
+const getNextPaymentAttemptNumber = `-- name: GetNextPaymentAttemptNumber :one
+SELECT COALESCE(MAX(attempt), 0)::bigint + 1 AS next_attempt
+FROM payments
+WHERE checkout_id = $1
+  AND organization_id = $2
+`
+
+type GetNextPaymentAttemptNumberParams struct {
+	CheckoutID     uuid.UUID `db:"checkout_id" json:"checkout_id"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+}
+
+func (q *Queries) GetNextPaymentAttemptNumber(ctx context.Context, arg GetNextPaymentAttemptNumberParams) (int32, error) {
+	row := q.db.QueryRow(ctx, getNextPaymentAttemptNumber, arg.CheckoutID, arg.OrganizationID)
+	var next_attempt int32
+	err := row.Scan(&next_attempt)
+	return next_attempt, err
+}
+
+const getPaymentAttemptByID = `-- name: GetPaymentAttemptByID :one
+SELECT id, checkout_id, organization_id, provider, attempt, provider_payment_id, amount_micros, currency, status, failure_code, paid_at, metadata, created_at, updated_at
+FROM payments
+WHERE id = $1
+  AND checkout_id = $2
+  AND organization_id = $3
+LIMIT 1
+`
+
+type GetPaymentAttemptByIDParams struct {
+	ID             uuid.UUID `db:"id" json:"id"`
+	CheckoutID     uuid.UUID `db:"checkout_id" json:"checkout_id"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+}
+
+func (q *Queries) GetPaymentAttemptByID(ctx context.Context, arg GetPaymentAttemptByIDParams) (Payment, error) {
+	row := q.db.QueryRow(ctx, getPaymentAttemptByID, arg.ID, arg.CheckoutID, arg.OrganizationID)
+	var i Payment
+	err := row.Scan(
+		&i.ID,
+		&i.CheckoutID,
+		&i.OrganizationID,
+		&i.Provider,
+		&i.Attempt,
+		&i.ProviderPaymentID,
+		&i.AmountMicros,
+		&i.Currency,
+		&i.Status,
+		&i.FailureCode,
+		&i.PaidAt,
+		&i.Metadata,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getPaymentAttemptByProviderPaymentID = `-- name: GetPaymentAttemptByProviderPaymentID :one
+SELECT id, checkout_id, organization_id, provider, attempt, provider_payment_id, amount_micros, currency, status, failure_code, paid_at, metadata, created_at, updated_at
+FROM payments
+WHERE provider = $1
+  AND provider_payment_id = $2
+LIMIT 1
+`
+
+type GetPaymentAttemptByProviderPaymentIDParams struct {
+	Provider          string  `db:"provider" json:"provider"`
+	ProviderPaymentID *string `db:"provider_payment_id" json:"provider_payment_id"`
+}
+
+func (q *Queries) GetPaymentAttemptByProviderPaymentID(ctx context.Context, arg GetPaymentAttemptByProviderPaymentIDParams) (Payment, error) {
+	row := q.db.QueryRow(ctx, getPaymentAttemptByProviderPaymentID, arg.Provider, arg.ProviderPaymentID)
+	var i Payment
+	err := row.Scan(
+		&i.ID,
+		&i.CheckoutID,
+		&i.OrganizationID,
+		&i.Provider,
+		&i.Attempt,
+		&i.ProviderPaymentID,
+		&i.AmountMicros,
+		&i.Currency,
+		&i.Status,
+		&i.FailureCode,
+		&i.PaidAt,
+		&i.Metadata,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const markPaymentAttemptFailed = `-- name: MarkPaymentAttemptFailed :one
 UPDATE payments
 SET
     status = 'failed',
-    failure_code = $1,
-    completed_at = $2
-WHERE id = $3
+    failure_code = $1
+WHERE id = $2
+  AND checkout_id = $3
   AND organization_id = $4
-  AND status = 'pending'
-  AND provider_event_id = $5
-RETURNING id, organization_id, purpose, provider, subscription_id, amount_micros, currency, status, provider_reference, provider_event_id, period_start, period_end, failure_code, completed_at, created_at, updated_at
+  AND status IN ('pending', 'processing')
+RETURNING id, checkout_id, organization_id, provider, attempt, provider_payment_id, amount_micros, currency, status, failure_code, paid_at, metadata, created_at, updated_at
 `
 
-type MarkPaymentFailedParams struct {
-	FailureCode     *string            `db:"failure_code" json:"failure_code"`
-	CompletedAt     pgtype.Timestamptz `db:"completed_at" json:"completed_at"`
-	ID              uuid.UUID          `db:"id" json:"id"`
-	OrganizationID  uuid.UUID          `db:"organization_id" json:"organization_id"`
-	ProviderEventID *string            `db:"provider_event_id" json:"provider_event_id"`
+type MarkPaymentAttemptFailedParams struct {
+	FailureCode    *string   `db:"failure_code" json:"failure_code"`
+	ID             uuid.UUID `db:"id" json:"id"`
+	CheckoutID     uuid.UUID `db:"checkout_id" json:"checkout_id"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
 }
 
-func (q *Queries) MarkPaymentFailed(ctx context.Context, arg MarkPaymentFailedParams) (Payment, error) {
-	row := q.db.QueryRow(ctx, markPaymentFailed,
+func (q *Queries) MarkPaymentAttemptFailed(ctx context.Context, arg MarkPaymentAttemptFailedParams) (Payment, error) {
+	row := q.db.QueryRow(ctx, markPaymentAttemptFailed,
 		arg.FailureCode,
-		arg.CompletedAt,
 		arg.ID,
+		arg.CheckoutID,
 		arg.OrganizationID,
-		arg.ProviderEventID,
 	)
 	var i Payment
 	err := row.Scan(
 		&i.ID,
+		&i.CheckoutID,
 		&i.OrganizationID,
-		&i.Purpose,
 		&i.Provider,
-		&i.SubscriptionID,
+		&i.Attempt,
+		&i.ProviderPaymentID,
 		&i.AmountMicros,
 		&i.Currency,
 		&i.Status,
-		&i.ProviderReference,
-		&i.ProviderEventID,
-		&i.PeriodStart,
-		&i.PeriodEnd,
 		&i.FailureCode,
-		&i.CompletedAt,
+		&i.PaidAt,
+		&i.Metadata,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
 	return i, err
 }
 
-const markPaymentSucceeded = `-- name: MarkPaymentSucceeded :one
+const markPaymentAttemptSucceeded = `-- name: MarkPaymentAttemptSucceeded :one
 UPDATE payments
 SET
     status = 'succeeded',
-    completed_at = $1
+    failure_code = NULL,
+    paid_at = $1
 WHERE id = $2
-  AND organization_id = $3
-  AND status = 'pending'
-  AND provider_event_id = $4
-RETURNING id, organization_id, purpose, provider, subscription_id, amount_micros, currency, status, provider_reference, provider_event_id, period_start, period_end, failure_code, completed_at, created_at, updated_at
+  AND checkout_id = $3
+  AND organization_id = $4
+  AND status IN ('pending', 'processing')
+RETURNING id, checkout_id, organization_id, provider, attempt, provider_payment_id, amount_micros, currency, status, failure_code, paid_at, metadata, created_at, updated_at
 `
 
-type MarkPaymentSucceededParams struct {
-	CompletedAt     pgtype.Timestamptz `db:"completed_at" json:"completed_at"`
-	ID              uuid.UUID          `db:"id" json:"id"`
-	OrganizationID  uuid.UUID          `db:"organization_id" json:"organization_id"`
-	ProviderEventID *string            `db:"provider_event_id" json:"provider_event_id"`
+type MarkPaymentAttemptSucceededParams struct {
+	PaidAt         pgtype.Timestamptz `db:"paid_at" json:"paid_at"`
+	ID             uuid.UUID          `db:"id" json:"id"`
+	CheckoutID     uuid.UUID          `db:"checkout_id" json:"checkout_id"`
+	OrganizationID uuid.UUID          `db:"organization_id" json:"organization_id"`
 }
 
-func (q *Queries) MarkPaymentSucceeded(ctx context.Context, arg MarkPaymentSucceededParams) (Payment, error) {
-	row := q.db.QueryRow(ctx, markPaymentSucceeded,
-		arg.CompletedAt,
+func (q *Queries) MarkPaymentAttemptSucceeded(ctx context.Context, arg MarkPaymentAttemptSucceededParams) (Payment, error) {
+	row := q.db.QueryRow(ctx, markPaymentAttemptSucceeded,
+		arg.PaidAt,
 		arg.ID,
+		arg.CheckoutID,
 		arg.OrganizationID,
-		arg.ProviderEventID,
 	)
 	var i Payment
 	err := row.Scan(
 		&i.ID,
+		&i.CheckoutID,
 		&i.OrganizationID,
-		&i.Purpose,
 		&i.Provider,
-		&i.SubscriptionID,
+		&i.Attempt,
+		&i.ProviderPaymentID,
 		&i.AmountMicros,
 		&i.Currency,
 		&i.Status,
-		&i.ProviderReference,
-		&i.ProviderEventID,
-		&i.PeriodStart,
-		&i.PeriodEnd,
 		&i.FailureCode,
-		&i.CompletedAt,
+		&i.PaidAt,
+		&i.Metadata,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)

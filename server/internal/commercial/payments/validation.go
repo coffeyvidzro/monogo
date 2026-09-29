@@ -49,7 +49,6 @@ func validateAttachProviderPaymentIDRequest(req *AttachProviderPaymentIDRequest)
 	return nil
 }
 
-
 func validateRecordProviderEventRequest(req *RecordProviderEventRequest) error {
 	req.Provider = strings.ToLower(strings.TrimSpace(req.Provider))
 	req.ProviderPaymentID = strings.TrimSpace(req.ProviderPaymentID)

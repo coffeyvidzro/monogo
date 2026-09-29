@@ -9,7 +9,7 @@ import (
 
 const (
 	PurposeSubscription = "subscription"
-	PurposeWalletTopup   = "wallet_topup"
+	PurposeWalletTopup  = "wallet_topup"
 
 	StatusPending    = "pending"
 	StatusProcessing = "processing"

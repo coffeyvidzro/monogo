@@ -120,7 +120,6 @@ func paymentFromRow(row sqlc.Payment) Payment {
 	}
 }
 
-
 func (s *Service) RecordProviderEvent(
 	ctx context.Context,
 	req RecordProviderEventRequest,
@@ -213,7 +212,6 @@ func providerEventFromRow(row sqlc.PaymentProviderEvent) ProviderEvent {
 		ProcessedAt:     pgconv.TimestamptzToTimePtr(row.ProcessedAt),
 	}
 }
-
 
 func (s *Service) MarkSucceeded(
 	ctx context.Context,

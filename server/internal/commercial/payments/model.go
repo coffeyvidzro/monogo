@@ -50,7 +50,7 @@ type CreateAttemptRequest struct {
 type AttachProviderPaymentIDRequest struct {
 	CheckoutID        uuid.UUID
 	OrganizationID    uuid.UUID
-	PaymentID          uuid.UUID
+	PaymentID         uuid.UUID
 	ProviderPaymentID string
 }
 

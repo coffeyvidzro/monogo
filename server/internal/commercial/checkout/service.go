@@ -213,7 +213,6 @@ func isUniqueViolation(err error) bool {
 	return errors.As(err, &pgErr) && pgErr.Code == "23505"
 }
 
-
 func (s *Service) Complete(
 	ctx context.Context,
 	organizationID uuid.UUID,
