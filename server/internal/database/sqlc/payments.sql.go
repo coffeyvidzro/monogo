@@ -25,7 +25,7 @@ WHERE id = $2
       provider_payment_id IS NULL
       OR provider_payment_id = $1
   )
-RETURNING id, checkout_id, organization_id, provider, attempt, provider_payment_id, amount_micros, currency, status, failure_code, paid_at, metadata, created_at, updated_at
+RETURNING id, checkout_id, organization_id, provider, payment_method, attempt, provider_payment_id, amount_micros, currency, status, failure_code, paid_at, metadata, created_at, updated_at
 `
 
 type AttachProviderPaymentIDParams struct {
@@ -48,6 +48,7 @@ func (q *Queries) AttachProviderPaymentID(ctx context.Context, arg AttachProvide
 		&i.CheckoutID,
 		&i.OrganizationID,
 		&i.Provider,
+		&i.PaymentMethod,
 		&i.Attempt,
 		&i.ProviderPaymentID,
 		&i.AmountMicros,
@@ -67,6 +68,7 @@ INSERT INTO payments (
     checkout_id,
     organization_id,
     provider,
+    payment_method,
     attempt,
     amount_micros,
     currency
@@ -77,15 +79,17 @@ VALUES (
     $3,
     $4,
     $5,
-    $6
+    $6,
+    $7
 )
-RETURNING id, checkout_id, organization_id, provider, attempt, provider_payment_id, amount_micros, currency, status, failure_code, paid_at, metadata, created_at, updated_at
+RETURNING id, checkout_id, organization_id, provider, payment_method, attempt, provider_payment_id, amount_micros, currency, status, failure_code, paid_at, metadata, created_at, updated_at
 `
 
 type CreatePaymentAttemptParams struct {
 	CheckoutID     uuid.UUID `db:"checkout_id" json:"checkout_id"`
 	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
 	Provider       string    `db:"provider" json:"provider"`
+	PaymentMethod  string    `db:"payment_method" json:"payment_method"`
 	Attempt        int32     `db:"attempt" json:"attempt"`
 	AmountMicros   int64     `db:"amount_micros" json:"amount_micros"`
 	Currency       string    `db:"currency" json:"currency"`
@@ -96,6 +100,7 @@ func (q *Queries) CreatePaymentAttempt(ctx context.Context, arg CreatePaymentAtt
 		arg.CheckoutID,
 		arg.OrganizationID,
 		arg.Provider,
+		arg.PaymentMethod,
 		arg.Attempt,
 		arg.AmountMicros,
 		arg.Currency,
@@ -106,6 +111,7 @@ func (q *Queries) CreatePaymentAttempt(ctx context.Context, arg CreatePaymentAtt
 		&i.CheckoutID,
 		&i.OrganizationID,
 		&i.Provider,
+		&i.PaymentMethod,
 		&i.Attempt,
 		&i.ProviderPaymentID,
 		&i.AmountMicros,
@@ -121,7 +127,7 @@ func (q *Queries) CreatePaymentAttempt(ctx context.Context, arg CreatePaymentAtt
 }
 
 const getActivePaymentAttemptByCheckout = `-- name: GetActivePaymentAttemptByCheckout :one
-SELECT id, checkout_id, organization_id, provider, attempt, provider_payment_id, amount_micros, currency, status, failure_code, paid_at, metadata, created_at, updated_at
+SELECT id, checkout_id, organization_id, provider, payment_method, attempt, provider_payment_id, amount_micros, currency, status, failure_code, paid_at, metadata, created_at, updated_at
 FROM payments
 WHERE checkout_id = $1
   AND organization_id = $2
@@ -143,6 +149,7 @@ func (q *Queries) GetActivePaymentAttemptByCheckout(ctx context.Context, arg Get
 		&i.CheckoutID,
 		&i.OrganizationID,
 		&i.Provider,
+		&i.PaymentMethod,
 		&i.Attempt,
 		&i.ProviderPaymentID,
 		&i.AmountMicros,
@@ -177,7 +184,7 @@ func (q *Queries) GetNextPaymentAttemptNumber(ctx context.Context, arg GetNextPa
 }
 
 const getPaymentAttemptByID = `-- name: GetPaymentAttemptByID :one
-SELECT id, checkout_id, organization_id, provider, attempt, provider_payment_id, amount_micros, currency, status, failure_code, paid_at, metadata, created_at, updated_at
+SELECT id, checkout_id, organization_id, provider, payment_method, attempt, provider_payment_id, amount_micros, currency, status, failure_code, paid_at, metadata, created_at, updated_at
 FROM payments
 WHERE id = $1
   AND checkout_id = $2
@@ -199,6 +206,7 @@ func (q *Queries) GetPaymentAttemptByID(ctx context.Context, arg GetPaymentAttem
 		&i.CheckoutID,
 		&i.OrganizationID,
 		&i.Provider,
+		&i.PaymentMethod,
 		&i.Attempt,
 		&i.ProviderPaymentID,
 		&i.AmountMicros,
@@ -214,7 +222,7 @@ func (q *Queries) GetPaymentAttemptByID(ctx context.Context, arg GetPaymentAttem
 }
 
 const getPaymentAttemptByProviderPaymentID = `-- name: GetPaymentAttemptByProviderPaymentID :one
-SELECT id, checkout_id, organization_id, provider, attempt, provider_payment_id, amount_micros, currency, status, failure_code, paid_at, metadata, created_at, updated_at
+SELECT id, checkout_id, organization_id, provider, payment_method, attempt, provider_payment_id, amount_micros, currency, status, failure_code, paid_at, metadata, created_at, updated_at
 FROM payments
 WHERE provider = $1
   AND provider_payment_id = $2
@@ -234,6 +242,7 @@ func (q *Queries) GetPaymentAttemptByProviderPaymentID(ctx context.Context, arg 
 		&i.CheckoutID,
 		&i.OrganizationID,
 		&i.Provider,
+		&i.PaymentMethod,
 		&i.Attempt,
 		&i.ProviderPaymentID,
 		&i.AmountMicros,
@@ -257,7 +266,7 @@ WHERE id = $2
   AND checkout_id = $3
   AND organization_id = $4
   AND status IN ('pending', 'processing')
-RETURNING id, checkout_id, organization_id, provider, attempt, provider_payment_id, amount_micros, currency, status, failure_code, paid_at, metadata, created_at, updated_at
+RETURNING id, checkout_id, organization_id, provider, payment_method, attempt, provider_payment_id, amount_micros, currency, status, failure_code, paid_at, metadata, created_at, updated_at
 `
 
 type MarkPaymentAttemptFailedParams struct {
@@ -280,6 +289,7 @@ func (q *Queries) MarkPaymentAttemptFailed(ctx context.Context, arg MarkPaymentA
 		&i.CheckoutID,
 		&i.OrganizationID,
 		&i.Provider,
+		&i.PaymentMethod,
 		&i.Attempt,
 		&i.ProviderPaymentID,
 		&i.AmountMicros,
@@ -304,7 +314,7 @@ WHERE id = $2
   AND checkout_id = $3
   AND organization_id = $4
   AND status IN ('pending', 'processing')
-RETURNING id, checkout_id, organization_id, provider, attempt, provider_payment_id, amount_micros, currency, status, failure_code, paid_at, metadata, created_at, updated_at
+RETURNING id, checkout_id, organization_id, provider, payment_method, attempt, provider_payment_id, amount_micros, currency, status, failure_code, paid_at, metadata, created_at, updated_at
 `
 
 type MarkPaymentAttemptSucceededParams struct {
@@ -327,6 +337,7 @@ func (q *Queries) MarkPaymentAttemptSucceeded(ctx context.Context, arg MarkPayme
 		&i.CheckoutID,
 		&i.OrganizationID,
 		&i.Provider,
+		&i.PaymentMethod,
 		&i.Attempt,
 		&i.ProviderPaymentID,
 		&i.AmountMicros,

@@ -22,7 +22,7 @@ SET
 WHERE c.id = $2
   AND c.organization_id = $3
   AND c.status = 'processing'
-RETURNING c.id, c.organization_id, c.purpose, c.subscription_id, c.reference, c.amount_micros, c.currency, c.status, c.provider, c.payment_method, c.next_action, c.provider_message, c.expires_at, c.completed_at, c.created_at, c.updated_at
+RETURNING c.id, c.organization_id, c.purpose, c.subscription_id, c.reference, c.amount_micros, c.currency, c.status, c.provider, c.payment_method, c.next_action, c.provider_message, c.expires_at, c.failure_code, c.completed_at, c.created_at, c.updated_at
 `
 
 type CompleteCheckoutParams struct {
@@ -48,6 +48,7 @@ func (q *Queries) CompleteCheckout(ctx context.Context, arg CompleteCheckoutPara
 		&i.NextAction,
 		&i.ProviderMessage,
 		&i.ExpiresAt,
+		&i.FailureCode,
 		&i.CompletedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -67,13 +68,14 @@ WITH updated_checkout AS (
       AND c.organization_id = $4
       AND c.status = 'pending'
       AND c.expires_at > $5
-    RETURNING c.id, c.organization_id, c.purpose, c.subscription_id, c.reference, c.amount_micros, c.currency, c.status, c.provider, c.payment_method, c.next_action, c.provider_message, c.expires_at, c.completed_at, c.created_at, c.updated_at
+    RETURNING c.id, c.organization_id, c.purpose, c.subscription_id, c.reference, c.amount_micros, c.currency, c.status, c.provider, c.payment_method, c.next_action, c.provider_message, c.expires_at, c.failure_code, c.completed_at, c.created_at, c.updated_at
 ),
 created_payment AS (
     INSERT INTO payments (
         checkout_id,
         organization_id,
         provider,
+        payment_method,
         attempt,
         amount_micros,
         currency
@@ -82,13 +84,14 @@ created_payment AS (
         u.id,
         u.organization_id,
         u.provider,
+        u.payment_method,
         1,
         u.amount_micros,
         u.currency
     FROM updated_checkout AS u
     RETURNING checkout_id
 )
-SELECT u.id, u.organization_id, u.purpose, u.subscription_id, u.reference, u.amount_micros, u.currency, u.status, u.provider, u.payment_method, u.next_action, u.provider_message, u.expires_at, u.completed_at, u.created_at, u.updated_at
+SELECT u.id, u.organization_id, u.purpose, u.subscription_id, u.reference, u.amount_micros, u.currency, u.status, u.provider, u.payment_method, u.next_action, u.provider_message, u.expires_at, u.failure_code, u.completed_at, u.created_at, u.updated_at
 FROM updated_checkout AS u
 JOIN created_payment AS p
   ON p.checkout_id = u.id
@@ -116,6 +119,7 @@ type ConfirmCheckoutRow struct {
 	NextAction      string             `db:"next_action" json:"next_action"`
 	ProviderMessage *string            `db:"provider_message" json:"provider_message"`
 	ExpiresAt       pgtype.Timestamptz `db:"expires_at" json:"expires_at"`
+	FailureCode     *string            `db:"failure_code" json:"failure_code"`
 	CompletedAt     pgtype.Timestamptz `db:"completed_at" json:"completed_at"`
 	CreatedAt       pgtype.Timestamptz `db:"created_at" json:"created_at"`
 	UpdatedAt       pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
@@ -144,6 +148,7 @@ func (q *Queries) ConfirmCheckout(ctx context.Context, arg ConfirmCheckoutParams
 		&i.NextAction,
 		&i.ProviderMessage,
 		&i.ExpiresAt,
+		&i.FailureCode,
 		&i.CompletedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -170,7 +175,7 @@ VALUES (
     $6,
     $7
 )
-RETURNING id, organization_id, purpose, subscription_id, reference, amount_micros, currency, status, provider, payment_method, next_action, provider_message, expires_at, completed_at, created_at, updated_at
+RETURNING id, organization_id, purpose, subscription_id, reference, amount_micros, currency, status, provider, payment_method, next_action, provider_message, expires_at, failure_code, completed_at, created_at, updated_at
 `
 
 type CreateCheckoutParams struct {
@@ -208,6 +213,7 @@ func (q *Queries) CreateCheckout(ctx context.Context, arg CreateCheckoutParams) 
 		&i.NextAction,
 		&i.ProviderMessage,
 		&i.ExpiresAt,
+		&i.FailureCode,
 		&i.CompletedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -225,7 +231,7 @@ WHERE c.id = $2
   AND c.organization_id = $3
   AND c.status IN ('pending', 'processing')
   AND c.expires_at <= $1
-RETURNING c.id, c.organization_id, c.purpose, c.subscription_id, c.reference, c.amount_micros, c.currency, c.status, c.provider, c.payment_method, c.next_action, c.provider_message, c.expires_at, c.completed_at, c.created_at, c.updated_at
+RETURNING c.id, c.organization_id, c.purpose, c.subscription_id, c.reference, c.amount_micros, c.currency, c.status, c.provider, c.payment_method, c.next_action, c.provider_message, c.expires_at, c.failure_code, c.completed_at, c.created_at, c.updated_at
 `
 
 type ExpireCheckoutParams struct {
@@ -251,6 +257,7 @@ func (q *Queries) ExpireCheckout(ctx context.Context, arg ExpireCheckoutParams) 
 		&i.NextAction,
 		&i.ProviderMessage,
 		&i.ExpiresAt,
+		&i.FailureCode,
 		&i.CompletedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -264,15 +271,17 @@ SET
     status = 'failed',
     next_action = 'none',
     provider_message = $1,
-    completed_at = $2
-WHERE c.id = $3
-  AND c.organization_id = $4
+    failure_code = $2,
+    completed_at = $3
+WHERE c.id = $4
+  AND c.organization_id = $5
   AND c.status = 'processing'
-RETURNING c.id, c.organization_id, c.purpose, c.subscription_id, c.reference, c.amount_micros, c.currency, c.status, c.provider, c.payment_method, c.next_action, c.provider_message, c.expires_at, c.completed_at, c.created_at, c.updated_at
+RETURNING c.id, c.organization_id, c.purpose, c.subscription_id, c.reference, c.amount_micros, c.currency, c.status, c.provider, c.payment_method, c.next_action, c.provider_message, c.expires_at, c.failure_code, c.completed_at, c.created_at, c.updated_at
 `
 
 type FailCheckoutParams struct {
 	ProviderMessage *string            `db:"provider_message" json:"provider_message"`
+	FailureCode     *string            `db:"failure_code" json:"failure_code"`
 	CompletedAt     pgtype.Timestamptz `db:"completed_at" json:"completed_at"`
 	CheckoutID      uuid.UUID          `db:"checkout_id" json:"checkout_id"`
 	OrganizationID  uuid.UUID          `db:"organization_id" json:"organization_id"`
@@ -281,6 +290,7 @@ type FailCheckoutParams struct {
 func (q *Queries) FailCheckout(ctx context.Context, arg FailCheckoutParams) (Checkout, error) {
 	row := q.db.QueryRow(ctx, failCheckout,
 		arg.ProviderMessage,
+		arg.FailureCode,
 		arg.CompletedAt,
 		arg.CheckoutID,
 		arg.OrganizationID,
@@ -300,6 +310,7 @@ func (q *Queries) FailCheckout(ctx context.Context, arg FailCheckoutParams) (Che
 		&i.NextAction,
 		&i.ProviderMessage,
 		&i.ExpiresAt,
+		&i.FailureCode,
 		&i.CompletedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -308,7 +319,7 @@ func (q *Queries) FailCheckout(ctx context.Context, arg FailCheckoutParams) (Che
 }
 
 const getCheckoutByID = `-- name: GetCheckoutByID :one
-SELECT id, organization_id, purpose, subscription_id, reference, amount_micros, currency, status, provider, payment_method, next_action, provider_message, expires_at, completed_at, created_at, updated_at
+SELECT id, organization_id, purpose, subscription_id, reference, amount_micros, currency, status, provider, payment_method, next_action, provider_message, expires_at, failure_code, completed_at, created_at, updated_at
 FROM checkouts
 WHERE id = $1
   AND organization_id = $2
@@ -316,12 +327,12 @@ LIMIT 1
 `
 
 type GetCheckoutByIDParams struct {
-	ID             uuid.UUID `db:"id" json:"id"`
+	CheckoutID     uuid.UUID `db:"checkout_id" json:"checkout_id"`
 	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
 }
 
 func (q *Queries) GetCheckoutByID(ctx context.Context, arg GetCheckoutByIDParams) (Checkout, error) {
-	row := q.db.QueryRow(ctx, getCheckoutByID, arg.ID, arg.OrganizationID)
+	row := q.db.QueryRow(ctx, getCheckoutByID, arg.CheckoutID, arg.OrganizationID)
 	var i Checkout
 	err := row.Scan(
 		&i.ID,
@@ -337,6 +348,7 @@ func (q *Queries) GetCheckoutByID(ctx context.Context, arg GetCheckoutByIDParams
 		&i.NextAction,
 		&i.ProviderMessage,
 		&i.ExpiresAt,
+		&i.FailureCode,
 		&i.CompletedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -345,7 +357,7 @@ func (q *Queries) GetCheckoutByID(ctx context.Context, arg GetCheckoutByIDParams
 }
 
 const getCheckoutForContinuation = `-- name: GetCheckoutForContinuation :one
-SELECT c.id, c.organization_id, c.purpose, c.subscription_id, c.reference, c.amount_micros, c.currency, c.status, c.provider, c.payment_method, c.next_action, c.provider_message, c.expires_at, c.completed_at, c.created_at, c.updated_at
+SELECT c.id, c.organization_id, c.purpose, c.subscription_id, c.reference, c.amount_micros, c.currency, c.status, c.provider, c.payment_method, c.next_action, c.provider_message, c.expires_at, c.failure_code, c.completed_at, c.created_at, c.updated_at
 FROM checkouts AS c
 WHERE c.id = $1
   AND c.organization_id = $2
@@ -377,6 +389,7 @@ func (q *Queries) GetCheckoutForContinuation(ctx context.Context, arg GetCheckou
 		&i.NextAction,
 		&i.ProviderMessage,
 		&i.ExpiresAt,
+		&i.FailureCode,
 		&i.CompletedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -392,7 +405,7 @@ SET
 WHERE c.id = $3
   AND c.organization_id = $4
   AND c.status = 'processing'
-RETURNING c.id, c.organization_id, c.purpose, c.subscription_id, c.reference, c.amount_micros, c.currency, c.status, c.provider, c.payment_method, c.next_action, c.provider_message, c.expires_at, c.completed_at, c.created_at, c.updated_at
+RETURNING c.id, c.organization_id, c.purpose, c.subscription_id, c.reference, c.amount_micros, c.currency, c.status, c.provider, c.payment_method, c.next_action, c.provider_message, c.expires_at, c.failure_code, c.completed_at, c.created_at, c.updated_at
 `
 
 type UpdateCheckoutActionParams struct {
@@ -424,6 +437,7 @@ func (q *Queries) UpdateCheckoutAction(ctx context.Context, arg UpdateCheckoutAc
 		&i.NextAction,
 		&i.ProviderMessage,
 		&i.ExpiresAt,
+		&i.FailureCode,
 		&i.CompletedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,

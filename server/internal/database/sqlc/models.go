@@ -173,6 +173,7 @@ type Checkout struct {
 	NextAction      string             `db:"next_action" json:"next_action"`
 	ProviderMessage *string            `db:"provider_message" json:"provider_message"`
 	ExpiresAt       pgtype.Timestamptz `db:"expires_at" json:"expires_at"`
+	FailureCode     *string            `db:"failure_code" json:"failure_code"`
 	CompletedAt     pgtype.Timestamptz `db:"completed_at" json:"completed_at"`
 	CreatedAt       pgtype.Timestamptz `db:"created_at" json:"created_at"`
 	UpdatedAt       pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
@@ -461,6 +462,7 @@ type Payment struct {
 	CheckoutID        uuid.UUID          `db:"checkout_id" json:"checkout_id"`
 	OrganizationID    uuid.UUID          `db:"organization_id" json:"organization_id"`
 	Provider          string             `db:"provider" json:"provider"`
+	PaymentMethod     string             `db:"payment_method" json:"payment_method"`
 	Attempt           int32              `db:"attempt" json:"attempt"`
 	ProviderPaymentID *string            `db:"provider_payment_id" json:"provider_payment_id"`
 	AmountMicros      int64              `db:"amount_micros" json:"amount_micros"`

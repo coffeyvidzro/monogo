@@ -1,4 +1,4 @@
-h1:cUAD24xblvZW3OKM+vyaB0kA+HpB1kO3YdeFVfREZ8E=
+h1:9z7o2q63xGChrCXdFSZ8r2sq3XhBdqs1oRiUtGLlsdY=
 001_extensions.sql h1:V12FA/dbb8clPffRf/1QJRpbB/S0eECkElwvfOVRda4=
 002_create_users.sql h1:w8z6z5sqnmtExCGa63iYl2ssG9rgXX8m3VPqvb1z4jo=
 003_create_authentication.sql h1:6R8fm0zInr9A/OW74oYTBLpPYHRf3dpVjw13qyjdd7E=
@@ -41,6 +41,6 @@ h1:cUAD24xblvZW3OKM+vyaB0kA+HpB1kO3YdeFVfREZ8E=
 040_create_voice_rates.sql h1:2y81XDQzKKcU0mSIvjzhdPYTRAawUPjjjXN1Ksi3oNs=
 041_create_product_rates.sql h1:PTJrj9MVAcJeYzhBmehql5BRQP2w3q0FfKA3YBjxg/0=
 042_create_number_renewals.sql h1:X3Xm2sHing5aZGRCvYa6I8X8CriWr92pkpZRunHN8p0=
-043_create_checkouts.sql h1:vqEFzvhBGOyoJHWwjboT/B7QRxG2W60eVQE5gYUdtE8=
-044_create_payments.sql h1:5iigl2XICKrfbI4766BhANu1Zhp86RFZFI2Zix7CeFg=
-045_create_payment_provider_events.sql h1:BGcE9y7hlUMdnQfRPNdHosvql2vOn0UkZBOcm8yOqDA=
+043_create_checkouts.sql h1:RYK5lNl7Ody5HsbeCiDbdGK5PHWZmc0dnALaGkeA3J0=
+044_create_payments.sql h1:e6fjnbYrtdDJKQVlD0r9MIcU+1QR+dDQSnbMmILsD+Q=
+045_create_payment_provider_events.sql h1:QXdQ844ADia25/FAMeawEJa1AzLhlfHEA6BDqoKpI4U=
