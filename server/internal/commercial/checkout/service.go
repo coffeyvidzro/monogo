@@ -251,6 +251,7 @@ func (s *Service) Fail(
 	ctx context.Context,
 	organizationID uuid.UUID,
 	checkoutID uuid.UUID,
+	failureCode string,
 	providerMessage *string,
 	completedAt time.Time,
 ) (Checkout, error) {
@@ -264,6 +265,10 @@ func (s *Service) Fail(
 	if current.Status != StatusProcessing {
 		return Checkout{}, apperror.NewConflict("checkout cannot fail")
 	}
+	failureCode = strings.TrimSpace(failureCode)
+	if failureCode == "" {
+		return Checkout{}, apperror.NewBadRequest("failure code is required")
+	}
 	if completedAt.IsZero() {
 		completedAt = s.now().UTC()
 	}
@@ -272,6 +277,7 @@ func (s *Service) Fail(
 		ctx,
 		organizationID,
 		checkoutID,
+		failureCode,
 		providerMessage,
 		completedAt,
 	)
