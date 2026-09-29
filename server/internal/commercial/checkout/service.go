@@ -208,6 +208,12 @@ func (s *Service) Continue(
 	if current.NextAction != req.Action {
 		return Checkout{}, apperror.NewConflict("checkout continuation action does not match next action")
 	}
+	if current.Provider == nil ||
+		current.PaymentMethod == nil ||
+		*current.Provider != ProviderPaystack ||
+		*current.PaymentMethod != PaymentMethodMobileMoney {
+		return Checkout{}, apperror.NewConflict("checkout provider does not support continuation action")
+	}
 
 	switch req.Action {
 	case ActionAuthorizeMobileMoney:
