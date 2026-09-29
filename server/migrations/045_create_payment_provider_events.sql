@@ -32,37 +32,18 @@ CREATE INDEX idx_payment_provider_events_unprocessed
     ON payment_provider_events (received_at, id)
     WHERE processed_at IS NULL;
 
-CREATE INDEX idx_payment_provider_events_payment_received
-    ON payment_provider_events (payment_id, received_at DESC, id DESC);
-
-CREATE FUNCTION protect_payment_provider_event()
+CREATE FUNCTION reject_payment_provider_event_mutation()
 RETURNS TRIGGER
 LANGUAGE plpgsql
 AS $$
 BEGIN
-    IF TG_OP = 'DELETE' THEN
-        RAISE EXCEPTION 'payment provider events are immutable' USING ERRCODE = '23514';
-    END IF;
-
-    IF OLD.id IS DISTINCT FROM NEW.id
-        OR OLD.payment_id IS DISTINCT FROM NEW.payment_id
-        OR OLD.organization_id IS DISTINCT FROM NEW.organization_id
-        OR OLD.provider IS DISTINCT FROM NEW.provider
-        OR OLD.provider_event_id IS DISTINCT FROM NEW.provider_event_id
-        OR OLD.event_type IS DISTINCT FROM NEW.event_type
-        OR OLD.payload_sha256 IS DISTINCT FROM NEW.payload_sha256
-        OR OLD.payload IS DISTINCT FROM NEW.payload
-        OR OLD.received_at IS DISTINCT FROM NEW.received_at
-        OR OLD.processed_at IS NOT NULL
-        OR NEW.processed_at IS NULL
-    THEN
-        RAISE EXCEPTION 'payment provider event payload is immutable' USING ERRCODE = '23514';
-    END IF;
-
-    RETURN NEW;
+    RAISE EXCEPTION 'payment provider events are immutable after processing'
+        USING ERRCODE = '23514';
 END;
 $$;
 
-CREATE TRIGGER payment_provider_events_protected
+CREATE TRIGGER payment_provider_events_immutable_after_processing
 BEFORE UPDATE OR DELETE ON payment_provider_events
-FOR EACH ROW EXECUTE FUNCTION protect_payment_provider_event();
+FOR EACH ROW
+WHEN (OLD.processed_at IS NOT NULL)
+EXECUTE FUNCTION reject_payment_provider_event_mutation();
