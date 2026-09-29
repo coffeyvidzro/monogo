@@ -1,0 +1,79 @@
+package payments
+
+import (
+	"errors"
+	"time"
+
+	"github.com/google/uuid"
+)
+
+const (
+	StatusPending           = "pending"
+	StatusProcessing        = "processing"
+	StatusSucceeded         = "succeeded"
+	StatusFailed            = "failed"
+	StatusCancelled         = "cancelled"
+	StatusRefunded          = "refunded"
+	StatusPartiallyRefunded = "partially_refunded"
+)
+
+var (
+	ErrInvalidInput = errors.New("invalid payment input")
+	ErrNotFound     = errors.New("payment not found")
+	ErrConflict     = errors.New("payment state does not allow operation")
+)
+
+type Payment struct {
+	ID                uuid.UUID
+	CheckoutID        uuid.UUID
+	OrganizationID    uuid.UUID
+	Provider          string
+	PaymentMethod     string
+	Attempt           int32
+	ProviderPaymentID *string
+	AmountMicros      int64
+	Currency          string
+	Status            string
+	FailureCode       *string
+	PaidAt            *time.Time
+	CreatedAt         time.Time
+	UpdatedAt         time.Time
+}
+
+type CreateAttemptRequest struct {
+	CheckoutID     uuid.UUID
+	OrganizationID uuid.UUID
+	Provider       string
+	PaymentMethod  string
+	AmountMicros   int64
+	Currency       string
+}
+
+type AttachProviderPaymentIDRequest struct {
+	CheckoutID        uuid.UUID
+	OrganizationID    uuid.UUID
+	PaymentID         uuid.UUID
+	ProviderPaymentID string
+}
+
+type ProviderEvent struct {
+	ID              uuid.UUID
+	PaymentID       uuid.UUID
+	OrganizationID  uuid.UUID
+	Provider        string
+	ProviderEventID string
+	EventType       string
+	PayloadSHA256   string
+	Payload         []byte
+	ReceivedAt      time.Time
+	ProcessedAt     *time.Time
+}
+
+type RecordProviderEventRequest struct {
+	Provider          string
+	ProviderPaymentID string
+	ProviderEventID   string
+	EventType         string
+	Payload           []byte
+	ReceivedAt        time.Time
+}

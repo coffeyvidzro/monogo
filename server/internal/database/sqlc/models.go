@@ -159,6 +159,26 @@ type CarrierRouteMetric struct {
 	UpdatedAt             pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 }
 
+type Checkout struct {
+	ID              uuid.UUID          `db:"id" json:"id"`
+	OrganizationID  uuid.UUID          `db:"organization_id" json:"organization_id"`
+	Purpose         string             `db:"purpose" json:"purpose"`
+	SubscriptionID  *uuid.UUID         `db:"subscription_id" json:"subscription_id"`
+	Reference       string             `db:"reference" json:"reference"`
+	AmountMicros    int64              `db:"amount_micros" json:"amount_micros"`
+	Currency        string             `db:"currency" json:"currency"`
+	Status          string             `db:"status" json:"status"`
+	Provider        *string            `db:"provider" json:"provider"`
+	PaymentMethod   *string            `db:"payment_method" json:"payment_method"`
+	NextAction      string             `db:"next_action" json:"next_action"`
+	ProviderMessage *string            `db:"provider_message" json:"provider_message"`
+	ExpiresAt       pgtype.Timestamptz `db:"expires_at" json:"expires_at"`
+	FailureCode     *string            `db:"failure_code" json:"failure_code"`
+	CompletedAt     pgtype.Timestamptz `db:"completed_at" json:"completed_at"`
+	CreatedAt       pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	UpdatedAt       pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+}
+
 type Conference struct {
 	ID             uuid.UUID          `db:"id" json:"id"`
 	OrganizationID uuid.UUID          `db:"organization_id" json:"organization_id"`
@@ -435,6 +455,37 @@ type OutboxEvent struct {
 	LockedBy      *string            `db:"locked_by" json:"locked_by"`
 	CreatedAt     pgtype.Timestamptz `db:"created_at" json:"created_at"`
 	UpdatedAt     pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+}
+
+type Payment struct {
+	ID                uuid.UUID          `db:"id" json:"id"`
+	CheckoutID        uuid.UUID          `db:"checkout_id" json:"checkout_id"`
+	OrganizationID    uuid.UUID          `db:"organization_id" json:"organization_id"`
+	Provider          string             `db:"provider" json:"provider"`
+	PaymentMethod     string             `db:"payment_method" json:"payment_method"`
+	Attempt           int32              `db:"attempt" json:"attempt"`
+	ProviderPaymentID *string            `db:"provider_payment_id" json:"provider_payment_id"`
+	AmountMicros      int64              `db:"amount_micros" json:"amount_micros"`
+	Currency          string             `db:"currency" json:"currency"`
+	Status            string             `db:"status" json:"status"`
+	FailureCode       *string            `db:"failure_code" json:"failure_code"`
+	PaidAt            pgtype.Timestamptz `db:"paid_at" json:"paid_at"`
+	Metadata          []byte             `db:"metadata" json:"metadata"`
+	CreatedAt         pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	UpdatedAt         pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+}
+
+type PaymentProviderEvent struct {
+	ID              uuid.UUID          `db:"id" json:"id"`
+	PaymentID       uuid.UUID          `db:"payment_id" json:"payment_id"`
+	OrganizationID  uuid.UUID          `db:"organization_id" json:"organization_id"`
+	Provider        string             `db:"provider" json:"provider"`
+	ProviderEventID string             `db:"provider_event_id" json:"provider_event_id"`
+	EventType       string             `db:"event_type" json:"event_type"`
+	PayloadSha256   string             `db:"payload_sha256" json:"payload_sha256"`
+	Payload         []byte             `db:"payload" json:"payload"`
+	ReceivedAt      pgtype.Timestamptz `db:"received_at" json:"received_at"`
+	ProcessedAt     pgtype.Timestamptz `db:"processed_at" json:"processed_at"`
 }
 
 type PhoneNumber struct {

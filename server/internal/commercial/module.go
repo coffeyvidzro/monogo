@@ -1,6 +1,8 @@
 package commercial
 
 import (
+	"github.com/coffeyvidzro/monogo/internal/commercial/checkout"
+	"github.com/coffeyvidzro/monogo/internal/commercial/payments"
 	"github.com/coffeyvidzro/monogo/internal/commercial/plans"
 	"github.com/coffeyvidzro/monogo/internal/commercial/pricing"
 	"github.com/coffeyvidzro/monogo/internal/commercial/subscriptions"
@@ -15,10 +17,23 @@ type Dependencies struct {
 }
 
 type Module struct {
+	Checkout      CheckoutModule
+	Payments      PaymentsModule
 	Wallets       WalletsModule
 	Plans         PlansModule
 	Subscriptions SubscriptionsModule
 	Pricing       PricingModule
+}
+
+type CheckoutModule struct {
+	Repository *checkout.Repository
+	Service    *checkout.Service
+	Handler    *checkout.Handler
+}
+
+type PaymentsModule struct {
+	Repository *payments.Repository
+	Service    *payments.Service
 }
 
 type WalletsModule struct {
@@ -62,12 +77,31 @@ func New(deps Dependencies) *Module {
 		subscriptionsRepository,
 	)
 
+	paymentsRepository := payments.NewRepository(deps.Queries)
+	paymentsService := payments.NewService(paymentsRepository)
+
+	checkoutRepository := checkout.NewRepository(deps.Queries)
+	checkoutService := checkout.NewService(
+		checkoutRepository,
+		subscriptionsService,
+		walletsService,
+	)
+
 	pricingRepository := pricing.NewRepository(deps.Queries)
 	pricingService := pricing.NewService(
 		pricingRepository,
 	)
 
 	return &Module{
+		Checkout: CheckoutModule{
+			Repository: checkoutRepository,
+			Service:    checkoutService,
+			Handler:    checkout.NewHandler(checkoutService),
+		},
+		Payments: PaymentsModule{
+			Repository: paymentsRepository,
+			Service:    paymentsService,
+		},
 		Wallets: WalletsModule{
 			Repository: walletsRepository,
 			Service:    walletsService,
