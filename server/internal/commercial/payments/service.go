@@ -108,6 +108,7 @@ func paymentFromRow(row sqlc.Payment) Payment {
 		CheckoutID:        row.CheckoutID,
 		OrganizationID:    row.OrganizationID,
 		Provider:          row.Provider,
+		PaymentMethod:     row.PaymentMethod,
 		Attempt:           row.Attempt,
 		AmountMicros:      row.AmountMicros,
 		Currency:          row.Currency,
