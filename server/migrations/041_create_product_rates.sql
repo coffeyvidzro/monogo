@@ -1,5 +1,7 @@
--- Customer-facing fixed-unit prices for managed non-voice products. A selector
--- is either an ISO 3166-1 alpha-2 country code or the global '*' fallback.
+-- Customer-facing fixed-unit prices for managed non-voice products.
+-- A selector is either an ISO 3166-1 alpha-2 country code or the global '*'
+-- fallback.
+
 CREATE TABLE product_rates (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     organization_id UUID REFERENCES organizations(id) ON DELETE RESTRICT,

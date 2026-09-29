@@ -3,7 +3,6 @@ package commercial
 import (
 	"github.com/coffeyvidzro/monogo/internal/commercial/plans"
 	"github.com/coffeyvidzro/monogo/internal/commercial/pricing"
-	"github.com/coffeyvidzro/monogo/internal/commercial/providercharges"
 	"github.com/coffeyvidzro/monogo/internal/commercial/subscriptions"
 	"github.com/coffeyvidzro/monogo/internal/commercial/wallets"
 	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
@@ -20,7 +19,6 @@ type Module struct {
 	Plans           PlansModule
 	Subscriptions   SubscriptionsModule
 	Pricing         PricingModule
-	ProviderCharges ProviderChargesModule
 }
 
 type WalletsModule struct {
@@ -47,11 +45,6 @@ type PricingModule struct {
 	Handler    *pricing.Handler
 }
 
-type ProviderChargesModule struct {
-	Repository *providercharges.Repository
-	Service    *providercharges.Service
-}
-
 func New(deps Dependencies) *Module {
 	walletsRepository := wallets.NewRepository(deps.Queries)
 	walletsService := wallets.NewService(
@@ -74,9 +67,6 @@ func New(deps Dependencies) *Module {
 		pricingRepository,
 	)
 
-	providerChargesRepository := providercharges.NewRepository(deps.Queries)
-	providerChargesService := providercharges.NewService(providerChargesRepository)
-
 	return &Module{
 		Wallets: WalletsModule{
 			Repository: walletsRepository,
@@ -97,10 +87,6 @@ func New(deps Dependencies) *Module {
 			Repository: pricingRepository,
 			Service:    pricingService,
 			Handler:    pricing.NewHandler(pricingService),
-		},
-		ProviderCharges: ProviderChargesModule{
-			Repository: providerChargesRepository,
-			Service:    providerChargesService,
 		},
 	}
 }

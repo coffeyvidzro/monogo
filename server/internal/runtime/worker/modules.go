@@ -244,7 +244,6 @@ func newModules(ctx context.Context, cfg config.Config, logger *logging.Logger) 
 	}
 	numberService := numbers.NewService(numbers.NewRepository(queries), provider)
 	numberService.ConfigureManaged(postgresClient.Pool())
-	numberService.ConfigureProviderCharges(commercialModule.ProviderCharges.Service)
 	numberService.ConfigureBilling(
 		commercialModule.Pricing.Service,
 		commercialModule.Wallets.Service,
