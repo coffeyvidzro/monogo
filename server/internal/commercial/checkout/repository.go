@@ -151,7 +151,6 @@ func (r *Repository) ExpireDue(
 	)
 }
 
-
 func (r *Repository) UpdateAction(
 	ctx context.Context,
 	organizationID uuid.UUID,

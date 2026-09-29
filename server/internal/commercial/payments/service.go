@@ -289,7 +289,6 @@ func (s *Service) MarkFailed(
 	return paymentFromRow(row), nil
 }
 
-
 func sameAttempt(
 	existing sqlc.Payment,
 	req CreateAttemptRequest,
