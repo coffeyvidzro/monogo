@@ -69,23 +69,23 @@ func (s *Service) CreateAttempt(
 	return paymentFromRow(row), nil
 }
 
-func (s *Service) AttachProviderReference(
+func (s *Service) AttachProviderPaymentID(
 	ctx context.Context,
-	req AttachProviderReferenceRequest,
+	req AttachProviderPaymentIDRequest,
 ) (Payment, error) {
-	if err := validateAttachProviderReferenceRequest(&req); err != nil {
+	if err := validateAttachProviderPaymentIDRequest(&req); err != nil {
 		return Payment{}, apperror.NewBadRequest(err.Error())
 	}
 
-	row, err := s.repo.AttachProviderReference(ctx, req)
+	row, err := s.repo.AttachProviderPaymentID(ctx, req)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return Payment{}, apperror.NewConflict("payment attempt does not allow provider reference")
+		return Payment{}, apperror.NewConflict("payment attempt does not allow provider payment id")
 	}
 	if isUniqueViolation(err) {
-		return Payment{}, apperror.NewConflict("provider reference already belongs to another payment")
+		return Payment{}, apperror.NewConflict("provider payment id already belongs to another payment")
 	}
 	if err != nil {
-		return Payment{}, apperror.NewInternal("attach provider reference", err)
+		return Payment{}, apperror.NewInternal("attach provider payment id", err)
 	}
 
 	return paymentFromRow(row), nil
@@ -106,9 +106,9 @@ func paymentFromRow(row sqlc.Payment) Payment {
 		AmountMicros:      row.AmountMicros,
 		Currency:          row.Currency,
 		Status:            row.Status,
-		ProviderReference: row.ProviderReference,
+		ProviderPaymentID: row.ProviderPaymentID,
 		FailureCode:       row.FailureCode,
-		CompletedAt:       pgconv.TimestamptzToTimePtr(row.CompletedAt),
+		PaidAt:            pgconv.TimestamptzToTimePtr(row.PaidAt),
 		CreatedAt:         pgconv.TimestamptzToTime(row.CreatedAt),
 		UpdatedAt:         pgconv.TimestamptzToTime(row.UpdatedAt),
 	}
