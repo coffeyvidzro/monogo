@@ -270,6 +270,7 @@ SET
     carrier_connection_id = NULL,
     voice_enabled = false,
     sms_enabled = false,
+    next_renewal_at = NULL,
     updated_at = now()
 WHERE id = sqlc.arg(id)
   AND provisioning_mode = 'managed'

@@ -228,6 +228,30 @@ func (s *Service) ListProviderChargesByCall(
 	return result, nil
 }
 
+func (s *Service) ReconcileProviderCharge(
+	ctx context.Context,
+	id uuid.UUID,
+	operationID uuid.UUID,
+) (ProviderCharge, error) {
+	if id == uuid.Nil || operationID == uuid.Nil {
+		return ProviderCharge{}, fmt.Errorf("provider charge id and operation id are required")
+	}
+
+	row, err := s.repo.ReconcileCharge(
+		ctx,
+		id,
+		operationID,
+	)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return ProviderCharge{}, ErrProviderChargeConflict
+	}
+	if err != nil {
+		return ProviderCharge{}, fmt.Errorf("reconcile provider charge: %w", err)
+	}
+
+	return providerChargeFromRow(row), nil
+}
+
 func sameProviderCDR(
 	existing sqlc.ProviderCdr,
 	req RecordCDRRequest,

@@ -1,7 +1,7 @@
--- Provider voice rates are upstream carrier prices used by managed routing and
+-- Provider rates are upstream carrier prices used by managed routing and
 -- wholesale cost estimation. They are separate from customer-facing
--- voice_rates.
-CREATE TABLE provider_voice_rates (
+-- carrier_rates.
+CREATE TABLE provider_rates (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     carrier_connection_id UUID NOT NULL REFERENCES carrier_connections(id) ON DELETE CASCADE,
     destination_prefix TEXT NOT NULL,
@@ -17,8 +17,8 @@ CREATE TABLE provider_voice_rates (
     UNIQUE (carrier_connection_id, destination_prefix, effective_at)
 );
 
-CREATE INDEX idx_provider_voice_rates_lookup
-    ON provider_voice_rates (carrier_connection_id, destination_prefix, effective_at DESC);
+CREATE INDEX idx_provider_rates_lookup
+    ON provider_rates (carrier_connection_id, destination_prefix, effective_at DESC);
 
 -- Collectors upsert one current aggregate per endpoint. Basis points represent
 -- percentages from 0.00% through 100.00%; durations remain integer millis.

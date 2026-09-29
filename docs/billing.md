@@ -75,6 +75,30 @@ two-letter country selectors with a `*` global fallback. Per-started-minute
 voice prices are stored separately in `voice_rates` because voice resolution
 uses the longest matching telephone prefix and inbound/outbound direction.
 
+## Commercial source of truth
+
+The billing system has four distinct responsibilities:
+
+| Responsibility | Source of truth |
+| --- | --- |
+| Platform access | `subscriptions` |
+| Customer retail price | `voice_rates` and `product_rates` |
+| Customer prepaid money | `wallets`, `wallet_holds`, and `wallet_ledger_entries` |
+| Supplier expense | `provider_charges` |
+
+`provider_voice_rates` is an expected supplier tariff used for routing and
+pre-call commercial checks. It is not an actual supplier expense.
+
+`provider_cdrs` is immutable raw voice usage evidence. It is not a customer
+money ledger and it is not the final supplier-expense ledger.
+
+`managed_number_renewals` is an operational schedule. It decides when a
+number renewal is due, but the actual customer debit still lives in
+`wallet_ledger_entries`.
+
+This separation means customer revenue and supplier expense can be reconciled
+without making either side depend on the other.
+
 ## Managed-number renewals
 
 A managed number receives a monthly renewal anchor when activation succeeds.

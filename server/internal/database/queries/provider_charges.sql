@@ -93,3 +93,16 @@ FROM provider_charges AS charge
 JOIN provider_cdrs AS cdr ON cdr.id = charge.provider_cdr_id
 WHERE cdr.call_id = sqlc.arg(call_id)
 ORDER BY charge.incurred_at, charge.id;
+
+-- name: ReconcileProviderChargeOperation :one
+UPDATE provider_charges
+SET operation_id = sqlc.arg(operation_id)
+WHERE id = sqlc.arg(id)
+  AND operation_id IS NULL
+  AND EXISTS (
+      SELECT 1
+      FROM wallet_ledger_entries AS ledger
+      WHERE ledger.operation_id = sqlc.arg(operation_id)
+        AND ledger.direction = 'debit'
+  )
+RETURNING *;

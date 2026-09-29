@@ -1,5 +1,6 @@
--- Actual immutable supplier charges for every managed product. Provider
--- evidence may be recorded before it is reconciled to customer revenue.
+-- Actual immutable supplier charges for every managed product. Existing voice
+-- wholesale rows are migrated forward so provider_charges becomes the single
+-- supplier-expense source of truth.
 CREATE TABLE provider_charges (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     provider_id UUID NOT NULL REFERENCES carrier_providers(id) ON DELETE RESTRICT,
@@ -44,19 +45,78 @@ CREATE TABLE provider_charges (
 
 CREATE INDEX idx_provider_charges_operation
     ON provider_charges (operation_id) WHERE operation_id IS NOT NULL;
+
 CREATE INDEX idx_provider_charges_unreconciled
     ON provider_charges (incurred_at, id) WHERE operation_id IS NULL;
-CREATE INDEX idx_provider_charges_incurred ON provider_charges (incurred_at DESC);
 
-CREATE FUNCTION reject_provider_charge_mutation()
+CREATE INDEX idx_provider_charges_incurred
+    ON provider_charges (incurred_at DESC);
+
+INSERT INTO provider_charges (
+    provider_id,
+    provider_cdr_id,
+    provider_record_type,
+    provider_record_id,
+    product,
+    currency,
+    rate_micros,
+    billable_seconds,
+    amount_micros,
+    incurred_at,
+    raw_payload,
+    recorded_at
+)
+SELECT
+    cdr.provider_id,
+    cdr.id,
+    'voice_cdr',
+    cdr.provider_cdr_id,
+    'voice',
+    charge.currency,
+    charge.rate_micros,
+    charge.billable_seconds,
+    charge.amount_micros,
+    cdr.ended_at,
+    cdr.raw_payload,
+    charge.created_at
+FROM wholesale_charges AS charge
+JOIN provider_cdrs AS cdr
+  ON cdr.id = charge.provider_cdr_id
+ON CONFLICT (provider_id, provider_record_type, provider_record_id) DO NOTHING;
+
+DROP TABLE wholesale_charges;
+
+CREATE FUNCTION protect_provider_charge_evidence()
 RETURNS TRIGGER
 LANGUAGE plpgsql
 AS $$
 BEGIN
-    RAISE EXCEPTION 'provider charges are immutable' USING ERRCODE = '23514';
+    IF TG_OP = 'DELETE' THEN
+        RAISE EXCEPTION 'provider charges are immutable' USING ERRCODE = '23514';
+    END IF;
+
+    IF OLD.operation_id IS NULL
+       AND NEW.operation_id IS NOT NULL
+       AND NEW.id = OLD.id
+       AND NEW.provider_id = OLD.provider_id
+       AND NEW.provider_cdr_id IS NOT DISTINCT FROM OLD.provider_cdr_id
+       AND NEW.provider_record_type = OLD.provider_record_type
+       AND NEW.provider_record_id = OLD.provider_record_id
+       AND NEW.product = OLD.product
+       AND NEW.currency = OLD.currency
+       AND NEW.rate_micros IS NOT DISTINCT FROM OLD.rate_micros
+       AND NEW.billable_seconds IS NOT DISTINCT FROM OLD.billable_seconds
+       AND NEW.amount_micros = OLD.amount_micros
+       AND NEW.incurred_at = OLD.incurred_at
+       AND NEW.raw_payload = OLD.raw_payload
+       AND NEW.recorded_at = OLD.recorded_at THEN
+        RETURN NEW;
+    END IF;
+
+    RAISE EXCEPTION 'provider charge evidence is immutable' USING ERRCODE = '23514';
 END;
 $$;
 
 CREATE TRIGGER provider_charges_immutable
 BEFORE UPDATE OR DELETE ON provider_charges
-FOR EACH ROW EXECUTE FUNCTION reject_provider_charge_mutation();
+FOR EACH ROW EXECUTE FUNCTION protect_provider_charge_evidence();

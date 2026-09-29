@@ -102,3 +102,19 @@ func (r *Repository) ListProviderChargesByCall(
 		callID,
 	)
 }
+
+func (r *Repository) ReconcileCharge(
+	ctx context.Context,
+	id uuid.UUID,
+	operationID uuid.UUID,
+) (sqlc.ProviderCharge, error) {
+	params := sqlc.ReconcileProviderChargeOperationParams{
+		OperationID: operationID,
+		ID:          id,
+	}
+
+	return r.queries.ReconcileProviderChargeOperation(
+		ctx,
+		params,
+	)
+}
