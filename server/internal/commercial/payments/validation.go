@@ -8,34 +8,46 @@ import (
 	"github.com/google/uuid"
 )
 
-var providerPattern = regexp.MustCompile(`^[a-z][a-z0-9_]{0,63}$`)
+var (
+	providerPattern = regexp.MustCompile(`^[a-z][a-z0-9_]{0,63}$`)
+	currencyPattern = regexp.MustCompile(`^[A-Z]{3}$`)
+)
 
-func normalizeProvider(value *string) error {
-	*value = strings.ToLower(strings.TrimSpace(*value))
-	if !providerPattern.MatchString(*value) {
+func validateCreateRequest(req *CreateRequest) error {
+	if req.OrganizationID == uuid.Nil {
+		return fmt.Errorf("%w: organization id is required", ErrInvalidInput)
+	}
+
+	req.Provider = strings.ToLower(strings.TrimSpace(req.Provider))
+	if !providerPattern.MatchString(req.Provider) {
 		return fmt.Errorf("%w: provider is invalid", ErrInvalidInput)
 	}
-	return nil
-}
 
-func validateCreateSubscriptionRequest(req *CreateSubscriptionRequest) error {
-	if req.OrganizationID == uuid.Nil {
-		return fmt.Errorf("%w: organization id is required", ErrInvalidInput)
-	}
-	if req.SubscriptionID == uuid.Nil {
-		return fmt.Errorf("%w: subscription id is required", ErrInvalidInput)
-	}
-	return normalizeProvider(&req.Provider)
-}
-
-func validateCreateWalletTopupRequest(req *CreateWalletTopupRequest) error {
-	if req.OrganizationID == uuid.Nil {
-		return fmt.Errorf("%w: organization id is required", ErrInvalidInput)
+	req.Currency = strings.ToUpper(strings.TrimSpace(req.Currency))
+	if !currencyPattern.MatchString(req.Currency) {
+		return fmt.Errorf("%w: currency is invalid", ErrInvalidInput)
 	}
 	if req.AmountMicros <= 0 {
 		return fmt.Errorf("%w: amount must be greater than zero", ErrInvalidInput)
 	}
-	return normalizeProvider(&req.Provider)
+
+	switch req.Purpose {
+	case PurposeSubscription:
+		if req.SubscriptionID == nil || *req.SubscriptionID == uuid.Nil {
+			return fmt.Errorf("%w: subscription id is required", ErrInvalidInput)
+		}
+		if req.PeriodStart == nil || req.PeriodEnd == nil || !req.PeriodEnd.After(*req.PeriodStart) {
+			return fmt.Errorf("%w: valid subscription period is required", ErrInvalidInput)
+		}
+	case PurposeWalletTopup:
+		if req.SubscriptionID != nil || req.PeriodStart != nil || req.PeriodEnd != nil {
+			return fmt.Errorf("%w: wallet top-up cannot include subscription fields", ErrInvalidInput)
+		}
+	default:
+		return fmt.Errorf("%w: purpose is invalid", ErrInvalidInput)
+	}
+
+	return nil
 }
 
 func validateAttachProviderReferenceRequest(req *AttachProviderReferenceRequest) error {
@@ -49,7 +61,7 @@ func validateAttachProviderReferenceRequest(req *AttachProviderReferenceRequest)
 	return nil
 }
 
-func validateSettleRequest(req *SettleRequest) error {
+func validateSucceedRequest(req *SucceedRequest) error {
 	if req.OrganizationID == uuid.Nil || req.PaymentID == uuid.Nil {
 		return fmt.Errorf("%w: organization and payment ids are required", ErrInvalidInput)
 	}
