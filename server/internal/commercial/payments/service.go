@@ -5,8 +5,6 @@ import (
 	"errors"
 	"time"
 
-	"github.com/coffeyvidzro/monogo/internal/commercial/subscriptions"
-	"github.com/coffeyvidzro/monogo/internal/commercial/wallets"
 	"github.com/coffeyvidzro/monogo/internal/database/pgconv"
 	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
 	"github.com/coffeyvidzro/monogo/pkg/apperror"
@@ -16,97 +14,56 @@ import (
 )
 
 type Service struct {
-	repo          *Repository
-	subscriptions *subscriptions.Service
-	wallets       *wallets.Service
-	now           func() time.Time
+	repo *Repository
+	now  func() time.Time
 }
 
-func NewService(
-	repo *Repository,
-	subscriptionsService *subscriptions.Service,
-	walletsService *wallets.Service,
-) *Service {
+func NewService(repo *Repository) *Service {
 	return &Service{
-		repo:          repo,
-		subscriptions: subscriptionsService,
-		wallets:       walletsService,
-		now:           time.Now,
+		repo: repo,
+		now:  time.Now,
 	}
 }
 
-func (s *Service) CreateSubscription(
+func (s *Service) Create(
 	ctx context.Context,
-	req CreateSubscriptionRequest,
+	req CreateRequest,
 ) (Payment, error) {
-	if err := validateCreateSubscriptionRequest(&req); err != nil {
+	if err := validateCreateRequest(&req); err != nil {
 		return Payment{}, apperror.NewBadRequest(err.Error())
 	}
 
-	subscription, err := s.subscriptions.Get(
-		ctx,
-		req.OrganizationID,
-		req.SubscriptionID,
+	var (
+		row sqlc.Payment
+		err error
 	)
-	if err != nil {
-		return Payment{}, err
-	}
-	if subscription.Status != subscriptions.StatusPending {
-		return Payment{}, apperror.NewConflict("subscription is not awaiting initial payment")
-	}
-	if subscription.AmountMicros <= 0 {
-		return Payment{}, apperror.NewBadRequest("subscription does not require payment")
-	}
 
-	periodStart := s.now().UTC()
-	periodEnd := periodStart.AddDate(0, 1, 0)
-	row, err := s.repo.CreateSubscription(
-		ctx,
-		req.OrganizationID,
-		req.SubscriptionID,
-		req.Provider,
-		subscription.AmountMicros,
-		subscription.Currency,
-		periodStart,
-		periodEnd,
-	)
+	switch req.Purpose {
+	case PurposeSubscription:
+		row, err = s.repo.CreateSubscription(
+			ctx,
+			req.OrganizationID,
+			*req.SubscriptionID,
+			req.Provider,
+			req.AmountMicros,
+			req.Currency,
+			*req.PeriodStart,
+			*req.PeriodEnd,
+		)
+	case PurposeWalletTopup:
+		row, err = s.repo.CreateWalletTopup(
+			ctx,
+			req.OrganizationID,
+			req.Provider,
+			req.AmountMicros,
+			req.Currency,
+		)
+	}
 	if isUniqueViolation(err) {
-		return Payment{}, apperror.NewConflict("subscription already has a pending payment")
+		return Payment{}, apperror.NewConflict("payment conflicts with existing payment")
 	}
 	if err != nil {
-		return Payment{}, apperror.NewInternal("create subscription payment", err)
-	}
-
-	return paymentFromRow(row), nil
-}
-
-func (s *Service) CreateWalletTopup(
-	ctx context.Context,
-	req CreateWalletTopupRequest,
-) (Payment, error) {
-	if err := validateCreateWalletTopupRequest(&req); err != nil {
-		return Payment{}, apperror.NewBadRequest(err.Error())
-	}
-
-	wallet, err := s.wallets.Create(
-		ctx,
-		wallets.CreateRequest{
-			OrganizationID: req.OrganizationID,
-		},
-	)
-	if err != nil {
-		return Payment{}, err
-	}
-
-	row, err := s.repo.CreateWalletTopup(
-		ctx,
-		req.OrganizationID,
-		req.Provider,
-		req.AmountMicros,
-		wallet.Currency,
-	)
-	if err != nil {
-		return Payment{}, apperror.NewInternal("create wallet top-up payment", err)
+		return Payment{}, apperror.NewInternal("create payment", err)
 	}
 
 	return paymentFromRow(row), nil
@@ -156,9 +113,9 @@ func (s *Service) AttachProviderReference(
 
 func (s *Service) Succeed(
 	ctx context.Context,
-	req SettleRequest,
+	req SucceedRequest,
 ) (Payment, error) {
-	if err := validateSettleRequest(&req); err != nil {
+	if err := validateSucceedRequest(&req); err != nil {
 		return Payment{}, apperror.NewBadRequest(err.Error())
 	}
 	if req.OccurredAt.IsZero() {
@@ -176,40 +133,23 @@ func (s *Service) Succeed(
 		return Payment{}, apperror.NewConflict("payment already succeeded with another provider event")
 	}
 	if current.Status != StatusPending {
-		return Payment{}, apperror.NewConflict("payment state does not allow settlement")
+		return Payment{}, apperror.NewConflict("payment state does not allow success")
 	}
 
-	row, err := s.repo.ClaimProviderEvent(
+	if _, err := s.repo.ClaimProviderEvent(
 		ctx,
 		req.OrganizationID,
 		req.PaymentID,
 		req.ProviderEventID,
-	)
-	if errors.Is(err, pgx.ErrNoRows) {
+	); errors.Is(err, pgx.ErrNoRows) {
 		return Payment{}, apperror.NewConflict("payment state does not allow provider event")
-	}
-	if isUniqueViolation(err) {
+	} else if isUniqueViolation(err) {
 		return Payment{}, apperror.NewConflict("provider event already belongs to another payment")
-	}
-	if err != nil {
+	} else if err != nil {
 		return Payment{}, apperror.NewInternal("claim payment provider event", err)
 	}
 
-	payment := paymentFromRow(row)
-	switch payment.Purpose {
-	case PurposeSubscription:
-		if err := s.settleSubscription(ctx, payment); err != nil {
-			return Payment{}, err
-		}
-	case PurposeWalletTopup:
-		if err := s.settleWalletTopup(ctx, payment, req.OccurredAt); err != nil {
-			return Payment{}, err
-		}
-	default:
-		return Payment{}, apperror.NewInternal("settle payment", ErrConflict)
-	}
-
-	row, err = s.repo.MarkSucceeded(
+	row, err := s.repo.MarkSucceeded(
 		ctx,
 		req.OrganizationID,
 		req.PaymentID,
@@ -276,68 +216,6 @@ func (s *Service) Fail(
 	}
 
 	return paymentFromRow(row), nil
-}
-
-func (s *Service) settleSubscription(
-	ctx context.Context,
-	payment Payment,
-) error {
-	if payment.SubscriptionID == nil ||
-		payment.PeriodStart == nil ||
-		payment.PeriodEnd == nil {
-		return apperror.NewInternal("settle subscription payment", ErrConflict)
-	}
-
-	subscription, err := s.subscriptions.Get(
-		ctx,
-		payment.OrganizationID,
-		*payment.SubscriptionID,
-	)
-	if err != nil {
-		return err
-	}
-	if subscription.Status == subscriptions.StatusActive &&
-		sameTime(subscription.CurrentPeriodStart, *payment.PeriodStart) &&
-		sameTime(subscription.CurrentPeriodEnd, *payment.PeriodEnd) {
-		return nil
-	}
-
-	_, err = s.subscriptions.Activate(
-		ctx,
-		subscriptions.ActivateRequest{
-			OrganizationID:     payment.OrganizationID,
-			SubscriptionID:     *payment.SubscriptionID,
-			CurrentPeriodStart: *payment.PeriodStart,
-			CurrentPeriodEnd:   *payment.PeriodEnd,
-		},
-	)
-	return err
-}
-
-func (s *Service) settleWalletTopup(
-	ctx context.Context,
-	payment Payment,
-	occurredAt time.Time,
-) error {
-	referenceType := "payment"
-	referenceID := payment.ID
-	_, err := s.wallets.Credit(
-		ctx,
-		wallets.MovementRequest{
-			OrganizationID: payment.OrganizationID,
-			OperationID:    payment.ID,
-			AmountMicros:   payment.AmountMicros,
-			Reason:         "wallet_topup",
-			ReferenceType:  &referenceType,
-			ReferenceID:    &referenceID,
-			OccurredAt:     occurredAt,
-		},
-	)
-	return err
-}
-
-func sameTime(value *time.Time, expected time.Time) bool {
-	return value != nil && value.Equal(expected)
 }
 
 func isUniqueViolation(err error) bool {
