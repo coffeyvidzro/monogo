@@ -1,4 +1,4 @@
--- name: CreatePayment :one
+-- name: CreateSubscriptionPayment :one
 INSERT INTO payments (
     organization_id,
     purpose,
@@ -11,13 +11,30 @@ INSERT INTO payments (
 )
 VALUES (
     sqlc.arg(organization_id),
-    sqlc.arg(purpose),
+    'subscription',
     sqlc.arg(provider),
-    sqlc.narg(subscription_id),
+    sqlc.arg(subscription_id),
     sqlc.arg(amount_micros),
     sqlc.arg(currency),
-    sqlc.narg(period_start),
-    sqlc.narg(period_end)
+    sqlc.arg(period_start),
+    sqlc.arg(period_end)
+)
+RETURNING *;
+
+-- name: CreateWalletTopupPayment :one
+INSERT INTO payments (
+    organization_id,
+    purpose,
+    provider,
+    amount_micros,
+    currency
+)
+VALUES (
+    sqlc.arg(organization_id),
+    'wallet_topup',
+    sqlc.arg(provider),
+    sqlc.arg(amount_micros),
+    sqlc.arg(currency)
 )
 RETURNING *;
 
