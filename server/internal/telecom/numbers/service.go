@@ -652,10 +652,10 @@ func (s *Service) activateManagedNumber(
 
 func (s *Service) processRenewal(
 	ctx context.Context,
-	due sqlc.ListManagedNumberRenewalsDueRow,
+	due sqlc.ListNumberRenewalsDueRow,
 ) error {
 	if s.pricing == nil || s.wallets == nil {
-		return fmt.Errorf("managed number renewal billing is not configured")
+		return fmt.Errorf("number renewal billing is not configured")
 	}
 	now := s.now().UTC()
 	renewal, err := s.repo.ClaimRenewal(ctx, due.ID, now)
@@ -663,7 +663,7 @@ func (s *Service) processRenewal(
 		return nil
 	}
 	if err != nil {
-		return fmt.Errorf("claim managed number renewal: %w", err)
+		return fmt.Errorf("claim number renewal: %w", err)
 	}
 	rate, err := s.pricing.ResolveProductRate(
 		ctx,
@@ -677,7 +677,7 @@ func (s *Service) processRenewal(
 	if err != nil {
 		return s.deferRenewal(ctx, renewal, err)
 	}
-	referenceType := "managed_number_renewal"
+	referenceType := "number_renewal"
 	referenceID := renewal.ID
 	_, err = s.wallets.Hold(
 		ctx,
@@ -685,7 +685,7 @@ func (s *Service) processRenewal(
 			OrganizationID: renewal.OrganizationID,
 			OperationID:    renewal.OperationID,
 			AmountMicros:   rate.RateMicros,
-			Reason:         "managed_number_renewal",
+			Reason:         "number_renewal",
 			ReferenceType:  &referenceType,
 			ReferenceID:    &referenceID,
 		},
@@ -707,19 +707,19 @@ func (s *Service) processRenewal(
 		wallets.CurrencyUSD,
 		now,
 	); err != nil {
-		return fmt.Errorf("complete managed number renewal: %w", err)
+		return fmt.Errorf("complete number renewal: %w", err)
 	}
 	return nil
 }
 
 func (s *Service) deferRenewal(
 	ctx context.Context,
-	renewal sqlc.ManagedNumberRenewal,
+	renewal sqlc.NumberRenewal,
 	cause error,
 ) error {
 	nextAttempt := s.now().UTC().Add(renewalRetryDelay(renewal.AttemptCount))
 	if err := s.repo.RetryRenewal(ctx, renewal.ID, nextAttempt, cause); err != nil {
-		return fmt.Errorf("schedule managed number renewal retry: %w", err)
+		return fmt.Errorf("schedule number renewal retry: %w", err)
 	}
 	return nil
 }
