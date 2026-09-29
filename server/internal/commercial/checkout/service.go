@@ -187,6 +187,7 @@ func checkoutFromRow(row sqlc.Checkout) Checkout {
 		PaymentMethod:   row.PaymentMethod,
 		NextAction:      row.NextAction,
 		ProviderMessage: row.ProviderMessage,
+		FailureCode:     row.FailureCode,
 		ExpiresAt:       pgconv.TimestamptzToTime(row.ExpiresAt),
 		CompletedAt:     pgconv.TimestamptzToTimePtr(row.CompletedAt),
 		CreatedAt:       pgconv.TimestamptzToTime(row.CreatedAt),
