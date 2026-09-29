@@ -19,57 +19,47 @@ func NewRepository(queries *sqlc.Queries) *Repository {
 	}
 }
 
-func (r *Repository) CreateSubscription(
+func (r *Repository) CreateAttempt(
 	ctx context.Context,
-	organizationID uuid.UUID,
-	subscriptionID uuid.UUID,
-	provider string,
-	amountMicros int64,
-	currency string,
-	periodStart time.Time,
-	periodEnd time.Time,
+	req CreateAttemptRequest,
+	attempt int32,
 ) (sqlc.Payment, error) {
-	return r.queries.CreateSubscriptionPayment(
+	return r.queries.CreatePaymentAttempt(
 		ctx,
-		sqlc.CreateSubscriptionPaymentParams{
-			OrganizationID: organizationID,
-			Provider:       provider,
-			SubscriptionID: &subscriptionID,
-			AmountMicros:   amountMicros,
-			Currency:       currency,
-			PeriodStart:    pgconv.TimeToTimestamptz(periodStart),
-			PeriodEnd:      pgconv.TimeToTimestamptz(periodEnd),
+		sqlc.CreatePaymentAttemptParams{
+			CheckoutID:     req.CheckoutID,
+			OrganizationID: req.OrganizationID,
+			Provider:       req.Provider,
+			Attempt:        attempt,
+			AmountMicros:   req.AmountMicros,
+			Currency:       req.Currency,
 		},
 	)
 }
 
-func (r *Repository) CreateWalletTopup(
+func (r *Repository) GetActiveByCheckout(
 	ctx context.Context,
 	organizationID uuid.UUID,
-	provider string,
-	amountMicros int64,
-	currency string,
+	checkoutID uuid.UUID,
 ) (sqlc.Payment, error) {
-	return r.queries.CreateWalletTopupPayment(
+	return r.queries.GetActivePaymentAttemptByCheckout(
 		ctx,
-		sqlc.CreateWalletTopupPaymentParams{
+		sqlc.GetActivePaymentAttemptByCheckoutParams{
+			CheckoutID:     checkoutID,
 			OrganizationID: organizationID,
-			Provider:       provider,
-			AmountMicros:   amountMicros,
-			Currency:       currency,
 		},
 	)
 }
 
-func (r *Repository) Get(
+func (r *Repository) NextAttempt(
 	ctx context.Context,
 	organizationID uuid.UUID,
-	id uuid.UUID,
-) (sqlc.Payment, error) {
-	return r.queries.GetPaymentByID(
+	checkoutID uuid.UUID,
+) (int64, error) {
+	return r.queries.GetNextPaymentAttemptNumber(
 		ctx,
-		sqlc.GetPaymentByIDParams{
-			ID:             id,
+		sqlc.GetNextPaymentAttemptNumberParams{
+			CheckoutID:     checkoutID,
 			OrganizationID: organizationID,
 		},
 	)
@@ -84,23 +74,8 @@ func (r *Repository) AttachProviderReference(
 		sqlc.AttachPaymentProviderReferenceParams{
 			ProviderReference: &req.ProviderReference,
 			ID:                req.PaymentID,
+			CheckoutID:        req.CheckoutID,
 			OrganizationID:    req.OrganizationID,
-		},
-	)
-}
-
-func (r *Repository) ClaimProviderEvent(
-	ctx context.Context,
-	organizationID uuid.UUID,
-	id uuid.UUID,
-	providerEventID string,
-) (sqlc.Payment, error) {
-	return r.queries.ClaimPaymentProviderEvent(
-		ctx,
-		sqlc.ClaimPaymentProviderEventParams{
-			ProviderEventID: &providerEventID,
-			ID:              id,
-			OrganizationID:  organizationID,
 		},
 	)
 }
@@ -108,33 +83,37 @@ func (r *Repository) ClaimProviderEvent(
 func (r *Repository) MarkSucceeded(
 	ctx context.Context,
 	organizationID uuid.UUID,
+	checkoutID uuid.UUID,
 	id uuid.UUID,
-	providerEventID string,
 	completedAt time.Time,
 ) (sqlc.Payment, error) {
-	return r.queries.MarkPaymentSucceeded(
+	return r.queries.MarkPaymentAttemptSucceeded(
 		ctx,
-		sqlc.MarkPaymentSucceededParams{
-			CompletedAt:     pgconv.TimeToTimestamptz(completedAt),
-			ID:              id,
-			OrganizationID:  organizationID,
-			ProviderEventID: &providerEventID,
+		sqlc.MarkPaymentAttemptSucceededParams{
+			CompletedAt:    pgconv.TimeToTimestamptz(completedAt),
+			ID:             id,
+			CheckoutID:     checkoutID,
+			OrganizationID: organizationID,
 		},
 	)
 }
 
 func (r *Repository) MarkFailed(
 	ctx context.Context,
-	req FailRequest,
+	organizationID uuid.UUID,
+	checkoutID uuid.UUID,
+	id uuid.UUID,
+	failureCode string,
+	completedAt time.Time,
 ) (sqlc.Payment, error) {
-	return r.queries.MarkPaymentFailed(
+	return r.queries.MarkPaymentAttemptFailed(
 		ctx,
-		sqlc.MarkPaymentFailedParams{
-			FailureCode:     &req.FailureCode,
-			CompletedAt:     pgconv.TimeToTimestamptz(req.OccurredAt),
-			ID:              req.PaymentID,
-			OrganizationID:  req.OrganizationID,
-			ProviderEventID: &req.ProviderEventID,
+		sqlc.MarkPaymentAttemptFailedParams{
+			FailureCode:    &failureCode,
+			CompletedAt:    pgconv.TimeToTimestamptz(completedAt),
+			ID:             id,
+			CheckoutID:     checkoutID,
+			OrganizationID: organizationID,
 		},
 	)
 }
