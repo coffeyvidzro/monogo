@@ -39,20 +39,23 @@ func validateConfirmRequest(req *ConfirmRequest) error {
 	if req.OrganizationID == uuid.Nil || req.CheckoutID == uuid.Nil {
 		return fmt.Errorf("%w: organization and checkout ids are required", ErrInvalidInput)
 	}
+
 	req.Provider = strings.ToLower(strings.TrimSpace(req.Provider))
-	if req.Provider == "" {
-		return fmt.Errorf("%w: provider is required", ErrInvalidInput)
+	req.PaymentMethod = strings.ToLower(strings.TrimSpace(req.PaymentMethod))
+
+	switch {
+	case req.Provider == ProviderStripe && req.PaymentMethod == PaymentMethodCard:
+		return nil
+	case req.Provider == ProviderPaystack && req.PaymentMethod == PaymentMethodMobileMoney:
+		return nil
+	default:
+		return fmt.Errorf("%w: provider and payment method are incompatible", ErrInvalidInput)
 	}
-	return nil
 }
 
-func validateContinueRequest(req *ContinueRequest) error {
+func validateContinueRequest(req ContinueRequest) error {
 	if req.OrganizationID == uuid.Nil || req.CheckoutID == uuid.Nil {
 		return fmt.Errorf("%w: organization and checkout ids are required", ErrInvalidInput)
-	}
-	req.Provider = strings.ToLower(strings.TrimSpace(req.Provider))
-	if req.Provider == "" {
-		return fmt.Errorf("%w: provider is required", ErrInvalidInput)
 	}
 	return nil
 }
