@@ -256,7 +256,7 @@ type ManagedNumberOrder struct {
 	UpdatedAt           pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 }
 
-type ManagedNumberRenewal struct {
+type NumberRenewal struct {
 	ID             uuid.UUID          `db:"id" json:"id"`
 	OrganizationID uuid.UUID          `db:"organization_id" json:"organization_id"`
 	PhoneNumberID  uuid.UUID          `db:"phone_number_id" json:"phone_number_id"`
