@@ -34,7 +34,7 @@ func (r *Repository) CreateSubscription(
 		sqlc.CreateSubscriptionPaymentParams{
 			OrganizationID: organizationID,
 			Provider:       provider,
-			SubscriptionID: subscriptionID,
+			SubscriptionID: &subscriptionID,
 			AmountMicros:   amountMicros,
 			Currency:       currency,
 			PeriodStart:    pgconv.TimeToTimestamptz(periodStart),
@@ -82,7 +82,7 @@ func (r *Repository) AttachProviderReference(
 	return r.queries.AttachPaymentProviderReference(
 		ctx,
 		sqlc.AttachPaymentProviderReferenceParams{
-			ProviderReference: req.ProviderReference,
+			ProviderReference: &req.ProviderReference,
 			ID:                req.PaymentID,
 			OrganizationID:    req.OrganizationID,
 		},
@@ -98,7 +98,7 @@ func (r *Repository) ClaimProviderEvent(
 	return r.queries.ClaimPaymentProviderEvent(
 		ctx,
 		sqlc.ClaimPaymentProviderEventParams{
-			ProviderEventID: providerEventID,
+			ProviderEventID: &providerEventID,
 			ID:              id,
 			OrganizationID:  organizationID,
 		},
@@ -118,7 +118,7 @@ func (r *Repository) MarkSucceeded(
 			CompletedAt:     pgconv.TimeToTimestamptz(completedAt),
 			ID:              id,
 			OrganizationID:  organizationID,
-			ProviderEventID: providerEventID,
+			ProviderEventID: &providerEventID,
 		},
 	)
 }
@@ -130,11 +130,11 @@ func (r *Repository) MarkFailed(
 	return r.queries.MarkPaymentFailed(
 		ctx,
 		sqlc.MarkPaymentFailedParams{
-			FailureCode:     req.FailureCode,
+			FailureCode:     &req.FailureCode,
 			CompletedAt:     pgconv.TimeToTimestamptz(req.OccurredAt),
 			ID:              req.PaymentID,
 			OrganizationID:  req.OrganizationID,
-			ProviderEventID: req.ProviderEventID,
+			ProviderEventID: &req.ProviderEventID,
 		},
 	)
 }
