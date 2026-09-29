@@ -11,8 +11,6 @@ CREATE TABLE checkouts (
     payment_method TEXT,
     next_action TEXT NOT NULL DEFAULT 'wait',
     provider_message TEXT,
-    period_start TIMESTAMPTZ,
-    period_end TIMESTAMPTZ,
     expires_at TIMESTAMPTZ NOT NULL,
     failure_code TEXT,
     completed_at TIMESTAMPTZ,
@@ -56,20 +54,9 @@ CREATE TABLE checkouts (
         ),
     CONSTRAINT chk_checkouts_purchase_shape
         CHECK (
-            (
-                purpose = 'subscription'
-                AND subscription_id IS NOT NULL
-                AND period_start IS NOT NULL
-                AND period_end IS NOT NULL
-                AND period_end > period_start
-            )
+            (purpose = 'subscription' AND subscription_id IS NOT NULL)
             OR
-            (
-                purpose = 'wallet_topup'
-                AND subscription_id IS NULL
-                AND period_start IS NULL
-                AND period_end IS NULL
-            )
+            (purpose = 'wallet_topup' AND subscription_id IS NULL)
         ),
     CONSTRAINT chk_checkouts_message
         CHECK (
