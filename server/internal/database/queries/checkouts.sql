@@ -6,8 +6,6 @@ INSERT INTO checkouts (
     reference,
     amount_micros,
     currency,
-    period_start,
-    period_end,
     expires_at
 )
 VALUES (
@@ -17,8 +15,6 @@ VALUES (
     sqlc.arg(reference),
     sqlc.arg(amount_micros),
     sqlc.arg(currency),
-    sqlc.narg(period_start),
-    sqlc.narg(period_end),
     sqlc.arg(expires_at)
 )
 RETURNING *;
