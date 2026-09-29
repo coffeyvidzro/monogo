@@ -104,7 +104,6 @@ func (r *Repository) MarkFailed(
 	checkoutID uuid.UUID,
 	id uuid.UUID,
 	failureCode string,
-	completedAt time.Time,
 ) (sqlc.Payment, error) {
 	return r.queries.MarkPaymentAttemptFailed(
 		ctx,
