@@ -7,6 +7,7 @@ import (
 	"github.com/coffeyvidzro/monogo/internal/database/pgconv"
 	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 type Repository struct {
@@ -21,9 +22,36 @@ func NewRepository(queries *sqlc.Queries) *Repository {
 
 func (r *Repository) Create(
 	ctx context.Context,
-	params sqlc.CreateCheckoutParams,
+	organizationID uuid.UUID,
+	purpose string,
+	subscriptionID *uuid.UUID,
+	amountMicros int64,
+	currency string,
+	periodStart *time.Time,
+	periodEnd *time.Time,
 ) (sqlc.Checkout, error) {
-	return r.queries.CreateCheckout(ctx, params)
+	var start pgtype.Timestamptz
+	if periodStart != nil {
+		start = pgconv.TimeToTimestamptz(*periodStart)
+	}
+
+	var end pgtype.Timestamptz
+	if periodEnd != nil {
+		end = pgconv.TimeToTimestamptz(*periodEnd)
+	}
+
+	return r.queries.CreateCheckout(
+		ctx,
+		sqlc.CreateCheckoutParams{
+			OrganizationID: organizationID,
+			Purpose:        purpose,
+			SubscriptionID: subscriptionID,
+			AmountMicros:   amountMicros,
+			Currency:       currency,
+			PeriodStart:    start,
+			PeriodEnd:      end,
+		},
+	)
 }
 
 func (r *Repository) Get(
@@ -44,6 +72,7 @@ func (r *Repository) Confirm(
 	ctx context.Context,
 	organizationID uuid.UUID,
 	id uuid.UUID,
+	provider string,
 	confirmedAt time.Time,
 ) (sqlc.Checkout, error) {
 	return r.queries.ConfirmCheckout(
@@ -52,6 +81,7 @@ func (r *Repository) Confirm(
 			ConfirmedAt:    pgconv.TimeToTimestamptz(confirmedAt),
 			ID:             id,
 			OrganizationID: organizationID,
+			Provider:       provider,
 		},
 	)
 }
@@ -60,12 +90,14 @@ func (r *Repository) Continue(
 	ctx context.Context,
 	organizationID uuid.UUID,
 	id uuid.UUID,
+	provider string,
 ) (sqlc.Checkout, error) {
 	return r.queries.ContinueCheckout(
 		ctx,
 		sqlc.ContinueCheckoutParams{
 			ID:             id,
 			OrganizationID: organizationID,
+			Provider:       provider,
 		},
 	)
 }
