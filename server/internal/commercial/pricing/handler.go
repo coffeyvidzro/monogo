@@ -20,7 +20,7 @@ func NewHandler(service *Service) *Handler {
 	}
 }
 
-func (h *Handler) Resolve(
+func (h *Handler) ResolveVoiceRate(
 	w http.ResponseWriter,
 	r *http.Request,
 ) {
@@ -30,9 +30,9 @@ func (h *Handler) Resolve(
 		return
 	}
 
-	item, err := h.service.Resolve(
+	item, err := h.service.ResolveVoiceRate(
 		r.Context(),
-		ResolveRequest{
+		ResolveVoiceRateRequest{
 			OrganizationID:    organizationID,
 			DestinationDigits: strings.TrimSpace(r.URL.Query().Get("destination")),
 			Direction:         strings.TrimSpace(r.URL.Query().Get("direction")),

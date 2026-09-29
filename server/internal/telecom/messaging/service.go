@@ -42,9 +42,9 @@ func (s *Service) AuthorizeManagedOutbound(
 	if message.Channel == string(ChannelWhatsApp) {
 		product = pricing.ProductWhatsAppOutbound
 	}
-	rate, err := s.pricing.ResolveProduct(
+	rate, err := s.pricing.ResolveProductRate(
 		ctx,
-		pricing.ResolveProductRequest{
+		pricing.ResolveProductRateRequest{
 			OrganizationID: message.OrganizationID,
 			Product:        product,
 			Selector:       "*",

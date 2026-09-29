@@ -3,7 +3,6 @@ package pricing
 import (
 	"context"
 	"errors"
-	"strings"
 	"time"
 
 	"github.com/coffeyvidzro/monogo/internal/database/pgconv"
@@ -26,17 +25,17 @@ func NewService(repo *Repository) *Service {
 	}
 }
 
-func (s *Service) Create(
+func (s *Service) CreateVoiceRate(
 	ctx context.Context,
-	req CreateRateRequest,
-) (Rate, error) {
-	if err := normalizeCreateRateRequest(&req); err != nil {
-		return Rate{}, apperror.NewBadRequest(err.Error())
+	req CreateVoiceRateRequest,
+) (VoiceRate, error) {
+	if err := normalizeCreateVoiceRateRequest(&req); err != nil {
+		return VoiceRate{}, apperror.NewBadRequest(err.Error())
 	}
 
-	row, err := s.repo.Create(
+	row, err := s.repo.CreateVoiceRate(
 		ctx,
-		sqlc.CreateCarrierRateParams{
+		sqlc.CreateVoiceRateParams{
 			OrganizationID:    req.OrganizationID,
 			DestinationPrefix: req.DestinationPrefix,
 			Direction:         req.Direction,
@@ -48,54 +47,54 @@ func (s *Service) Create(
 	)
 	var pgErr *pgconn.PgError
 	if errors.As(err, &pgErr) && pgErr.Code == "23505" {
-		return Rate{}, apperror.NewConflict("carrier rate conflict")
+		return VoiceRate{}, apperror.NewConflict("voice rate conflict")
 	}
 	if errors.Is(err, pgx.ErrNoRows) {
-		return Rate{}, apperror.NewNotFound("carrier rate not found")
+		return VoiceRate{}, apperror.NewNotFound("voice rate not found")
 	}
 	if err != nil {
-		return Rate{}, apperror.NewInternal("create carrier rate", err)
+		return VoiceRate{}, apperror.NewInternal("create voice rate", err)
 	}
 
-	return rateFromRow(row), nil
+	return voiceRateFromRow(row), nil
 }
 
-func (s *Service) Get(
+func (s *Service) GetVoiceRate(
 	ctx context.Context,
 	id uuid.UUID,
-) (Rate, error) {
+) (VoiceRate, error) {
 	if id == uuid.Nil {
-		return Rate{}, apperror.NewNotFound("carrier rate not found")
+		return VoiceRate{}, apperror.NewNotFound("voice rate not found")
 	}
 
-	row, err := s.repo.Get(
+	row, err := s.repo.GetVoiceRate(
 		ctx,
 		id,
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return Rate{}, apperror.NewNotFound("carrier rate not found")
+		return VoiceRate{}, apperror.NewNotFound("voice rate not found")
 	}
 	if err != nil {
-		return Rate{}, apperror.NewInternal("get carrier rate", err)
+		return VoiceRate{}, apperror.NewInternal("get voice rate", err)
 	}
 
-	return rateFromRow(row), nil
+	return voiceRateFromRow(row), nil
 }
 
-func (s *Service) Resolve(
+func (s *Service) ResolveVoiceRate(
 	ctx context.Context,
-	req ResolveRequest,
-) (Rate, error) {
-	if err := normalizeResolveRequest(&req); err != nil {
-		return Rate{}, apperror.NewBadRequest(err.Error())
+	req ResolveVoiceRateRequest,
+) (VoiceRate, error) {
+	if err := normalizeResolveVoiceRateRequest(&req); err != nil {
+		return VoiceRate{}, apperror.NewBadRequest(err.Error())
 	}
 	if req.ResolvedAt.IsZero() {
 		req.ResolvedAt = s.now().UTC()
 	}
 
-	row, err := s.repo.Resolve(
+	row, err := s.repo.ResolveVoiceRate(
 		ctx,
-		sqlc.ResolveCarrierRateParams{
+		sqlc.ResolveVoiceRateParams{
 			OrganizationID:    req.OrganizationID,
 			Direction:         req.Direction,
 			Currency:          req.Currency,
@@ -104,48 +103,48 @@ func (s *Service) Resolve(
 		},
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return Rate{}, apperror.NewNotFound("carrier rate not found")
+		return VoiceRate{}, apperror.NewNotFound("voice rate not found")
 	}
 	if err != nil {
-		return Rate{}, apperror.NewInternal("resolve carrier rate", err)
+		return VoiceRate{}, apperror.NewInternal("resolve voice rate", err)
 	}
 
-	return rateFromRow(row), nil
+	return voiceRateFromRow(row), nil
 }
 
-func (s *Service) ResolveProduct(
+func (s *Service) ResolveProductRate(
 	ctx context.Context,
-	req ResolveProductRequest,
+	req ResolveProductRateRequest,
 ) (ProductRate, error) {
-	req.Product = strings.TrimSpace(req.Product)
-	req.Selector = strings.ToUpper(strings.TrimSpace(req.Selector))
-	req.Currency = strings.ToUpper(strings.TrimSpace(req.Currency))
-	if req.OrganizationID == uuid.Nil ||
-		req.Product == "" ||
-		req.Selector == "" ||
-		len(req.Currency) != 3 {
-		return ProductRate{}, apperror.NewBadRequest("managed product rate request is invalid")
+	if err := normalizeResolveProductRateRequest(&req); err != nil {
+		return ProductRate{}, apperror.NewBadRequest(err.Error())
 	}
 	if req.ResolvedAt.IsZero() {
 		req.ResolvedAt = s.now().UTC()
 	}
 
-	rate, err := s.repo.ResolveProduct(
+	row, err := s.repo.ResolveProductRate(
 		ctx,
-		req,
+		sqlc.ResolveProductRateParams{
+			OrganizationID: req.OrganizationID,
+			Product:        req.Product,
+			Selector:       req.Selector,
+			Currency:       req.Currency,
+			ResolvedAt:     pgconv.TimeToTimestamptz(req.ResolvedAt),
+		},
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return ProductRate{}, apperror.NewNotFound("managed product rate not found")
+		return ProductRate{}, apperror.NewNotFound("product rate not found")
 	}
 	if err != nil {
-		return ProductRate{}, apperror.NewInternal("resolve managed product rate", err)
+		return ProductRate{}, apperror.NewInternal("resolve product rate", err)
 	}
 
-	return rate, nil
+	return productRateFromRow(row), nil
 }
 
-func rateFromRow(row sqlc.CarrierRate) Rate {
-	return Rate{
+func voiceRateFromRow(row sqlc.VoiceRate) VoiceRate {
+	return VoiceRate{
 		ID:                row.ID,
 		OrganizationID:    row.OrganizationID,
 		DestinationPrefix: row.DestinationPrefix,
@@ -155,5 +154,19 @@ func rateFromRow(row sqlc.CarrierRate) Rate {
 		EffectiveAt:       pgconv.TimestamptzToTime(row.EffectiveAt),
 		ExpiresAt:         pgconv.TimestamptzToTimePtr(row.ExpiresAt),
 		CreatedAt:         pgconv.TimestamptzToTime(row.CreatedAt),
+	}
+}
+
+func productRateFromRow(row sqlc.ProductRate) ProductRate {
+	return ProductRate{
+		ID:             row.ID,
+		OrganizationID: row.OrganizationID,
+		Product:        row.Product,
+		Selector:       row.Selector,
+		Currency:       row.Currency,
+		RateMicros:     row.RateMicros,
+		EffectiveAt:    pgconv.TimestamptzToTime(row.EffectiveAt),
+		ExpiresAt:      pgconv.TimestamptzToTimePtr(row.ExpiresAt),
+		CreatedAt:      pgconv.TimestamptzToTime(row.CreatedAt),
 	}
 }

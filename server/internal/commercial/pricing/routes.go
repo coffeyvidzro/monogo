@@ -11,9 +11,9 @@ func RegisterRoutes(
 	handler *Handler,
 	authMiddleware func(http.Handler) http.Handler,
 ) {
-	router.Route("/carrier-rates", func(r chi.Router) {
+	router.Route("/voice-rates", func(r chi.Router) {
 		r.Use(authMiddleware)
 
-		r.Get("/resolve", handler.Resolve)
+		r.Get("/resolve", handler.ResolveVoiceRate)
 	})
 }

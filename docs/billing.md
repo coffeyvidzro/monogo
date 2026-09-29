@@ -34,7 +34,7 @@ origination fails before the call is answered, the reservation is released. If
 the call is answered, the reservation is captured as an immutable wallet
 ledger debit.
 
-Customer-facing carrier rates are distinct from upstream wholesale costs. The
+Customer-facing voice rates are distinct from upstream wholesale costs. The
 difference must remain visible for reconciliation and margin reporting.
 
 ## Access matrix
@@ -70,7 +70,8 @@ activated. Automated authorization for subsequent renewal periods still needs
 a renewal scheduler before indefinite managed-number service is production
 ready.
 
-Fixed managed-product prices are stored in `managed_product_rates`. Rates may
-be global or organization-specific, are effective-dated, and support exact
-country selectors with a `*` fallback. Voice continues to use longest-prefix
-carrier rates because it is destination-rated.
+Fixed-unit managed-product prices are stored in `product_rates`. Rates may be
+global or organization-specific, are effective-dated, and support exact
+two-letter country selectors with a `*` global fallback. Per-started-minute
+voice prices are stored separately in `voice_rates` because voice resolution
+uses the longest matching telephone prefix and inbound/outbound direction.

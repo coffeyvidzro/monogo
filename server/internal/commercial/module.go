@@ -69,10 +69,7 @@ func New(deps Dependencies) *Module {
 		subscriptionsRepository,
 	)
 
-	pricingRepository := pricing.NewRepository(
-		deps.Queries,
-		deps.DB,
-	)
+	pricingRepository := pricing.NewRepository(deps.Queries)
 	pricingService := pricing.NewService(
 		pricingRepository,
 	)

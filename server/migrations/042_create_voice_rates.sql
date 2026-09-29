@@ -1,7 +1,7 @@
--- Customer-facing managed carrier pricing. This is what Leamout charges
--- customers and is separate from provider_rates, which is supplier pricing.
+-- Customer-facing per-started-minute managed voice pricing. Longest-prefix
+-- resolution is separate from provider_rates, which is supplier pricing.
 
-CREATE TABLE carrier_rates (
+CREATE TABLE voice_rates (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     organization_id UUID REFERENCES organizations(id) ON DELETE RESTRICT,
     destination_prefix TEXT NOT NULL,
@@ -12,20 +12,20 @@ CREATE TABLE carrier_rates (
     expires_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
 
-    CONSTRAINT chk_carrier_rates_destination_prefix
+    CONSTRAINT chk_voice_rates_destination_prefix
         CHECK (destination_prefix ~ '^[1-9][0-9]{0,14}$'),
-    CONSTRAINT chk_carrier_rates_direction
+    CONSTRAINT chk_voice_rates_direction
         CHECK (direction IN ('inbound', 'outbound')),
-    CONSTRAINT chk_carrier_rates_currency
+    CONSTRAINT chk_voice_rates_currency
         CHECK (currency ~ '^[A-Z]{3}$'),
-    CONSTRAINT chk_carrier_rates_rate
-        CHECK (rate_micros >= 0),
-    CONSTRAINT chk_carrier_rates_effective_window
+    CONSTRAINT chk_voice_rates_rate
+        CHECK (rate_micros > 0),
+    CONSTRAINT chk_voice_rates_effective_window
         CHECK (expires_at IS NULL OR expires_at > effective_at)
 );
 
-CREATE UNIQUE INDEX uq_carrier_rates_global
-    ON carrier_rates (
+CREATE UNIQUE INDEX uq_voice_rates_global
+    ON voice_rates (
         destination_prefix,
         direction,
         currency,
@@ -33,8 +33,8 @@ CREATE UNIQUE INDEX uq_carrier_rates_global
     )
     WHERE organization_id IS NULL;
 
-CREATE UNIQUE INDEX uq_carrier_rates_organization
-    ON carrier_rates (
+CREATE UNIQUE INDEX uq_voice_rates_organization
+    ON voice_rates (
         organization_id,
         destination_prefix,
         direction,
@@ -43,8 +43,8 @@ CREATE UNIQUE INDEX uq_carrier_rates_organization
     )
     WHERE organization_id IS NOT NULL;
 
-CREATE INDEX idx_carrier_rates_global_lookup
-    ON carrier_rates (
+CREATE INDEX idx_voice_rates_global_lookup
+    ON voice_rates (
         destination_prefix,
         direction,
         currency,
@@ -52,8 +52,8 @@ CREATE INDEX idx_carrier_rates_global_lookup
     )
     WHERE organization_id IS NULL;
 
-CREATE INDEX idx_carrier_rates_organization_lookup
-    ON carrier_rates (
+CREATE INDEX idx_voice_rates_organization_lookup
+    ON voice_rates (
         organization_id,
         destination_prefix,
         direction,

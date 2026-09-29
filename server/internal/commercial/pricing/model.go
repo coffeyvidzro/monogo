@@ -18,12 +18,12 @@ const (
 )
 
 var (
-	ErrInvalidInput = errors.New("invalid pricing input")
-	ErrRateNotFound = errors.New("carrier rate not found")
-	ErrRateConflict = errors.New("carrier rate conflict")
+	ErrInvalidInput      = errors.New("invalid pricing input")
+	ErrVoiceRateNotFound = errors.New("voice rate not found")
+	ErrVoiceRateConflict = errors.New("voice rate conflict")
 )
 
-type Rate struct {
+type VoiceRate struct {
 	ID                uuid.UUID  `json:"id"`
 	OrganizationID    *uuid.UUID `json:"organization_id,omitempty"`
 	DestinationPrefix string     `json:"destination_prefix"`
@@ -35,7 +35,7 @@ type Rate struct {
 	CreatedAt         time.Time  `json:"created_at"`
 }
 
-type CreateRateRequest struct {
+type CreateVoiceRateRequest struct {
 	OrganizationID    *uuid.UUID
 	DestinationPrefix string
 	Direction         string
@@ -45,7 +45,7 @@ type CreateRateRequest struct {
 	ExpiresAt         *time.Time
 }
 
-type ResolveRequest struct {
+type ResolveVoiceRateRequest struct {
 	OrganizationID    uuid.UUID
 	DestinationDigits string
 	Direction         string
@@ -62,9 +62,10 @@ type ProductRate struct {
 	RateMicros     int64
 	EffectiveAt    time.Time
 	ExpiresAt      *time.Time
+	CreatedAt      time.Time
 }
 
-type ResolveProductRequest struct {
+type ResolveProductRateRequest struct {
 	OrganizationID uuid.UUID
 	Product        string
 	Selector       string

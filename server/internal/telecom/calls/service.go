@@ -255,9 +255,9 @@ func (s *Service) authorizeManagedOutbound(
 	callID uuid.UUID,
 	decision routing.OutboundDecision,
 ) (routing.OutboundDecision, error) {
-	rate, err := s.pricing.Resolve(
+	rate, err := s.pricing.ResolveVoiceRate(
 		ctx,
-		pricing.ResolveRequest{
+		pricing.ResolveVoiceRateRequest{
 			OrganizationID:    organizationID,
 			DestinationDigits: decision.DestinationDigits,
 			Direction:         pricing.DirectionOutbound,
@@ -555,9 +555,9 @@ func (s *Service) authorizeManagedInbound(
 		strings.TrimSpace(destination),
 		"+",
 	)
-	rate, err := s.pricing.Resolve(
+	rate, err := s.pricing.ResolveVoiceRate(
 		ctx,
-		pricing.ResolveRequest{
+		pricing.ResolveVoiceRateRequest{
 			OrganizationID:    organizationID,
 			DestinationDigits: destinationDigits,
 			Direction:         pricing.DirectionInbound,

@@ -326,9 +326,9 @@ func (s *Service) authorizeManagedNumber(
 	if s.pricing == nil || s.wallets == nil {
 		return apperror.NewServiceUnavailable("managed number billing is not configured", nil)
 	}
-	purchaseRate, err := s.pricing.ResolveProduct(
+	purchaseRate, err := s.pricing.ResolveProductRate(
 		ctx,
-		pricing.ResolveProductRequest{
+		pricing.ResolveProductRateRequest{
 			OrganizationID: order.OrganizationID,
 			Product:        pricing.ProductNumberPurchase,
 			Selector:       order.CountryCode,
@@ -338,9 +338,9 @@ func (s *Service) authorizeManagedNumber(
 	if err != nil {
 		return err
 	}
-	renewalRate, err := s.pricing.ResolveProduct(
+	renewalRate, err := s.pricing.ResolveProductRate(
 		ctx,
-		pricing.ResolveProductRequest{
+		pricing.ResolveProductRateRequest{
 			OrganizationID: order.OrganizationID,
 			Product:        pricing.ProductNumberRenewal,
 			Selector:       order.CountryCode,

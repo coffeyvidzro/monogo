@@ -115,10 +115,7 @@ func newMessagingRuntime(ctx context.Context, queries *sqlc.Queries, db *pgxpool
 	repo := domain.NewRepository(db)
 	service := domain.NewService(repo)
 	pricingService := pricing.NewService(
-		pricing.NewRepository(
-			queries,
-			db,
-		),
+		pricing.NewRepository(queries),
 	)
 	walletService := wallets.NewService(
 		wallets.NewRepository(queries),
