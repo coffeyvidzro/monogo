@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/coffeyvidzro/monogo/internal/commercial/payments"
 	"github.com/coffeyvidzro/monogo/internal/commercial/subscriptions"
 	"github.com/coffeyvidzro/monogo/internal/commercial/wallets"
 	"github.com/coffeyvidzro/monogo/internal/database/pgconv"
@@ -14,26 +15,33 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 const checkoutTTL = 30 * time.Minute
 
 type Service struct {
 	repo          *Repository
+	payments      *payments.Service
 	subscriptions *subscriptions.Service
 	wallets       *wallets.Service
+	db            *pgxpool.Pool
 	now           func() time.Time
 }
 
 func NewService(
 	repo *Repository,
+	paymentsService *payments.Service,
 	subscriptionsService *subscriptions.Service,
 	walletsService *wallets.Service,
+	db *pgxpool.Pool,
 ) *Service {
 	return &Service{
 		repo:          repo,
+		payments:      paymentsService,
 		subscriptions: subscriptionsService,
 		wallets:       walletsService,
+		db:            db,
 		now:           time.Now,
 	}
 }
@@ -138,12 +146,40 @@ func (s *Service) Confirm(
 		return Checkout{}, apperror.NewBadRequest(err.Error())
 	}
 
-	row, err := s.repo.Confirm(ctx, req, s.now().UTC())
+	tx, err := s.db.Begin(ctx)
+	if err != nil {
+		return Checkout{}, apperror.NewInternal("begin checkout confirmation", err)
+	}
+	defer func() {
+		_ = tx.Rollback(ctx)
+	}()
+
+	repo := s.repo.WithTx(tx)
+	row, err := repo.Confirm(ctx, req, s.now().UTC())
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Checkout{}, apperror.NewConflict("checkout cannot be confirmed")
 	}
 	if err != nil {
 		return Checkout{}, apperror.NewInternal("confirm checkout", err)
+	}
+
+	paymentService := s.payments.WithTx(tx)
+	if _, err := paymentService.CreateAttempt(
+		ctx,
+		payments.CreateAttemptRequest{
+			CheckoutID:     row.ID,
+			OrganizationID: row.OrganizationID,
+			Provider:       req.Provider,
+			PaymentMethod:  req.PaymentMethod,
+			AmountMicros:   row.AmountMicros,
+			Currency:       row.Currency,
+		},
+	); err != nil {
+		return Checkout{}, err
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return Checkout{}, apperror.NewInternal("commit checkout confirmation", err)
 	}
 
 	return checkoutFromRow(row), nil
