@@ -6,7 +6,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/coffeyvidzro/monogo/internal/commercial/payments"
 	"github.com/coffeyvidzro/monogo/internal/commercial/subscriptions"
 	"github.com/coffeyvidzro/monogo/internal/commercial/wallets"
 	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
@@ -17,144 +16,210 @@ import (
 
 const testSubscriptionAmountMicros int64 = 29_000_000
 
-func TestCreateSubscriptionCheckoutSnapshotsSubscription(t *testing.T) {
+func TestCreateSubscriptionCheckoutSnapshotsPurchase(t *testing.T) {
 	service, pool, organizationID, subscriptionID := newCheckoutTestService(t)
 	now := time.Date(2026, time.September, 29, 13, 0, 0, 0, time.UTC)
-	service.now = func() time.Time {
-		return now
-	}
+	service.now = func() time.Time { return now }
 
-	result, err := service.CreateSubscription(
+	result, err := service.Create(
 		context.Background(),
-		CreateSubscriptionRequest{
+		CreateRequest{
 			OrganizationID: organizationID,
-			SubscriptionID: subscriptionID,
-			Provider:       "stripe",
+			Purpose:        PurposeSubscription,
+			SubscriptionID: &subscriptionID,
 		},
 	)
 	if err != nil {
 		t.Fatalf("create subscription checkout: %v", err)
 	}
 
-	payment := result.Payment
-	if payment.Purpose != payments.PurposeSubscription {
-		t.Fatalf("payment purpose = %q, want %q", payment.Purpose, payments.PurposeSubscription)
+	if result.Purpose != PurposeSubscription {
+		t.Fatalf("purpose = %q, want %q", result.Purpose, PurposeSubscription)
 	}
-	if payment.AmountMicros != testSubscriptionAmountMicros {
-		t.Fatalf("payment amount = %d, want %d", payment.AmountMicros, testSubscriptionAmountMicros)
+	if result.Status != StatusPending {
+		t.Fatalf("status = %q, want %q", result.Status, StatusPending)
 	}
-	if payment.Currency != "USD" {
-		t.Fatalf("payment currency = %q, want USD", payment.Currency)
+	if result.AmountMicros != testSubscriptionAmountMicros {
+		t.Fatalf("amount = %d, want %d", result.AmountMicros, testSubscriptionAmountMicros)
 	}
-	if payment.SubscriptionID == nil || *payment.SubscriptionID != subscriptionID {
-		t.Fatalf("payment subscription id = %v, want %s", payment.SubscriptionID, subscriptionID)
+	if result.Currency != "USD" {
+		t.Fatalf("currency = %q, want USD", result.Currency)
 	}
-	if payment.PeriodStart == nil || !payment.PeriodStart.Equal(now) {
-		t.Fatalf("payment period start = %v, want %v", payment.PeriodStart, now)
+	if result.SubscriptionID == nil || *result.SubscriptionID != subscriptionID {
+		t.Fatalf("subscription id = %v, want %s", result.SubscriptionID, subscriptionID)
 	}
-	wantEnd := now.AddDate(0, 1, 0)
-	if payment.PeriodEnd == nil || !payment.PeriodEnd.Equal(wantEnd) {
-		t.Fatalf("payment period end = %v, want %v", payment.PeriodEnd, wantEnd)
+	if result.Reference == "" {
+		t.Fatal("reference is empty")
+	}
+	if !result.ExpiresAt.Equal(now.Add(checkoutTTL)) {
+		t.Fatalf("expires_at = %v, want %v", result.ExpiresAt, now.Add(checkoutTTL))
 	}
 
 	assertSubscriptionStatus(t, pool, subscriptionID, subscriptions.StatusPending)
 }
 
-func TestCompleteSubscriptionCheckoutActivatesAndReplays(t *testing.T) {
+func TestConfirmCheckoutCreatesInternalPaymentAttempt(t *testing.T) {
 	service, pool, organizationID, subscriptionID := newCheckoutTestService(t)
 	now := time.Date(2026, time.September, 29, 13, 0, 0, 0, time.UTC)
-	service.now = func() time.Time {
-		return now
-	}
+	service.now = func() time.Time { return now }
 
-	result, err := service.CreateSubscription(
+	checkout, err := service.Create(
 		context.Background(),
-		CreateSubscriptionRequest{
+		CreateRequest{
 			OrganizationID: organizationID,
-			SubscriptionID: subscriptionID,
-			Provider:       "stripe",
+			Purpose:        PurposeSubscription,
+			SubscriptionID: &subscriptionID,
 		},
 	)
 	if err != nil {
-		t.Fatalf("create subscription checkout: %v", err)
+		t.Fatalf("create checkout: %v", err)
 	}
 
-	complete := CompleteRequest{
-		OrganizationID:  organizationID,
-		PaymentID:       result.Payment.ID,
-		ProviderEventID: "evt_subscription_paid",
-		OccurredAt:      now.Add(time.Minute),
-	}
-	completed, err := service.Complete(context.Background(), complete)
+	confirmed, err := service.Confirm(
+		context.Background(),
+		ConfirmRequest{
+			OrganizationID: organizationID,
+			CheckoutID:     checkout.ID,
+			Provider:       ProviderStripe,
+			PaymentMethod:  PaymentMethodCard,
+		},
+	)
 	if err != nil {
-		t.Fatalf("complete subscription checkout: %v", err)
-	}
-	if completed.Payment.Status != payments.StatusSucceeded {
-		t.Fatalf("payment status = %q, want %q", completed.Payment.Status, payments.StatusSucceeded)
+		t.Fatalf("confirm checkout: %v", err)
 	}
 
-	replayed, err := service.Complete(context.Background(), complete)
-	if err != nil {
-		t.Fatalf("replay subscription checkout completion: %v", err)
+	if confirmed.Status != StatusProcessing {
+		t.Fatalf("status = %q, want %q", confirmed.Status, StatusProcessing)
 	}
-	if replayed.Payment.ID != completed.Payment.ID {
-		t.Fatalf("replayed payment id = %s, want %s", replayed.Payment.ID, completed.Payment.ID)
+	if confirmed.Provider == nil || *confirmed.Provider != ProviderStripe {
+		t.Fatalf("provider = %v, want %q", confirmed.Provider, ProviderStripe)
+	}
+	if confirmed.PaymentMethod == nil || *confirmed.PaymentMethod != PaymentMethodCard {
+		t.Fatalf("payment method = %v, want %q", confirmed.PaymentMethod, PaymentMethodCard)
 	}
 
 	var (
-		status      string
-		periodStart time.Time
-		periodEnd   time.Time
+		attempt int32
+		amount  int64
 	)
 	if err := pool.QueryRow(
 		context.Background(),
-		`SELECT status, current_period_start, current_period_end
-		 FROM subscriptions
-		 WHERE id = $1`,
-		subscriptionID,
-	).Scan(&status, &periodStart, &periodEnd); err != nil {
-		t.Fatalf("read activated subscription: %v", err)
+		`SELECT attempt, amount_micros
+		 FROM payments
+		 WHERE checkout_id = $1`,
+		checkout.ID,
+	).Scan(&attempt, &amount); err != nil {
+		t.Fatalf("read payment attempt: %v", err)
 	}
-	if status != subscriptions.StatusActive {
-		t.Fatalf("subscription status = %q, want %q", status, subscriptions.StatusActive)
+	if attempt != 1 {
+		t.Fatalf("attempt = %d, want 1", attempt)
 	}
-	if !periodStart.Equal(now) {
-		t.Fatalf("subscription period start = %v, want %v", periodStart, now)
+	if amount != testSubscriptionAmountMicros {
+		t.Fatalf("payment amount = %d, want %d", amount, testSubscriptionAmountMicros)
 	}
-	if !periodEnd.Equal(now.AddDate(0, 1, 0)) {
-		t.Fatalf("subscription period end = %v, want %v", periodEnd, now.AddDate(0, 1, 0))
+}
+
+func TestCompleteSubscriptionCheckoutActivatesAndReplays(t *testing.T) {
+	service, pool, organizationID, subscriptionID := newCheckoutTestService(t)
+	now := time.Date(2026, time.September, 29, 13, 0, 0, 0, time.UTC)
+	service.now = func() time.Time { return now }
+
+	checkout, err := service.Create(
+		context.Background(),
+		CreateRequest{
+			OrganizationID: organizationID,
+			Purpose:        PurposeSubscription,
+			SubscriptionID: &subscriptionID,
+		},
+	)
+	if err != nil {
+		t.Fatalf("create checkout: %v", err)
 	}
+	if _, err := service.Confirm(
+		context.Background(),
+		ConfirmRequest{
+			OrganizationID: organizationID,
+			CheckoutID:     checkout.ID,
+			Provider:       ProviderStripe,
+			PaymentMethod:  PaymentMethodCard,
+		},
+	); err != nil {
+		t.Fatalf("confirm checkout: %v", err)
+	}
+
+	completedAt := now.Add(time.Minute)
+	completed, err := service.Complete(
+		context.Background(),
+		organizationID,
+		checkout.ID,
+		completedAt,
+	)
+	if err != nil {
+		t.Fatalf("complete checkout: %v", err)
+	}
+	if completed.Status != StatusSucceeded {
+		t.Fatalf("status = %q, want %q", completed.Status, StatusSucceeded)
+	}
+
+	replayed, err := service.Complete(
+		context.Background(),
+		organizationID,
+		checkout.ID,
+		completedAt,
+	)
+	if err != nil {
+		t.Fatalf("replay checkout completion: %v", err)
+	}
+	if replayed.ID != completed.ID {
+		t.Fatalf("replayed checkout id = %s, want %s", replayed.ID, completed.ID)
+	}
+
+	assertSubscriptionStatus(t, pool, subscriptionID, subscriptions.StatusActive)
 }
 
 func TestCompleteWalletTopupCreditsOnceAndReplays(t *testing.T) {
 	service, pool, organizationID, _ := newCheckoutTestService(t)
 	now := time.Date(2026, time.September, 29, 13, 0, 0, 0, time.UTC)
-	service.now = func() time.Time {
-		return now
-	}
+	service.now = func() time.Time { return now }
 
-	result, err := service.CreateWalletTopup(
+	checkout, err := service.Create(
 		context.Background(),
-		CreateWalletTopupRequest{
+		CreateRequest{
 			OrganizationID: organizationID,
-			Provider:       "paystack",
+			Purpose:        PurposeWalletTopup,
 			AmountMicros:   50_000_000,
 		},
 	)
 	if err != nil {
 		t.Fatalf("create wallet top-up checkout: %v", err)
 	}
-
-	complete := CompleteRequest{
-		OrganizationID:  organizationID,
-		PaymentID:       result.Payment.ID,
-		ProviderEventID: "evt_wallet_topup",
-		OccurredAt:      now.Add(time.Minute),
+	if _, err := service.Confirm(
+		context.Background(),
+		ConfirmRequest{
+			OrganizationID: organizationID,
+			CheckoutID:     checkout.ID,
+			Provider:       ProviderPaystack,
+			PaymentMethod:  PaymentMethodMobileMoney,
+		},
+	); err != nil {
+		t.Fatalf("confirm wallet top-up checkout: %v", err)
 	}
-	if _, err := service.Complete(context.Background(), complete); err != nil {
+
+	completedAt := now.Add(time.Minute)
+	if _, err := service.Complete(
+		context.Background(),
+		organizationID,
+		checkout.ID,
+		completedAt,
+	); err != nil {
 		t.Fatalf("complete wallet top-up checkout: %v", err)
 	}
-	if _, err := service.Complete(context.Background(), complete); err != nil {
+	if _, err := service.Complete(
+		context.Background(),
+		organizationID,
+		checkout.ID,
+		completedAt,
+	); err != nil {
 		t.Fatalf("replay wallet top-up completion: %v", err)
 	}
 
@@ -178,49 +243,56 @@ func TestCompleteWalletTopupCreditsOnceAndReplays(t *testing.T) {
 		`SELECT count(*)
 		 FROM wallet_ledger_entries
 		 WHERE operation_id = $1`,
-		result.Payment.ID,
+		checkout.ID,
 	).Scan(&ledgerCount); err != nil {
 		t.Fatalf("count top-up ledger entries: %v", err)
 	}
 	if ledgerCount != 1 {
-		t.Fatalf("top-up ledger entries = %d, want 1", ledgerCount)
+		t.Fatalf("ledger entries = %d, want 1", ledgerCount)
 	}
 }
 
-func TestFailedCheckoutDoesNotCompleteSubscription(t *testing.T) {
+func TestFailedCheckoutDoesNotApplySubscription(t *testing.T) {
 	service, pool, organizationID, subscriptionID := newCheckoutTestService(t)
 	now := time.Date(2026, time.September, 29, 13, 0, 0, 0, time.UTC)
-	service.now = func() time.Time {
-		return now
-	}
+	service.now = func() time.Time { return now }
 
-	result, err := service.CreateSubscription(
+	checkout, err := service.Create(
 		context.Background(),
-		CreateSubscriptionRequest{
+		CreateRequest{
 			OrganizationID: organizationID,
-			SubscriptionID: subscriptionID,
-			Provider:       "stripe",
+			Purpose:        PurposeSubscription,
+			SubscriptionID: &subscriptionID,
 		},
 	)
 	if err != nil {
-		t.Fatalf("create subscription checkout: %v", err)
+		t.Fatalf("create checkout: %v", err)
+	}
+	if _, err := service.Confirm(
+		context.Background(),
+		ConfirmRequest{
+			OrganizationID: organizationID,
+			CheckoutID:     checkout.ID,
+			Provider:       ProviderStripe,
+			PaymentMethod:  PaymentMethodCard,
+		},
+	); err != nil {
+		t.Fatalf("confirm checkout: %v", err)
 	}
 
+	message := "card declined"
 	failed, err := service.Fail(
 		context.Background(),
-		FailRequest{
-			OrganizationID:  organizationID,
-			PaymentID:       result.Payment.ID,
-			ProviderEventID: "evt_subscription_failed",
-			FailureCode:     "card_declined",
-			OccurredAt:      now.Add(time.Minute),
-		},
+		organizationID,
+		checkout.ID,
+		&message,
+		now.Add(time.Minute),
 	)
 	if err != nil {
-		t.Fatalf("fail subscription checkout: %v", err)
+		t.Fatalf("fail checkout: %v", err)
 	}
-	if failed.Payment.Status != payments.StatusFailed {
-		t.Fatalf("payment status = %q, want %q", failed.Payment.Status, payments.StatusFailed)
+	if failed.Status != StatusFailed {
+		t.Fatalf("status = %q, want %q", failed.Status, StatusFailed)
 	}
 
 	assertSubscriptionStatus(t, pool, subscriptionID, subscriptions.StatusPending)
@@ -242,10 +314,8 @@ func newCheckoutTestService(
 		t.Fatalf("open test postgres: %v", err)
 	}
 
-	schema := "checkout_test_" + uuid.New().String()
-	schema = checkoutStripHyphens(schema)
+	schema := checkoutStripHyphens("checkout_test_" + uuid.New().String())
 	quotedSchema := pgx.Identifier{schema}.Sanitize()
-
 	if _, err := admin.Exec(ctx, "CREATE SCHEMA "+quotedSchema); err != nil {
 		admin.Close()
 		t.Fatalf("create checkout test schema: %v", err)
@@ -253,7 +323,6 @@ func newCheckoutTestService(
 
 	config, err := pgxpool.ParseConfig(databaseURL)
 	if err != nil {
-		_, _ = admin.Exec(ctx, "DROP SCHEMA "+quotedSchema+" CASCADE")
 		admin.Close()
 		t.Fatalf("parse checkout test database config: %v", err)
 	}
@@ -261,7 +330,6 @@ func newCheckoutTestService(
 
 	pool, err := pgxpool.NewWithConfig(ctx, config)
 	if err != nil {
-		_, _ = admin.Exec(ctx, "DROP SCHEMA "+quotedSchema+" CASCADE")
 		admin.Close()
 		t.Fatalf("open checkout test pool: %v", err)
 	}
@@ -286,7 +354,7 @@ func newCheckoutTestService(
 		 VALUES ($1, 'active')`,
 		organizationID,
 	); err != nil {
-		t.Fatalf("insert checkout organization: %v", err)
+		t.Fatalf("insert organization: %v", err)
 	}
 
 	if _, err := pool.Exec(
@@ -305,22 +373,19 @@ func newCheckoutTestService(
 		uuid.New(),
 		testSubscriptionAmountMicros,
 	); err != nil {
-		t.Fatalf("insert checkout subscription: %v", err)
+		t.Fatalf("insert subscription: %v", err)
 	}
 
 	queries := sqlc.New(pool)
-
-	subscriptionsRepository := subscriptions.NewRepository(queries)
-	subscriptionsService := subscriptions.NewService(subscriptionsRepository)
-
-	walletsRepository := wallets.NewRepository(queries)
-	walletsService := wallets.NewService(walletsRepository, pool)
-
-	paymentsRepository := payments.NewRepository(queries)
-	paymentsService := payments.NewService(paymentsRepository)
-
+	subscriptionsService := subscriptions.NewService(
+		subscriptions.NewRepository(queries),
+	)
+	walletsService := wallets.NewService(
+		wallets.NewRepository(queries),
+		pool,
+	)
 	service := NewService(
-		paymentsService,
+		NewRepository(queries),
 		subscriptionsService,
 		walletsService,
 	)
@@ -403,40 +468,47 @@ func createCheckoutTestSchema(
 			FOREIGN KEY (wallet_id, organization_id)
 				REFERENCES wallets (id, organization_id)
 		)`,
-		`CREATE TABLE payments (
+		`CREATE TABLE checkouts (
 			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
 			organization_id UUID NOT NULL REFERENCES organizations(id),
 			purpose TEXT NOT NULL,
-			provider TEXT NOT NULL,
 			subscription_id UUID,
+			reference TEXT NOT NULL UNIQUE,
 			amount_micros BIGINT NOT NULL,
 			currency CHAR(3) NOT NULL,
 			status TEXT NOT NULL DEFAULT 'pending',
-			provider_reference TEXT,
-			provider_event_id TEXT,
+			provider TEXT,
+			payment_method TEXT,
+			next_action TEXT NOT NULL DEFAULT 'wait',
+			provider_message TEXT,
 			period_start TIMESTAMPTZ,
 			period_end TIMESTAMPTZ,
-			failure_code TEXT,
+			expires_at TIMESTAMPTZ NOT NULL,
 			completed_at TIMESTAMPTZ,
+			created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+			updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+			UNIQUE (id, organization_id)
+		)`,
+		`CREATE TABLE payments (
+			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+			checkout_id UUID NOT NULL,
+			organization_id UUID NOT NULL,
+			provider TEXT NOT NULL,
+			attempt INTEGER NOT NULL,
+			provider_payment_id TEXT,
+			amount_micros BIGINT NOT NULL,
+			currency CHAR(3) NOT NULL,
+			status TEXT NOT NULL DEFAULT 'pending',
+			failure_code TEXT,
+			paid_at TIMESTAMPTZ,
+			metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
 			created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
 			updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 		)`,
-		`CREATE UNIQUE INDEX uq_checkout_provider_reference
-			ON payments (provider, provider_reference)
-			WHERE provider_reference IS NOT NULL`,
-		`CREATE UNIQUE INDEX uq_checkout_provider_event
-			ON payments (provider, provider_event_id)
-			WHERE provider_event_id IS NOT NULL`,
-		`CREATE UNIQUE INDEX uq_checkout_pending_subscription
-			ON payments (subscription_id)
-			WHERE purpose = 'subscription' AND status = 'pending'`,
 	}
 
 	for _, statement := range statements {
-		if _, err := pool.Exec(
-			context.Background(),
-			statement,
-		); err != nil {
+		if _, err := pool.Exec(context.Background(), statement); err != nil {
 			t.Fatalf("create checkout test schema: %v", err)
 		}
 	}
@@ -472,6 +544,5 @@ func checkoutStripHyphens(value string) string {
 			result = append(result, value[index])
 		}
 	}
-
 	return string(result)
 }
