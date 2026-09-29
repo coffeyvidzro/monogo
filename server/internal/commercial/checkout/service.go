@@ -3,6 +3,7 @@ package checkout
 import (
 	"context"
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/coffeyvidzro/monogo/internal/commercial/subscriptions"
@@ -14,6 +15,8 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 )
+
+const checkoutTTL = 30 * time.Minute
 
 type Service struct {
 	repo          *Repository
@@ -43,6 +46,7 @@ func (s *Service) Create(
 		return Checkout{}, apperror.NewBadRequest(err.Error())
 	}
 
+	now := s.now().UTC()
 	var (
 		subscriptionID *uuid.UUID
 		amountMicros   int64
@@ -53,7 +57,11 @@ func (s *Service) Create(
 
 	switch req.Purpose {
 	case PurposeSubscription:
-		subscription, err := s.subscriptions.Get(ctx, req.OrganizationID, *req.SubscriptionID)
+		subscription, err := s.subscriptions.Get(
+			ctx,
+			req.OrganizationID,
+			*req.SubscriptionID,
+		)
 		if err != nil {
 			return Checkout{}, err
 		}
@@ -64,7 +72,7 @@ func (s *Service) Create(
 			return Checkout{}, apperror.NewBadRequest("subscription does not require checkout")
 		}
 
-		start := s.now().UTC()
+		start := now
 		end := start.AddDate(0, 1, 0)
 		subscriptionID = &subscription.ID
 		amountMicros = subscription.AmountMicros
@@ -75,24 +83,30 @@ func (s *Service) Create(
 	case PurposeWalletTopup:
 		wallet, err := s.wallets.Create(
 			ctx,
-			wallets.CreateRequest{OrganizationID: req.OrganizationID},
+			wallets.CreateRequest{
+				OrganizationID: req.OrganizationID,
+			},
 		)
 		if err != nil {
 			return Checkout{}, err
 		}
+
 		amountMicros = req.AmountMicros
 		currency = wallet.Currency
 	}
 
+	reference := newReference()
 	row, err := s.repo.Create(
 		ctx,
 		req.OrganizationID,
 		req.Purpose,
 		subscriptionID,
+		reference,
 		amountMicros,
 		currency,
 		periodStart,
 		periodEnd,
+		now.Add(checkoutTTL),
 	)
 	if isUniqueViolation(err) {
 		return Checkout{}, apperror.NewConflict("active checkout already exists")
@@ -132,13 +146,7 @@ func (s *Service) Confirm(
 		return Checkout{}, apperror.NewBadRequest(err.Error())
 	}
 
-	row, err := s.repo.Confirm(
-		ctx,
-		req.OrganizationID,
-		req.CheckoutID,
-		req.Provider,
-		s.now().UTC(),
-	)
+	row, err := s.repo.Confirm(ctx, req, s.now().UTC())
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Checkout{}, apperror.NewConflict("checkout cannot be confirmed")
 	}
@@ -153,15 +161,15 @@ func (s *Service) Continue(
 	ctx context.Context,
 	req ContinueRequest,
 ) (Checkout, error) {
-	if err := validateContinueRequest(&req); err != nil {
+	if err := validateContinueRequest(req); err != nil {
 		return Checkout{}, apperror.NewBadRequest(err.Error())
 	}
 
-	row, err := s.repo.Continue(
+	row, err := s.repo.GetForContinuation(
 		ctx,
 		req.OrganizationID,
 		req.CheckoutID,
-		req.Provider,
+		s.now().UTC(),
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Checkout{}, apperror.NewConflict("checkout cannot continue")
@@ -175,22 +183,29 @@ func (s *Service) Continue(
 
 func checkoutFromRow(row sqlc.Checkout) Checkout {
 	return Checkout{
-		ID:             row.ID,
-		OrganizationID: row.OrganizationID,
-		Purpose:        row.Purpose,
-		Status:         row.Status,
-		SubscriptionID: row.SubscriptionID,
-		AmountMicros:   row.AmountMicros,
-		Currency:       row.Currency,
-		PeriodStart:    pgconv.TimestamptzToTimePtr(row.PeriodStart),
-		PeriodEnd:      pgconv.TimestamptzToTimePtr(row.PeriodEnd),
-		FailureCode:    row.FailureCode,
-		ConfirmedAt:    pgconv.TimestamptzToTimePtr(row.ConfirmedAt),
-		CompletedAt:    pgconv.TimestamptzToTimePtr(row.CompletedAt),
-		FailedAt:       pgconv.TimestamptzToTimePtr(row.FailedAt),
-		CreatedAt:      pgconv.TimestamptzToTime(row.CreatedAt),
-		UpdatedAt:      pgconv.TimestamptzToTime(row.UpdatedAt),
+		ID:              row.ID,
+		OrganizationID:  row.OrganizationID,
+		Purpose:         row.Purpose,
+		SubscriptionID:  row.SubscriptionID,
+		Reference:       row.Reference,
+		AmountMicros:    row.AmountMicros,
+		Currency:        row.Currency,
+		Status:          row.Status,
+		Provider:        row.Provider,
+		PaymentMethod:   row.PaymentMethod,
+		NextAction:      row.NextAction,
+		ProviderMessage: row.ProviderMessage,
+		PeriodStart:     pgconv.TimestamptzToTimePtr(row.PeriodStart),
+		PeriodEnd:       pgconv.TimestamptzToTimePtr(row.PeriodEnd),
+		ExpiresAt:       pgconv.TimestamptzToTime(row.ExpiresAt),
+		CompletedAt:     pgconv.TimestamptzToTimePtr(row.CompletedAt),
+		CreatedAt:       pgconv.TimestamptzToTime(row.CreatedAt),
+		UpdatedAt:       pgconv.TimestamptzToTime(row.UpdatedAt),
 	}
+}
+
+func newReference() string {
+	return "co_" + strings.ReplaceAll(uuid.NewString(), "-", "")
 }
 
 func isUniqueViolation(err error) bool {
