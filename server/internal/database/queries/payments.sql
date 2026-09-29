@@ -3,6 +3,7 @@ INSERT INTO payments (
     checkout_id,
     organization_id,
     provider,
+    payment_method,
     attempt,
     amount_micros,
     currency
@@ -11,6 +12,7 @@ VALUES (
     sqlc.arg(checkout_id),
     sqlc.arg(organization_id),
     sqlc.arg(provider),
+    sqlc.arg(payment_method),
     sqlc.arg(attempt),
     sqlc.arg(amount_micros),
     sqlc.arg(currency)
