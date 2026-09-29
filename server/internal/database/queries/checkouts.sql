@@ -103,6 +103,7 @@ SET
     status = 'failed',
     next_action = 'none',
     provider_message = sqlc.narg(provider_message),
+    failure_code = sqlc.arg(failure_code),
     completed_at = sqlc.arg(completed_at)
 WHERE c.id = sqlc.arg(checkout_id)
   AND c.organization_id = sqlc.arg(organization_id)
