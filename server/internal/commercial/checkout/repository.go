@@ -129,3 +129,14 @@ func (r *Repository) Fail(
 		},
 	)
 }
+
+
+func (r *Repository) ExpireDue(
+	ctx context.Context,
+	completedAt time.Time,
+) (int64, error) {
+	return r.queries.ExpireDueCheckouts(
+		ctx,
+		pgconv.TimeToTimestamptz(completedAt),
+	)
+}
