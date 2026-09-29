@@ -57,44 +57,17 @@ func (q *Queries) CompleteCheckout(ctx context.Context, arg CompleteCheckoutPara
 }
 
 const confirmCheckout = `-- name: ConfirmCheckout :one
-WITH updated_checkout AS (
-    UPDATE checkouts AS c
-    SET
-        status = 'processing',
-        provider = $1,
-        payment_method = $2,
-        next_action = 'wait'
-    WHERE c.id = $3
-      AND c.organization_id = $4
-      AND c.status = 'pending'
-      AND c.expires_at > $5
-    RETURNING c.id, c.organization_id, c.purpose, c.subscription_id, c.reference, c.amount_micros, c.currency, c.status, c.provider, c.payment_method, c.next_action, c.provider_message, c.expires_at, c.failure_code, c.completed_at, c.created_at, c.updated_at
-),
-created_payment AS (
-    INSERT INTO payments (
-        checkout_id,
-        organization_id,
-        provider,
-        payment_method,
-        attempt,
-        amount_micros,
-        currency
-    )
-    SELECT
-        u.id,
-        u.organization_id,
-        u.provider,
-        u.payment_method,
-        1,
-        u.amount_micros,
-        u.currency
-    FROM updated_checkout AS u
-    RETURNING checkout_id
-)
-SELECT u.id, u.organization_id, u.purpose, u.subscription_id, u.reference, u.amount_micros, u.currency, u.status, u.provider, u.payment_method, u.next_action, u.provider_message, u.expires_at, u.failure_code, u.completed_at, u.created_at, u.updated_at
-FROM updated_checkout AS u
-JOIN created_payment AS p
-  ON p.checkout_id = u.id
+UPDATE checkouts AS c
+SET
+    status = 'processing',
+    provider = $1,
+    payment_method = $2,
+    next_action = 'wait'
+WHERE c.id = $3
+  AND c.organization_id = $4
+  AND c.status = 'pending'
+  AND c.expires_at > $5
+RETURNING c.id, c.organization_id, c.purpose, c.subscription_id, c.reference, c.amount_micros, c.currency, c.status, c.provider, c.payment_method, c.next_action, c.provider_message, c.expires_at, c.failure_code, c.completed_at, c.created_at, c.updated_at
 `
 
 type ConfirmCheckoutParams struct {
@@ -105,27 +78,7 @@ type ConfirmCheckoutParams struct {
 	NowAt          pgtype.Timestamptz `db:"now_at" json:"now_at"`
 }
 
-type ConfirmCheckoutRow struct {
-	ID              uuid.UUID          `db:"id" json:"id"`
-	OrganizationID  uuid.UUID          `db:"organization_id" json:"organization_id"`
-	Purpose         string             `db:"purpose" json:"purpose"`
-	SubscriptionID  *uuid.UUID         `db:"subscription_id" json:"subscription_id"`
-	Reference       string             `db:"reference" json:"reference"`
-	AmountMicros    int64              `db:"amount_micros" json:"amount_micros"`
-	Currency        string             `db:"currency" json:"currency"`
-	Status          string             `db:"status" json:"status"`
-	Provider        *string            `db:"provider" json:"provider"`
-	PaymentMethod   *string            `db:"payment_method" json:"payment_method"`
-	NextAction      string             `db:"next_action" json:"next_action"`
-	ProviderMessage *string            `db:"provider_message" json:"provider_message"`
-	ExpiresAt       pgtype.Timestamptz `db:"expires_at" json:"expires_at"`
-	FailureCode     *string            `db:"failure_code" json:"failure_code"`
-	CompletedAt     pgtype.Timestamptz `db:"completed_at" json:"completed_at"`
-	CreatedAt       pgtype.Timestamptz `db:"created_at" json:"created_at"`
-	UpdatedAt       pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
-}
-
-func (q *Queries) ConfirmCheckout(ctx context.Context, arg ConfirmCheckoutParams) (ConfirmCheckoutRow, error) {
+func (q *Queries) ConfirmCheckout(ctx context.Context, arg ConfirmCheckoutParams) (Checkout, error) {
 	row := q.db.QueryRow(ctx, confirmCheckout,
 		arg.Provider,
 		arg.PaymentMethod,
@@ -133,7 +86,7 @@ func (q *Queries) ConfirmCheckout(ctx context.Context, arg ConfirmCheckoutParams
 		arg.OrganizationID,
 		arg.NowAt,
 	)
-	var i ConfirmCheckoutRow
+	var i Checkout
 	err := row.Scan(
 		&i.ID,
 		&i.OrganizationID,
