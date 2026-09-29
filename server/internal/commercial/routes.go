@@ -1,9 +1,9 @@
 package commercial
 
 import (
-	"github.com/coffeyvidzro/monogo/internal/commercial/checkout"
 	"net/http"
 
+	"github.com/coffeyvidzro/monogo/internal/commercial/checkout"
 	"github.com/coffeyvidzro/monogo/internal/commercial/plans"
 	"github.com/coffeyvidzro/monogo/internal/commercial/pricing"
 	"github.com/coffeyvidzro/monogo/internal/commercial/subscriptions"
