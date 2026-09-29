@@ -4,12 +4,16 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"math"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/coffeyvidzro/monogo/internal/commercial/pricing"
+	"github.com/coffeyvidzro/monogo/internal/commercial/providercosts"
 	"github.com/coffeyvidzro/monogo/internal/commercial/wallets"
 	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
 	"github.com/coffeyvidzro/monogo/internal/integrations/carriers/didww"
@@ -21,12 +25,13 @@ import (
 )
 
 type Service struct {
-	repo      *Repository
-	inventory *didww.Client
-	db        *pgxpool.Pool
-	now       func() time.Time
-	pricing   *pricing.Service
-	wallets   *wallets.Service
+	repo          *Repository
+	inventory     *didww.Client
+	db            *pgxpool.Pool
+	now           func() time.Time
+	pricing       *pricing.Service
+	wallets       *wallets.Service
+	providerCosts *providercosts.Service
 }
 
 func (s *Service) ConfigureBilling(
@@ -35,6 +40,10 @@ func (s *Service) ConfigureBilling(
 ) {
 	s.pricing = pricingService
 	s.wallets = walletsService
+}
+
+func (s *Service) ConfigureProviderCosts(service *providercosts.Service) {
+	s.providerCosts = service
 }
 
 func NewService(repository *Repository, inventory *didww.Client) *Service {
@@ -449,6 +458,9 @@ func (s *Service) Reconcile(ctx context.Context, orderID uuid.UUID) (ManagedOrde
 			if err := s.captureManagedNumber(ctx, order); err != nil {
 				return ManagedOrder{}, err
 			}
+			if err := s.recordManagedNumberPurchaseCost(ctx, order); err != nil {
+				return ManagedOrder{}, err
+			}
 		}
 		return order, nil
 	}
@@ -545,6 +557,9 @@ func (s *Service) Reconcile(ctx context.Context, orderID uuid.UUID) (ManagedOrde
 	if err := s.captureManagedNumber(ctx, order); err != nil {
 		return ManagedOrder{}, err
 	}
+	if err := s.recordManagedNumberPurchaseCost(ctx, order); err != nil {
+		return ManagedOrder{}, err
+	}
 
 	return order, nil
 }
@@ -629,6 +644,7 @@ func (s *Service) activateManagedNumber(
 		order,
 		didID,
 		target.CarrierConnectionID,
+		verifiedAt.AddDate(0, 1, 0),
 	)
 	if err != nil {
 		return ManagedOrder{}, managedWriteError(err)
@@ -647,4 +663,164 @@ func (s *Service) activateManagedNumber(
 		return ManagedOrder{}, apperror.NewInternal("commit managed number activation", err)
 	}
 	return order, nil
+}
+
+func (s *Service) processRenewal(
+	ctx context.Context,
+	due sqlc.ListManagedNumberRenewalsDueRow,
+) error {
+	if s.pricing == nil || s.wallets == nil {
+		return fmt.Errorf("managed number renewal billing is not configured")
+	}
+	now := s.now().UTC()
+	renewal, err := s.repo.ClaimRenewal(ctx, due.ID, now)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("claim managed number renewal: %w", err)
+	}
+	rate, err := s.pricing.ResolveProductRate(
+		ctx,
+		pricing.ResolveProductRateRequest{
+			OrganizationID: renewal.OrganizationID,
+			Product:        pricing.ProductNumberRenewal,
+			Selector:       due.CountryCode,
+			Currency:       wallets.CurrencyUSD,
+		},
+	)
+	if err != nil {
+		return s.deferRenewal(ctx, renewal, err)
+	}
+	referenceType := "managed_number_renewal"
+	referenceID := renewal.ID
+	_, err = s.wallets.Hold(
+		ctx,
+		wallets.HoldRequest{
+			OrganizationID: renewal.OrganizationID,
+			OperationID:    renewal.OperationID,
+			AmountMicros:   rate.RateMicros,
+			Reason:         "managed_number_renewal",
+			ReferenceType:  &referenceType,
+			ReferenceID:    &referenceID,
+		},
+	)
+	if err != nil {
+		return s.deferRenewal(ctx, renewal, err)
+	}
+	if _, err := s.wallets.Capture(
+		ctx,
+		renewal.OrganizationID,
+		renewal.OperationID,
+	); err != nil {
+		return s.deferRenewal(ctx, renewal, err)
+	}
+	if err := s.repo.CompleteRenewal(
+		ctx,
+		renewal,
+		rate.RateMicros,
+		wallets.CurrencyUSD,
+		now,
+	); err != nil {
+		return fmt.Errorf("complete managed number renewal: %w", err)
+	}
+	return nil
+}
+
+func (s *Service) deferRenewal(
+	ctx context.Context,
+	renewal sqlc.ManagedNumberRenewal,
+	cause error,
+) error {
+	nextAttempt := s.now().UTC().Add(renewalRetryDelay(renewal.AttemptCount))
+	if err := s.repo.RetryRenewal(ctx, renewal.ID, nextAttempt, cause); err != nil {
+		return fmt.Errorf("schedule managed number renewal retry: %w", err)
+	}
+	return nil
+}
+
+func renewalRetryDelay(attempt int32) time.Duration {
+	delay := time.Hour
+	for current := int32(1); current < attempt && delay < 24*time.Hour; current++ {
+		delay *= 2
+	}
+	if delay > 24*time.Hour {
+		return 24 * time.Hour
+	}
+	return delay
+}
+
+func (s *Service) recordManagedNumberPurchaseCost(
+	ctx context.Context,
+	order ManagedOrder,
+) error {
+	if s.providerCosts == nil {
+		return apperror.NewServiceUnavailable("provider cost accounting is not configured", nil)
+	}
+	if order.ProviderOrderID == nil {
+		return apperror.NewInternal("record managed number provider cost", errors.New("provider order id is missing"))
+	}
+	providerOrder, err := s.inventory.GetOrder(ctx, *order.ProviderOrderID)
+	if err != nil {
+		return apperror.NewServiceUnavailable("provider order cost is unavailable", err)
+	}
+	amountMicros, err := decimalMicros(providerOrder.Attributes.Amount)
+	if err != nil {
+		return apperror.NewInternal("parse managed number provider cost", err)
+	}
+	payload, err := json.Marshal(providerOrder)
+	if err != nil {
+		return apperror.NewInternal("encode managed number provider cost evidence", err)
+	}
+	_, err = s.providerCosts.Record(
+		ctx,
+		providercosts.RecordRequest{
+			ProviderID:       order.ProviderID,
+			OperationID:      managedNumberOperationID(order.ID),
+			ProviderRecordID: "order:" + providerOrder.ID,
+			Product:          pricing.ProductNumberPurchase,
+			Currency:         wallets.CurrencyUSD,
+			AmountMicros:     amountMicros,
+			IncurredAt:       providerOrder.Attributes.CreatedAt,
+			RawPayload:       payload,
+		},
+	)
+	if err != nil {
+		return apperror.NewInternal("record managed number provider cost", err)
+	}
+	return nil
+}
+
+func decimalMicros(value string) (int64, error) {
+	value = strings.TrimSpace(value)
+	if value == "" || strings.HasPrefix(value, "-") || strings.HasPrefix(value, "+") {
+		return 0, fmt.Errorf("provider amount must be a nonnegative decimal")
+	}
+	parts := strings.Split(value, ".")
+	if len(parts) > 2 || parts[0] == "" {
+		return 0, fmt.Errorf("provider amount must be a decimal")
+	}
+	whole, err := strconv.ParseInt(parts[0], 10, 64)
+	if err != nil || whole > math.MaxInt64/1_000_000 {
+		return 0, fmt.Errorf("provider amount is out of range")
+	}
+	fraction := ""
+	if len(parts) == 2 {
+		fraction = parts[1]
+	}
+	if len(fraction) > 6 {
+		return 0, fmt.Errorf("provider amount exceeds micro precision")
+	}
+	fraction += strings.Repeat("0", 6-len(fraction))
+	fractionMicros := int64(0)
+	if fraction != "" {
+		fractionMicros, err = strconv.ParseInt(fraction, 10, 64)
+		if err != nil {
+			return 0, fmt.Errorf("provider amount must be a decimal")
+		}
+	}
+	if whole == math.MaxInt64/1_000_000 && fractionMicros > math.MaxInt64%1_000_000 {
+		return 0, fmt.Errorf("provider amount is out of range")
+	}
+	return whole*1_000_000 + fractionMicros, nil
 }

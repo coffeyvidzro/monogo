@@ -1,4 +1,4 @@
-h1:CNSyqUVw3zPRIsajNZfQVr+6mabeg2ozAH9L4KANhtY=
+h1:Tqz6Pb2n6CWGztLxtZtkYOQBr/Y9DIgZFvbzdDfbhlk=
 001_extensions.sql h1:V12FA/dbb8clPffRf/1QJRpbB/S0eECkElwvfOVRda4=
 002_create_users.sql h1:w8z6z5sqnmtExCGa63iYl2ssG9rgXX8m3VPqvb1z4jo=
 003_create_authentication.sql h1:6R8fm0zInr9A/OW74oYTBLpPYHRf3dpVjw13qyjdd7E=
@@ -42,3 +42,4 @@ h1:CNSyqUVw3zPRIsajNZfQVr+6mabeg2ozAH9L4KANhtY=
 041_create_wholesale_charges.sql h1:BdkqXoUblaKBjftfFGjZw3AJOwItVsDquMqiccLmFUU=
 042_create_voice_rates.sql h1:yedpucExBoO+RAhgAIEF14/hsnwt6o1En9K7gUakeNs=
 043_create_product_rates.sql h1:K/Xnj5O2k89kal8vaVUI9D8LoxScsnGom7cA6M99y9Y=
+044_create_number_renewals_and_provider_costs.sql h1:Vx6ub9J2OnLH6SjJjwJeBrohLQ0BWeHztkmAQysAA7o=

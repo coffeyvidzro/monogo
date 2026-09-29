@@ -3,6 +3,7 @@ package commercial
 import (
 	"github.com/coffeyvidzro/monogo/internal/commercial/plans"
 	"github.com/coffeyvidzro/monogo/internal/commercial/pricing"
+	"github.com/coffeyvidzro/monogo/internal/commercial/providercosts"
 	"github.com/coffeyvidzro/monogo/internal/commercial/subscriptions"
 	"github.com/coffeyvidzro/monogo/internal/commercial/wallets"
 	"github.com/coffeyvidzro/monogo/internal/commercial/wholesale"
@@ -20,6 +21,7 @@ type Module struct {
 	Plans         PlansModule
 	Subscriptions SubscriptionsModule
 	Pricing       PricingModule
+	ProviderCosts ProviderCostsModule
 	Wholesale     WholesaleModule
 }
 
@@ -45,6 +47,10 @@ type PricingModule struct {
 	Repository *pricing.Repository
 	Service    *pricing.Service
 	Handler    *pricing.Handler
+}
+
+type ProviderCostsModule struct {
+	Service *providercosts.Service
 }
 
 type WholesaleModule struct {
@@ -74,6 +80,8 @@ func New(deps Dependencies) *Module {
 		pricingRepository,
 	)
 
+	providerCostsService := providercosts.NewService(deps.Queries)
+
 	wholesaleRepository := wholesale.NewRepository(deps.Queries)
 	wholesaleService := wholesale.NewService(
 		wholesaleRepository,
@@ -99,6 +107,9 @@ func New(deps Dependencies) *Module {
 			Repository: pricingRepository,
 			Service:    pricingService,
 			Handler:    pricing.NewHandler(pricingService),
+		},
+		ProviderCosts: ProviderCostsModule{
+			Service: providerCostsService,
 		},
 		Wholesale: WholesaleModule{
 			Repository: wholesaleRepository,

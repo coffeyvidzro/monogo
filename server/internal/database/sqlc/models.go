@@ -229,6 +229,19 @@ type Idempotency struct {
 	UpdatedAt           pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 }
 
+type ManagedMarginEntry struct {
+	OperationID             uuid.UUID          `db:"operation_id" json:"operation_id"`
+	OrganizationID          uuid.UUID          `db:"organization_id" json:"organization_id"`
+	ReferenceType           *string            `db:"reference_type" json:"reference_type"`
+	ReferenceID             *uuid.UUID         `db:"reference_id" json:"reference_id"`
+	Currency                string             `db:"currency" json:"currency"`
+	RevenueMicros           int64              `db:"revenue_micros" json:"revenue_micros"`
+	ProviderCostRecordCount int64              `db:"provider_cost_record_count" json:"provider_cost_record_count"`
+	ProviderCostMicros      int64              `db:"provider_cost_micros" json:"provider_cost_micros"`
+	GrossProfitMicros       int32              `db:"gross_profit_micros" json:"gross_profit_micros"`
+	OccurredAt              pgtype.Timestamptz `db:"occurred_at" json:"occurred_at"`
+}
+
 type ManagedNumberOrder struct {
 	ID                  uuid.UUID          `db:"id" json:"id"`
 	OrganizationID      uuid.UUID          `db:"organization_id" json:"organization_id"`
@@ -254,6 +267,24 @@ type ManagedNumberOrder struct {
 	ErrorMessage        *string            `db:"error_message" json:"error_message"`
 	CreatedAt           pgtype.Timestamptz `db:"created_at" json:"created_at"`
 	UpdatedAt           pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+}
+
+type ManagedNumberRenewal struct {
+	ID             uuid.UUID          `db:"id" json:"id"`
+	OrganizationID uuid.UUID          `db:"organization_id" json:"organization_id"`
+	PhoneNumberID  uuid.UUID          `db:"phone_number_id" json:"phone_number_id"`
+	PeriodStart    pgtype.Timestamptz `db:"period_start" json:"period_start"`
+	PeriodEnd      pgtype.Timestamptz `db:"period_end" json:"period_end"`
+	OperationID    uuid.UUID          `db:"operation_id" json:"operation_id"`
+	Status         string             `db:"status" json:"status"`
+	AmountMicros   *int64             `db:"amount_micros" json:"amount_micros"`
+	Currency       *string            `db:"currency" json:"currency"`
+	AttemptCount   int32              `db:"attempt_count" json:"attempt_count"`
+	NextAttemptAt  pgtype.Timestamptz `db:"next_attempt_at" json:"next_attempt_at"`
+	PaidAt         pgtype.Timestamptz `db:"paid_at" json:"paid_at"`
+	LastError      *string            `db:"last_error" json:"last_error"`
+	CreatedAt      pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	UpdatedAt      pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 }
 
 type Message struct {
@@ -435,6 +466,7 @@ type PhoneNumber struct {
 	ErrorMessage        *string            `db:"error_message" json:"error_message"`
 	CreatedAt           pgtype.Timestamptz `db:"created_at" json:"created_at"`
 	UpdatedAt           pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+	NextRenewalAt       pgtype.Timestamptz `db:"next_renewal_at" json:"next_renewal_at"`
 }
 
 type PortInCase struct {
@@ -506,6 +538,19 @@ type ProviderCdr struct {
 	RawPayload          []byte             `db:"raw_payload" json:"raw_payload"`
 	ReceivedAt          pgtype.Timestamptz `db:"received_at" json:"received_at"`
 	CreatedAt           pgtype.Timestamptz `db:"created_at" json:"created_at"`
+}
+
+type ProviderCost struct {
+	ID               uuid.UUID          `db:"id" json:"id"`
+	ProviderID       uuid.UUID          `db:"provider_id" json:"provider_id"`
+	OperationID      uuid.UUID          `db:"operation_id" json:"operation_id"`
+	ProviderRecordID string             `db:"provider_record_id" json:"provider_record_id"`
+	Product          string             `db:"product" json:"product"`
+	Currency         string             `db:"currency" json:"currency"`
+	AmountMicros     int64              `db:"amount_micros" json:"amount_micros"`
+	IncurredAt       pgtype.Timestamptz `db:"incurred_at" json:"incurred_at"`
+	RawPayload       []byte             `db:"raw_payload" json:"raw_payload"`
+	RecordedAt       pgtype.Timestamptz `db:"recorded_at" json:"recorded_at"`
 }
 
 type ProviderRate struct {

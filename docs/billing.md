@@ -66,12 +66,42 @@ the hold; provider acceptance or an unknown provider outcome captures it.
 Managed number purchases reserve both the configured acquisition price and the
 first renewal period before an upstream order is submitted. The charge is
 captured only after ownership and routing are verified and the number is
-activated. Automated authorization for subsequent renewal periods still needs
-a renewal scheduler before indefinite managed-number service is production
-ready.
+activated. Subsequent renewal periods are authorized and captured automatically by the
+managed-number renewal worker.
 
 Fixed-unit managed-product prices are stored in `product_rates`. Rates may be
 global or organization-specific, are effective-dated, and support exact
 two-letter country selectors with a `*` global fallback. Per-started-minute
 voice prices are stored separately in `voice_rates` because voice resolution
 uses the longest matching telephone prefix and inbound/outbound direction.
+
+## Managed-number renewals
+
+A managed number receives a monthly renewal anchor when activation succeeds.
+The worker creates one durable renewal record per number and billing period,
+resolves the effective `number_renewal` retail price, and captures that amount
+from the prepaid wallet. The billing operation identifier is stable for the
+period, so worker retries cannot produce duplicate customer debits. Insufficient
+funds and transient pricing failures remain visible as `payment_failed` renewal
+records and are retried with capped exponential backoff.
+
+## Provider costs and margin reporting
+
+Actual supplier costs are immutable evidence, not inferred from Monogo retail
+rates. `provider_costs` records the provider, its unique invoice or usage record,
+the managed product, currency, amount, incurred time, and raw source payload.
+Each cost must reference the exact captured wallet operation that generated the
+customer revenue. Replaying identical provider evidence is idempotent; changing
+an existing provider record is rejected.
+
+The `managed_margin_entries` view reports captured managed revenue, recorded
+provider cost, and gross profit per operation. Provider adapters and invoice
+importers must record costs from provider-issued evidence; missing costs remain
+zero in the view so reconciliation can identify incomplete ingestion rather
+than fabricating supplier expense from retail prices. Existing voice CDR and
+wholesale-charge evidence remains the detailed source for voice cost accounting.
+
+DIDWW acquisition reconciliation records the completed order amount and raw
+order response automatically after the corresponding customer hold is captured.
+Recurring supplier invoices and messaging usage reports use the same immutable
+provider-cost recorder when their provider evidence is imported.

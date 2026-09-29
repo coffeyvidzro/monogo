@@ -3,6 +3,7 @@ package numbers
 import (
 	"encoding/json"
 	"testing"
+	"time"
 
 	"github.com/coffeyvidzro/monogo/internal/integrations/carriers/didww"
 	"github.com/google/uuid"
@@ -74,5 +75,71 @@ func TestDIDUsesOnlyConfiguredVoiceInTrunk(t *testing.T) {
 	did.Relationships["voice_in_trunk"] = relationship
 	if didUsesTrunk(did, "trusted") {
 		t.Fatal("wrong relationship type matched")
+	}
+}
+
+func TestRenewalRetryDelayIsCapped(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		attempt int32
+		want    time.Duration
+	}{
+		{
+			attempt: 1,
+			want:    time.Hour,
+		},
+		{
+			attempt: 2,
+			want:    2 * time.Hour,
+		},
+		{
+			attempt: 10,
+			want:    24 * time.Hour,
+		},
+	}
+	for _, testCase := range cases {
+		if got := renewalRetryDelay(testCase.attempt); got != testCase.want {
+			t.Fatalf("attempt %d: got %s, want %s", testCase.attempt, got, testCase.want)
+		}
+	}
+}
+
+func TestDecimalMicros(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		value string
+		want  int64
+	}{
+		{
+			value: "0",
+			want:  0,
+		},
+		{
+			value: "12.34",
+			want:  12_340_000,
+		},
+		{
+			value: "0.000001",
+			want:  1,
+		},
+	}
+	for _, testCase := range cases {
+		got, err := decimalMicros(testCase.value)
+		if err != nil {
+			t.Fatalf("parse %q: %v", testCase.value, err)
+		}
+		if got != testCase.want {
+			t.Fatalf("parse %q: got %d, want %d", testCase.value, got, testCase.want)
+		}
+	}
+	for _, value := range []string{
+		"-1",
+		"1.0000001",
+		"not-money",
+		"",
+	} {
+		if _, err := decimalMicros(value); err == nil {
+			t.Fatalf("expected %q to be rejected", value)
+		}
 	}
 }
