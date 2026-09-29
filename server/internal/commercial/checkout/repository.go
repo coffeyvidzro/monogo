@@ -102,3 +102,38 @@ func (r *Repository) GetForContinuation(
 		},
 	)
 }
+
+
+func (r *Repository) Complete(
+	ctx context.Context,
+	organizationID uuid.UUID,
+	id uuid.UUID,
+	completedAt time.Time,
+) (sqlc.Checkout, error) {
+	return r.queries.CompleteCheckout(
+		ctx,
+		sqlc.CompleteCheckoutParams{
+			CompletedAt:    pgconv.TimeToTimestamptz(completedAt),
+			ID:             id,
+			OrganizationID: organizationID,
+		},
+	)
+}
+
+func (r *Repository) Fail(
+	ctx context.Context,
+	organizationID uuid.UUID,
+	id uuid.UUID,
+	providerMessage *string,
+	completedAt time.Time,
+) (sqlc.Checkout, error) {
+	return r.queries.FailCheckout(
+		ctx,
+		sqlc.FailCheckoutParams{
+			ProviderMessage: providerMessage,
+			CompletedAt:     pgconv.TimeToTimestamptz(completedAt),
+			ID:              id,
+			OrganizationID:  organizationID,
+		},
+	)
+}
