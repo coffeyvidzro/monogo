@@ -28,6 +28,13 @@ func NewService(repo *Repository) *Service {
 	}
 }
 
+func (s *Service) WithTx(tx pgx.Tx) *Service {
+	return &Service{
+		repo: s.repo.WithTx(tx),
+		now:  s.now,
+	}
+}
+
 func (s *Service) CreateAttempt(
 	ctx context.Context,
 	req CreateAttemptRequest,
@@ -42,6 +49,9 @@ func (s *Service) CreateAttempt(
 		req.CheckoutID,
 	)
 	if err == nil {
+		if !sameAttempt(existing, req) {
+			return Payment{}, apperror.NewConflict("active payment attempt conflicts with checkout")
+		}
 		return paymentFromRow(existing), nil
 	}
 	if !errors.Is(err, pgx.ErrNoRows) {
@@ -277,4 +287,16 @@ func (s *Service) MarkFailed(
 	}
 
 	return paymentFromRow(row), nil
+}
+
+func sameAttempt(
+	existing sqlc.Payment,
+	req CreateAttemptRequest,
+) bool {
+	return existing.CheckoutID == req.CheckoutID &&
+		existing.OrganizationID == req.OrganizationID &&
+		existing.Provider == req.Provider &&
+		existing.PaymentMethod == req.PaymentMethod &&
+		existing.AmountMicros == req.AmountMicros &&
+		existing.Currency == req.Currency
 }

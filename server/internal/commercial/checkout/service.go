@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/coffeyvidzro/monogo/internal/commercial/payments"
 	"github.com/coffeyvidzro/monogo/internal/commercial/subscriptions"
 	"github.com/coffeyvidzro/monogo/internal/commercial/wallets"
 	"github.com/coffeyvidzro/monogo/internal/database/pgconv"
@@ -14,26 +15,33 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 const checkoutTTL = 30 * time.Minute
 
 type Service struct {
 	repo          *Repository
+	payments      *payments.Service
 	subscriptions *subscriptions.Service
 	wallets       *wallets.Service
+	db            *pgxpool.Pool
 	now           func() time.Time
 }
 
 func NewService(
 	repo *Repository,
+	paymentsService *payments.Service,
 	subscriptionsService *subscriptions.Service,
 	walletsService *wallets.Service,
+	db *pgxpool.Pool,
 ) *Service {
 	return &Service{
 		repo:          repo,
+		payments:      paymentsService,
 		subscriptions: subscriptionsService,
 		wallets:       walletsService,
+		db:            db,
 		now:           time.Now,
 	}
 }
@@ -138,12 +146,40 @@ func (s *Service) Confirm(
 		return Checkout{}, apperror.NewBadRequest(err.Error())
 	}
 
-	row, err := s.repo.Confirm(ctx, req, s.now().UTC())
+	tx, err := s.db.Begin(ctx)
+	if err != nil {
+		return Checkout{}, apperror.NewInternal("begin checkout confirmation", err)
+	}
+	defer func() {
+		_ = tx.Rollback(ctx)
+	}()
+
+	repo := s.repo.WithTx(tx)
+	row, err := repo.Confirm(ctx, req, s.now().UTC())
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Checkout{}, apperror.NewConflict("checkout cannot be confirmed")
 	}
 	if err != nil {
 		return Checkout{}, apperror.NewInternal("confirm checkout", err)
+	}
+
+	paymentService := s.payments.WithTx(tx)
+	if _, err := paymentService.CreateAttempt(
+		ctx,
+		payments.CreateAttemptRequest{
+			CheckoutID:     row.ID,
+			OrganizationID: row.OrganizationID,
+			Provider:       req.Provider,
+			PaymentMethod:  req.PaymentMethod,
+			AmountMicros:   row.AmountMicros,
+			Currency:       row.Currency,
+		},
+	); err != nil {
+		return Checkout{}, err
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return Checkout{}, apperror.NewInternal("commit checkout confirmation", err)
 	}
 
 	return checkoutFromRow(row), nil
@@ -153,11 +189,11 @@ func (s *Service) Continue(
 	ctx context.Context,
 	req ContinueRequest,
 ) (Checkout, error) {
-	if err := validateContinueRequest(req); err != nil {
+	if err := validateContinueRequest(&req); err != nil {
 		return Checkout{}, apperror.NewBadRequest(err.Error())
 	}
 
-	row, err := s.repo.GetForContinuation(
+	current, err := s.repo.GetForContinuation(
 		ctx,
 		req.OrganizationID,
 		req.CheckoutID,
@@ -169,8 +205,43 @@ func (s *Service) Continue(
 	if err != nil {
 		return Checkout{}, apperror.NewInternal("continue checkout", err)
 	}
+	if current.NextAction != req.Action {
+		return Checkout{}, apperror.NewConflict("checkout continuation action does not match next action")
+	}
+	if current.Provider == nil ||
+		current.PaymentMethod == nil ||
+		*current.Provider != ProviderPaystack ||
+		*current.PaymentMethod != PaymentMethodMobileMoney {
+		return Checkout{}, apperror.NewConflict("checkout provider does not support continuation action")
+	}
 
-	return checkoutFromRow(row), nil
+	switch req.Action {
+	case ActionAuthorizeMobileMoney:
+		row, err := s.repo.UpdateAction(
+			ctx,
+			req.OrganizationID,
+			req.CheckoutID,
+			ActionWait,
+			nil,
+		)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return Checkout{}, apperror.NewConflict("checkout cannot continue")
+		}
+		if err != nil {
+			return Checkout{}, apperror.NewInternal("advance checkout continuation", err)
+		}
+
+		return checkoutFromRow(row), nil
+
+	case ActionSubmitPhone, ActionSubmitOTP:
+		return Checkout{}, apperror.NewServiceUnavailable(
+			"checkout provider continuation is not configured",
+			nil,
+		)
+
+	default:
+		return Checkout{}, apperror.NewConflict("checkout action cannot be continued")
+	}
 }
 
 func checkoutFromRow(row sqlc.Checkout) Checkout {
@@ -350,4 +421,20 @@ func (s *Service) completeWalletTopup(
 		},
 	)
 	return err
+}
+
+func (s *Service) ExpireDue(
+	ctx context.Context,
+	limit int32,
+) (int64, error) {
+	if limit < 1 || limit > 1000 {
+		return 0, apperror.NewBadRequest("checkout expiration limit must be between 1 and 1000")
+	}
+
+	expired, err := s.repo.ExpireDue(ctx, s.now().UTC(), limit)
+	if err != nil {
+		return 0, apperror.NewInternal("expire due checkouts", err)
+	}
+
+	return expired, nil
 }

@@ -7,6 +7,7 @@ import (
 	"github.com/coffeyvidzro/monogo/internal/database/pgconv"
 	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 )
 
 type Repository struct {
@@ -15,6 +16,12 @@ type Repository struct {
 
 func NewRepository(queries *sqlc.Queries) *Repository {
 	return &Repository{queries: queries}
+}
+
+func (r *Repository) WithTx(tx pgx.Tx) *Repository {
+	return &Repository{
+		queries: r.queries.WithTx(tx),
+	}
 }
 
 func (r *Repository) Create(
@@ -124,6 +131,38 @@ func (r *Repository) Fail(
 			ProviderMessage: providerMessage,
 			FailureCode:     &failureCode,
 			CompletedAt:     pgconv.TimeToTimestamptz(completedAt),
+			CheckoutID:      id,
+			OrganizationID:  organizationID,
+		},
+	)
+}
+
+func (r *Repository) ExpireDue(
+	ctx context.Context,
+	completedAt time.Time,
+	limit int32,
+) (int64, error) {
+	return r.queries.ExpireDueCheckouts(
+		ctx,
+		sqlc.ExpireDueCheckoutsParams{
+			CompletedAt: pgconv.TimeToTimestamptz(completedAt),
+			LimitCount:  limit,
+		},
+	)
+}
+
+func (r *Repository) UpdateAction(
+	ctx context.Context,
+	organizationID uuid.UUID,
+	id uuid.UUID,
+	nextAction string,
+	providerMessage *string,
+) (sqlc.Checkout, error) {
+	return r.queries.UpdateCheckoutAction(
+		ctx,
+		sqlc.UpdateCheckoutActionParams{
+			NextAction:      nextAction,
+			ProviderMessage: providerMessage,
 			CheckoutID:      id,
 			OrganizationID:  organizationID,
 		},

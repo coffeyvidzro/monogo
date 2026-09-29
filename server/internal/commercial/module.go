@@ -83,8 +83,10 @@ func New(deps Dependencies) *Module {
 	checkoutRepository := checkout.NewRepository(deps.Queries)
 	checkoutService := checkout.NewService(
 		checkoutRepository,
+		paymentsService,
 		subscriptionsService,
 		walletsService,
+		deps.DB,
 	)
 
 	pricingRepository := pricing.NewRepository(deps.Queries)

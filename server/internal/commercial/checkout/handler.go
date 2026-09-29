@@ -109,12 +109,17 @@ func (h *Handler) Continue(
 		return
 	}
 
+	req, err := helper.DecodeJSON[ContinueRequest](r)
+	if err != nil {
+		httputil.Error(w, err)
+		return
+	}
+	req.OrganizationID = organizationID
+	req.CheckoutID = checkoutID
+
 	result, err := h.service.Continue(
 		r.Context(),
-		ContinueRequest{
-			OrganizationID: organizationID,
-			CheckoutID:     checkoutID,
-		},
+		req,
 	)
 	if err != nil {
 		httputil.Error(w, err)

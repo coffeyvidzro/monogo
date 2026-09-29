@@ -7,6 +7,7 @@ import (
 
 	"github.com/coffeyvidzro/monogo/internal/ai"
 	"github.com/coffeyvidzro/monogo/internal/commercial"
+	"github.com/coffeyvidzro/monogo/internal/commercial/checkout"
 	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
 	"github.com/coffeyvidzro/monogo/internal/integrations/carriers/didww"
 	"github.com/coffeyvidzro/monogo/internal/integrations/freeswitch"
@@ -47,6 +48,7 @@ type modules struct {
 	recordingReconciliation *recordings.ReconciliationJob
 	recordingIngestion      *recordings.IngestionJob
 	idempotencyCleanup      *idempotency.CleanupJob
+	checkoutExpiration      *checkout.ExpirationJob
 	trunkHealth             *trunks.HealthCheckJob
 	numberReconciliation    *numbers.ReconciliationJob
 	numberRenewal           *numbers.RenewalJob
@@ -112,6 +114,13 @@ func newModules(ctx context.Context, cfg config.Config, logger *logging.Logger) 
 		DB:      postgresClient.Pool(),
 		Queries: queries,
 	})
+	checkoutExpiration, err := checkout.NewExpirationJob(
+		commercialModule.Checkout.Service,
+	)
+	if err != nil {
+		closeDependencies()
+		return nil, fmt.Errorf("initialize checkout expiration: %w", err)
+	}
 	credentialCipher, err := encryption.New(cfg.EncryptionKey)
 	if err != nil {
 		closeDependencies()
@@ -281,6 +290,7 @@ func newModules(ctx context.Context, cfg config.Config, logger *logging.Logger) 
 		recordingReconciliation: recordingReconciliation,
 		recordingIngestion:      recordingIngestion,
 		idempotencyCleanup:      idempotencyCleanup,
+		checkoutExpiration:      checkoutExpiration,
 		trunkHealth:             trunkHealth,
 		numberReconciliation:    numberReconciliation,
 		numberRenewal:           numberRenewal,
