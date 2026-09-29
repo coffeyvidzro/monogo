@@ -100,16 +100,18 @@ func TestConfirmCheckoutCreatesInternalPaymentAttempt(t *testing.T) {
 	}
 
 	var (
-		attempt int32
-		amount  int64
+		attempt       int32
+		amount        int64
+		provider      string
+		paymentMethod string
 	)
 	if err := pool.QueryRow(
 		context.Background(),
-		`SELECT attempt, amount_micros
+		`SELECT attempt, amount_micros, provider, payment_method
 		 FROM payments
 		 WHERE checkout_id = $1`,
 		checkout.ID,
-	).Scan(&attempt, &amount); err != nil {
+	).Scan(&attempt, &amount, &provider, &paymentMethod); err != nil {
 		t.Fatalf("read payment attempt: %v", err)
 	}
 	if attempt != 1 {
@@ -117,6 +119,191 @@ func TestConfirmCheckoutCreatesInternalPaymentAttempt(t *testing.T) {
 	}
 	if amount != testSubscriptionAmountMicros {
 		t.Fatalf("payment amount = %d, want %d", amount, testSubscriptionAmountMicros)
+	}
+	if provider != ProviderStripe {
+		t.Fatalf("payment provider = %q, want %q", provider, ProviderStripe)
+	}
+	if paymentMethod != PaymentMethodCard {
+		t.Fatalf("payment method = %q, want %q", paymentMethod, PaymentMethodCard)
+	}
+
+	var paymentCount int
+	if err := pool.QueryRow(
+		context.Background(),
+		`SELECT count(*) FROM payments WHERE checkout_id = $1`,
+		checkout.ID,
+	).Scan(&paymentCount); err != nil {
+		t.Fatalf("count payment attempts: %v", err)
+	}
+	if paymentCount != 1 {
+		t.Fatalf("payment attempts = %d, want 1", paymentCount)
+	}
+}
+
+func TestContinueCheckoutRequiresMatchingActionAndReturnsToWait(t *testing.T) {
+	service, pool, organizationID, subscriptionID := newCheckoutTestService(t)
+	now := time.Date(2026, time.September, 29, 13, 0, 0, 0, time.UTC)
+	service.now = func() time.Time { return now }
+
+	checkout, err := service.Create(
+		context.Background(),
+		CreateRequest{
+			OrganizationID: organizationID,
+			Purpose:        PurposeSubscription,
+			SubscriptionID: &subscriptionID,
+		},
+	)
+	if err != nil {
+		t.Fatalf("create checkout: %v", err)
+	}
+	if _, err := service.Confirm(
+		context.Background(),
+		ConfirmRequest{
+			OrganizationID: organizationID,
+			CheckoutID:     checkout.ID,
+			Provider:       ProviderStripe,
+			PaymentMethod:  PaymentMethodCard,
+		},
+	); err != nil {
+		t.Fatalf("confirm checkout: %v", err)
+	}
+
+	if _, err := pool.Exec(
+		context.Background(),
+		`UPDATE checkouts
+		 SET next_action = 'submit_otp',
+		     provider_message = 'Enter the OTP'
+		 WHERE id = $1`,
+		checkout.ID,
+	); err != nil {
+		t.Fatalf("set checkout continuation action: %v", err)
+	}
+
+	phone := "+233201234567"
+	if _, err := service.Continue(
+		context.Background(),
+		ContinueRequest{
+			OrganizationID: organizationID,
+			CheckoutID:     checkout.ID,
+			Action:         ActionSubmitPhone,
+			Phone:          &phone,
+		},
+	); err == nil {
+		t.Fatal("continue checkout with mismatched action succeeded")
+	}
+
+	var nextAction string
+	if err := pool.QueryRow(
+		context.Background(),
+		`SELECT next_action FROM checkouts WHERE id = $1`,
+		checkout.ID,
+	).Scan(&nextAction); err != nil {
+		t.Fatalf("read checkout action after mismatch: %v", err)
+	}
+	if nextAction != ActionSubmitOTP {
+		t.Fatalf("next_action after mismatch = %q, want %q", nextAction, ActionSubmitOTP)
+	}
+
+	otp := "123456"
+	continued, err := service.Continue(
+		context.Background(),
+		ContinueRequest{
+			OrganizationID: organizationID,
+			CheckoutID:     checkout.ID,
+			Action:         ActionSubmitOTP,
+			OTP:            &otp,
+		},
+	)
+	if err != nil {
+		t.Fatalf("continue checkout: %v", err)
+	}
+	if continued.NextAction != ActionWait {
+		t.Fatalf("next_action = %q, want %q", continued.NextAction, ActionWait)
+	}
+	if continued.ProviderMessage != nil {
+		t.Fatalf("provider_message = %q, want nil", *continued.ProviderMessage)
+	}
+}
+
+func TestConfirmCheckoutRollsBackOnConflictingPaymentAttempt(t *testing.T) {
+	service, pool, organizationID, subscriptionID := newCheckoutTestService(t)
+	now := time.Date(2026, time.September, 29, 13, 0, 0, 0, time.UTC)
+	service.now = func() time.Time { return now }
+
+	checkout, err := service.Create(
+		context.Background(),
+		CreateRequest{
+			OrganizationID: organizationID,
+			Purpose:        PurposeSubscription,
+			SubscriptionID: &subscriptionID,
+		},
+	)
+	if err != nil {
+		t.Fatalf("create checkout: %v", err)
+	}
+
+	if _, err := pool.Exec(
+		context.Background(),
+		`INSERT INTO payments (
+			checkout_id,
+			organization_id,
+			provider,
+			payment_method,
+			attempt,
+			amount_micros,
+			currency,
+			status
+		) VALUES ($1, $2, 'paystack', 'mobile_money', 1, $3, 'USD', 'pending')`,
+		checkout.ID,
+		organizationID,
+		testSubscriptionAmountMicros,
+	); err != nil {
+		t.Fatalf("insert conflicting payment attempt: %v", err)
+	}
+
+	if _, err := service.Confirm(
+		context.Background(),
+		ConfirmRequest{
+			OrganizationID: organizationID,
+			CheckoutID:     checkout.ID,
+			Provider:       ProviderStripe,
+			PaymentMethod:  PaymentMethodCard,
+		},
+	); err == nil {
+		t.Fatal("confirm checkout with conflicting payment attempt succeeded")
+	}
+
+	var (
+		status        string
+		provider      *string
+		paymentMethod *string
+	)
+	if err := pool.QueryRow(
+		context.Background(),
+		`SELECT status, provider, payment_method
+		 FROM checkouts
+		 WHERE id = $1`,
+		checkout.ID,
+	).Scan(&status, &provider, &paymentMethod); err != nil {
+		t.Fatalf("read checkout after rollback: %v", err)
+	}
+	if status != StatusPending {
+		t.Fatalf("checkout status = %q, want %q", status, StatusPending)
+	}
+	if provider != nil || paymentMethod != nil {
+		t.Fatalf("checkout payment binding was not rolled back: provider=%v method=%v", provider, paymentMethod)
+	}
+
+	var paymentCount int
+	if err := pool.QueryRow(
+		context.Background(),
+		`SELECT count(*) FROM payments WHERE checkout_id = $1`,
+		checkout.ID,
+	).Scan(&paymentCount); err != nil {
+		t.Fatalf("count payment attempts: %v", err)
+	}
+	if paymentCount != 1 {
+		t.Fatalf("payment attempts = %d, want existing conflicting attempt only", paymentCount)
 	}
 }
 
