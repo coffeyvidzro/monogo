@@ -4,16 +4,13 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
-	"strconv"
 	"strings"
 	"time"
 
 	"github.com/coffeyvidzro/monogo/internal/commercial/pricing"
-	"github.com/coffeyvidzro/monogo/internal/commercial/providercharges"
 	"github.com/coffeyvidzro/monogo/internal/commercial/wallets"
 	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
 	"github.com/coffeyvidzro/monogo/internal/integrations/carriers/didww"
@@ -31,7 +28,6 @@ type Service struct {
 	now             func() time.Time
 	pricing         *pricing.Service
 	wallets         *wallets.Service
-	providerCharges *providercharges.Service
 }
 
 func (s *Service) ConfigureBilling(
@@ -40,10 +36,6 @@ func (s *Service) ConfigureBilling(
 ) {
 	s.pricing = pricingService
 	s.wallets = walletsService
-}
-
-func (s *Service) ConfigureProviderCharges(service *providercharges.Service) {
-	s.providerCharges = service
 }
 
 func NewService(repository *Repository, inventory *didww.Client) *Service {
@@ -557,10 +549,6 @@ func (s *Service) Reconcile(ctx context.Context, orderID uuid.UUID) (ManagedOrde
 	if err := s.captureManagedNumber(ctx, order); err != nil {
 		return ManagedOrder{}, err
 	}
-	if err := s.recordManagedNumberPurchaseCharge(ctx, order); err != nil {
-		return ManagedOrder{}, err
-	}
-
 	return order, nil
 }
 
@@ -750,82 +738,3 @@ func renewalRetryDelay(attempt int32) time.Duration {
 	return delay
 }
 
-func (s *Service) recordManagedNumberPurchaseCharge(
-	ctx context.Context,
-	order ManagedOrder,
-) error {
-	if s.providerCharges == nil {
-		return apperror.NewServiceUnavailable("provider charge accounting is not configured", nil)
-	}
-	if order.ProviderOrderID == nil {
-		return apperror.NewInternal("record managed number provider charge", errors.New("provider order id is missing"))
-	}
-	providerOrder, err := s.inventory.GetOrder(ctx, *order.ProviderOrderID)
-	if err != nil {
-		return apperror.NewServiceUnavailable("provider order charge is unavailable", err)
-	}
-	amountMicros, err := decimalMicros(providerOrder.Attributes.Amount)
-	if err != nil {
-		return apperror.NewInternal("parse managed number provider charge", err)
-	}
-	payload, err := json.Marshal(providerOrder)
-	if err != nil {
-		return apperror.NewInternal("encode managed number provider charge evidence", err)
-	}
-	_, err = s.providerCharges.RecordProviderCharge(
-		ctx,
-		providercharges.RecordProviderChargeRequest{
-			ProviderID:         order.ProviderID,
-			OperationID:        operationIDPointer(managedNumberOperationID(order.ID)),
-			ProviderRecordType: "order",
-			ProviderRecordID:   providerOrder.ID,
-			Product:            pricing.ProductNumberPurchase,
-			Currency:           wallets.CurrencyUSD,
-			AmountMicros:       amountMicros,
-			IncurredAt:         providerOrder.Attributes.CreatedAt,
-			RawPayload:         payload,
-		},
-	)
-	if err != nil {
-		return apperror.NewInternal("record managed number provider charge", err)
-	}
-	return nil
-}
-
-func decimalMicros(value string) (int64, error) {
-	value = strings.TrimSpace(value)
-	if value == "" || strings.HasPrefix(value, "-") || strings.HasPrefix(value, "+") {
-		return 0, fmt.Errorf("provider amount must be a nonnegative decimal")
-	}
-	parts := strings.Split(value, ".")
-	if len(parts) > 2 || parts[0] == "" {
-		return 0, fmt.Errorf("provider amount must be a decimal")
-	}
-	whole, err := strconv.ParseInt(parts[0], 10, 64)
-	if err != nil || whole > math.MaxInt64/1_000_000 {
-		return 0, fmt.Errorf("provider amount is out of range")
-	}
-	fraction := ""
-	if len(parts) == 2 {
-		fraction = parts[1]
-	}
-	if len(fraction) > 6 {
-		return 0, fmt.Errorf("provider amount exceeds micro precision")
-	}
-	fraction += strings.Repeat("0", 6-len(fraction))
-	fractionMicros := int64(0)
-	if fraction != "" {
-		fractionMicros, err = strconv.ParseInt(fraction, 10, 64)
-		if err != nil {
-			return 0, fmt.Errorf("provider amount must be a decimal")
-		}
-	}
-	if whole == math.MaxInt64/1_000_000 && fractionMicros > math.MaxInt64%1_000_000 {
-		return 0, fmt.Errorf("provider amount is out of range")
-	}
-	return whole*1_000_000 + fractionMicros, nil
-}
-
-func operationIDPointer(id uuid.UUID) *uuid.UUID {
-	return &id
-}
