@@ -109,6 +109,7 @@ func (r *Repository) Fail(
 	ctx context.Context,
 	organizationID uuid.UUID,
 	id uuid.UUID,
+	failureCode string,
 	providerMessage *string,
 	completedAt time.Time,
 ) (sqlc.Checkout, error) {
@@ -116,6 +117,7 @@ func (r *Repository) Fail(
 		ctx,
 		sqlc.FailCheckoutParams{
 			ProviderMessage: providerMessage,
+			FailureCode:     failureCode,
 			CompletedAt:     pgconv.TimeToTimestamptz(completedAt),
 			CheckoutID:      id,
 			OrganizationID:  organizationID,
