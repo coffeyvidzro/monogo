@@ -299,6 +299,62 @@ func TestFailedCheckoutDoesNotApplySubscription(t *testing.T) {
 	assertSubscriptionStatus(t, pool, subscriptionID, subscriptions.StatusPending)
 }
 
+func TestExpireDueCheckoutReleasesSubscriptionSlot(t *testing.T) {
+	service, pool, organizationID, subscriptionID := newCheckoutTestService(t)
+	now := time.Date(2026, time.September, 29, 13, 0, 0, 0, time.UTC)
+	service.now = func() time.Time { return now }
+
+	first, err := service.Create(
+		context.Background(),
+		CreateRequest{
+			OrganizationID: organizationID,
+			Purpose:        PurposeSubscription,
+			SubscriptionID: &subscriptionID,
+		},
+	)
+	if err != nil {
+		t.Fatalf("create first checkout: %v", err)
+	}
+
+	service.now = func() time.Time {
+		return now.Add(checkoutTTL + time.Second)
+	}
+	expired, err := service.ExpireDue(context.Background(), 100)
+	if err != nil {
+		t.Fatalf("expire due checkouts: %v", err)
+	}
+	if expired != 1 {
+		t.Fatalf("expired count = %d, want 1", expired)
+	}
+
+	var status string
+	if err := pool.QueryRow(
+		context.Background(),
+		`SELECT status FROM checkouts WHERE id = $1`,
+		first.ID,
+	).Scan(&status); err != nil {
+		t.Fatalf("read expired checkout: %v", err)
+	}
+	if status != StatusExpired {
+		t.Fatalf("checkout status = %q, want %q", status, StatusExpired)
+	}
+
+	second, err := service.Create(
+		context.Background(),
+		CreateRequest{
+			OrganizationID: organizationID,
+			Purpose:        PurposeSubscription,
+			SubscriptionID: &subscriptionID,
+		},
+	)
+	if err != nil {
+		t.Fatalf("create replacement checkout: %v", err)
+	}
+	if second.ID == first.ID {
+		t.Fatalf("replacement checkout reused expired checkout id %s", first.ID)
+	}
+}
+
 func newCheckoutTestService(
 	t *testing.T,
 ) (*Service, *pgxpool.Pool, uuid.UUID, uuid.UUID) {
@@ -489,6 +545,10 @@ func createCheckoutTestSchema(
 			updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
 			UNIQUE (id, organization_id)
 		)`,
+		`CREATE UNIQUE INDEX uq_checkout_test_active_subscription
+			ON checkouts (subscription_id)
+			WHERE purpose = 'subscription'
+			  AND status IN ('pending', 'processing')`,
 		`CREATE TABLE payments (
 			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
 			checkout_id UUID NOT NULL,
