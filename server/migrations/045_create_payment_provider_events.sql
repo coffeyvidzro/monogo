@@ -35,7 +35,7 @@ CREATE INDEX idx_payment_provider_events_unprocessed
 CREATE FUNCTION enforce_payment_provider_event_immutability()
 RETURNS TRIGGER
 LANGUAGE plpgsql
-AS $
+AS $$
 BEGIN
     IF TG_OP = 'DELETE' THEN
         RAISE EXCEPTION 'payment provider events are immutable'
@@ -53,7 +53,6 @@ BEGIN
         OR NEW.payload_sha256 IS DISTINCT FROM OLD.payload_sha256
         OR NEW.payload IS DISTINCT FROM OLD.payload
         OR NEW.received_at IS DISTINCT FROM OLD.received_at
-        OR NEW.created_at IS DISTINCT FROM OLD.created_at
     THEN
         RAISE EXCEPTION 'payment provider events are immutable'
             USING ERRCODE = '23514';
@@ -61,7 +60,7 @@ BEGIN
 
     RETURN NEW;
 END;
-$;
+$$;
 
 CREATE TRIGGER payment_provider_events_immutable
 BEFORE UPDATE OR DELETE ON payment_provider_events
