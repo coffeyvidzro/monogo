@@ -1221,3 +1221,499 @@ FOR EACH ROW
 EXECUTE FUNCTION set_updated_at();
 
 @@END
+@@FILE:019_create_call_participants.sql
+CREATE TABLE IF NOT EXISTS call_participants (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    call_id UUID NOT NULL REFERENCES calls(id) ON DELETE CASCADE,
+    subscriber_id UUID REFERENCES subscribers(id) ON DELETE SET NULL,
+    role TEXT NOT NULL,
+    address TEXT,
+    direction TEXT,
+    state TEXT NOT NULL DEFAULT 'joined',
+    joined_at TIMESTAMPTZ,
+    left_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+    CONSTRAINT chk_call_participants_role CHECK (role IN ('caller', 'callee', 'bridge', 'other')),
+    CONSTRAINT chk_call_participants_direction CHECK (
+        direction IS NULL OR direction IN ('inbound', 'outbound')
+    ),
+    CONSTRAINT chk_call_participants_state CHECK (
+        state IN ('joining', 'joined', 'left', 'failed')
+    ),
+    CONSTRAINT chk_call_participants_left_at CHECK (
+        left_at IS NULL OR joined_at IS NULL OR left_at >= joined_at
+    )
+);
+
+CREATE INDEX IF NOT EXISTS idx_call_participants_organization_id
+    ON call_participants (organization_id);
+
+CREATE INDEX IF NOT EXISTS idx_call_participants_call_id
+    ON call_participants (call_id, created_at);
+
+CREATE INDEX IF NOT EXISTS idx_call_participants_subscriber_id
+    ON call_participants (subscriber_id)
+    WHERE subscriber_id IS NOT NULL;
+
+CREATE TRIGGER set_call_participants_updated_at
+BEFORE UPDATE ON call_participants
+FOR EACH ROW
+EXECUTE FUNCTION set_updated_at();
+
+@@END
+@@FILE:020_create_recordings.sql
+CREATE TABLE IF NOT EXISTS recordings (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    call_id UUID NOT NULL REFERENCES calls(id) ON DELETE CASCADE,
+    status TEXT NOT NULL DEFAULT 'recording',
+    storage_key TEXT,
+    storage_provider TEXT,
+    storage_bucket TEXT,
+    storage_url TEXT,
+    source_path TEXT,
+    stopped_at TIMESTAMPTZ,
+    upload_attempts INTEGER NOT NULL DEFAULT 0,
+    next_upload_at TIMESTAMPTZ,
+    upload_error TEXT,
+    file_size_bytes BIGINT,
+    format TEXT,
+    duration_seconds INTEGER,
+    started_at TIMESTAMPTZ,
+    completed_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+    CONSTRAINT chk_recordings_status CHECK (
+        status IN ('recording', 'uploading', 'completed', 'failed', 'deleted')
+    ),
+    CONSTRAINT chk_recordings_upload_attempts CHECK (
+        upload_attempts >= 0
+    ),
+    CONSTRAINT chk_recordings_source_path CHECK (
+        source_path IS NULL OR (source_path LIKE '/%' AND source_path !~ '(^|/)[.][.](/|$)')
+    ),
+    CONSTRAINT chk_recordings_duration CHECK (
+        duration_seconds IS NULL OR duration_seconds >= 0
+    ),
+    CONSTRAINT chk_recordings_file_size CHECK (
+        file_size_bytes IS NULL OR file_size_bytes >= 0
+    ),
+    CONSTRAINT chk_recordings_completed_at CHECK (
+        completed_at IS NULL OR started_at IS NULL OR completed_at >= started_at
+    )
+);
+
+CREATE INDEX IF NOT EXISTS idx_recordings_organization_created
+    ON recordings (organization_id, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_recordings_call_created
+    ON recordings (call_id, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_recordings_status
+    ON recordings (organization_id, status, created_at DESC);
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_recordings_call_storage_key
+    ON recordings (call_id, storage_key)
+    WHERE storage_key IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_recordings_upload_queue
+    ON recordings (next_upload_at, updated_at)
+    WHERE status = 'uploading';
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_recordings_call_source_path
+    ON recordings (call_id, source_path)
+    WHERE source_path IS NOT NULL;
+
+CREATE TRIGGER set_recordings_updated_at
+BEFORE UPDATE ON recordings
+FOR EACH ROW
+EXECUTE FUNCTION set_updated_at();
+
+@@END
+@@FILE:021_create_conferences.sql
+CREATE TABLE IF NOT EXISTS conferences (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    application_id UUID REFERENCES voice_applications(id) ON DELETE SET NULL,
+    name VARCHAR(255) NOT NULL,
+    state TEXT NOT NULL DEFAULT 'active',
+    started_at TIMESTAMPTZ,
+    ended_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+    CONSTRAINT uq_conferences_organization_name UNIQUE (organization_id, name),
+    CONSTRAINT chk_conferences_name CHECK (length(trim(name)) > 0),
+    CONSTRAINT chk_conferences_state CHECK (state IN ('active', 'ended')),
+    CONSTRAINT chk_conferences_ended_at CHECK (
+        ended_at IS NULL OR started_at IS NULL OR ended_at >= started_at
+    )
+);
+
+CREATE INDEX IF NOT EXISTS idx_conferences_organization_created
+    ON conferences (organization_id, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_conferences_application_created
+    ON conferences (application_id, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_conferences_organization_state
+    ON conferences (organization_id, state, created_at DESC);
+
+CREATE TRIGGER set_conferences_updated_at
+BEFORE UPDATE ON conferences
+FOR EACH ROW
+EXECUTE FUNCTION set_updated_at();
+
+@@END
+@@FILE:022_create_conference_participants.sql
+CREATE TABLE IF NOT EXISTS conference_participants (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    conference_id UUID NOT NULL REFERENCES conferences(id) ON DELETE CASCADE,
+    call_participant_id UUID REFERENCES call_participants(id) ON DELETE SET NULL,
+    state TEXT NOT NULL DEFAULT 'joined',
+    muted BOOLEAN NOT NULL DEFAULT false,
+    deaf BOOLEAN NOT NULL DEFAULT false,
+    speaking BOOLEAN NOT NULL DEFAULT false,
+    joined_at TIMESTAMPTZ,
+    left_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+    CONSTRAINT chk_conference_participants_state CHECK (
+        state IN ('joining', 'joined', 'left', 'failed')
+    ),
+    CONSTRAINT chk_conference_participants_left_at CHECK (
+        left_at IS NULL OR joined_at IS NULL OR left_at >= joined_at
+    )
+);
+
+CREATE INDEX IF NOT EXISTS idx_conference_participants_organization_id
+    ON conference_participants (organization_id);
+
+CREATE INDEX IF NOT EXISTS idx_conference_participants_conference_id
+    ON conference_participants (conference_id, created_at);
+
+CREATE INDEX IF NOT EXISTS idx_conference_participants_call_participant_id
+    ON conference_participants (call_participant_id)
+    WHERE call_participant_id IS NOT NULL;
+
+CREATE TRIGGER set_conference_participants_updated_at
+BEFORE UPDATE ON conference_participants
+FOR EACH ROW
+EXECUTE FUNCTION set_updated_at();
+
+@@END
+@@FILE:023_create_audit_events.sql
+CREATE TABLE audit_events (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    organization_id UUID NOT NULL REFERENCES organizations(id),
+    actor_type TEXT NOT NULL,
+    actor_id UUID NOT NULL,
+    action TEXT NOT NULL,
+    target_type TEXT NOT NULL,
+    target_id UUID NOT NULL,
+    metadata JSONB NOT NULL DEFAULT '{}'::JSONB,
+    occurred_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CONSTRAINT chk_audit_actor_type CHECK (actor_type IN ('user', 'organization_token')),
+    CONSTRAINT chk_audit_action_nonempty CHECK (length(trim(action)) > 0),
+    CONSTRAINT chk_audit_target_type_nonempty CHECK (length(trim(target_type)) > 0)
+);
+
+CREATE INDEX idx_audit_events_organization_time
+    ON audit_events (organization_id, occurred_at DESC, id DESC);
+
+CREATE INDEX idx_audit_events_target
+    ON audit_events (organization_id, target_type, target_id, occurred_at DESC);
+
+
+CREATE FUNCTION reject_audit_event_mutation()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    RAISE EXCEPTION 'audit events are append-only';
+END;
+$$;
+
+CREATE TRIGGER trg_audit_events_append_only
+BEFORE UPDATE OR DELETE ON audit_events
+FOR EACH ROW EXECUTE FUNCTION reject_audit_event_mutation();
+
+@@END
+@@FILE:024_create_idempotency.sql
+CREATE TABLE idempotency (
+    scope TEXT NOT NULL,
+    idempotency_key TEXT NOT NULL,
+    method TEXT NOT NULL,
+    path TEXT NOT NULL,
+    request_hash TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'processing',
+    response_status INTEGER,
+    response_body BYTEA,
+    response_content_type TEXT,
+    response_headers JSONB NOT NULL DEFAULT '{}'::JSONB,
+    locked_until TIMESTAMPTZ NOT NULL,
+    completed_at TIMESTAMPTZ,
+    expires_at TIMESTAMPTZ NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+    CONSTRAINT idempotency_pkey PRIMARY KEY (scope, idempotency_key),
+    CONSTRAINT chk_idempotency_scope CHECK (length(trim(scope)) BETWEEN 1 AND 255),
+    CONSTRAINT chk_idempotency_key CHECK (length(trim(idempotency_key)) BETWEEN 1 AND 255),
+    CONSTRAINT chk_idempotency_method CHECK (length(trim(method)) > 0),
+    CONSTRAINT chk_idempotency_path CHECK (length(trim(path)) > 0),
+    CONSTRAINT chk_idempotency_request_hash CHECK (length(request_hash) = 64),
+    CONSTRAINT chk_idempotency_status CHECK (status IN ('processing', 'completed')),
+    CONSTRAINT chk_idempotency_response_headers CHECK (jsonb_typeof(response_headers) = 'object'),
+    CONSTRAINT chk_idempotency_response_status CHECK (
+        response_status IS NULL OR response_status BETWEEN 100 AND 599
+    ),
+    CONSTRAINT chk_idempotency_completion CHECK (
+        (status = 'processing' AND response_status IS NULL AND completed_at IS NULL)
+        OR
+        (status = 'completed' AND response_status IS NOT NULL AND completed_at IS NOT NULL)
+    ),
+    CONSTRAINT chk_idempotency_expiration CHECK (
+        expires_at > created_at AND locked_until <= expires_at
+    )
+);
+
+CREATE INDEX idx_idempotency_expires_at ON idempotency (expires_at);
+
+@@END
+@@FILE:025_create_trunk_credentials.sql
+
+CREATE TABLE trunk_credentials (
+    trunk_id UUID PRIMARY KEY REFERENCES trunks(id) ON DELETE CASCADE,
+    organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    username TEXT NOT NULL,
+    realm TEXT NOT NULL,
+    ha1_md5 TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+    CONSTRAINT uq_trunk_credentials_identity UNIQUE (username, realm),
+    CONSTRAINT chk_trunk_credentials_username CHECK (
+        length(btrim(username)) > 0
+    ),
+    CONSTRAINT chk_trunk_credentials_realm CHECK (
+        length(btrim(realm)) > 0
+    ),
+    CONSTRAINT chk_trunk_credentials_ha1 CHECK (
+        ha1_md5 ~ '^[0-9a-f]{32}$'
+    ),
+    CONSTRAINT fk_trunk_credentials_tenant FOREIGN KEY (trunk_id, organization_id)
+        REFERENCES trunks(id, organization_id) ON DELETE CASCADE
+);
+
+CREATE INDEX idx_trunk_credentials_org
+    ON trunk_credentials (organization_id);
+
+CREATE TRIGGER set_trunk_credentials_updated_at
+BEFORE UPDATE ON trunk_credentials
+FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
+-- Stable auth_db contract for the hosted Leamout SIP edge. Only active tenant
+-- managed trunks for active organizations are eligible to authenticate.
+CREATE VIEW opensips_managed_trunk_credentials AS
+SELECT
+    tc.trunk_id,
+    tc.organization_id,
+    tc.username,
+    tc.realm AS domain,
+    tc.ha1_md5
+FROM trunk_credentials AS tc
+JOIN trunks AS t
+  ON t.id = tc.trunk_id
+ AND t.organization_id = tc.organization_id
+JOIN organizations AS o
+  ON o.id = tc.organization_id
+WHERE t.provisioning_mode = 'managed'
+  AND t.carrier_connection_id IS NULL
+  AND t.status = 'active'
+  AND o.status = 'active'
+  AND o.deleted_at IS NULL;
+
+@@END
+@@FILE:026_create_carrier_digest_credentials.sql
+-- OpenSIPS-readable digest material. This table intentionally stores only
+-- realm-bound HA1 values; plaintext and decryptable carrier secrets remain in
+-- the control-plane-only carrier_connections table.
+CREATE TABLE carrier_digest_credentials (
+    carrier_connection_id UUID NOT NULL REFERENCES carrier_connections(id) ON DELETE CASCADE,
+    organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    direction TEXT NOT NULL,
+    username TEXT NOT NULL,
+    realm TEXT NOT NULL,
+    ha1_md5 TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY (carrier_connection_id, direction),
+    CONSTRAINT chk_carrier_digest_direction CHECK (direction IN ('inbound', 'outbound')),
+    CONSTRAINT chk_carrier_digest_username CHECK (length(btrim(username)) > 0),
+    CONSTRAINT chk_carrier_digest_realm CHECK (length(btrim(realm)) > 0),
+    CONSTRAINT chk_carrier_digest_ha1 CHECK (ha1_md5 ~ '^[0-9a-f]{32}$'),
+    CONSTRAINT fk_carrier_digest_tenant FOREIGN KEY (carrier_connection_id, organization_id)
+        REFERENCES carrier_connections(id, organization_id) ON DELETE CASCADE
+);
+
+CREATE INDEX idx_carrier_digest_lookup
+    ON carrier_digest_credentials (direction, username, realm);
+
+-- Inbound credentials must resolve one carrier connection globally. Outbound
+-- credentials are selected by connection ID and may be shared across tenants.
+CREATE UNIQUE INDEX uq_inbound_carrier_digest_identity
+    ON carrier_digest_credentials (username, realm)
+    WHERE direction = 'inbound';
+
+CREATE TRIGGER set_carrier_digest_credentials_updated_at
+BEFORE UPDATE ON carrier_digest_credentials
+FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
+-- Stable read contract for the SIP data plane. uac_auth recognizes a `0x`
+-- prefix as precomputed HA1, while auth_db consumes the raw hexadecimal HA1.
+CREATE VIEW opensips_carrier_digest_credentials AS
+SELECT
+    d.carrier_connection_id,
+    d.organization_id,
+    d.direction,
+    d.username,
+    d.realm,
+    CASE WHEN d.direction = 'outbound' THEN '0x' || d.ha1_md5 ELSE d.ha1_md5 END AS password
+FROM carrier_digest_credentials AS d
+JOIN carrier_connections AS c
+  ON c.id = d.carrier_connection_id
+ AND c.organization_id = d.organization_id
+WHERE c.status = 'active'
+  AND (
+      d.direction = 'outbound'
+      OR (c.inbound_enabled = true AND c.inbound_auth_method = 'digest')
+  );
+
+-- auth_db requires its configured domain and password column names, while
+-- uac_auth requires a 0x-prefixed HA1. Separate views keep those contracts
+-- explicit and prevent credentials from one direction being selected in the
+-- other direction.
+CREATE VIEW opensips_inbound_carrier_credentials AS
+SELECT
+    d.carrier_connection_id,
+    d.organization_id,
+    d.username,
+    d.realm AS domain,
+    d.ha1_md5
+FROM carrier_digest_credentials AS d
+JOIN carrier_connections AS c
+  ON c.id = d.carrier_connection_id
+ AND c.organization_id = d.organization_id
+JOIN organizations AS o
+  ON o.id = d.organization_id
+WHERE d.direction = 'inbound'
+  AND c.status = 'active'
+  AND c.inbound_enabled = true
+  AND c.inbound_auth_method = 'digest'
+  AND o.status = 'active'
+  AND o.deleted_at IS NULL;
+
+CREATE VIEW opensips_outbound_carrier_credentials AS
+SELECT
+    d.carrier_connection_id,
+    d.organization_id,
+    d.username,
+    d.realm,
+    '0x' || d.ha1_md5 AS password
+FROM carrier_digest_credentials AS d
+JOIN carrier_connections AS c
+  ON c.id = d.carrier_connection_id
+ AND c.organization_id = d.organization_id
+JOIN organizations AS o
+  ON o.id = d.organization_id
+WHERE d.direction = 'outbound'
+  AND c.status = 'active'
+  AND o.status = 'active'
+  AND o.deleted_at IS NULL;
+
+@@END
+@@FILE:027_create_managed_number_orders.sql
+-- DIDWW is the initial managed DID acquisition and inbound provider.
+INSERT INTO carrier_providers (slug, name, adapter, status)
+VALUES ('didww', 'DIDWW', 'didww', 'active')
+ON CONFLICT (slug) DO NOTHING;
+
+-- A purchase remains separate from the resulting phone number so an uncertain
+-- provider response can always be reconciled without issuing a second order.
+CREATE TABLE managed_number_orders (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE RESTRICT,
+    provider_id UUID NOT NULL REFERENCES carrier_providers(id) ON DELETE RESTRICT,
+    phone_number_id UUID,
+    idempotency_key TEXT NOT NULL,
+    request_hash TEXT NOT NULL,
+    number TEXT NOT NULL,
+    country_code CHAR(2) NOT NULL,
+    available_did_id TEXT NOT NULL,
+    sku_id TEXT NOT NULL,
+    provider_order_id TEXT,
+    provider_did_id TEXT,
+    inbound_trunk_id TEXT,
+    status TEXT NOT NULL DEFAULT 'ready',
+    submitted_at TIMESTAMPTZ,
+    ownership_verified_at TIMESTAMPTZ,
+    routing_verified_at TIMESTAMPTZ,
+    activated_at TIMESTAMPTZ,
+    reconcile_after TIMESTAMPTZ NOT NULL DEFAULT now(),
+    reconcile_attempts INTEGER NOT NULL DEFAULT 0,
+    error_code TEXT,
+    error_message TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+    UNIQUE (organization_id, idempotency_key),
+    FOREIGN KEY (phone_number_id, organization_id, provider_id)
+        REFERENCES phone_numbers(id, organization_id, provider_id),
+    CHECK (length(idempotency_key) BETWEEN 1 AND 255 AND idempotency_key = btrim(idempotency_key)),
+    CHECK (request_hash ~ '^[0-9a-f]{64}$'),
+    CHECK (number ~ '^\\+[1-9][0-9]{6,14}$'),
+    CHECK (country_code ~ '^[A-Z]{2}$'),
+    CHECK (length(btrim(available_did_id)) > 0 AND length(btrim(sku_id)) > 0),
+    CHECK (provider_order_id IS NULL OR length(btrim(provider_order_id)) > 0),
+    CHECK (provider_did_id IS NULL OR length(btrim(provider_did_id)) > 0),
+    CHECK (inbound_trunk_id IS NULL OR length(btrim(inbound_trunk_id)) > 0),
+    CHECK (reconcile_attempts >= 0),
+    CHECK (status IN ('ready', 'submitting', 'outcome_unknown', 'provider_pending',
+                      'configuring', 'completed', 'failed', 'manual_review')),
+    CHECK (status NOT IN ('submitting', 'outcome_unknown', 'provider_pending', 'configuring', 'completed')
+           OR submitted_at IS NOT NULL),
+    CHECK (status NOT IN ('provider_pending', 'configuring', 'completed') OR provider_order_id IS NOT NULL),
+    CHECK (status NOT IN ('configuring', 'completed')
+           OR (provider_did_id IS NOT NULL AND ownership_verified_at IS NOT NULL)),
+    CHECK (status <> 'completed' OR (phone_number_id IS NOT NULL AND inbound_trunk_id IS NOT NULL
+           AND routing_verified_at IS NOT NULL AND activated_at IS NOT NULL))
+);
+
+-- Failed pre-submission attempts release their claim. Every ambiguous or
+-- successful attempt continues to block duplicate acquisition globally.
+CREATE UNIQUE INDEX uq_managed_number_orders_live_number
+    ON managed_number_orders (number) WHERE status <> 'failed';
+CREATE UNIQUE INDEX uq_managed_number_orders_live_inventory
+    ON managed_number_orders (provider_id, available_did_id) WHERE status <> 'failed';
+CREATE UNIQUE INDEX uq_managed_number_orders_provider_order
+    ON managed_number_orders (provider_id, provider_order_id) WHERE provider_order_id IS NOT NULL;
+CREATE UNIQUE INDEX uq_managed_number_orders_provider_did
+    ON managed_number_orders (provider_id, provider_did_id) WHERE provider_did_id IS NOT NULL;
+CREATE INDEX idx_managed_number_orders_org_created
+    ON managed_number_orders (organization_id, created_at DESC);
+CREATE INDEX idx_managed_number_orders_reconciliation
+    ON managed_number_orders (reconcile_after, updated_at)
+    WHERE status IN ('submitting', 'outcome_unknown', 'provider_pending', 'configuring');
+
+CREATE TRIGGER set_managed_number_orders_updated_at
+BEFORE UPDATE ON managed_number_orders
+FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
+@@END
