@@ -35,13 +35,16 @@ func TestRequireSubscriptionAllowsActiveOrganization(t *testing.T) {
 		nextCalled = true
 		w.WriteHeader(http.StatusNoContent)
 	}))
-	request := httptest.NewRequest(http.MethodGet, "/", nil).WithContext(
+	request := httptest.NewRequestWithContext(
 		withOrganizationContext(
 			context.Background(),
 			organizationContext{
 				ID: organizationID,
 			},
 		),
+		http.MethodGet,
+		"/",
+		nil,
 	)
 	response := httptest.NewRecorder()
 
@@ -69,13 +72,16 @@ func TestRequireSubscriptionRejectsInactiveOrganization(t *testing.T) {
 	) {
 		t.Fatal("next handler must not be called")
 	}))
-	request := httptest.NewRequest(http.MethodPost, "/", nil).WithContext(
+	request := httptest.NewRequestWithContext(
 		withOrganizationContext(
 			context.Background(),
 			organizationContext{
 				ID: organizationID,
 			},
 		),
+		http.MethodPost,
+		"/",
+		nil,
 	)
 	response := httptest.NewRecorder()
 
@@ -94,7 +100,12 @@ func TestRequireSubscriptionRejectsMissingOrganizationContext(t *testing.T) {
 	) {
 		t.Fatal("next handler must not be called")
 	}))
-	request := httptest.NewRequest(http.MethodGet, "/", nil)
+	request := httptest.NewRequestWithContext(
+		context.Background(),
+		http.MethodGet,
+		"/",
+		nil,
+	)
 	response := httptest.NewRecorder()
 
 	handler.ServeHTTP(response, request)
