@@ -25,6 +25,13 @@ WHERE id = sqlc.arg(id)
   AND organization_id = sqlc.arg(organization_id)
 LIMIT 1;
 
+-- name: GetPaymentAttemptByProviderPaymentID :one
+SELECT *
+FROM payments
+WHERE provider = sqlc.arg(provider)
+  AND provider_payment_id = sqlc.arg(provider_payment_id)
+LIMIT 1;
+
 -- name: GetActivePaymentAttemptByCheckout :one
 SELECT *
 FROM payments
