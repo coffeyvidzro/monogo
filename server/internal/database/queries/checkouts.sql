@@ -124,11 +124,20 @@ RETURNING c.*;
 
 
 -- name: ExpireDueCheckouts :execrows
+WITH due AS (
+    SELECT id
+    FROM checkouts
+    WHERE status IN ('pending', 'processing')
+      AND expires_at <= sqlc.arg(completed_at)
+    ORDER BY expires_at, id
+    FOR UPDATE SKIP LOCKED
+    LIMIT sqlc.arg(limit_count)
+)
 UPDATE checkouts AS c
 SET
     status = 'expired',
     next_action = 'none',
     provider_message = NULL,
     completed_at = sqlc.arg(completed_at)
-WHERE c.status IN ('pending', 'processing')
-  AND c.expires_at <= sqlc.arg(completed_at);
+FROM due
+WHERE c.id = due.id;
