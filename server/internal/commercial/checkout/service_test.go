@@ -307,6 +307,167 @@ func TestConfirmCheckoutRollsBackOnConflictingPaymentAttempt(t *testing.T) {
 	}
 }
 
+func TestConfirmCheckoutRollsBackWhenActivePaymentConflicts(t *testing.T) {
+	service, pool, organizationID, subscriptionID := newCheckoutTestService(t)
+	now := time.Date(2026, time.September, 29, 13, 0, 0, 0, time.UTC)
+	service.now = func() time.Time { return now }
+
+	checkout, err := service.Create(
+		context.Background(),
+		CreateRequest{
+			OrganizationID: organizationID,
+			Purpose:        PurposeSubscription,
+			SubscriptionID: &subscriptionID,
+		},
+	)
+	if err != nil {
+		t.Fatalf("create checkout: %v", err)
+	}
+
+	if _, err := pool.Exec(
+		context.Background(),
+		`INSERT INTO payments (
+			checkout_id,
+			organization_id,
+			provider,
+			payment_method,
+			attempt,
+			amount_micros,
+			currency
+		) VALUES ($1, $2, 'paystack', 'mobile_money', 1, $3, 'USD')`,
+		checkout.ID,
+		organizationID,
+		testSubscriptionAmountMicros,
+	); err != nil {
+		t.Fatalf("insert conflicting payment attempt: %v", err)
+	}
+
+	if _, err := service.Confirm(
+		context.Background(),
+		ConfirmRequest{
+			OrganizationID: organizationID,
+			CheckoutID:     checkout.ID,
+			Provider:       ProviderStripe,
+			PaymentMethod:  PaymentMethodCard,
+		},
+	); err == nil {
+		t.Fatal("confirm checkout succeeded with conflicting active payment")
+	}
+
+	var (
+		status        string
+		provider      *string
+		paymentMethod *string
+	)
+	if err := pool.QueryRow(
+		context.Background(),
+		`SELECT status, provider, payment_method
+		 FROM checkouts
+		 WHERE id = $1`,
+		checkout.ID,
+	).Scan(&status, &provider, &paymentMethod); err != nil {
+		t.Fatalf("read checkout after failed confirmation: %v", err)
+	}
+	if status != StatusPending {
+		t.Fatalf("status = %q, want %q", status, StatusPending)
+	}
+	if provider != nil || paymentMethod != nil {
+		t.Fatalf("payment binding persisted after rollback: provider=%v method=%v", provider, paymentMethod)
+	}
+}
+
+func TestContinueRejectsStaleAction(t *testing.T) {
+	service, pool, organizationID, subscriptionID := newCheckoutTestService(t)
+	now := time.Date(2026, time.September, 29, 13, 0, 0, 0, time.UTC)
+	service.now = func() time.Time { return now }
+
+	checkout := createConfirmedCheckoutForContinuation(
+		t,
+		service,
+		pool,
+		organizationID,
+		subscriptionID,
+		ActionSubmitOTP,
+	)
+
+	phone := "+233201234567"
+	if _, err := service.Continue(
+		context.Background(),
+		ContinueRequest{
+			OrganizationID: organizationID,
+			CheckoutID:     checkout.ID,
+			Action:         ActionSubmitPhone,
+			Phone:          &phone,
+		},
+	); err == nil {
+		t.Fatal("stale continuation action succeeded")
+	}
+
+	assertCheckoutNextAction(t, pool, checkout.ID, ActionSubmitOTP)
+}
+
+func TestContinueAuthorizeMobileMoneyAdvancesToWait(t *testing.T) {
+	service, pool, organizationID, subscriptionID := newCheckoutTestService(t)
+	now := time.Date(2026, time.September, 29, 13, 0, 0, 0, time.UTC)
+	service.now = func() time.Time { return now }
+
+	checkout := createConfirmedCheckoutForContinuation(
+		t,
+		service,
+		pool,
+		organizationID,
+		subscriptionID,
+		ActionAuthorizeMobileMoney,
+	)
+
+	continued, err := service.Continue(
+		context.Background(),
+		ContinueRequest{
+			OrganizationID: organizationID,
+			CheckoutID:     checkout.ID,
+			Action:         ActionAuthorizeMobileMoney,
+		},
+	)
+	if err != nil {
+		t.Fatalf("continue mobile money authorization: %v", err)
+	}
+	if continued.NextAction != ActionWait {
+		t.Fatalf("next action = %q, want %q", continued.NextAction, ActionWait)
+	}
+
+	assertCheckoutNextAction(t, pool, checkout.ID, ActionWait)
+}
+
+func TestContinueOTPDoesNotAdvanceWithoutProviderAdapter(t *testing.T) {
+	service, pool, organizationID, subscriptionID := newCheckoutTestService(t)
+	now := time.Date(2026, time.September, 29, 13, 0, 0, 0, time.UTC)
+	service.now = func() time.Time { return now }
+
+	checkout := createConfirmedCheckoutForContinuation(
+		t,
+		service,
+		pool,
+		organizationID,
+		subscriptionID,
+		ActionSubmitOTP,
+	)
+
+	otp := "123456"
+	if _, err := service.Continue(
+		context.Background(),
+		ContinueRequest{
+			OrganizationID: organizationID,
+			CheckoutID:     checkout.ID,
+			Action:         ActionSubmitOTP,
+			OTP:            &otp,
+		},
+	); err == nil {
+		t.Fatal("otp continuation succeeded without provider adapter")
+	}
+
+	assertCheckoutNextAction(t, pool, checkout.ID, ActionSubmitOTP)
+}
+
 func TestCompleteSubscriptionCheckoutActivatesAndReplays(t *testing.T) {
 	service, pool, organizationID, subscriptionID := newCheckoutTestService(t)
 	now := time.Date(2026, time.September, 29, 13, 0, 0, 0, time.UTC)
@@ -540,6 +701,78 @@ func TestExpireDueCheckoutReleasesSubscriptionSlot(t *testing.T) {
 	}
 	if second.ID == first.ID {
 		t.Fatalf("replacement checkout reused expired checkout id %s", first.ID)
+	}
+}
+
+func createConfirmedCheckoutForContinuation(
+	t *testing.T,
+	service *Service,
+	pool *pgxpool.Pool,
+	organizationID uuid.UUID,
+	subscriptionID uuid.UUID,
+	nextAction string,
+) Checkout {
+	t.Helper()
+
+	checkout, err := service.Create(
+		context.Background(),
+		CreateRequest{
+			OrganizationID: organizationID,
+			Purpose:        PurposeSubscription,
+			SubscriptionID: &subscriptionID,
+		},
+	)
+	if err != nil {
+		t.Fatalf("create checkout: %v", err)
+	}
+	if _, err := service.Confirm(
+		context.Background(),
+		ConfirmRequest{
+			OrganizationID: organizationID,
+			CheckoutID:     checkout.ID,
+			Provider:       ProviderStripe,
+			PaymentMethod:  PaymentMethodCard,
+		},
+	); err != nil {
+		t.Fatalf("confirm checkout: %v", err)
+	}
+
+	if _, err := pool.Exec(
+		context.Background(),
+		`UPDATE checkouts
+		 SET next_action = $1,
+		     provider_message = 'provider action required'
+		 WHERE id = $2`,
+		nextAction,
+		checkout.ID,
+	); err != nil {
+		t.Fatalf("set checkout continuation action: %v", err)
+	}
+
+	checkout.NextAction = nextAction
+	return checkout
+}
+
+func assertCheckoutNextAction(
+	t *testing.T,
+	pool *pgxpool.Pool,
+	checkoutID uuid.UUID,
+	want string,
+) {
+	t.Helper()
+
+	var action string
+	if err := pool.QueryRow(
+		context.Background(),
+		`SELECT next_action
+		 FROM checkouts
+		 WHERE id = $1`,
+		checkoutID,
+	).Scan(&action); err != nil {
+		t.Fatalf("read checkout next action: %v", err)
+	}
+	if action != want {
+		t.Fatalf("next action = %q, want %q", action, want)
 	}
 }
 
