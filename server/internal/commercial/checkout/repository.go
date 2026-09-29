@@ -75,25 +75,7 @@ func (r *Repository) Confirm(
 		return sqlc.Checkout{}, err
 	}
 
-	return sqlc.Checkout{
-		ID:              row.ID,
-		OrganizationID:  row.OrganizationID,
-		Purpose:         row.Purpose,
-		SubscriptionID:  row.SubscriptionID,
-		Reference:       row.Reference,
-		AmountMicros:    row.AmountMicros,
-		Currency:        row.Currency,
-		Status:          row.Status,
-		Provider:        row.Provider,
-		PaymentMethod:   row.PaymentMethod,
-		NextAction:      row.NextAction,
-		ProviderMessage: row.ProviderMessage,
-		ExpiresAt:       row.ExpiresAt,
-		FailureCode:     row.FailureCode,
-		CompletedAt:     row.CompletedAt,
-		CreatedAt:       row.CreatedAt,
-		UpdatedAt:       row.UpdatedAt,
-	}, nil
+	return sqlc.Checkout(row), nil
 }
 
 func (r *Repository) GetForContinuation(
