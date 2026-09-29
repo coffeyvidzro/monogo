@@ -1,0 +1,344 @@
+@@FILE:001_extensions.sql
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+CREATE EXTENSION IF NOT EXISTS citext;
+
+CREATE OR REPLACE FUNCTION set_updated_at()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    NEW.updated_at = now();
+    RETURN NEW;
+END;
+$$;
+
+@@END
+@@FILE:002_create_users.sql
+CREATE TABLE IF NOT EXISTS users (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    email CITEXT NOT NULL UNIQUE,
+    email_verified BOOLEAN NOT NULL DEFAULT false,
+    name TEXT,
+    password_hash TEXT,
+    is_platform_admin BOOLEAN NOT NULL DEFAULT false,
+    disabled_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TRIGGER trg_users_set_updated_at
+BEFORE UPDATE ON users
+FOR EACH ROW
+EXECUTE FUNCTION set_updated_at();
+
+CREATE INDEX IF NOT EXISTS users_email_verified_idx
+    ON users (email_verified)
+    WHERE email_verified = true;
+
+CREATE INDEX IF NOT EXISTS users_active_idx
+    ON users (id)
+    WHERE disabled_at IS NULL;
+
+@@END
+@@FILE:003_create_authentication.sql
+CREATE TABLE IF NOT EXISTS auth_transactions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    identifier CITEXT NOT NULL,
+    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+    state TEXT NOT NULL DEFAULT 'started',
+    selected_method TEXT,
+    expires_at TIMESTAMPTZ NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+    CONSTRAINT chk_auth_transactions_state CHECK (
+        state IN (
+            'started',
+            'otp_sent',
+            'otp_verified',
+            'password_required',
+            'authenticated',
+            'expired'
+        )
+    ),
+    CONSTRAINT chk_auth_transactions_method CHECK (
+        selected_method IS NULL
+        OR selected_method IN ('otp', 'password')
+    ),
+    CONSTRAINT chk_auth_transactions_expiry CHECK (expires_at > created_at)
+);
+
+CREATE INDEX IF NOT EXISTS auth_transactions_identifier_idx
+    ON auth_transactions (identifier);
+
+CREATE INDEX IF NOT EXISTS auth_transactions_user_id_idx
+    ON auth_transactions (user_id);
+
+CREATE INDEX IF NOT EXISTS auth_transactions_active_idx
+    ON auth_transactions (identifier, expires_at)
+    WHERE state NOT IN ('authenticated', 'expired');
+
+
+CREATE TABLE IF NOT EXISTS auth_challenges (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    auth_transaction_id UUID
+        REFERENCES auth_transactions(id)
+        ON DELETE CASCADE,
+    identifier CITEXT NOT NULL,
+    secret_hash TEXT NOT NULL,
+    purpose TEXT NOT NULL,
+    state JSONB NOT NULL DEFAULT '{}'::jsonb,
+    attempts INTEGER NOT NULL DEFAULT 0,
+    max_attempts INTEGER NOT NULL DEFAULT 5,
+    expires_at TIMESTAMPTZ NOT NULL,
+    consumed_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+    CONSTRAINT chk_auth_challenges_purpose CHECK (
+        purpose IN (
+            'email_otp',
+            'email_verification',
+            'password_reset',
+            'magic_link'
+        )
+    ),
+    CONSTRAINT chk_auth_challenges_state CHECK (jsonb_typeof(state) = 'object'),
+    CONSTRAINT chk_auth_challenges_attempts CHECK (attempts >= 0),
+    CONSTRAINT chk_auth_challenges_max_attempts CHECK (max_attempts > 0),
+    CONSTRAINT chk_auth_challenges_expiry CHECK (expires_at > created_at),
+    CONSTRAINT chk_auth_challenges_consumed CHECK (
+        consumed_at IS NULL
+        OR consumed_at >= created_at
+    )
+);
+
+CREATE INDEX IF NOT EXISTS auth_challenges_transaction_idx
+    ON auth_challenges (auth_transaction_id);
+
+CREATE INDEX IF NOT EXISTS auth_challenges_identifier_idx
+    ON auth_challenges (identifier);
+
+CREATE INDEX IF NOT EXISTS auth_challenges_active_idx
+    ON auth_challenges (identifier, purpose, expires_at)
+    WHERE consumed_at IS NULL;
+
+CREATE INDEX IF NOT EXISTS auth_challenges_expires_idx
+    ON auth_challenges (expires_at)
+    WHERE consumed_at IS NULL;
+
+
+CREATE TRIGGER trg_auth_transactions_set_updated_at
+BEFORE UPDATE ON auth_transactions
+FOR EACH ROW
+EXECUTE FUNCTION set_updated_at();
+
+@@END
+@@FILE:004_create_sessions.sql
+CREATE TABLE IF NOT EXISTS sessions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL
+        REFERENCES users(id)
+        ON DELETE CASCADE,
+    token_hash TEXT NOT NULL UNIQUE,
+    assurance TEXT NOT NULL DEFAULT 'unknown',
+    ip_address INET,
+    user_agent TEXT,
+    expires_at TIMESTAMPTZ NOT NULL,
+    last_seen_at TIMESTAMPTZ,
+    revoked_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+    CONSTRAINT chk_sessions_expiry CHECK (expires_at > created_at),
+    CONSTRAINT chk_sessions_revoked CHECK (
+        revoked_at IS NULL
+        OR revoked_at >= created_at
+    ),
+    CONSTRAINT chk_sessions_assurance CHECK (
+        assurance IN ('unknown', 'password', 'otp', 'mfa')
+    )
+);
+
+CREATE INDEX IF NOT EXISTS sessions_user_id_idx
+    ON sessions (user_id);
+
+CREATE INDEX IF NOT EXISTS sessions_expires_at_idx
+    ON sessions (expires_at);
+
+CREATE INDEX IF NOT EXISTS sessions_active_idx
+    ON sessions (user_id)
+    WHERE revoked_at IS NULL;
+
+@@END
+@@FILE:005_create_organizations.sql
+CREATE TABLE IF NOT EXISTS organizations (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'active',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    deleted_at TIMESTAMPTZ,
+
+    CONSTRAINT chk_organizations_status CHECK (status IN ('active', 'disabled'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_organizations_status
+    ON organizations (status);
+
+CREATE INDEX IF NOT EXISTS idx_organizations_deleted_at
+    ON organizations (deleted_at);
+
+-- Trigger to auto-update updated_at
+CREATE TRIGGER set_organizations_updated_at
+BEFORE UPDATE ON organizations
+FOR EACH ROW
+EXECUTE FUNCTION set_updated_at();
+
+@@END
+@@FILE:006_create_organization_members.sql
+CREATE TABLE IF NOT EXISTS organization_members (
+    organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    role TEXT NOT NULL DEFAULT 'member',
+    status TEXT NOT NULL DEFAULT 'active',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+    PRIMARY KEY (organization_id, user_id),
+    CONSTRAINT chk_organization_members_role CHECK (role IN ('owner', 'admin', 'member')),
+    CONSTRAINT chk_organization_members_status CHECK (status IN ('active', 'disabled'))
+);
+
+-- Indexes for efficient querying of organization memberships
+CREATE INDEX IF NOT EXISTS idx_organization_members_user_id
+    ON organization_members (user_id);
+
+CREATE INDEX IF NOT EXISTS idx_organization_members_organization_id_status
+    ON organization_members (organization_id, status);
+
+CREATE INDEX IF NOT EXISTS idx_organization_members_user_id_status
+    ON organization_members (user_id, status);
+
+-- Trigger to auto-update updated_at
+CREATE TRIGGER set_organization_members_updated_at
+BEFORE UPDATE ON organization_members
+FOR EACH ROW
+EXECUTE FUNCTION set_updated_at();
+
+@@END
+@@FILE:007_create_organization_invitations.sql
+CREATE TABLE IF NOT EXISTS organization_invitations (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    invited_by UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    email CITEXT NOT NULL,
+    role TEXT NOT NULL DEFAULT 'member',
+    token_hash TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending',
+    expires_at TIMESTAMPTZ NOT NULL,
+    accepted_at TIMESTAMPTZ,
+    declined_at TIMESTAMPTZ,
+    revoked_at TIMESTAMPTZ,
+
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+    -- One pending invitation per email per organization
+    CONSTRAINT chk_organization_invitations_status
+        CHECK (status IN ('pending', 'accepted', 'declined', 'expired', 'revoked')),
+    CONSTRAINT chk_organization_invitations_role
+        CHECK (role IN ('admin', 'member'))
+);
+
+-- Prevent duplicate pending invitations for same email + organization
+CREATE UNIQUE INDEX idx_organization_invitations_pending_email
+    ON organization_invitations (organization_id, email)
+    WHERE status = 'pending';
+
+CREATE INDEX idx_organization_invitations_organization_id
+    ON organization_invitations (organization_id);
+
+CREATE INDEX idx_organization_invitations_token_hash
+    ON organization_invitations (token_hash);
+
+CREATE INDEX idx_organization_invitations_email
+    ON organization_invitations (email);
+
+CREATE INDEX idx_organization_invitations_expires_at
+    ON organization_invitations (expires_at)
+    WHERE status = 'pending';
+
+CREATE TRIGGER set_organization_invitations_updated_at
+BEFORE UPDATE ON organization_invitations
+FOR EACH ROW
+EXECUTE FUNCTION set_updated_at();
+
+@@END
+@@FILE:008_create_organization_tokens.sql
+CREATE TABLE IF NOT EXISTS organization_tokens (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    created_by UUID REFERENCES users(id) ON DELETE SET NULL,
+    name TEXT NOT NULL,
+    description TEXT,
+    token_hash TEXT NOT NULL,
+    token_prefix TEXT NOT NULL,
+    scopes JSONB NOT NULL,
+    last_used_at TIMESTAMPTZ,
+    last_used_ip INET,
+    expires_at TIMESTAMPTZ,
+    disabled_at TIMESTAMPTZ,
+
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+    CONSTRAINT chk_organization_tokens_scopes_is_array
+        CHECK (jsonb_typeof(scopes) = 'array'),
+    CONSTRAINT chk_organization_tokens_expires_after_created
+        CHECK (expires_at IS NULL OR expires_at > created_at)
+);
+
+-- One active token per organization with the same name.
+CREATE UNIQUE INDEX idx_organization_tokens_organization_name_active
+    ON organization_tokens (organization_id, name)
+    WHERE disabled_at IS NULL;
+
+CREATE INDEX idx_organization_tokens_organization_id
+    ON organization_tokens (organization_id);
+
+CREATE UNIQUE INDEX idx_organization_tokens_token_hash
+    ON organization_tokens (token_hash);
+
+CREATE INDEX idx_organization_tokens_token_prefix
+    ON organization_tokens (token_prefix);
+
+CREATE TRIGGER set_organization_tokens_updated_at
+BEFORE UPDATE ON organization_tokens
+FOR EACH ROW
+EXECUTE FUNCTION set_updated_at();
+
+@@END
+@@FILE:009_create_sip_domains.sql
+CREATE TABLE IF NOT EXISTS sip_domains (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    domain CITEXT UNIQUE NOT NULL,
+    status TEXT NOT NULL DEFAULT 'active',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+    CONSTRAINT chk_sip_domains_status CHECK (status IN ('active', 'disabled'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_sip_domains_organization_id
+    ON sip_domains (organization_id);
+
+CREATE INDEX IF NOT EXISTS idx_sip_domains_status
+    ON sip_domains (status);
+
+-- Trigger to auto-update updated_at
+CREATE TRIGGER set_sip_domains_updated_at
+BEFORE UPDATE ON sip_domains
+FOR EACH ROW
+EXECUTE FUNCTION set_updated_at();
+
+@@END
