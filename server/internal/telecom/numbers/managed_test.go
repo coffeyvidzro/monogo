@@ -103,4 +103,3 @@ func TestRenewalRetryDelayIsCapped(t *testing.T) {
 		}
 	}
 }
-
