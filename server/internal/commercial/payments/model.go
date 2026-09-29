@@ -8,10 +8,13 @@ import (
 )
 
 const (
-	StatusPending   = "pending"
-	StatusSucceeded = "succeeded"
-	StatusFailed    = "failed"
-	StatusCancelled = "cancelled"
+	StatusPending           = "pending"
+	StatusProcessing        = "processing"
+	StatusSucceeded         = "succeeded"
+	StatusFailed            = "failed"
+	StatusCancelled         = "cancelled"
+	StatusRefunded          = "refunded"
+	StatusPartiallyRefunded = "partially_refunded"
 )
 
 var (
@@ -21,19 +24,19 @@ var (
 )
 
 type Payment struct {
-	ID                uuid.UUID  `json:"-"`
-	CheckoutID        uuid.UUID  `json:"-"`
-	OrganizationID    uuid.UUID  `json:"-"`
-	Provider          string     `json:"-"`
-	Attempt           int32      `json:"-"`
-	AmountMicros      int64      `json:"-"`
-	Currency          string     `json:"-"`
-	Status            string     `json:"-"`
-	ProviderReference *string    `json:"-"`
-	FailureCode       *string    `json:"-"`
-	CompletedAt       *time.Time `json:"-"`
-	CreatedAt         time.Time  `json:"-"`
-	UpdatedAt         time.Time  `json:"-"`
+	ID                uuid.UUID
+	CheckoutID        uuid.UUID
+	OrganizationID    uuid.UUID
+	Provider          string
+	Attempt           int32
+	ProviderPaymentID *string
+	AmountMicros      int64
+	Currency          string
+	Status            string
+	FailureCode       *string
+	PaidAt            *time.Time
+	CreatedAt         time.Time
+	UpdatedAt         time.Time
 }
 
 type CreateAttemptRequest struct {
@@ -44,9 +47,9 @@ type CreateAttemptRequest struct {
 	Currency       string
 }
 
-type AttachProviderReferenceRequest struct {
-	CheckoutID       uuid.UUID
-	OrganizationID   uuid.UUID
-	PaymentID         uuid.UUID
-	ProviderReference string
+type AttachProviderPaymentIDRequest struct {
+	CheckoutID        uuid.UUID
+	OrganizationID    uuid.UUID
+	PaymentID          uuid.UUID
+	ProviderPaymentID string
 }
