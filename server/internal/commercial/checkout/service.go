@@ -236,7 +236,7 @@ func (s *Service) Complete(
 
 	switch current.Purpose {
 	case PurposeSubscription:
-		if err := s.completeSubscription(ctx, current); err != nil {
+		if err := s.completeSubscription(ctx, current, completedAt); err != nil {
 			return Checkout{}, err
 		}
 	case PurposeWalletTopup:
@@ -299,6 +299,7 @@ func (s *Service) Fail(
 func (s *Service) completeSubscription(
 	ctx context.Context,
 	checkout Checkout,
+	completedAt time.Time,
 ) error {
 	if checkout.SubscriptionID == nil ||
 		checkout.PeriodStart == nil ||
