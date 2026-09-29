@@ -150,3 +150,22 @@ func (r *Repository) ExpireDue(
 		},
 	)
 }
+
+
+func (r *Repository) UpdateAction(
+	ctx context.Context,
+	organizationID uuid.UUID,
+	id uuid.UUID,
+	nextAction string,
+	providerMessage *string,
+) (sqlc.Checkout, error) {
+	return r.queries.UpdateCheckoutAction(
+		ctx,
+		sqlc.UpdateCheckoutActionParams{
+			NextAction:      nextAction,
+			ProviderMessage: providerMessage,
+			CheckoutID:      id,
+			OrganizationID:  organizationID,
+		},
+	)
+}
