@@ -63,7 +63,7 @@ func (r *Repository) Get(
 	return r.queries.GetCheckoutByID(
 		ctx,
 		sqlc.GetCheckoutByIDParams{
-			ID:             id,
+			CheckoutID:     id,
 			OrganizationID: organizationID,
 		},
 	)
@@ -79,7 +79,7 @@ func (r *Repository) Confirm(
 		sqlc.ConfirmCheckoutParams{
 			Provider:       &req.Provider,
 			PaymentMethod:  &req.PaymentMethod,
-			ID:             req.CheckoutID,
+			CheckoutID:     req.CheckoutID,
 			OrganizationID: req.OrganizationID,
 			NowAt:          pgconv.TimeToTimestamptz(now),
 		},
@@ -95,7 +95,7 @@ func (r *Repository) GetForContinuation(
 	return r.queries.GetCheckoutForContinuation(
 		ctx,
 		sqlc.GetCheckoutForContinuationParams{
-			ID:             id,
+			CheckoutID:     id,
 			OrganizationID: organizationID,
 			NowAt:          pgconv.TimeToTimestamptz(now),
 		},
@@ -113,7 +113,7 @@ func (r *Repository) Complete(
 		ctx,
 		sqlc.CompleteCheckoutParams{
 			CompletedAt:    pgconv.TimeToTimestamptz(completedAt),
-			ID:             id,
+			CheckoutID:     id,
 			OrganizationID: organizationID,
 		},
 	)
@@ -131,7 +131,7 @@ func (r *Repository) Fail(
 		sqlc.FailCheckoutParams{
 			ProviderMessage: providerMessage,
 			CompletedAt:     pgconv.TimeToTimestamptz(completedAt),
-			ID:              id,
+			CheckoutID:      id,
 			OrganizationID:  organizationID,
 		},
 	)
