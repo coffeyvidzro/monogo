@@ -140,7 +140,7 @@ func TestConfirmCheckoutCreatesInternalPaymentAttempt(t *testing.T) {
 	}
 }
 
-func TestContinueCheckoutRequiresMatchingActionAndReturnsToWait(t *testing.T) {
+func TestContinueCheckoutRejectsUnsupportedProvider(t *testing.T) {
 	service, pool, organizationID, subscriptionID := newCheckoutTestService(t)
 	now := time.Date(2026, time.September, 29, 13, 0, 0, 0, time.UTC)
 	service.now = func() time.Time { return now }
@@ -179,33 +179,8 @@ func TestContinueCheckoutRequiresMatchingActionAndReturnsToWait(t *testing.T) {
 		t.Fatalf("set checkout continuation action: %v", err)
 	}
 
-	phone := "+233201234567"
-	if _, err := service.Continue(
-		context.Background(),
-		ContinueRequest{
-			OrganizationID: organizationID,
-			CheckoutID:     checkout.ID,
-			Action:         ActionSubmitPhone,
-			Phone:          &phone,
-		},
-	); err == nil {
-		t.Fatal("continue checkout with mismatched action succeeded")
-	}
-
-	var nextAction string
-	if err := pool.QueryRow(
-		context.Background(),
-		`SELECT next_action FROM checkouts WHERE id = $1`,
-		checkout.ID,
-	).Scan(&nextAction); err != nil {
-		t.Fatalf("read checkout action after mismatch: %v", err)
-	}
-	if nextAction != ActionSubmitOTP {
-		t.Fatalf("next_action after mismatch = %q, want %q", nextAction, ActionSubmitOTP)
-	}
-
 	otp := "123456"
-	continued, err := service.Continue(
+	if _, err := service.Continue(
 		context.Background(),
 		ContinueRequest{
 			OrganizationID: organizationID,
@@ -213,16 +188,11 @@ func TestContinueCheckoutRequiresMatchingActionAndReturnsToWait(t *testing.T) {
 			Action:         ActionSubmitOTP,
 			OTP:            &otp,
 		},
-	)
-	if err != nil {
-		t.Fatalf("continue checkout: %v", err)
+	); err == nil {
+		t.Fatal("stripe checkout continuation succeeded")
 	}
-	if continued.NextAction != ActionWait {
-		t.Fatalf("next_action = %q, want %q", continued.NextAction, ActionWait)
-	}
-	if continued.ProviderMessage != nil {
-		t.Fatalf("provider_message = %q, want nil", *continued.ProviderMessage)
-	}
+
+	assertCheckoutNextAction(t, pool, checkout.ID, ActionSubmitOTP)
 }
 
 func TestConfirmCheckoutRollsBackOnConflictingPaymentAttempt(t *testing.T) {
