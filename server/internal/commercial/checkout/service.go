@@ -211,21 +211,33 @@ func (s *Service) Continue(
 		return Checkout{}, apperror.NewConflict("checkout continuation action does not match next action")
 	}
 
-	row, err := s.repo.UpdateAction(
-		ctx,
-		req.OrganizationID,
-		req.CheckoutID,
-		ActionWait,
-		nil,
-	)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return Checkout{}, apperror.NewConflict("checkout cannot continue")
-	}
-	if err != nil {
-		return Checkout{}, apperror.NewInternal("advance checkout continuation", err)
-	}
+	switch req.Action {
+	case ActionAuthorizeMobileMoney:
+		row, err := s.repo.UpdateAction(
+			ctx,
+			req.OrganizationID,
+			req.CheckoutID,
+			ActionWait,
+			nil,
+		)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return Checkout{}, apperror.NewConflict("checkout cannot continue")
+		}
+		if err != nil {
+			return Checkout{}, apperror.NewInternal("advance checkout continuation", err)
+		}
 
-	return checkoutFromRow(row), nil
+		return checkoutFromRow(row), nil
+
+	case ActionSubmitPhone, ActionSubmitOTP:
+		return Checkout{}, apperror.NewServiceUnavailable(
+			"checkout provider continuation is not configured",
+			nil,
+		)
+
+	default:
+		return Checkout{}, apperror.NewConflict("checkout action cannot be continued")
+	}
 }
 
 func checkoutFromRow(row sqlc.Checkout) Checkout {
