@@ -30,6 +30,7 @@ func (r *Repository) CreateAttempt(
 			CheckoutID:     req.CheckoutID,
 			OrganizationID: req.OrganizationID,
 			Provider:       req.Provider,
+			PaymentMethod:  req.PaymentMethod,
 			Attempt:        attempt,
 			AmountMicros:   req.AmountMicros,
 			Currency:       req.Currency,
