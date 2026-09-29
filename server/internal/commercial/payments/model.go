@@ -9,7 +9,7 @@ import (
 
 const (
 	PurposeSubscription = "subscription"
-	PurposeWalletTopup  = "wallet_topup"
+	PurposeWalletTopup   = "wallet_topup"
 
 	StatusPending   = "pending"
 	StatusSucceeded = "succeeded"
@@ -42,16 +42,15 @@ type Payment struct {
 	UpdatedAt         time.Time  `json:"updated_at"`
 }
 
-type CreateSubscriptionRequest struct {
+type CreateRequest struct {
 	OrganizationID uuid.UUID
-	SubscriptionID uuid.UUID `json:"subscription_id"`
-	Provider       string    `json:"provider"`
-}
-
-type CreateWalletTopupRequest struct {
-	OrganizationID uuid.UUID
-	Provider       string `json:"provider"`
-	AmountMicros   int64  `json:"amount_micros"`
+	Purpose        string
+	Provider       string
+	SubscriptionID *uuid.UUID
+	AmountMicros   int64
+	Currency       string
+	PeriodStart    *time.Time
+	PeriodEnd      *time.Time
 }
 
 type AttachProviderReferenceRequest struct {
@@ -60,7 +59,7 @@ type AttachProviderReferenceRequest struct {
 	ProviderReference string
 }
 
-type SettleRequest struct {
+type SucceedRequest struct {
 	OrganizationID  uuid.UUID
 	PaymentID       uuid.UUID
 	ProviderEventID string
