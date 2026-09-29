@@ -110,7 +110,6 @@ func (r *Repository) MarkFailed(
 		ctx,
 		sqlc.MarkPaymentAttemptFailedParams{
 			FailureCode:    &failureCode,
-			PaidAt:         pgconv.TimeToTimestamptz(completedAt),
 			ID:             id,
 			CheckoutID:     checkoutID,
 			OrganizationID: organizationID,
