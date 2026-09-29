@@ -14,6 +14,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5"
 )
 
 type Service struct {
@@ -25,6 +26,13 @@ func NewService(repo *Repository) *Service {
 	return &Service{
 		repo: repo,
 		now:  time.Now,
+	}
+}
+
+func (s *Service) WithTx(tx pgx.Tx) *Service {
+	return &Service{
+		repo: s.repo.WithTx(tx),
+		now:  s.now,
 	}
 }
 
