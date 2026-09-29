@@ -1,0 +1,12 @@
+import { Button } from "@leamout/ui/components/button";
+
+export default function Home() {
+  return (
+    <main className="flex min-h-screen items-center justify-center">
+      <div className="space-y-4 text-center">
+        <h1 className="font-heading text-4xl font-semibold">Hello, Leamout</h1>
+        <Button>Get started</Button>
+      </div>
+    </main>
+  );
+}
