@@ -26,8 +26,9 @@ type Module struct {
 }
 
 type CheckoutModule struct {
-	Service *checkout.Service
-	Handler *checkout.Handler
+	Repository *checkout.Repository
+	Service    *checkout.Service
+	Handler    *checkout.Handler
 }
 
 type PaymentsModule struct {
@@ -79,8 +80,9 @@ func New(deps Dependencies) *Module {
 	paymentsRepository := payments.NewRepository(deps.Queries)
 	paymentsService := payments.NewService(paymentsRepository)
 
+	checkoutRepository := checkout.NewRepository(deps.Queries)
 	checkoutService := checkout.NewService(
-		paymentsService,
+		checkoutRepository,
 		subscriptionsService,
 		walletsService,
 	)
@@ -92,8 +94,9 @@ func New(deps Dependencies) *Module {
 
 	return &Module{
 		Checkout: CheckoutModule{
-			Service: checkoutService,
-			Handler: checkout.NewHandler(checkoutService),
+			Repository: checkoutRepository,
+			Service:    checkoutService,
+			Handler:    checkout.NewHandler(checkoutService),
 		},
 		Payments: PaymentsModule{
 			Repository: paymentsRepository,
