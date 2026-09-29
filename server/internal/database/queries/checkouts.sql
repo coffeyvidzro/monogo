@@ -27,25 +27,87 @@ WHERE id = sqlc.arg(id)
 LIMIT 1;
 
 -- name: ConfirmCheckout :one
-UPDATE checkouts
-SET
-    status = 'processing',
-    confirmed_at = COALESCE(confirmed_at, sqlc.arg(confirmed_at))
-WHERE id = sqlc.arg(id)
-  AND organization_id = sqlc.arg(organization_id)
-  AND status = 'open'
-RETURNING *;
+WITH updated_checkout AS (
+    UPDATE checkouts
+    SET
+        status = 'processing',
+        confirmed_at = COALESCE(confirmed_at, sqlc.arg(confirmed_at))
+    WHERE id = sqlc.arg(id)
+      AND organization_id = sqlc.arg(organization_id)
+      AND status = 'open'
+    RETURNING *
+),
+created_payment AS (
+    INSERT INTO payments (
+        checkout_id,
+        organization_id,
+        provider,
+        attempt,
+        amount_micros,
+        currency
+    )
+    SELECT
+        id,
+        organization_id,
+        sqlc.arg(provider),
+        1,
+        amount_micros,
+        currency
+    FROM updated_checkout
+    RETURNING checkout_id
+)
+SELECT updated_checkout.*
+FROM updated_checkout
+JOIN created_payment
+  ON created_payment.checkout_id = updated_checkout.id;
 
 -- name: ContinueCheckout :one
-UPDATE checkouts
-SET
-    status = 'processing',
-    failure_code = NULL,
-    failed_at = NULL
-WHERE id = sqlc.arg(id)
-  AND organization_id = sqlc.arg(organization_id)
-  AND status = 'failed'
-RETURNING *;
+WITH target_checkout AS (
+    SELECT *
+    FROM checkouts
+    WHERE id = sqlc.arg(id)
+      AND organization_id = sqlc.arg(organization_id)
+      AND status = 'failed'
+    FOR UPDATE
+),
+next_attempt AS (
+    SELECT COALESCE(MAX(p.attempt), 0) + 1 AS attempt
+    FROM payments AS p
+    JOIN target_checkout AS c
+      ON c.id = p.checkout_id
+),
+created_payment AS (
+    INSERT INTO payments (
+        checkout_id,
+        organization_id,
+        provider,
+        attempt,
+        amount_micros,
+        currency
+    )
+    SELECT
+        c.id,
+        c.organization_id,
+        sqlc.arg(provider),
+        n.attempt,
+        c.amount_micros,
+        c.currency
+    FROM target_checkout AS c
+    CROSS JOIN next_attempt AS n
+    RETURNING checkout_id
+),
+updated_checkout AS (
+    UPDATE checkouts AS c
+    SET
+        status = 'processing',
+        failure_code = NULL,
+        failed_at = NULL
+    FROM created_payment AS p
+    WHERE c.id = p.checkout_id
+    RETURNING c.*
+)
+SELECT *
+FROM updated_checkout;
 
 -- name: CompleteCheckout :one
 UPDATE checkouts
