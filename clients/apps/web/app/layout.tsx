@@ -6,7 +6,7 @@ import RootProviders from "./providers";
 export const metadata = constructMetadata({
   title: "Programmable Communications Control Plane",
   description:
-    "Leamout is a programmable communications control plane for building voice and messaging products using your own telecom carriers.",
+    "Leamout is a programmable communications control plane for voice, messaging, numbers, and carrier connectivity. Bring your own carriers or use Leamout-managed connectivity.",
 });
 
 export default function RootLayout({
