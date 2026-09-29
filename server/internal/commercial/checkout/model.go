@@ -71,4 +71,7 @@ type ConfirmRequest struct {
 type ContinueRequest struct {
 	OrganizationID uuid.UUID
 	CheckoutID     uuid.UUID
+	Action         string  `json:"action"`
+	Phone          *string `json:"phone,omitempty"`
+	OTP            *string `json:"otp,omitempty"`
 }
