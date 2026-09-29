@@ -134,9 +134,13 @@ func (r *Repository) Fail(
 func (r *Repository) ExpireDue(
 	ctx context.Context,
 	completedAt time.Time,
+	limit int32,
 ) (int64, error) {
 	return r.queries.ExpireDueCheckouts(
 		ctx,
-		pgconv.TimeToTimestamptz(completedAt),
+		sqlc.ExpireDueCheckoutsParams{
+			CompletedAt: pgconv.TimeToTimestamptz(completedAt),
+			LimitCount:  limit,
+		},
 	)
 }
