@@ -191,11 +191,11 @@ func (s *Service) Continue(
 	ctx context.Context,
 	req ContinueRequest,
 ) (Checkout, error) {
-	if err := validateContinueRequest(req); err != nil {
+	if err := validateContinueRequest(&req); err != nil {
 		return Checkout{}, apperror.NewBadRequest(err.Error())
 	}
 
-	row, err := s.repo.GetForContinuation(
+	current, err := s.repo.GetForContinuation(
 		ctx,
 		req.OrganizationID,
 		req.CheckoutID,
@@ -206,6 +206,23 @@ func (s *Service) Continue(
 	}
 	if err != nil {
 		return Checkout{}, apperror.NewInternal("continue checkout", err)
+	}
+	if current.NextAction != req.Action {
+		return Checkout{}, apperror.NewConflict("checkout continuation action does not match next action")
+	}
+
+	row, err := s.repo.UpdateAction(
+		ctx,
+		req.OrganizationID,
+		req.CheckoutID,
+		ActionWait,
+		nil,
+	)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Checkout{}, apperror.NewConflict("checkout cannot continue")
+	}
+	if err != nil {
+		return Checkout{}, apperror.NewInternal("advance checkout continuation", err)
 	}
 
 	return checkoutFromRow(row), nil
