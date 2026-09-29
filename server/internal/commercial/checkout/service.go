@@ -351,3 +351,20 @@ func (s *Service) completeWalletTopup(
 	)
 	return err
 }
+
+
+func (s *Service) ExpireDue(
+	ctx context.Context,
+	limit int32,
+) (int64, error) {
+	if limit < 1 || limit > 1000 {
+		return 0, apperror.NewBadRequest("checkout expiration limit must be between 1 and 1000")
+	}
+
+	expired, err := s.repo.ExpireDue(ctx, s.now().UTC(), limit)
+	if err != nil {
+		return 0, apperror.NewInternal("expire due checkouts", err)
+	}
+
+	return expired, nil
+}
