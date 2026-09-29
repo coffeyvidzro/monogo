@@ -21,7 +21,7 @@ func NewHandler(service *Service) *Handler {
 	}
 }
 
-func (h *Handler) CreateSubscription(
+func (h *Handler) Create(
 	w http.ResponseWriter,
 	r *http.Request,
 ) {
@@ -31,40 +31,14 @@ func (h *Handler) CreateSubscription(
 		return
 	}
 
-	req, err := helper.DecodeJSON[CreateSubscriptionRequest](r)
+	req, err := helper.DecodeJSON[CreateRequest](r)
 	if err != nil {
 		httputil.Error(w, err)
 		return
 	}
 	req.OrganizationID = organizationID
 
-	result, err := h.service.CreateSubscription(r.Context(), req)
-	if err != nil {
-		httputil.Error(w, err)
-		return
-	}
-
-	httputil.Created(w, result)
-}
-
-func (h *Handler) CreateWalletTopup(
-	w http.ResponseWriter,
-	r *http.Request,
-) {
-	organizationID, err := checkoutOrganizationID(r)
-	if err != nil {
-		httputil.Error(w, err)
-		return
-	}
-
-	req, err := helper.DecodeJSON[CreateWalletTopupRequest](r)
-	if err != nil {
-		httputil.Error(w, err)
-		return
-	}
-	req.OrganizationID = organizationID
-
-	result, err := h.service.CreateWalletTopup(r.Context(), req)
+	result, err := h.service.Create(r.Context(), req)
 	if err != nil {
 		httputil.Error(w, err)
 		return
@@ -83,19 +57,87 @@ func (h *Handler) Get(
 		return
 	}
 
-	paymentID, err := uuid.Parse(chi.URLParam(r, "payment_id"))
+	checkoutID, err := uuid.Parse(chi.URLParam(r, "checkout_id"))
 	if err != nil {
-		httputil.Error(w, apperror.NewBadRequest("invalid payment id"))
+		httputil.Error(w, apperror.NewBadRequest("invalid checkout id"))
 		return
 	}
 
-	result, err := h.service.Get(r.Context(), organizationID, paymentID)
+	result, err := h.service.Get(r.Context(), organizationID, checkoutID)
 	if err != nil {
 		httputil.Error(w, err)
 		return
 	}
 
 	httputil.OK(w, result)
+}
+
+func (h *Handler) Confirm(
+	w http.ResponseWriter,
+	r *http.Request,
+) {
+	organizationID, checkoutID, err := checkoutRequestIDs(r)
+	if err != nil {
+		httputil.Error(w, err)
+		return
+	}
+
+	req, err := helper.DecodeJSON[ConfirmRequest](r)
+	if err != nil {
+		httputil.Error(w, err)
+		return
+	}
+	req.OrganizationID = organizationID
+	req.CheckoutID = checkoutID
+
+	result, err := h.service.Confirm(r.Context(), req)
+	if err != nil {
+		httputil.Error(w, err)
+		return
+	}
+
+	httputil.OK(w, result)
+}
+
+func (h *Handler) Continue(
+	w http.ResponseWriter,
+	r *http.Request,
+) {
+	organizationID, checkoutID, err := checkoutRequestIDs(r)
+	if err != nil {
+		httputil.Error(w, err)
+		return
+	}
+
+	req, err := helper.DecodeJSON[ContinueRequest](r)
+	if err != nil {
+		httputil.Error(w, err)
+		return
+	}
+	req.OrganizationID = organizationID
+	req.CheckoutID = checkoutID
+
+	result, err := h.service.Continue(r.Context(), req)
+	if err != nil {
+		httputil.Error(w, err)
+		return
+	}
+
+	httputil.OK(w, result)
+}
+
+func checkoutRequestIDs(r *http.Request) (uuid.UUID, uuid.UUID, error) {
+	organizationID, err := checkoutOrganizationID(r)
+	if err != nil {
+		return uuid.Nil, uuid.Nil, err
+	}
+
+	checkoutID, err := uuid.Parse(chi.URLParam(r, "checkout_id"))
+	if err != nil {
+		return uuid.Nil, uuid.Nil, apperror.NewBadRequest("invalid checkout id")
+	}
+
+	return organizationID, checkoutID, nil
 }
 
 func checkoutOrganizationID(r *http.Request) (uuid.UUID, error) {
