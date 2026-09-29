@@ -213,3 +213,69 @@ func providerEventFromRow(row sqlc.PaymentProviderEvent) ProviderEvent {
 		ProcessedAt:     pgconv.TimestamptzToTimePtr(row.ProcessedAt),
 	}
 }
+
+
+func (s *Service) MarkSucceeded(
+	ctx context.Context,
+	payment Payment,
+	paidAt time.Time,
+) (Payment, error) {
+	if payment.Status == StatusSucceeded {
+		return payment, nil
+	}
+	if payment.Status != StatusPending && payment.Status != StatusProcessing {
+		return Payment{}, apperror.NewConflict("payment attempt cannot succeed")
+	}
+	if paidAt.IsZero() {
+		paidAt = s.now().UTC()
+	}
+
+	row, err := s.repo.MarkSucceeded(
+		ctx,
+		payment.OrganizationID,
+		payment.CheckoutID,
+		payment.ID,
+		paidAt,
+	)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Payment{}, apperror.NewConflict("payment attempt cannot succeed")
+	}
+	if err != nil {
+		return Payment{}, apperror.NewInternal("mark payment attempt succeeded", err)
+	}
+
+	return paymentFromRow(row), nil
+}
+
+func (s *Service) MarkFailed(
+	ctx context.Context,
+	payment Payment,
+	failureCode string,
+) (Payment, error) {
+	if payment.Status == StatusFailed && payment.FailureCode != nil &&
+		*payment.FailureCode == failureCode {
+		return payment, nil
+	}
+	if payment.Status != StatusPending && payment.Status != StatusProcessing {
+		return Payment{}, apperror.NewConflict("payment attempt cannot fail")
+	}
+	if failureCode == "" {
+		return Payment{}, apperror.NewBadRequest("failure code is required")
+	}
+
+	row, err := s.repo.MarkFailed(
+		ctx,
+		payment.OrganizationID,
+		payment.CheckoutID,
+		payment.ID,
+		failureCode,
+	)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Payment{}, apperror.NewConflict("payment attempt cannot fail")
+	}
+	if err != nil {
+		return Payment{}, apperror.NewInternal("mark payment attempt failed", err)
+	}
+
+	return paymentFromRow(row), nil
+}
