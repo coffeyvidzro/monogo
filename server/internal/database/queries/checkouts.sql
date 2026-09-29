@@ -27,44 +27,17 @@ WHERE id = sqlc.arg(checkout_id)
 LIMIT 1;
 
 -- name: ConfirmCheckout :one
-WITH updated_checkout AS (
-    UPDATE checkouts AS c
-    SET
-        status = 'processing',
-        provider = sqlc.arg(provider),
-        payment_method = sqlc.arg(payment_method),
-        next_action = 'wait'
-    WHERE c.id = sqlc.arg(checkout_id)
-      AND c.organization_id = sqlc.arg(organization_id)
-      AND c.status = 'pending'
-      AND c.expires_at > sqlc.arg(now_at)
-    RETURNING c.*
-),
-created_payment AS (
-    INSERT INTO payments (
-        checkout_id,
-        organization_id,
-        provider,
-        payment_method,
-        attempt,
-        amount_micros,
-        currency
-    )
-    SELECT
-        u.id,
-        u.organization_id,
-        u.provider,
-        u.payment_method,
-        1,
-        u.amount_micros,
-        u.currency
-    FROM updated_checkout AS u
-    RETURNING checkout_id
-)
-SELECT u.*
-FROM updated_checkout AS u
-JOIN created_payment AS p
-  ON p.checkout_id = u.id;
+UPDATE checkouts AS c
+SET
+    status = 'processing',
+    provider = sqlc.arg(provider),
+    payment_method = sqlc.arg(payment_method),
+    next_action = 'wait'
+WHERE c.id = sqlc.arg(checkout_id)
+  AND c.organization_id = sqlc.arg(organization_id)
+  AND c.status = 'pending'
+  AND c.expires_at > sqlc.arg(now_at)
+RETURNING c.*;
 
 -- name: GetCheckoutForContinuation :one
 SELECT c.*
