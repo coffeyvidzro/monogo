@@ -1,6 +1,7 @@
 package commercial
 
 import (
+	"github.com/coffeyvidzro/monogo/internal/commercial/payments"
 	"github.com/coffeyvidzro/monogo/internal/commercial/plans"
 	"github.com/coffeyvidzro/monogo/internal/commercial/pricing"
 	"github.com/coffeyvidzro/monogo/internal/commercial/subscriptions"
@@ -15,10 +16,17 @@ type Dependencies struct {
 }
 
 type Module struct {
+	Payments      PaymentsModule
 	Wallets       WalletsModule
 	Plans         PlansModule
 	Subscriptions SubscriptionsModule
 	Pricing       PricingModule
+}
+
+type PaymentsModule struct {
+	Repository *payments.Repository
+	Service    *payments.Service
+	Handler    *payments.Handler
 }
 
 type WalletsModule struct {
@@ -62,12 +70,24 @@ func New(deps Dependencies) *Module {
 		subscriptionsRepository,
 	)
 
+	paymentsRepository := payments.NewRepository(deps.Queries)
+	paymentsService := payments.NewService(
+		paymentsRepository,
+		subscriptionsService,
+		walletsService,
+	)
+
 	pricingRepository := pricing.NewRepository(deps.Queries)
 	pricingService := pricing.NewService(
 		pricingRepository,
 	)
 
 	return &Module{
+		Payments: PaymentsModule{
+			Repository: paymentsRepository,
+			Service:    paymentsService,
+			Handler:    payments.NewHandler(paymentsService),
+		},
 		Wallets: WalletsModule{
 			Repository: walletsRepository,
 			Service:    walletsService,
