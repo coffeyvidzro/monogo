@@ -45,6 +45,7 @@ created_payment AS (
         checkout_id,
         organization_id,
         provider,
+        payment_method,
         attempt,
         amount_micros,
         currency
@@ -53,6 +54,7 @@ created_payment AS (
         u.id,
         u.organization_id,
         u.provider,
+        u.payment_method,
         1,
         u.amount_micros,
         u.currency
