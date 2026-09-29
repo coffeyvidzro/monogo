@@ -38,7 +38,7 @@ CREATE INDEX idx_payment_provider_events_payment_received
 CREATE FUNCTION protect_payment_provider_event()
 RETURNS TRIGGER
 LANGUAGE plpgsql
-AS $
+AS $$
 BEGIN
     IF TG_OP = 'DELETE' THEN
         RAISE EXCEPTION 'payment provider events are immutable' USING ERRCODE = '23514';
@@ -61,7 +61,7 @@ BEGIN
 
     RETURN NEW;
 END;
-$;
+$$;
 
 CREATE TRIGGER payment_provider_events_protected
 BEFORE UPDATE OR DELETE ON payment_provider_events
