@@ -19,8 +19,13 @@ func validateCreateAttemptRequest(req *CreateAttemptRequest) error {
 	}
 
 	req.Provider = strings.ToLower(strings.TrimSpace(req.Provider))
+	req.PaymentMethod = strings.ToLower(strings.TrimSpace(req.PaymentMethod))
 	if !providerPattern.MatchString(req.Provider) {
 		return fmt.Errorf("%w: provider is invalid", ErrInvalidInput)
+	}
+	if (req.Provider == "stripe" && req.PaymentMethod != "card") ||
+		(req.Provider == "paystack" && req.PaymentMethod != "mobile_money") {
+		return fmt.Errorf("%w: provider and payment method are incompatible", ErrInvalidInput)
 	}
 
 	req.Currency = strings.ToUpper(strings.TrimSpace(req.Currency))
