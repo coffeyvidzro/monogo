@@ -1,4 +1,4 @@
-h1:BwYRb/SbYlg1Ohf4oZ+EqktUfOTZgTp9CdUEgzE52w8=
+h1:OjrEcZOH1T9w7qJNswjK//4ZvJkWDs6O6yom1yB5vfk=
 001_extensions.sql h1:V12FA/dbb8clPffRf/1QJRpbB/S0eECkElwvfOVRda4=
 002_create_users.sql h1:w8z6z5sqnmtExCGa63iYl2ssG9rgXX8m3VPqvb1z4jo=
 003_create_authentication.sql h1:6R8fm0zInr9A/OW74oYTBLpPYHRf3dpVjw13qyjdd7E=
@@ -38,8 +38,6 @@ h1:BwYRb/SbYlg1Ohf4oZ+EqktUfOTZgTp9CdUEgzE52w8=
 037_create_messages.sql h1:lwnoeZKO+1zE+S+gn1r75NYjFdj+IqprbV/pD3CldSY=
 038_create_wallets.sql h1:oA8f7lzVwMXAJ+w8Jbh3Q3rqeSj7arfx3TXnMFkQ/fk=
 039_create_subscriptions.sql h1:nX84JllRtmEMYRwLdMNiUgQxFq27qx5R+gCNUElo7FU=
-040_create_provider_cdrs.sql h1:17ZvW2Q+UHJu/Ckpg5qJYxrgvf8MoM1+NiIakwpnnsU=
-041_create_provider_charges.sql h1:LQL3oRDGXVX7F8Ki3pytGBLqg8DtEF4ZR56kK/f4rJA=
-042_create_voice_rates.sql h1:2nwjZHMdnn+ETSMkL0S186uEcWlc61ywcG6IYT00bck=
-043_create_product_rates.sql h1:8eenYOOPKwZyFgjKRVV2DqWMxitUhzOaOYgBsb3Ne9Y=
-044_create_number_renewals_and_margin.sql h1:xLBDOB9c8SddbKtnTk7Isdk9Mvr4AspNGqeWWXd32Kc=
+040_create_voice_rates.sql h1:2y81XDQzKKcU0mSIvjzhdPYTRAawUPjjjXN1Ksi3oNs=
+041_create_product_rates.sql h1:PTJrj9MVAcJeYzhBmehql5BRQP2w3q0FfKA3YBjxg/0=
+042_create_managed_number_renewals.sql h1:IzG1Zkqn4sUwe2okhEYe8HFG4UncuK+Gk/b1N4wjHW0=
