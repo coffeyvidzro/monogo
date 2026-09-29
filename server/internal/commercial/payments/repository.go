@@ -57,13 +57,18 @@ func (r *Repository) NextAttempt(
 	organizationID uuid.UUID,
 	checkoutID uuid.UUID,
 ) (int64, error) {
-	return r.queries.GetNextPaymentAttemptNumber(
+	nextAttempt, err := r.queries.GetNextPaymentAttemptNumber(
 		ctx,
 		sqlc.GetNextPaymentAttemptNumberParams{
 			CheckoutID:     checkoutID,
 			OrganizationID: organizationID,
 		},
 	)
+	if err != nil {
+		return 0, err
+	}
+
+	return int64(nextAttempt), nil
 }
 
 func (r *Repository) AttachProviderPaymentID(
