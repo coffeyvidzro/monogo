@@ -121,3 +121,14 @@ WHERE c.id = sqlc.arg(checkout_id)
   AND c.status IN ('pending', 'processing')
   AND c.expires_at <= sqlc.arg(completed_at)
 RETURNING c.*;
+
+
+-- name: ExpireDueCheckouts :execrows
+UPDATE checkouts AS c
+SET
+    status = 'expired',
+    next_action = 'none',
+    provider_message = NULL,
+    completed_at = sqlc.arg(completed_at)
+WHERE c.status IN ('pending', 'processing')
+  AND c.expires_at <= sqlc.arg(completed_at);
