@@ -212,3 +212,150 @@ func isUniqueViolation(err error) bool {
 	var pgErr *pgconn.PgError
 	return errors.As(err, &pgErr) && pgErr.Code == "23505"
 }
+
+
+func (s *Service) Complete(
+	ctx context.Context,
+	organizationID uuid.UUID,
+	checkoutID uuid.UUID,
+	completedAt time.Time,
+) (Checkout, error) {
+	current, err := s.Get(ctx, organizationID, checkoutID)
+	if err != nil {
+		return Checkout{}, err
+	}
+	if current.Status == StatusSucceeded {
+		return current, nil
+	}
+	if current.Status != StatusProcessing {
+		return Checkout{}, apperror.NewConflict("checkout cannot complete")
+	}
+	if completedAt.IsZero() {
+		completedAt = s.now().UTC()
+	}
+
+	switch current.Purpose {
+	case PurposeSubscription:
+		if err := s.completeSubscription(ctx, current); err != nil {
+			return Checkout{}, err
+		}
+	case PurposeWalletTopup:
+		if err := s.completeWalletTopup(ctx, current, completedAt); err != nil {
+			return Checkout{}, err
+		}
+	default:
+		return Checkout{}, apperror.NewInternal("complete checkout", ErrInvalidInput)
+	}
+
+	row, err := s.repo.Complete(ctx, organizationID, checkoutID, completedAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Checkout{}, apperror.NewConflict("checkout cannot complete")
+	}
+	if err != nil {
+		return Checkout{}, apperror.NewInternal("complete checkout", err)
+	}
+
+	return checkoutFromRow(row), nil
+}
+
+func (s *Service) Fail(
+	ctx context.Context,
+	organizationID uuid.UUID,
+	checkoutID uuid.UUID,
+	providerMessage *string,
+	completedAt time.Time,
+) (Checkout, error) {
+	current, err := s.Get(ctx, organizationID, checkoutID)
+	if err != nil {
+		return Checkout{}, err
+	}
+	if current.Status == StatusFailed {
+		return current, nil
+	}
+	if current.Status != StatusProcessing {
+		return Checkout{}, apperror.NewConflict("checkout cannot fail")
+	}
+	if completedAt.IsZero() {
+		completedAt = s.now().UTC()
+	}
+
+	row, err := s.repo.Fail(
+		ctx,
+		organizationID,
+		checkoutID,
+		providerMessage,
+		completedAt,
+	)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Checkout{}, apperror.NewConflict("checkout cannot fail")
+	}
+	if err != nil {
+		return Checkout{}, apperror.NewInternal("fail checkout", err)
+	}
+
+	return checkoutFromRow(row), nil
+}
+
+func (s *Service) completeSubscription(
+	ctx context.Context,
+	checkout Checkout,
+) error {
+	if checkout.SubscriptionID == nil ||
+		checkout.PeriodStart == nil ||
+		checkout.PeriodEnd == nil {
+		return apperror.NewInternal("complete subscription checkout", ErrInvalidInput)
+	}
+
+	subscription, err := s.subscriptions.Get(
+		ctx,
+		checkout.OrganizationID,
+		*checkout.SubscriptionID,
+	)
+	if err != nil {
+		return err
+	}
+
+	if subscription.Status == subscriptions.StatusActive &&
+		sameCheckoutTime(subscription.CurrentPeriodStart, *checkout.PeriodStart) &&
+		sameCheckoutTime(subscription.CurrentPeriodEnd, *checkout.PeriodEnd) {
+		return nil
+	}
+
+	_, err = s.subscriptions.Activate(
+		ctx,
+		subscriptions.ActivateRequest{
+			OrganizationID:     checkout.OrganizationID,
+			SubscriptionID:     *checkout.SubscriptionID,
+			CurrentPeriodStart: *checkout.PeriodStart,
+			CurrentPeriodEnd:   *checkout.PeriodEnd,
+		},
+	)
+	return err
+}
+
+func (s *Service) completeWalletTopup(
+	ctx context.Context,
+	checkout Checkout,
+	completedAt time.Time,
+) error {
+	referenceType := "checkout"
+	referenceID := checkout.ID
+
+	_, err := s.wallets.Credit(
+		ctx,
+		wallets.MovementRequest{
+			OrganizationID: checkout.OrganizationID,
+			OperationID:    checkout.ID,
+			AmountMicros:   checkout.AmountMicros,
+			Reason:         "wallet_topup",
+			ReferenceType:  &referenceType,
+			ReferenceID:    &referenceID,
+			OccurredAt:     completedAt,
+		},
+	)
+	return err
+}
+
+func sameCheckoutTime(value *time.Time, expected time.Time) bool {
+	return value != nil && value.Equal(expected)
+}
