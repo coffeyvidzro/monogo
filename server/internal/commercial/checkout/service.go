@@ -51,8 +51,6 @@ func (s *Service) Create(
 		subscriptionID *uuid.UUID
 		amountMicros   int64
 		currency       string
-		periodStart    *time.Time
-		periodEnd      *time.Time
 	)
 
 	switch req.Purpose {
@@ -72,13 +70,9 @@ func (s *Service) Create(
 			return Checkout{}, apperror.NewBadRequest("subscription does not require checkout")
 		}
 
-		start := now
-		end := start.AddDate(0, 1, 0)
 		subscriptionID = &subscription.ID
 		amountMicros = subscription.AmountMicros
 		currency = subscription.Currency
-		periodStart = &start
-		periodEnd = &end
 
 	case PurposeWalletTopup:
 		wallet, err := s.wallets.Create(
@@ -104,8 +98,6 @@ func (s *Service) Create(
 		reference,
 		amountMicros,
 		currency,
-		periodStart,
-		periodEnd,
 		now.Add(checkoutTTL),
 	)
 	if isUniqueViolation(err) {
@@ -195,8 +187,6 @@ func checkoutFromRow(row sqlc.Checkout) Checkout {
 		PaymentMethod:   row.PaymentMethod,
 		NextAction:      row.NextAction,
 		ProviderMessage: row.ProviderMessage,
-		PeriodStart:     pgconv.TimestamptzToTimePtr(row.PeriodStart),
-		PeriodEnd:       pgconv.TimestamptzToTimePtr(row.PeriodEnd),
 		ExpiresAt:       pgconv.TimestamptzToTime(row.ExpiresAt),
 		CompletedAt:     pgconv.TimestamptzToTimePtr(row.CompletedAt),
 		CreatedAt:       pgconv.TimestamptzToTime(row.CreatedAt),
@@ -300,9 +290,7 @@ func (s *Service) completeSubscription(
 	checkout Checkout,
 	completedAt time.Time,
 ) error {
-	if checkout.SubscriptionID == nil ||
-		checkout.PeriodStart == nil ||
-		checkout.PeriodEnd == nil {
+	if checkout.SubscriptionID == nil {
 		return apperror.NewInternal("complete subscription checkout", ErrInvalidInput)
 	}
 
@@ -315,19 +303,20 @@ func (s *Service) completeSubscription(
 		return err
 	}
 
-	if subscription.Status == subscriptions.StatusActive &&
-		sameCheckoutTime(subscription.CurrentPeriodStart, *checkout.PeriodStart) &&
-		sameCheckoutTime(subscription.CurrentPeriodEnd, *checkout.PeriodEnd) {
+	if subscription.Status == subscriptions.StatusActive {
 		return nil
 	}
+
+	periodStart := completedAt.UTC()
+	periodEnd := periodStart.AddDate(0, 1, 0)
 
 	_, err = s.subscriptions.Activate(
 		ctx,
 		subscriptions.ActivateRequest{
 			OrganizationID:     checkout.OrganizationID,
 			SubscriptionID:     *checkout.SubscriptionID,
-			CurrentPeriodStart: *checkout.PeriodStart,
-			CurrentPeriodEnd:   *checkout.PeriodEnd,
+			CurrentPeriodStart: periodStart,
+			CurrentPeriodEnd:   periodEnd,
 		},
 	)
 	return err
@@ -356,6 +345,3 @@ func (s *Service) completeWalletTopup(
 	return err
 }
 
-func sameCheckoutTime(value *time.Time, expected time.Time) bool {
-	return value != nil && value.Equal(expected)
-}

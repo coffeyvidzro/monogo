@@ -25,19 +25,8 @@ func (r *Repository) Create(
 	reference string,
 	amountMicros int64,
 	currency string,
-	periodStart *time.Time,
-	periodEnd *time.Time,
 	expiresAt time.Time,
 ) (sqlc.Checkout, error) {
-	var start pgtype.Timestamptz
-	if periodStart != nil {
-		start = pgconv.TimeToTimestamptz(*periodStart)
-	}
-
-	var end pgtype.Timestamptz
-	if periodEnd != nil {
-		end = pgconv.TimeToTimestamptz(*periodEnd)
-	}
 
 	return r.queries.CreateCheckout(
 		ctx,
@@ -48,8 +37,6 @@ func (r *Repository) Create(
 			Reference:      reference,
 			AmountMicros:   amountMicros,
 			Currency:       currency,
-			PeriodStart:    start,
-			PeriodEnd:      end,
 			ExpiresAt:      pgconv.TimeToTimestamptz(expiresAt),
 		},
 	)

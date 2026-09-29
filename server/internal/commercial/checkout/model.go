@@ -47,8 +47,6 @@ type Checkout struct {
 	PaymentMethod   *string    `json:"payment_method,omitempty"`
 	NextAction      string     `json:"next_action"`
 	ProviderMessage *string    `json:"provider_message,omitempty"`
-	PeriodStart     *time.Time `json:"period_start,omitempty"`
-	PeriodEnd       *time.Time `json:"period_end,omitempty"`
 	ExpiresAt       time.Time  `json:"expires_at"`
 	CompletedAt     *time.Time `json:"completed_at,omitempty"`
 	CreatedAt       time.Time  `json:"created_at"`

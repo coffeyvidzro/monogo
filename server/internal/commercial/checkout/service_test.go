@@ -481,8 +481,6 @@ func createCheckoutTestSchema(
 			payment_method TEXT,
 			next_action TEXT NOT NULL DEFAULT 'wait',
 			provider_message TEXT,
-			period_start TIMESTAMPTZ,
-			period_end TIMESTAMPTZ,
 			expires_at TIMESTAMPTZ NOT NULL,
 			completed_at TIMESTAMPTZ,
 			created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
