@@ -3,10 +3,9 @@ package commercial
 import (
 	"github.com/coffeyvidzro/monogo/internal/commercial/plans"
 	"github.com/coffeyvidzro/monogo/internal/commercial/pricing"
-	"github.com/coffeyvidzro/monogo/internal/commercial/providercosts"
+	"github.com/coffeyvidzro/monogo/internal/commercial/providercharges"
 	"github.com/coffeyvidzro/monogo/internal/commercial/subscriptions"
 	"github.com/coffeyvidzro/monogo/internal/commercial/wallets"
-	"github.com/coffeyvidzro/monogo/internal/commercial/wholesale"
 	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -17,12 +16,11 @@ type Dependencies struct {
 }
 
 type Module struct {
-	Wallets       WalletsModule
-	Plans         PlansModule
-	Subscriptions SubscriptionsModule
-	Pricing       PricingModule
-	ProviderCosts ProviderCostsModule
-	Wholesale     WholesaleModule
+	Wallets         WalletsModule
+	Plans           PlansModule
+	Subscriptions   SubscriptionsModule
+	Pricing         PricingModule
+	ProviderCharges ProviderChargesModule
 }
 
 type WalletsModule struct {
@@ -49,13 +47,9 @@ type PricingModule struct {
 	Handler    *pricing.Handler
 }
 
-type ProviderCostsModule struct {
-	Service *providercosts.Service
-}
-
-type WholesaleModule struct {
-	Repository *wholesale.Repository
-	Service    *wholesale.Service
+type ProviderChargesModule struct {
+	Repository *providercharges.Repository
+	Service    *providercharges.Service
 }
 
 func New(deps Dependencies) *Module {
@@ -80,12 +74,8 @@ func New(deps Dependencies) *Module {
 		pricingRepository,
 	)
 
-	providerCostsService := providercosts.NewService(deps.Queries)
-
-	wholesaleRepository := wholesale.NewRepository(deps.Queries)
-	wholesaleService := wholesale.NewService(
-		wholesaleRepository,
-	)
+	providerChargesRepository := providercharges.NewRepository(deps.Queries)
+	providerChargesService := providercharges.NewService(providerChargesRepository)
 
 	return &Module{
 		Wallets: WalletsModule{
@@ -108,12 +98,9 @@ func New(deps Dependencies) *Module {
 			Service:    pricingService,
 			Handler:    pricing.NewHandler(pricingService),
 		},
-		ProviderCosts: ProviderCostsModule{
-			Service: providerCostsService,
-		},
-		Wholesale: WholesaleModule{
-			Repository: wholesaleRepository,
-			Service:    wholesaleService,
+		ProviderCharges: ProviderChargesModule{
+			Repository: providerChargesRepository,
+			Service:    providerChargesService,
 		},
 	}
 }

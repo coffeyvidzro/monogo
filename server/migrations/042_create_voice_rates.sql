@@ -1,5 +1,5 @@
 -- Customer-facing per-started-minute managed voice pricing. Longest-prefix
--- resolution is separate from provider_rates, which is supplier pricing.
+-- resolution is separate from provider_voice_rates, which is supplier pricing.
 
 CREATE TABLE voice_rates (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

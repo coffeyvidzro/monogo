@@ -1,4 +1,4 @@
-package wholesale
+package providercharges
 
 import (
 	"bytes"
@@ -131,33 +131,34 @@ func (s *Service) ListProviderCDRsByCall(
 	return result, nil
 }
 
-func (s *Service) RecordCharge(
+func (s *Service) RecordVoiceCharge(
 	ctx context.Context,
-	req RecordChargeRequest,
-) (Charge, error) {
-	if err := normalizeRecordChargeRequest(&req); err != nil {
-		return Charge{}, err
+	req RecordVoiceChargeRequest,
+) (ProviderCharge, error) {
+	if err := normalizeRecordVoiceChargeRequest(&req); err != nil {
+		return ProviderCharge{}, err
 	}
-	if req.RatedAt.IsZero() {
-		req.RatedAt = s.now().UTC()
+	if req.IncurredAt.IsZero() {
+		req.IncurredAt = s.now().UTC()
 	}
 
 	row, err := s.repo.CreateCharge(
 		ctx,
-		sqlc.CreateWholesaleChargeParams{
+		sqlc.CreateVoiceProviderChargeParams{
+			OperationID:     req.OperationID,
 			Currency:        req.Currency,
-			RateMicros:      req.RateMicros,
-			BillableSeconds: req.BillableSeconds,
+			RateMicros:      &req.RateMicros,
+			BillableSeconds: &req.BillableSeconds,
 			AmountMicros:    req.AmountMicros,
-			RatedAt:         pgconv.TimeToTimestamptz(req.RatedAt),
+			IncurredAt:      pgconv.TimeToTimestamptz(req.IncurredAt),
 			ProviderCdrID:   req.ProviderCDRID,
 		},
 	)
 	if err == nil {
-		return chargeFromRow(row), nil
+		return providerChargeFromRow(row), nil
 	}
 	if !errors.Is(err, pgx.ErrNoRows) {
-		return Charge{}, fmt.Errorf("record wholesale charge: %w", err)
+		return ProviderCharge{}, fmt.Errorf("record provider charge: %w", err)
 	}
 
 	existing, lookupErr := s.repo.GetChargeByProviderCDR(
@@ -165,62 +166,62 @@ func (s *Service) RecordCharge(
 		req.ProviderCDRID,
 	)
 	if lookupErr == nil {
-		if !sameCharge(existing, req) {
-			return Charge{}, ErrChargeConflict
+		if !sameVoiceCharge(existing, req) {
+			return ProviderCharge{}, ErrProviderChargeConflict
 		}
 
-		return chargeFromRow(existing), nil
+		return providerChargeFromRow(existing), nil
 	}
 	if !errors.Is(lookupErr, pgx.ErrNoRows) {
-		return Charge{}, fmt.Errorf("read wholesale charge replay: %w", lookupErr)
+		return ProviderCharge{}, fmt.Errorf("read provider charge replay: %w", lookupErr)
 	}
 
-	return Charge{}, ErrChargeNotFound
+	return ProviderCharge{}, ErrProviderChargeNotFound
 }
 
-func (s *Service) GetCharge(
+func (s *Service) GetProviderCharge(
 	ctx context.Context,
 	id uuid.UUID,
-) (Charge, error) {
+) (ProviderCharge, error) {
 	if id == uuid.Nil {
-		return Charge{}, ErrChargeNotFound
+		return ProviderCharge{}, ErrProviderChargeNotFound
 	}
 
-	row, err := s.repo.GetCharge(
+	row, err := s.repo.GetProviderCharge(
 		ctx,
 		id,
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return Charge{}, ErrChargeNotFound
+		return ProviderCharge{}, ErrProviderChargeNotFound
 	}
 	if err != nil {
-		return Charge{}, fmt.Errorf("get wholesale charge: %w", err)
+		return ProviderCharge{}, fmt.Errorf("get provider charge: %w", err)
 	}
 
-	return chargeFromRow(row), nil
+	return providerChargeFromRow(row), nil
 }
 
-func (s *Service) ListChargesByCall(
+func (s *Service) ListProviderChargesByCall(
 	ctx context.Context,
 	callID uuid.UUID,
-) ([]Charge, error) {
+) ([]ProviderCharge, error) {
 	if callID == uuid.Nil {
 		return nil, fmt.Errorf("call id is required")
 	}
 
-	rows, err := s.repo.ListChargesByCall(
+	rows, err := s.repo.ListProviderChargesByCall(
 		ctx,
 		callID,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("list wholesale charges: %w", err)
+		return nil, fmt.Errorf("list provider charges: %w", err)
 	}
 
-	result := make([]Charge, 0, len(rows))
+	result := make([]ProviderCharge, 0, len(rows))
 	for _, row := range rows {
 		result = append(
 			result,
-			chargeFromRow(row),
+			providerChargeFromRow(row),
 		)
 	}
 
@@ -246,14 +247,14 @@ func sameProviderCDR(
 		bytes.Equal(existing.RawPayload, req.RawPayload)
 }
 
-func sameCharge(
-	existing sqlc.WholesaleCharge,
-	req RecordChargeRequest,
+func sameVoiceCharge(
+	existing sqlc.ProviderCharge,
+	req RecordVoiceChargeRequest,
 ) bool {
-	return existing.ProviderCdrID == req.ProviderCDRID &&
+	return existing.ProviderCdrID != nil && *existing.ProviderCdrID == req.ProviderCDRID &&
 		existing.Currency == req.Currency &&
-		existing.RateMicros == req.RateMicros &&
-		existing.BillableSeconds == req.BillableSeconds &&
+		existing.RateMicros != nil && *existing.RateMicros == req.RateMicros &&
+		existing.BillableSeconds != nil && *existing.BillableSeconds == req.BillableSeconds &&
 		existing.AmountMicros == req.AmountMicros
 }
 
@@ -300,15 +301,17 @@ func providerCDRFromRow(row sqlc.ProviderCdr) ProviderCDR {
 	}
 }
 
-func chargeFromRow(row sqlc.WholesaleCharge) Charge {
-	return Charge{
+func providerChargeFromRow(row sqlc.ProviderCharge) ProviderCharge {
+	return ProviderCharge{
 		ID:              row.ID,
+		ProviderID:      row.ProviderID,
 		ProviderCDRID:   row.ProviderCdrID,
+		OperationID:     row.OperationID,
 		Currency:        row.Currency,
 		RateMicros:      row.RateMicros,
 		BillableSeconds: row.BillableSeconds,
 		AmountMicros:    row.AmountMicros,
-		RatedAt:         pgconv.TimestamptzToTime(row.RatedAt),
-		CreatedAt:       pgconv.TimestamptzToTime(row.CreatedAt),
+		IncurredAt:      pgconv.TimestamptzToTime(row.IncurredAt),
+		RecordedAt:      pgconv.TimestamptzToTime(row.RecordedAt),
 	}
 }

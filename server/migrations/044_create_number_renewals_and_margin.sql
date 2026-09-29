@@ -49,51 +49,7 @@ CREATE TRIGGER set_managed_number_renewals_updated_at
 BEFORE UPDATE ON managed_number_renewals
 FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
--- Immutable provider invoice/usage evidence. operation_id links the supplier
--- cost to the exact customer debit, which makes gross-margin reporting
--- deterministic without mixing retail prices and wholesale costs.
-CREATE TABLE provider_costs (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    provider_id UUID NOT NULL REFERENCES carrier_providers(id) ON DELETE RESTRICT,
-    operation_id UUID NOT NULL,
-    provider_record_id TEXT NOT NULL,
-    product TEXT NOT NULL,
-    currency CHAR(3) NOT NULL,
-    amount_micros BIGINT NOT NULL,
-    incurred_at TIMESTAMPTZ NOT NULL,
-    raw_payload JSONB NOT NULL DEFAULT '{}'::jsonb,
-    recorded_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-
-    CONSTRAINT fk_provider_costs_retail_operation
-        FOREIGN KEY (operation_id) REFERENCES wallet_ledger_entries(operation_id) ON DELETE RESTRICT,
-    CONSTRAINT uq_provider_costs_provider_record UNIQUE (provider_id, provider_record_id),
-    CONSTRAINT uq_provider_costs_operation_record UNIQUE (operation_id, provider_record_id),
-    CONSTRAINT chk_provider_costs_record
-        CHECK (length(btrim(provider_record_id)) BETWEEN 1 AND 255),
-    CONSTRAINT chk_provider_costs_product
-        CHECK (product IN ('voice', 'sms_outbound', 'whatsapp_outbound',
-                           'number_purchase', 'number_renewal')),
-    CONSTRAINT chk_provider_costs_currency CHECK (currency ~ '^[A-Z]{3}$'),
-    CONSTRAINT chk_provider_costs_amount CHECK (amount_micros >= 0),
-    CONSTRAINT chk_provider_costs_payload CHECK (jsonb_typeof(raw_payload) = 'object')
-);
-
-CREATE INDEX idx_provider_costs_operation ON provider_costs (operation_id);
-CREATE INDEX idx_provider_costs_incurred ON provider_costs (incurred_at DESC);
-
-CREATE FUNCTION reject_provider_cost_mutation()
-RETURNS TRIGGER
-LANGUAGE plpgsql
-AS $$
-BEGIN
-    RAISE EXCEPTION 'provider costs are immutable' USING ERRCODE = '23514';
-END;
-$$;
-
-CREATE TRIGGER provider_costs_immutable
-BEFORE UPDATE OR DELETE ON provider_costs
-FOR EACH ROW EXECUTE FUNCTION reject_provider_cost_mutation();
-
+-- Margin reporting joins captured customer revenue to reconciled supplier charges.
 CREATE VIEW managed_margin_entries AS
 SELECT
     ledger.operation_id,
@@ -102,12 +58,12 @@ SELECT
     ledger.reference_id,
     ledger.currency,
     ledger.amount_micros AS revenue_micros,
-    COUNT(cost.id) FILTER (WHERE cost.currency = ledger.currency)::BIGINT
-        AS provider_cost_record_count,
-    COALESCE(SUM(cost.amount_micros) FILTER (WHERE cost.currency = ledger.currency), 0)::BIGINT
-        AS provider_cost_micros,
+    COUNT(charge.id) FILTER (WHERE charge.currency = ledger.currency)::BIGINT
+        AS provider_charge_record_count,
+    COALESCE(SUM(charge.amount_micros) FILTER (WHERE charge.currency = ledger.currency), 0)::BIGINT
+        AS provider_charge_micros,
     ledger.amount_micros
-        - COALESCE(SUM(cost.amount_micros) FILTER (WHERE cost.currency = ledger.currency), 0)::BIGINT
+        - COALESCE(SUM(charge.amount_micros) FILTER (WHERE charge.currency = ledger.currency), 0)::BIGINT
         AS gross_profit_micros,
     ledger.occurred_at
 FROM (
@@ -116,7 +72,7 @@ FROM (
     JOIN wallets ON wallets.id = entries.wallet_id
     WHERE entries.direction = 'debit'
 ) AS ledger
-LEFT JOIN provider_costs AS cost ON cost.operation_id = ledger.operation_id
+LEFT JOIN provider_charges AS charge ON charge.operation_id = ledger.operation_id
 GROUP BY
     ledger.operation_id,
     ledger.organization_id,

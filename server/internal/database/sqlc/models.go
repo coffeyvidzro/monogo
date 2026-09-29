@@ -230,16 +230,16 @@ type Idempotency struct {
 }
 
 type ManagedMarginEntry struct {
-	OperationID             uuid.UUID          `db:"operation_id" json:"operation_id"`
-	OrganizationID          uuid.UUID          `db:"organization_id" json:"organization_id"`
-	ReferenceType           *string            `db:"reference_type" json:"reference_type"`
-	ReferenceID             *uuid.UUID         `db:"reference_id" json:"reference_id"`
-	Currency                string             `db:"currency" json:"currency"`
-	RevenueMicros           int64              `db:"revenue_micros" json:"revenue_micros"`
-	ProviderCostRecordCount int64              `db:"provider_cost_record_count" json:"provider_cost_record_count"`
-	ProviderCostMicros      int64              `db:"provider_cost_micros" json:"provider_cost_micros"`
-	GrossProfitMicros       int32              `db:"gross_profit_micros" json:"gross_profit_micros"`
-	OccurredAt              pgtype.Timestamptz `db:"occurred_at" json:"occurred_at"`
+	OperationID               uuid.UUID          `db:"operation_id" json:"operation_id"`
+	OrganizationID            uuid.UUID          `db:"organization_id" json:"organization_id"`
+	ReferenceType             *string            `db:"reference_type" json:"reference_type"`
+	ReferenceID               *uuid.UUID         `db:"reference_id" json:"reference_id"`
+	Currency                  string             `db:"currency" json:"currency"`
+	RevenueMicros             int64              `db:"revenue_micros" json:"revenue_micros"`
+	ProviderChargeRecordCount int64              `db:"provider_charge_record_count" json:"provider_charge_record_count"`
+	ProviderChargeMicros      int64              `db:"provider_charge_micros" json:"provider_charge_micros"`
+	GrossProfitMicros         int32              `db:"gross_profit_micros" json:"gross_profit_micros"`
+	OccurredAt                pgtype.Timestamptz `db:"occurred_at" json:"occurred_at"`
 }
 
 type ManagedNumberOrder struct {
@@ -540,20 +540,24 @@ type ProviderCdr struct {
 	CreatedAt           pgtype.Timestamptz `db:"created_at" json:"created_at"`
 }
 
-type ProviderCost struct {
-	ID               uuid.UUID          `db:"id" json:"id"`
-	ProviderID       uuid.UUID          `db:"provider_id" json:"provider_id"`
-	OperationID      uuid.UUID          `db:"operation_id" json:"operation_id"`
-	ProviderRecordID string             `db:"provider_record_id" json:"provider_record_id"`
-	Product          string             `db:"product" json:"product"`
-	Currency         string             `db:"currency" json:"currency"`
-	AmountMicros     int64              `db:"amount_micros" json:"amount_micros"`
-	IncurredAt       pgtype.Timestamptz `db:"incurred_at" json:"incurred_at"`
-	RawPayload       []byte             `db:"raw_payload" json:"raw_payload"`
-	RecordedAt       pgtype.Timestamptz `db:"recorded_at" json:"recorded_at"`
+type ProviderCharge struct {
+	ID                 uuid.UUID          `db:"id" json:"id"`
+	ProviderID         uuid.UUID          `db:"provider_id" json:"provider_id"`
+	ProviderCdrID      *uuid.UUID         `db:"provider_cdr_id" json:"provider_cdr_id"`
+	OperationID        *uuid.UUID         `db:"operation_id" json:"operation_id"`
+	ProviderRecordType string             `db:"provider_record_type" json:"provider_record_type"`
+	ProviderRecordID   string             `db:"provider_record_id" json:"provider_record_id"`
+	Product            string             `db:"product" json:"product"`
+	Currency           string             `db:"currency" json:"currency"`
+	RateMicros         *int64             `db:"rate_micros" json:"rate_micros"`
+	BillableSeconds    *int64             `db:"billable_seconds" json:"billable_seconds"`
+	AmountMicros       int64              `db:"amount_micros" json:"amount_micros"`
+	IncurredAt         pgtype.Timestamptz `db:"incurred_at" json:"incurred_at"`
+	RawPayload         []byte             `db:"raw_payload" json:"raw_payload"`
+	RecordedAt         pgtype.Timestamptz `db:"recorded_at" json:"recorded_at"`
 }
 
-type ProviderRate struct {
+type ProviderVoiceRate struct {
 	ID                  uuid.UUID          `db:"id" json:"id"`
 	CarrierConnectionID uuid.UUID          `db:"carrier_connection_id" json:"carrier_connection_id"`
 	DestinationPrefix   string             `db:"destination_prefix" json:"destination_prefix"`
@@ -978,15 +982,4 @@ type WebhookEvent struct {
 	Payload        []byte             `db:"payload" json:"payload"`
 	OccurredAt     pgtype.Timestamptz `db:"occurred_at" json:"occurred_at"`
 	CreatedAt      pgtype.Timestamptz `db:"created_at" json:"created_at"`
-}
-
-type WholesaleCharge struct {
-	ID              uuid.UUID          `db:"id" json:"id"`
-	ProviderCdrID   uuid.UUID          `db:"provider_cdr_id" json:"provider_cdr_id"`
-	Currency        string             `db:"currency" json:"currency"`
-	RateMicros      int64              `db:"rate_micros" json:"rate_micros"`
-	BillableSeconds int64              `db:"billable_seconds" json:"billable_seconds"`
-	AmountMicros    int64              `db:"amount_micros" json:"amount_micros"`
-	RatedAt         pgtype.Timestamptz `db:"rated_at" json:"rated_at"`
-	CreatedAt       pgtype.Timestamptz `db:"created_at" json:"created_at"`
 }

@@ -1,4 +1,4 @@
-package wholesale
+package providercharges
 
 import (
 	"errors"
@@ -13,11 +13,11 @@ const (
 )
 
 var (
-	ErrProviderCDRNotFound = errors.New("provider CDR not found")
-	ErrProviderCDRRejected = errors.New("provider CDR was not accepted")
-	ErrProviderCDRConflict = errors.New("provider CDR conflicts with existing record")
-	ErrChargeNotFound      = errors.New("wholesale charge not found")
-	ErrChargeConflict      = errors.New("wholesale charge conflicts with existing record")
+	ErrProviderCDRNotFound    = errors.New("provider CDR not found")
+	ErrProviderCDRRejected    = errors.New("provider CDR was not accepted")
+	ErrProviderCDRConflict    = errors.New("provider CDR conflicts with existing record")
+	ErrProviderChargeNotFound = errors.New("provider charge not found")
+	ErrProviderChargeConflict = errors.New("provider charge conflicts with existing record")
 )
 
 type ProviderCDR struct {
@@ -39,15 +39,17 @@ type ProviderCDR struct {
 	CreatedAt           time.Time
 }
 
-type Charge struct {
+type ProviderCharge struct {
 	ID              uuid.UUID
-	ProviderCDRID   uuid.UUID
+	ProviderID      uuid.UUID
+	ProviderCDRID   *uuid.UUID
+	OperationID     *uuid.UUID
 	Currency        string
-	RateMicros      int64
-	BillableSeconds int64
+	RateMicros      *int64
+	BillableSeconds *int64
 	AmountMicros    int64
-	RatedAt         time.Time
-	CreatedAt       time.Time
+	IncurredAt      time.Time
+	RecordedAt      time.Time
 }
 
 type RecordCDRRequest struct {
@@ -67,11 +69,12 @@ type RecordCDRRequest struct {
 	ReceivedAt          time.Time
 }
 
-type RecordChargeRequest struct {
+type RecordVoiceChargeRequest struct {
 	ProviderCDRID   uuid.UUID
+	OperationID     *uuid.UUID
 	Currency        string
 	RateMicros      int64
 	BillableSeconds int64
 	AmountMicros    int64
-	RatedAt         time.Time
+	IncurredAt      time.Time
 }

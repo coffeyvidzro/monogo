@@ -1,4 +1,4 @@
-package wholesale
+package providercharges
 
 import (
 	"context"
@@ -65,19 +65,19 @@ func (r *Repository) ListProviderCDRsByCall(
 
 func (r *Repository) CreateCharge(
 	ctx context.Context,
-	params sqlc.CreateWholesaleChargeParams,
-) (sqlc.WholesaleCharge, error) {
-	return r.queries.CreateWholesaleCharge(
+	params sqlc.CreateVoiceProviderChargeParams,
+) (sqlc.ProviderCharge, error) {
+	return r.queries.CreateVoiceProviderCharge(
 		ctx,
 		params,
 	)
 }
 
-func (r *Repository) GetCharge(
+func (r *Repository) GetProviderCharge(
 	ctx context.Context,
 	id uuid.UUID,
-) (sqlc.WholesaleCharge, error) {
-	return r.queries.GetWholesaleChargeByID(
+) (sqlc.ProviderCharge, error) {
+	return r.queries.GetProviderChargeByID(
 		ctx,
 		id,
 	)
@@ -86,18 +86,18 @@ func (r *Repository) GetCharge(
 func (r *Repository) GetChargeByProviderCDR(
 	ctx context.Context,
 	providerCDRID uuid.UUID,
-) (sqlc.WholesaleCharge, error) {
-	return r.queries.GetWholesaleChargeByProviderCDR(
+) (sqlc.ProviderCharge, error) {
+	return r.queries.GetProviderChargeByProviderCDR(
 		ctx,
-		providerCDRID,
+		&providerCDRID,
 	)
 }
 
-func (r *Repository) ListChargesByCall(
+func (r *Repository) ListProviderChargesByCall(
 	ctx context.Context,
 	callID uuid.UUID,
-) ([]sqlc.WholesaleCharge, error) {
-	return r.queries.ListWholesaleChargesByCall(
+) ([]sqlc.ProviderCharge, error) {
+	return r.queries.ListProviderChargesByCall(
 		ctx,
 		callID,
 	)

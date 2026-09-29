@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"github.com/coffeyvidzro/monogo/internal/commercial/pricing"
-	"github.com/coffeyvidzro/monogo/internal/commercial/providercosts"
+	"github.com/coffeyvidzro/monogo/internal/commercial/providercharges"
 	"github.com/coffeyvidzro/monogo/internal/commercial/wallets"
 	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
 	"github.com/coffeyvidzro/monogo/internal/integrations/carriers/didww"
@@ -25,13 +25,13 @@ import (
 )
 
 type Service struct {
-	repo          *Repository
-	inventory     *didww.Client
-	db            *pgxpool.Pool
-	now           func() time.Time
-	pricing       *pricing.Service
-	wallets       *wallets.Service
-	providerCosts *providercosts.Service
+	repo            *Repository
+	inventory       *didww.Client
+	db              *pgxpool.Pool
+	now             func() time.Time
+	pricing         *pricing.Service
+	wallets         *wallets.Service
+	providerCharges *providercharges.Service
 }
 
 func (s *Service) ConfigureBilling(
@@ -42,8 +42,8 @@ func (s *Service) ConfigureBilling(
 	s.wallets = walletsService
 }
 
-func (s *Service) ConfigureProviderCosts(service *providercosts.Service) {
-	s.providerCosts = service
+func (s *Service) ConfigureProviderCharges(service *providercharges.Service) {
+	s.providerCharges = service
 }
 
 func NewService(repository *Repository, inventory *didww.Client) *Service {
@@ -458,7 +458,7 @@ func (s *Service) Reconcile(ctx context.Context, orderID uuid.UUID) (ManagedOrde
 			if err := s.captureManagedNumber(ctx, order); err != nil {
 				return ManagedOrder{}, err
 			}
-			if err := s.recordManagedNumberPurchaseCost(ctx, order); err != nil {
+			if err := s.recordManagedNumberPurchaseCharge(ctx, order); err != nil {
 				return ManagedOrder{}, err
 			}
 		}
@@ -557,7 +557,7 @@ func (s *Service) Reconcile(ctx context.Context, orderID uuid.UUID) (ManagedOrde
 	if err := s.captureManagedNumber(ctx, order); err != nil {
 		return ManagedOrder{}, err
 	}
-	if err := s.recordManagedNumberPurchaseCost(ctx, order); err != nil {
+	if err := s.recordManagedNumberPurchaseCharge(ctx, order); err != nil {
 		return ManagedOrder{}, err
 	}
 
@@ -750,43 +750,44 @@ func renewalRetryDelay(attempt int32) time.Duration {
 	return delay
 }
 
-func (s *Service) recordManagedNumberPurchaseCost(
+func (s *Service) recordManagedNumberPurchaseCharge(
 	ctx context.Context,
 	order ManagedOrder,
 ) error {
-	if s.providerCosts == nil {
-		return apperror.NewServiceUnavailable("provider cost accounting is not configured", nil)
+	if s.providerCharges == nil {
+		return apperror.NewServiceUnavailable("provider charge accounting is not configured", nil)
 	}
 	if order.ProviderOrderID == nil {
-		return apperror.NewInternal("record managed number provider cost", errors.New("provider order id is missing"))
+		return apperror.NewInternal("record managed number provider charge", errors.New("provider order id is missing"))
 	}
 	providerOrder, err := s.inventory.GetOrder(ctx, *order.ProviderOrderID)
 	if err != nil {
-		return apperror.NewServiceUnavailable("provider order cost is unavailable", err)
+		return apperror.NewServiceUnavailable("provider order charge is unavailable", err)
 	}
 	amountMicros, err := decimalMicros(providerOrder.Attributes.Amount)
 	if err != nil {
-		return apperror.NewInternal("parse managed number provider cost", err)
+		return apperror.NewInternal("parse managed number provider charge", err)
 	}
 	payload, err := json.Marshal(providerOrder)
 	if err != nil {
-		return apperror.NewInternal("encode managed number provider cost evidence", err)
+		return apperror.NewInternal("encode managed number provider charge evidence", err)
 	}
-	_, err = s.providerCosts.Record(
+	_, err = s.providerCharges.RecordProviderCharge(
 		ctx,
-		providercosts.RecordRequest{
-			ProviderID:       order.ProviderID,
-			OperationID:      managedNumberOperationID(order.ID),
-			ProviderRecordID: "order:" + providerOrder.ID,
-			Product:          pricing.ProductNumberPurchase,
-			Currency:         wallets.CurrencyUSD,
-			AmountMicros:     amountMicros,
-			IncurredAt:       providerOrder.Attributes.CreatedAt,
-			RawPayload:       payload,
+		providercharges.RecordProviderChargeRequest{
+			ProviderID:         order.ProviderID,
+			OperationID:        operationIDPointer(managedNumberOperationID(order.ID)),
+			ProviderRecordType: "order",
+			ProviderRecordID:   providerOrder.ID,
+			Product:            pricing.ProductNumberPurchase,
+			Currency:           wallets.CurrencyUSD,
+			AmountMicros:       amountMicros,
+			IncurredAt:         providerOrder.Attributes.CreatedAt,
+			RawPayload:         payload,
 		},
 	)
 	if err != nil {
-		return apperror.NewInternal("record managed number provider cost", err)
+		return apperror.NewInternal("record managed number provider charge", err)
 	}
 	return nil
 }
@@ -823,4 +824,8 @@ func decimalMicros(value string) (int64, error) {
 		return 0, fmt.Errorf("provider amount is out of range")
 	}
 	return whole*1_000_000 + fractionMicros, nil
+}
+
+func operationIDPointer(id uuid.UUID) *uuid.UUID {
+	return &id
 }

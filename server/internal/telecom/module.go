@@ -4,7 +4,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/coffeyvidzro/monogo/internal/commercial/pricing"
-	"github.com/coffeyvidzro/monogo/internal/commercial/providercosts"
+	"github.com/coffeyvidzro/monogo/internal/commercial/providercharges"
 	"github.com/coffeyvidzro/monogo/internal/commercial/subscriptions"
 	"github.com/coffeyvidzro/monogo/internal/commercial/wallets"
 	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
@@ -35,7 +35,7 @@ type Dependencies struct {
 	CallsAdmission       *calling.AdmissionLimiter
 	CallsSubscriptions   *subscriptions.Service
 	CallsPricing         *pricing.Service
-	ProviderCosts        *providercosts.Service
+	ProviderCharges      *providercharges.Service
 	CallsWallets         *wallets.Service
 	ConferenceController conferences.Controller
 	CredentialCipher     *encryption.Cipher
@@ -157,7 +157,7 @@ func New(deps Dependencies) (*Module, error) {
 	numbersRepository := numbers.NewRepository(deps.Queries)
 	numbersService := numbers.NewService(numbersRepository, deps.DIDWWInventory)
 	numbersService.ConfigureManaged(deps.DB)
-	numbersService.ConfigureProviderCosts(deps.ProviderCosts)
+	numbersService.ConfigureProviderCharges(deps.ProviderCharges)
 	numbersService.ConfigureBilling(
 		deps.CallsPricing,
 		deps.CallsWallets,

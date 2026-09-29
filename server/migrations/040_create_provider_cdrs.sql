@@ -1,5 +1,5 @@
 -- Immutable upstream call-detail records reconciled to Leamout-managed calls.
--- They are supplier evidence for wholesale cost accounting.
+-- They are supplier evidence for provider charge accounting.
 
 CREATE TABLE provider_cdrs (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

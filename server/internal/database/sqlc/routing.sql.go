@@ -12,8 +12,8 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const createProviderRate = `-- name: CreateProviderRate :one
-INSERT INTO provider_rates (
+const createProviderVoiceRate = `-- name: CreateProviderVoiceRate :one
+INSERT INTO provider_voice_rates (
     carrier_connection_id,
     destination_prefix,
     rate_micros,
@@ -39,7 +39,7 @@ WHERE cc.id = $6
 RETURNING id, carrier_connection_id, destination_prefix, rate_micros, billing_currency, effective_at, expires_at, created_at
 `
 
-type CreateProviderRateParams struct {
+type CreateProviderVoiceRateParams struct {
 	DestinationPrefix   string             `db:"destination_prefix" json:"destination_prefix"`
 	RateMicros          int64              `db:"rate_micros" json:"rate_micros"`
 	BillingCurrency     string             `db:"billing_currency" json:"billing_currency"`
@@ -48,8 +48,8 @@ type CreateProviderRateParams struct {
 	CarrierConnectionID uuid.UUID          `db:"carrier_connection_id" json:"carrier_connection_id"`
 }
 
-func (q *Queries) CreateProviderRate(ctx context.Context, arg CreateProviderRateParams) (ProviderRate, error) {
-	row := q.db.QueryRow(ctx, createProviderRate,
+func (q *Queries) CreateProviderVoiceRate(ctx context.Context, arg CreateProviderVoiceRateParams) (ProviderVoiceRate, error) {
+	row := q.db.QueryRow(ctx, createProviderVoiceRate,
 		arg.DestinationPrefix,
 		arg.RateMicros,
 		arg.BillingCurrency,
@@ -57,7 +57,7 @@ func (q *Queries) CreateProviderRate(ctx context.Context, arg CreateProviderRate
 		arg.ExpiresAt,
 		arg.CarrierConnectionID,
 	)
-	var i ProviderRate
+	var i ProviderVoiceRate
 	err := row.Scan(
 		&i.ID,
 		&i.CarrierConnectionID,
@@ -281,7 +281,7 @@ JOIN trunk_endpoints AS te ON te.trunk_id = t.id
 JOIN carrier_route_metrics AS metrics ON metrics.trunk_endpoint_id = te.id
 JOIN LATERAL (
     SELECT cr.rate_micros
-    FROM provider_rates AS cr
+    FROM provider_voice_rates AS cr
     WHERE cr.carrier_connection_id = cc.id
       AND cr.billing_currency = 'USD'
       AND $1::TEXT LIKE cr.destination_prefix || '%'

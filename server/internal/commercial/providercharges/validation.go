@@ -1,4 +1,4 @@
-package wholesale
+package providercharges
 
 import (
 	"encoding/json"
@@ -68,7 +68,7 @@ func normalizeRecordCDRRequest(req *RecordCDRRequest) error {
 	return nil
 }
 
-func normalizeRecordChargeRequest(req *RecordChargeRequest) error {
+func normalizeRecordVoiceChargeRequest(req *RecordVoiceChargeRequest) error {
 	if req.ProviderCDRID == uuid.Nil {
 		return fmt.Errorf("provider CDR id is required")
 	}
@@ -82,6 +82,9 @@ func normalizeRecordChargeRequest(req *RecordChargeRequest) error {
 	}
 	if req.BillableSeconds < 0 {
 		return fmt.Errorf("billable duration cannot be negative")
+	}
+	if req.IncurredAt.IsZero() {
+		return fmt.Errorf("incurred time is required")
 	}
 	if req.AmountMicros < 0 {
 		return fmt.Errorf("amount cannot be negative")
