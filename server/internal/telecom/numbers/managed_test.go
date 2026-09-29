@@ -31,6 +31,20 @@ func TestNormalizeManagedPurchaseRequiresTenantAndIdempotency(t *testing.T) {
 	}
 }
 
+func TestManagedNumberOperationIDIsStablePerOrder(t *testing.T) {
+	orderID := uuid.New()
+	first := managedNumberOperationID(orderID)
+	second := managedNumberOperationID(orderID)
+	other := managedNumberOperationID(uuid.New())
+
+	if first != second {
+		t.Fatalf("replayed operation id = %s, want %s", second, first)
+	}
+	if first == other {
+		t.Fatal("different orders produced the same billing operation id")
+	}
+}
+
 func TestAvailableDIDSKUIsResolvedFromPrivateRelationship(t *testing.T) {
 	var available didww.AvailableDID
 	available.ID = "available-1"

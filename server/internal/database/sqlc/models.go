@@ -268,6 +268,18 @@ type ManagedNumberOrder struct {
 	UpdatedAt           pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 }
 
+type ManagedProductRate struct {
+	ID             uuid.UUID          `db:"id" json:"id"`
+	OrganizationID *uuid.UUID         `db:"organization_id" json:"organization_id"`
+	Product        string             `db:"product" json:"product"`
+	Selector       string             `db:"selector" json:"selector"`
+	Currency       string             `db:"currency" json:"currency"`
+	RateMicros     int64              `db:"rate_micros" json:"rate_micros"`
+	EffectiveAt    pgtype.Timestamptz `db:"effective_at" json:"effective_at"`
+	ExpiresAt      pgtype.Timestamptz `db:"expires_at" json:"expires_at"`
+	CreatedAt      pgtype.Timestamptz `db:"created_at" json:"created_at"`
+}
+
 type Message struct {
 	ID                    uuid.UUID          `db:"id" json:"id"`
 	OrganizationID        uuid.UUID          `db:"organization_id" json:"organization_id"`

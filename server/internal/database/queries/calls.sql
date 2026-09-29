@@ -40,14 +40,18 @@ LIMIT 1;
 
 -- name: GetCallLifecycleSnapshot :one
 SELECT
-    organization_id,
-    carrier_connection_id,
-    routing_decision_id,
-    direction,
-    state,
-    media_state
-FROM calls
-WHERE id = sqlc.arg(id)
+    c.organization_id,
+    c.carrier_connection_id,
+    c.routing_decision_id,
+    c.direction,
+    c.state,
+    c.media_state,
+    c.answered_at,
+    cc.scope AS carrier_scope
+FROM calls AS c
+LEFT JOIN carrier_connections AS cc
+  ON cc.id = c.carrier_connection_id
+WHERE c.id = sqlc.arg(id)
 LIMIT 1;
 
 -- name: GetCarrierDailyUsageSeconds :one
@@ -110,7 +114,8 @@ ORDER BY created_at ASC;
 SELECT
     cc.max_cps,
     cc.max_concurrent_calls,
-    cc.max_daily_minutes
+    cc.max_daily_minutes,
+    pn.provisioning_mode
 FROM phone_numbers AS pn
 JOIN carrier_connections AS cc
   ON cc.id = pn.carrier_connection_id

@@ -10,6 +10,11 @@ import (
 const (
 	DirectionInbound  = "inbound"
 	DirectionOutbound = "outbound"
+
+	ProductSMSOutbound      = "sms_outbound"
+	ProductWhatsAppOutbound = "whatsapp_outbound"
+	ProductNumberPurchase   = "number_purchase"
+	ProductNumberRenewal    = "number_renewal"
 )
 
 var (
@@ -46,4 +51,23 @@ type ResolveRequest struct {
 	Direction         string
 	Currency          string
 	ResolvedAt        time.Time
+}
+
+type ProductRate struct {
+	ID             uuid.UUID
+	OrganizationID *uuid.UUID
+	Product        string
+	Selector       string
+	Currency       string
+	RateMicros     int64
+	EffectiveAt    time.Time
+	ExpiresAt      *time.Time
+}
+
+type ResolveProductRequest struct {
+	OrganizationID uuid.UUID
+	Product        string
+	Selector       string
+	Currency       string
+	ResolvedAt     time.Time
 }

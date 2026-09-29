@@ -209,10 +209,68 @@ func (s *Service) Hold(
 	return holdFromRow(hold), nil
 }
 
+func (s *Service) GetHold(
+	ctx context.Context,
+	organizationID uuid.UUID,
+	operationID uuid.UUID,
+) (Hold, error) {
+	if err := validateHoldOperation(organizationID, operationID); err != nil {
+		return Hold{}, apperror.NewBadRequest(err.Error())
+	}
+
+	hold, err := s.repo.GetHoldByOperation(
+		ctx,
+		organizationID,
+		operationID,
+	)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Hold{}, apperror.NewNotFound("wallet hold not found")
+	}
+	if err != nil {
+		return Hold{}, apperror.NewInternal("get wallet hold", err)
+	}
+
+	return holdFromRow(hold), nil
+}
+
 func (s *Service) Capture(
 	ctx context.Context,
 	organizationID uuid.UUID,
 	operationID uuid.UUID,
+) (LedgerEntry, error) {
+	return s.capture(
+		ctx,
+		organizationID,
+		operationID,
+		0,
+	)
+}
+
+// CaptureAmount settles a hold for an amount up to the authorized maximum and
+// releases the unused reservation in the same transaction.
+func (s *Service) CaptureAmount(
+	ctx context.Context,
+	organizationID uuid.UUID,
+	operationID uuid.UUID,
+	amountMicros int64,
+) (LedgerEntry, error) {
+	if amountMicros <= 0 {
+		return LedgerEntry{}, apperror.NewBadRequest("capture amount must be positive")
+	}
+
+	return s.capture(
+		ctx,
+		organizationID,
+		operationID,
+		amountMicros,
+	)
+}
+
+func (s *Service) capture(
+	ctx context.Context,
+	organizationID uuid.UUID,
+	operationID uuid.UUID,
+	amountMicros int64,
 ) (LedgerEntry, error) {
 	if err := validateHoldOperation(organizationID, operationID); err != nil {
 		return LedgerEntry{}, apperror.NewBadRequest(err.Error())
@@ -265,6 +323,9 @@ func (s *Service) Capture(
 		if err != nil {
 			return LedgerEntry{}, apperror.NewInternal("get captured wallet ledger entry", err)
 		}
+		if amountMicros > 0 && entry.AmountMicros != amountMicros {
+			return LedgerEntry{}, apperror.NewConflict("wallet capture amount conflicts with existing ledger entry")
+		}
 		if err := tx.Commit(ctx); err != nil {
 			return LedgerEntry{}, apperror.NewInternal("commit wallet hold capture replay", err)
 		}
@@ -276,11 +337,27 @@ func (s *Service) Capture(
 	default:
 		return LedgerEntry{}, apperror.NewConflict("wallet hold state does not allow capture")
 	}
+	if amountMicros == 0 {
+		amountMicros = hold.AmountMicros
+	}
+	if amountMicros > hold.AmountMicros {
+		return LedgerEntry{}, apperror.NewPaymentRequired("capture amount exceeds wallet authorization")
+	}
 
-	updated, err := repo.CaptureReservedBalance(
+	if _, err := repo.ReleaseReservedBalance(
 		ctx,
 		organizationID,
 		hold.AmountMicros,
+	); errors.Is(err, pgx.ErrNoRows) {
+		return LedgerEntry{}, apperror.NewConflict("wallet state does not allow hold capture")
+	} else if err != nil {
+		return LedgerEntry{}, apperror.NewInternal("release captured wallet reservation", err)
+	}
+
+	updated, err := repo.ApplyBalance(
+		ctx,
+		organizationID,
+		-amountMicros,
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return LedgerEntry{}, apperror.NewConflict("wallet state does not allow hold capture")
@@ -295,7 +372,7 @@ func (s *Service) Capture(
 			OperationID:        hold.OperationID,
 			Direction:          DirectionDebit,
 			Reason:             hold.Reason,
-			AmountMicros:       hold.AmountMicros,
+			AmountMicros:       amountMicros,
 			BalanceAfterMicros: updated.BalanceMicros,
 			ReferenceType:      hold.ReferenceType,
 			ReferenceID:        hold.ReferenceID,

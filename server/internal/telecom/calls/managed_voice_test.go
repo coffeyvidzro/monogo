@@ -2,6 +2,7 @@ package calls
 
 import (
 	"testing"
+	"time"
 
 	"github.com/coffeyvidzro/monogo/internal/telecom/routing"
 	"github.com/google/uuid"
@@ -42,6 +43,58 @@ func TestCommerciallyEligibleManagedRoutesRejectSupplierLoss(t *testing.T) {
 			routes[0].CarrierConnectionID,
 			eligible.CarrierConnectionID,
 		)
+	}
+}
+
+func TestManagedVoiceCaptureAmountRoundsStartedMinutesAndReleasesUnusedFunds(t *testing.T) {
+	answeredAt := time.Date(
+		2026,
+		time.September,
+		28,
+		12,
+		0,
+		0,
+		0,
+		time.UTC,
+	)
+	tests := []struct {
+		name     string
+		duration time.Duration
+		want     int64
+	}{
+		{
+			name:     "sub-minute call",
+			duration: time.Second,
+			want:     100_000,
+		},
+		{
+			name:     "exact minute",
+			duration: time.Minute,
+			want:     100_000,
+		},
+		{
+			name:     "started second minute",
+			duration: time.Minute + time.Second,
+			want:     200_000,
+		},
+		{
+			name:     "authorization ceiling",
+			duration: 11 * time.Minute,
+			want:     1_000_000,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			amount := managedVoiceCaptureAmount(
+				1_000_000,
+				answeredAt,
+				answeredAt.Add(test.duration),
+			)
+			if amount != test.want {
+				t.Fatalf("capture amount = %d, want %d", amount, test.want)
+			}
+		})
 	}
 }
 

@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/coffeyvidzro/monogo/internal/commercial/pricing"
+	"github.com/coffeyvidzro/monogo/internal/commercial/wallets"
 	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
 	natsintegration "github.com/coffeyvidzro/monogo/internal/integrations/nats"
 	"github.com/coffeyvidzro/monogo/internal/integrations/smpp"
@@ -112,6 +114,20 @@ func newMessagingRuntime(ctx context.Context, queries *sqlc.Queries, db *pgxpool
 	}
 	repo := domain.NewRepository(db)
 	service := domain.NewService(repo)
+	pricingService := pricing.NewService(
+		pricing.NewRepository(
+			queries,
+			db,
+		),
+	)
+	walletService := wallets.NewService(
+		wallets.NewRepository(queries),
+		db,
+	)
+	service.ConfigureBilling(
+		pricingService,
+		walletService,
+	)
 	initialized = true
 	return &messagingRuntime{
 		nats:        nats,

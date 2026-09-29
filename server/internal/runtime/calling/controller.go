@@ -230,6 +230,30 @@ func (c *Controller) Hangup(ctx context.Context, channelID string) error {
 	return nil
 }
 
+func (c *Controller) SetMaxDuration(
+	ctx context.Context,
+	channelID string,
+	seconds int32,
+) error {
+	if seconds <= 0 {
+		return fmt.Errorf("maximum call duration must be positive")
+	}
+	value := fmt.Sprintf(
+		"sched_hangup +%d ALLOTTED_TIMEOUT",
+		seconds,
+	)
+	if err := c.client.SetVariable(
+		ctx,
+		channelID,
+		"execute_on_answer",
+		value,
+	); err != nil {
+		return fmt.Errorf("set maximum call duration: %w", err)
+	}
+
+	return nil
+}
+
 func (c *Controller) Transfer(
 	ctx context.Context,
 	channelID string,

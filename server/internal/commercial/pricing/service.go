@@ -3,6 +3,7 @@ package pricing
 import (
 	"context"
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/coffeyvidzro/monogo/internal/database/pgconv"
@@ -110,6 +111,37 @@ func (s *Service) Resolve(
 	}
 
 	return rateFromRow(row), nil
+}
+
+func (s *Service) ResolveProduct(
+	ctx context.Context,
+	req ResolveProductRequest,
+) (ProductRate, error) {
+	req.Product = strings.TrimSpace(req.Product)
+	req.Selector = strings.ToUpper(strings.TrimSpace(req.Selector))
+	req.Currency = strings.ToUpper(strings.TrimSpace(req.Currency))
+	if req.OrganizationID == uuid.Nil ||
+		req.Product == "" ||
+		req.Selector == "" ||
+		len(req.Currency) != 3 {
+		return ProductRate{}, apperror.NewBadRequest("managed product rate request is invalid")
+	}
+	if req.ResolvedAt.IsZero() {
+		req.ResolvedAt = s.now().UTC()
+	}
+
+	rate, err := s.repo.ResolveProduct(
+		ctx,
+		req,
+	)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return ProductRate{}, apperror.NewNotFound("managed product rate not found")
+	}
+	if err != nil {
+		return ProductRate{}, apperror.NewInternal("resolve managed product rate", err)
+	}
+
+	return rate, nil
 }
 
 func rateFromRow(row sqlc.CarrierRate) Rate {

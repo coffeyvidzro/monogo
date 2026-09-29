@@ -55,8 +55,22 @@ subscription requirement. Commercial APIs for plans, subscriptions, wallet
 visibility, and future top-up workflows are deliberately exempt so an
 organization can restore access.
 
-Managed outbound voice enforces prepaid authorization and settlement. Other
-managed carrier products must add equivalent retail pricing, wallet holds, and
-settlement before they are made available as production products. In
-particular, managed inbound calling, managed number purchasing and renewal, and
-managed messaging are not yet covered by the PAYG settlement flow.
+Managed inbound and outbound voice reserve ten started minutes at admission,
+enforce that authorization as the maximum call duration, and settle only the
+started minutes actually consumed. Unused authorization is released.
+
+Managed SMS and WhatsApp submissions reserve their configured fixed retail
+price before contacting the platform carrier. A provider rejection releases
+the hold; provider acceptance or an unknown provider outcome captures it.
+
+Managed number purchases reserve both the configured acquisition price and the
+first renewal period before an upstream order is submitted. The charge is
+captured only after ownership and routing are verified and the number is
+activated. Automated authorization for subsequent renewal periods still needs
+a renewal scheduler before indefinite managed-number service is production
+ready.
+
+Fixed managed-product prices are stored in `managed_product_rates`. Rates may
+be global or organization-specific, are effective-dated, and support exact
+country selectors with a `*` fallback. Voice continues to use longest-prefix
+carrier rates because it is destination-rated.

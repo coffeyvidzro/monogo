@@ -28,6 +28,7 @@ type InboundDecision struct {
 	VoiceBindingID      uuid.UUID
 	CarrierConnectionID uuid.UUID
 	CalledNumber        string
+	ProvisioningMode    string
 	Limits              Limits
 }
 

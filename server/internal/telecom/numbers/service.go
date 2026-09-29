@@ -2,10 +2,15 @@ package numbers
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
+	"math"
 	"strings"
 	"time"
 
+	"github.com/coffeyvidzro/monogo/internal/commercial/pricing"
+	"github.com/coffeyvidzro/monogo/internal/commercial/wallets"
 	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
 	"github.com/coffeyvidzro/monogo/internal/integrations/carriers/didww"
 	"github.com/coffeyvidzro/monogo/pkg/apperror"
@@ -20,6 +25,16 @@ type Service struct {
 	inventory *didww.Client
 	db        *pgxpool.Pool
 	now       func() time.Time
+	pricing   *pricing.Service
+	wallets   *wallets.Service
+}
+
+func (s *Service) ConfigureBilling(
+	pricingService *pricing.Service,
+	walletsService *wallets.Service,
+) {
+	s.pricing = pricingService
+	s.wallets = walletsService
 }
 
 func NewService(repository *Repository, inventory *didww.Client) *Service {
@@ -199,11 +214,210 @@ func (s *Service) Purchase(
 	key string,
 	req ManagedPurchaseRequest,
 ) (ManagedOrder, error) {
-	// Without commercial authorization, do not incur a new wholesale order.
-	return ManagedOrder{}, apperror.NewServiceUnavailable(
-		"managed number purchasing is disabled without commercial authorization",
-		nil,
+	key = strings.TrimSpace(key)
+	if err := normalizeManagedPurchase(organizationID, key, &req); err != nil {
+		return ManagedOrder{}, err
+	}
+	digest := sha256.Sum256([]byte(req.Number + "\n" + req.CountryCode))
+	requestHash := hex.EncodeToString(digest[:])
+	existing, err := s.repo.GetManagedOrderByKey(ctx, organizationID, key)
+	if err == nil {
+		if existing.RequestHash != requestHash {
+			return ManagedOrder{}, apperror.NewConflict(
+				"idempotency key was used with a different purchase",
+			)
+		}
+		if existing.Status == "ready" {
+			if err := s.authorizeManagedNumber(ctx, existing); err != nil {
+				return ManagedOrder{}, err
+			}
+
+			return s.submit(ctx, existing)
+		}
+		return existing, nil
+	}
+	if !errors.Is(err, pgx.ErrNoRows) {
+		return ManagedOrder{}, apperror.NewInternal("read managed number order", err)
+	}
+	if s.inventory == nil {
+		return ManagedOrder{}, apperror.NewServiceUnavailable("managed number purchasing is not configured", nil)
+	}
+	_, targets, err := s.repo.ManagedRoutingTargets(ctx)
+	if err != nil {
+		return ManagedOrder{}, apperror.NewInternal("resolve managed inbound route", err)
+	}
+	if len(targets) != 1 {
+		return ManagedOrder{}, apperror.NewServiceUnavailable(
+			"managed inbound route is not configured unambiguously",
+			nil,
+		)
+	}
+
+	// Resolve the provider identity again at purchase time. Search results are
+	// display-only and are never treated as proof that inventory is still valid.
+	inventoryResult, err := s.inventory.SearchAvailableDIDs(
+		ctx,
+		didww.AvailableDIDFilter{
+			NumberContains: strings.TrimPrefix(req.Number, "+"),
+		},
 	)
+	if err != nil {
+		return ManagedOrder{}, apperror.NewConflict("number is no longer available")
+	}
+	var inventory didww.AvailableDID
+	for _, candidate := range inventoryResult.Data {
+		if normalizeProviderNumber(candidate.Attributes.Number) == req.Number {
+			if inventory.ID != "" {
+				return ManagedOrder{}, apperror.NewServiceUnavailable(
+					"provider returned ambiguous inventory",
+					nil,
+				)
+			}
+			inventory = candidate
+		}
+	}
+	if inventory.ID == "" {
+		return ManagedOrder{}, apperror.NewConflict("number is no longer available")
+	}
+	providerNumber := normalizeProviderNumber(inventory.Attributes.Number)
+	if providerNumber != req.Number {
+		return ManagedOrder{}, apperror.NewConflict("provider inventory does not match requested number")
+	}
+	skuID, err := availableDIDSKU(inventory)
+	if err != nil {
+		return ManagedOrder{}, apperror.NewServiceUnavailable("provider inventory is incomplete", err)
+	}
+
+	order, created, err := s.repo.CreateManagedOrder(
+		ctx,
+		organizationID,
+		key,
+		requestHash,
+		req,
+		inventory.ID,
+		skuID,
+	)
+	if err != nil {
+		return ManagedOrder{}, managedWriteError(err)
+	}
+	if !created {
+		if order.RequestHash != requestHash {
+			return ManagedOrder{}, apperror.NewConflict("idempotency key was used with a different purchase")
+		}
+		if order.Status == "ready" {
+			if err := s.authorizeManagedNumber(ctx, order); err != nil {
+				return ManagedOrder{}, err
+			}
+
+			return s.submit(ctx, order)
+		}
+		return order, nil
+	}
+	if err := s.authorizeManagedNumber(ctx, order); err != nil {
+		return ManagedOrder{}, err
+	}
+	return s.submit(ctx, order)
+}
+
+func (s *Service) authorizeManagedNumber(
+	ctx context.Context,
+	order ManagedOrder,
+) error {
+	if s.pricing == nil || s.wallets == nil {
+		return apperror.NewServiceUnavailable("managed number billing is not configured", nil)
+	}
+	purchaseRate, err := s.pricing.ResolveProduct(
+		ctx,
+		pricing.ResolveProductRequest{
+			OrganizationID: order.OrganizationID,
+			Product:        pricing.ProductNumberPurchase,
+			Selector:       order.CountryCode,
+			Currency:       wallets.CurrencyUSD,
+		},
+	)
+	if err != nil {
+		return err
+	}
+	renewalRate, err := s.pricing.ResolveProduct(
+		ctx,
+		pricing.ResolveProductRequest{
+			OrganizationID: order.OrganizationID,
+			Product:        pricing.ProductNumberRenewal,
+			Selector:       order.CountryCode,
+			Currency:       wallets.CurrencyUSD,
+		},
+	)
+	if err != nil {
+		return err
+	}
+	if purchaseRate.RateMicros > math.MaxInt64-renewalRate.RateMicros {
+		return apperror.NewServiceUnavailable("managed number authorization is too large", nil)
+	}
+	referenceType := "managed_number_order"
+	referenceID := order.ID
+	_, err = s.wallets.Hold(
+		ctx,
+		wallets.HoldRequest{
+			OrganizationID: order.OrganizationID,
+			OperationID:    managedNumberOperationID(order.ID),
+			AmountMicros:   purchaseRate.RateMicros + renewalRate.RateMicros,
+			Reason:         "managed_number",
+			ReferenceType:  &referenceType,
+			ReferenceID:    &referenceID,
+		},
+	)
+
+	return err
+}
+
+func managedNumberOperationID(orderID uuid.UUID) uuid.UUID {
+	return uuid.NewSHA1(
+		orderID,
+		[]byte("managed_number:purchase_and_first_period"),
+	)
+}
+
+func (s *Service) submit(ctx context.Context, order ManagedOrder) (ManagedOrder, error) {
+	claimed, err := s.repo.ClaimManagedSubmission(ctx, order.ID)
+	if err != nil {
+		return ManagedOrder{}, managedWriteError(err)
+	}
+	providerOrder, err := s.inventory.OrderDID(ctx, didww.OrderDIDRequest{
+		SKUID:               claimed.SKUID,
+		AvailableDIDID:      claimed.AvailableDIDID,
+		ExternalReferenceID: claimed.ID.String(),
+	})
+	if err != nil {
+		// Once the request starts, even a timeout or 4xx can hide a committed
+		// provider order. Reconciliation, never resubmission, resolves it.
+		unknown, updateErr := s.repo.MarkManagedOutcomeUnknown(
+			ctx,
+			claimed.ID,
+			"provider_response_unknown",
+			err.Error(),
+			s.now().Add(managedReconcileDelay),
+		)
+		if updateErr != nil {
+			return ManagedOrder{}, apperror.NewInternal("persist uncertain provider outcome", updateErr)
+		}
+		return unknown, nil
+	}
+	if providerOrder.ID == "" ||
+		providerOrder.Attributes.ExternalReferenceID == nil ||
+		*providerOrder.Attributes.ExternalReferenceID != claimed.ID.String() {
+		unknown, updateErr := s.repo.MarkManagedOutcomeUnknown(
+			ctx,
+			claimed.ID,
+			"provider_identity_mismatch",
+			"provider order identity could not be verified",
+			s.now(),
+		)
+		if updateErr != nil {
+			return ManagedOrder{}, apperror.NewInternal("persist uncertain provider outcome", updateErr)
+		}
+		return unknown, nil
+	}
+	return s.repo.RecordManagedProviderOrder(ctx, claimed.ID, providerOrder.ID, s.now())
 }
 
 func (s *Service) GetManagedOrder(
@@ -231,6 +445,11 @@ func (s *Service) Reconcile(ctx context.Context, orderID uuid.UUID) (ManagedOrde
 	if order.Status == "completed" ||
 		order.Status == "failed" ||
 		order.Status == "manual_review" {
+		if order.Status == "completed" {
+			if err := s.captureManagedNumber(ctx, order); err != nil {
+				return ManagedOrder{}, err
+			}
+		}
 		return order, nil
 	}
 
@@ -319,7 +538,33 @@ func (s *Service) Reconcile(ctx context.Context, orderID uuid.UUID) (ManagedOrde
 			"inbound_route_not_verified",
 		)
 	}
-	return s.activateManagedNumber(ctx, order.ID, did.ID, target, s.now())
+	order, err = s.activateManagedNumber(ctx, order.ID, did.ID, target, s.now())
+	if err != nil {
+		return ManagedOrder{}, err
+	}
+	if err := s.captureManagedNumber(ctx, order); err != nil {
+		return ManagedOrder{}, err
+	}
+
+	return order, nil
+}
+
+func (s *Service) captureManagedNumber(
+	ctx context.Context,
+	order ManagedOrder,
+) error {
+	if s.wallets == nil {
+		return apperror.NewServiceUnavailable("managed number billing is not configured", nil)
+	}
+	if _, err := s.wallets.Capture(
+		ctx,
+		order.OrganizationID,
+		managedNumberOperationID(order.ID),
+	); err != nil {
+		return apperror.NewInternal("capture managed number charge", err)
+	}
+
+	return nil
 }
 
 func (s *Service) scheduleManagedReconciliation(

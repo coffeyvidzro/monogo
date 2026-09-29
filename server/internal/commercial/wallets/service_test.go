@@ -244,6 +244,66 @@ func TestCaptureDebitsOnce(t *testing.T) {
 	)
 }
 
+func TestCaptureAmountDebitsUsageAndReleasesUnusedAuthorization(t *testing.T) {
+	service, _, organizationID := newWalletTestService(
+		t,
+		testWalletBalanceMicros,
+	)
+	operationID := uuid.New()
+	_, err := service.Hold(
+		context.Background(),
+		HoldRequest{
+			OrganizationID: organizationID,
+			OperationID:    operationID,
+			AmountMicros:   600_000,
+			Reason:         "managed_voice",
+		},
+	)
+	if err != nil {
+		t.Fatalf("hold funds: %v", err)
+	}
+
+	entry, err := service.CaptureAmount(
+		context.Background(),
+		organizationID,
+		operationID,
+		200_000,
+	)
+	if err != nil {
+		t.Fatalf("capture partial hold: %v", err)
+	}
+	if entry.AmountMicros != 200_000 {
+		t.Fatalf("ledger amount = %d, want %d", entry.AmountMicros, 200_000)
+	}
+
+	wallet, err := service.Get(
+		context.Background(),
+		organizationID,
+	)
+	if err != nil {
+		t.Fatalf("get wallet: %v", err)
+	}
+	assertWalletAmounts(
+		t,
+		wallet,
+		800_000,
+		0,
+		800_000,
+	)
+
+	_, err = service.CaptureAmount(
+		context.Background(),
+		organizationID,
+		operationID,
+		300_000,
+	)
+	requireAppErrorCode(
+		t,
+		err,
+		"CONFLICT",
+	)
+}
+
 func TestReleaseRestoresAvailableBalanceWithoutLedgerEntry(t *testing.T) {
 	service, pool, organizationID := newWalletTestService(
 		t,

@@ -155,6 +155,10 @@ func New(deps Dependencies) (*Module, error) {
 	numbersRepository := numbers.NewRepository(deps.Queries)
 	numbersService := numbers.NewService(numbersRepository, deps.DIDWWInventory)
 	numbersService.ConfigureManaged(deps.DB)
+	numbersService.ConfigureBilling(
+		deps.CallsPricing,
+		deps.CallsWallets,
+	)
 	lifecycleRepository := lifecycle.NewRepository(deps.Queries)
 	lifecycleService := lifecycle.NewService(lifecycleRepository, deps.DB, didww.NewLifecycleProvider(deps.DIDWWInventory))
 
@@ -163,6 +167,10 @@ func New(deps Dependencies) (*Module, error) {
 
 	messagingRepository := messaging.NewRepository(deps.DB)
 	messagingService := messaging.NewService(messagingRepository)
+	messagingService.ConfigureBilling(
+		deps.CallsPricing,
+		deps.CallsWallets,
+	)
 
 	recordingsRepository := recordings.NewRepository(deps.DB)
 	recordingsService := recordings.NewService(recordingsRepository, deps.RecordingStorage)
