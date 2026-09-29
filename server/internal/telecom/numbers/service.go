@@ -22,12 +22,12 @@ import (
 )
 
 type Service struct {
-	repo            *Repository
-	inventory       *didww.Client
-	db              *pgxpool.Pool
-	now             func() time.Time
-	pricing         *pricing.Service
-	wallets         *wallets.Service
+	repo      *Repository
+	inventory *didww.Client
+	db        *pgxpool.Pool
+	now       func() time.Time
+	pricing   *pricing.Service
+	wallets   *wallets.Service
 }
 
 func (s *Service) ConfigureBilling(
@@ -737,4 +737,3 @@ func renewalRetryDelay(attempt int32) time.Duration {
 	}
 	return delay
 }
-

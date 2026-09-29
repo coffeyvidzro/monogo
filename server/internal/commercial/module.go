@@ -15,10 +15,10 @@ type Dependencies struct {
 }
 
 type Module struct {
-	Wallets         WalletsModule
-	Plans           PlansModule
-	Subscriptions   SubscriptionsModule
-	Pricing         PricingModule
+	Wallets       WalletsModule
+	Plans         PlansModule
+	Subscriptions SubscriptionsModule
+	Pricing       PricingModule
 }
 
 type WalletsModule struct {

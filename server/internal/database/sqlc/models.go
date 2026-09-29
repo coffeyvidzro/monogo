@@ -229,19 +229,6 @@ type Idempotency struct {
 	UpdatedAt           pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 }
 
-type ManagedMarginEntry struct {
-	OperationID               uuid.UUID          `db:"operation_id" json:"operation_id"`
-	OrganizationID            uuid.UUID          `db:"organization_id" json:"organization_id"`
-	ReferenceType             *string            `db:"reference_type" json:"reference_type"`
-	ReferenceID               *uuid.UUID         `db:"reference_id" json:"reference_id"`
-	Currency                  string             `db:"currency" json:"currency"`
-	RevenueMicros             int64              `db:"revenue_micros" json:"revenue_micros"`
-	ProviderChargeRecordCount int64              `db:"provider_charge_record_count" json:"provider_charge_record_count"`
-	ProviderChargeMicros      int64              `db:"provider_charge_micros" json:"provider_charge_micros"`
-	GrossProfitMicros         int32              `db:"gross_profit_micros" json:"gross_profit_micros"`
-	OccurredAt                pgtype.Timestamptz `db:"occurred_at" json:"occurred_at"`
-}
-
 type ManagedNumberOrder struct {
 	ID                  uuid.UUID          `db:"id" json:"id"`
 	OrganizationID      uuid.UUID          `db:"organization_id" json:"organization_id"`
@@ -520,7 +507,6 @@ type ProductRate struct {
 	ExpiresAt      pgtype.Timestamptz `db:"expires_at" json:"expires_at"`
 	CreatedAt      pgtype.Timestamptz `db:"created_at" json:"created_at"`
 }
-
 
 type ProviderVoiceRate struct {
 	ID                  uuid.UUID          `db:"id" json:"id"`
