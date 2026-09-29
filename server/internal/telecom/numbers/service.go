@@ -450,9 +450,6 @@ func (s *Service) Reconcile(ctx context.Context, orderID uuid.UUID) (ManagedOrde
 			if err := s.captureManagedNumber(ctx, order); err != nil {
 				return ManagedOrder{}, err
 			}
-			if err := s.recordManagedNumberPurchaseCharge(ctx, order); err != nil {
-				return ManagedOrder{}, err
-			}
 		}
 		return order, nil
 	}
