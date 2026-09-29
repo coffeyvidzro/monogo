@@ -61,7 +61,7 @@ func (r *Repository) Confirm(
 	req ConfirmRequest,
 	now time.Time,
 ) (sqlc.Checkout, error) {
-	return r.queries.ConfirmCheckout(
+	row, err := r.queries.ConfirmCheckout(
 		ctx,
 		sqlc.ConfirmCheckoutParams{
 			Provider:       &req.Provider,
@@ -71,6 +71,29 @@ func (r *Repository) Confirm(
 			NowAt:          pgconv.TimeToTimestamptz(now),
 		},
 	)
+	if err != nil {
+		return sqlc.Checkout{}, err
+	}
+
+	return sqlc.Checkout{
+		ID:              row.ID,
+		OrganizationID:  row.OrganizationID,
+		Purpose:         row.Purpose,
+		SubscriptionID:  row.SubscriptionID,
+		Reference:       row.Reference,
+		AmountMicros:    row.AmountMicros,
+		Currency:        row.Currency,
+		Status:          row.Status,
+		Provider:        row.Provider,
+		PaymentMethod:   row.PaymentMethod,
+		NextAction:      row.NextAction,
+		ProviderMessage: row.ProviderMessage,
+		ExpiresAt:       row.ExpiresAt,
+		FailureCode:     row.FailureCode,
+		CompletedAt:     row.CompletedAt,
+		CreatedAt:       row.CreatedAt,
+		UpdatedAt:       row.UpdatedAt,
+	}, nil
 }
 
 func (r *Repository) GetForContinuation(
@@ -117,7 +140,7 @@ func (r *Repository) Fail(
 		ctx,
 		sqlc.FailCheckoutParams{
 			ProviderMessage: providerMessage,
-			FailureCode:     failureCode,
+			FailureCode:     &failureCode,
 			CompletedAt:     pgconv.TimeToTimestamptz(completedAt),
 			CheckoutID:      id,
 			OrganizationID:  organizationID,
