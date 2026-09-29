@@ -34,16 +34,16 @@ func validateCreateAttemptRequest(req *CreateAttemptRequest) error {
 	return nil
 }
 
-func validateAttachProviderReferenceRequest(req *AttachProviderReferenceRequest) error {
+func validateAttachProviderPaymentIDRequest(req *AttachProviderPaymentIDRequest) error {
 	if req.CheckoutID == uuid.Nil ||
 		req.OrganizationID == uuid.Nil ||
 		req.PaymentID == uuid.Nil {
 		return fmt.Errorf("%w: checkout, organization, and payment ids are required", ErrInvalidInput)
 	}
 
-	req.ProviderReference = strings.TrimSpace(req.ProviderReference)
-	if req.ProviderReference == "" {
-		return fmt.Errorf("%w: provider reference is required", ErrInvalidInput)
+	req.ProviderPaymentID = strings.TrimSpace(req.ProviderPaymentID)
+	if req.ProviderPaymentID == "" {
+		return fmt.Errorf("%w: provider payment id is required", ErrInvalidInput)
 	}
 
 	return nil
