@@ -49,11 +49,11 @@ func (s *ProviderService) Start(ctx context.Context, req StartRequest) (StartRes
 		productName = "Wallet top-up"
 	}
 	session, err := s.Stripe.CreateCheckoutSession(ctx, stripe.CreateCheckoutSessionRequest{
-		AmountMinor: amountMinor,
-		Currency: req.Payment.Currency,
-		Reference: req.Reference,
+		AmountMinor:    amountMinor,
+		Currency:       req.Payment.Currency,
+		Reference:      req.Reference,
 		IdempotencyKey: req.Payment.ID.String(),
-		ProductName: productName,
+		ProductName:    productName,
 	})
 	if err != nil {
 		return StartResult{}, fmt.Errorf("create Stripe checkout session: %w", err)
@@ -67,8 +67,8 @@ func (s *ProviderService) Start(ctx context.Context, req StartRequest) (StartRes
 	clientSecret := session.ClientSecret
 	return StartResult{
 		ProviderPaymentID: session.ID,
-		ClientSecret: &clientSecret,
-		NextAction: "wait",
+		ClientSecret:      &clientSecret,
+		NextAction:        "wait",
 	}, nil
 }
 
@@ -130,10 +130,10 @@ func (s *ProviderService) ParseStripeWebhook(payload []byte, signature string, n
 		return ProviderWebhook{}, err
 	}
 	return ProviderWebhook{
-		Provider: "stripe",
+		Provider:          "stripe",
 		ProviderPaymentID: session.ID,
-		ProviderEventID: event.ID,
-		EventType: event.Type,
+		ProviderEventID:   event.ID,
+		EventType:         event.Type,
 	}, nil
 }
 

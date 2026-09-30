@@ -148,7 +148,6 @@ func newModules(ctx context.Context, cfg config.Config) (*modules, error) {
 		}
 	}
 
-
 	commercialModule := commercial.New(commercial.Dependencies{
 		DB:      postgresClient.Pool(),
 		Queries: queries,
