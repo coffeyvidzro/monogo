@@ -13,12 +13,12 @@ import (
 )
 
 type Service struct {
-	repo          *Repository
-	router        *routing.Service
-	controller    *calling.Controller
-	channels      *calling.ChannelStore
-	admission     *calling.AdmissionLimiter
-	metrics       routeAttemptMetrics
+	repo       *Repository
+	router     *routing.Service
+	controller *calling.Controller
+	channels   *calling.ChannelStore
+	admission  *calling.AdmissionLimiter
+	metrics    routeAttemptMetrics
 }
 
 type routeAttemptMetrics interface {
@@ -50,12 +50,12 @@ func NewService(
 		panic("calls: admission limiter is required")
 	}
 	return &Service{
-		repo:          repo,
-		router:        router,
-		controller:    controller,
-		channels:      channels,
-		admission:     admission,
-		metrics:       metrics,
+		repo:       repo,
+		router:     router,
+		controller: controller,
+		channels:   channels,
+		admission:  admission,
+		metrics:    metrics,
 	}
 }
 
@@ -215,7 +215,6 @@ func (s *Service) AdmitInbound(
 			apperror.NewInternal("lookup inbound SIP call", err),
 		)
 	}
-
 
 	decision, err := s.router.ResolveInbound(ctx, routing.InboundRequest{
 		OrganizationID:      req.OrganizationID,

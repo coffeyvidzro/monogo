@@ -1,4 +1,4 @@
-h1:OwOm4fzC6oy/Q43s6MXAn4zDmeauIoto1WKRjydJ6uk=
+h1:vnfjrLZkVyMKIByF08f1bS9/cp/Jr32NhXKviha605I=
 001_extensions.sql h1:V12FA/dbb8clPffRf/1QJRpbB/S0eECkElwvfOVRda4=
 002_create_users.sql h1:w8z6z5sqnmtExCGa63iYl2ssG9rgXX8m3VPqvb1z4jo=
 003_create_authentication.sql h1:6R8fm0zInr9A/OW74oYTBLpPYHRf3dpVjw13qyjdd7E=
@@ -31,7 +31,3 @@ h1:OwOm4fzC6oy/Q43s6MXAn4zDmeauIoto1WKRjydJ6uk=
 034_create_voice_agent_sessions.sql h1:jzArjfj0vY9PNVRFmhTgVR/cL556YHaA367yTTZYRBI=
 035_create_voice_agent_turns.sql h1:xMWtdYHZtLI0thVDvr98QxW/xymfYJ8eMlFWunEtixo=
 036_create_voice_agent_tool_execution.sql h1:gCvdT3fKNgMXSBUb6sPAdJk3HsI1LAQbuNl3OslsywA=
-039_create_subscriptions.sql h1:0ZLd3uQwvwj6BGxL8GrHS7maBFPJcQQWCUibRhz8O90=
-043_create_checkouts.sql h1:iOHOoxJUVCaHvfA9ILx3oDVlAQPfrcnf1CYIeBKpeOs=
-044_create_payments.sql h1:wO7CWB5Sg2Zq0dS41IEQJWr1FTKvoLAX/Oo2kHYpLrw=
-045_create_payment_provider_events.sql h1:Ew5Nnq1zoQ6tc1Sq5T9PnOB6wvLaiBjwMe+TVrolr38=
