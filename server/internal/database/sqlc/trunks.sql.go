@@ -28,11 +28,11 @@ RETURNING id, organization_id, carrier_connection_id, name, direction, status, c
 `
 
 type CreateTrunkParams struct {
-	Name                string     `db:"name" json:"name"`
-	Direction           *string    `db:"direction" json:"direction"`
-	Status              *string    `db:"status" json:"status"`
-	CarrierConnectionID uuid.UUID  `db:"carrier_connection_id" json:"carrier_connection_id"`
-	OrganizationID      *uuid.UUID `db:"organization_id" json:"organization_id"`
+	Name                string    `db:"name" json:"name"`
+	Direction           *string   `db:"direction" json:"direction"`
+	Status              *string   `db:"status" json:"status"`
+	CarrierConnectionID uuid.UUID `db:"carrier_connection_id" json:"carrier_connection_id"`
+	OrganizationID      uuid.UUID `db:"organization_id" json:"organization_id"`
 }
 
 func (q *Queries) CreateTrunk(ctx context.Context, arg CreateTrunkParams) (Trunk, error) {
@@ -244,7 +244,6 @@ SELECT
     t.status,
     CAST(COALESCE(t.carrier_connection_id::TEXT, '—') AS TEXT) AS carrier_connection_id,
     COALESCE(cc.name, '—') AS carrier_connection_name,
-    COALESCE(cp.name, '—') AS provider_name,
     COUNT(te.id)::BIGINT AS endpoint_count,
     COUNT(te.id) FILTER (WHERE te.enabled)::BIGINT AS enabled_endpoint_count,
     to_char(t.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI') AS created_at,
@@ -252,10 +251,9 @@ SELECT
 FROM trunks AS t
 LEFT JOIN organizations AS o ON o.id = t.organization_id
 LEFT JOIN carrier_connections AS cc ON cc.id = t.carrier_connection_id
-LEFT JOIN carrier_providers AS cp ON cp.id = cc.provider_id
 LEFT JOIN trunk_endpoints AS te ON te.trunk_id = t.id
 WHERE t.id = $1
-GROUP BY t.id, o.name, cc.name, cp.name
+GROUP BY t.id, o.name, cc.name
 LIMIT 1
 `
 
@@ -268,7 +266,6 @@ type GetBackofficeTrunkRow struct {
 	Status                string `db:"status" json:"status"`
 	CarrierConnectionID   string `db:"carrier_connection_id" json:"carrier_connection_id"`
 	CarrierConnectionName string `db:"carrier_connection_name" json:"carrier_connection_name"`
-	ProviderName          string `db:"provider_name" json:"provider_name"`
 	EndpointCount         int64  `db:"endpoint_count" json:"endpoint_count"`
 	EnabledEndpointCount  int64  `db:"enabled_endpoint_count" json:"enabled_endpoint_count"`
 	CreatedAt             string `db:"created_at" json:"created_at"`
@@ -287,7 +284,6 @@ func (q *Queries) GetBackofficeTrunk(ctx context.Context, id uuid.UUID) (GetBack
 		&i.Status,
 		&i.CarrierConnectionID,
 		&i.CarrierConnectionName,
-		&i.ProviderName,
 		&i.EndpointCount,
 		&i.EnabledEndpointCount,
 		&i.CreatedAt,
@@ -512,20 +508,17 @@ SELECT
     CAST(COALESCE(t.organization_id::TEXT, '—') AS TEXT) AS organization_id,
     COALESCE(o.name, '—') AS organization_name,
     t.name,
-    COALESCE(cp.name, '—') AS provider_name,
     t.direction,
     t.status,
     COUNT(te.id)::BIGINT AS endpoint_count
 FROM trunks AS t
 LEFT JOIN organizations AS o ON o.id = t.organization_id
 LEFT JOIN carrier_connections AS cc ON cc.id = t.carrier_connection_id
-LEFT JOIN carrier_providers AS cp ON cp.id = cc.provider_id
 LEFT JOIN trunk_endpoints AS te ON te.trunk_id = t.id
 GROUP BY
     t.id,
     o.name,
     t.name,
-    cp.name,
     t.direction,
     t.status,
     t.created_at
@@ -538,7 +531,6 @@ type ListBackofficeTrunksRow struct {
 	OrganizationID   string `db:"organization_id" json:"organization_id"`
 	OrganizationName string `db:"organization_name" json:"organization_name"`
 	Name             string `db:"name" json:"name"`
-	ProviderName     string `db:"provider_name" json:"provider_name"`
 	Direction        string `db:"direction" json:"direction"`
 	Status           string `db:"status" json:"status"`
 	EndpointCount    int64  `db:"endpoint_count" json:"endpoint_count"`
@@ -558,7 +550,6 @@ func (q *Queries) ListBackofficeTrunks(ctx context.Context) ([]ListBackofficeTru
 			&i.OrganizationID,
 			&i.OrganizationName,
 			&i.Name,
-			&i.ProviderName,
 			&i.Direction,
 			&i.Status,
 			&i.EndpointCount,

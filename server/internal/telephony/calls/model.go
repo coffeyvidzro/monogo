@@ -8,7 +8,6 @@ import (
 	"github.com/google/uuid"
 )
 
-
 type Direction string
 
 const (

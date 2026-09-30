@@ -2,7 +2,6 @@ package carriers
 
 import (
 	"testing"
-
 )
 
 func TestNormalizeCreateRejectsIncompleteDigestAuth(t *testing.T) {
@@ -17,8 +16,8 @@ func TestNormalizeCreateRejectsIncompleteDigestAuth(t *testing.T) {
 
 func TestNormalizeCreateNormalizesAndDeduplicatesCodecs(t *testing.T) {
 	req := CreateRequest{
-		Name:       "  Primary carrier  ",
-		Codecs:     []string{"pcmu", "OPUS", "PCMU"},
+		Name:   "  Primary carrier  ",
+		Codecs: []string{"pcmu", "OPUS", "PCMU"},
 	}
 	if err := normalizeCreate(&req); err != nil {
 		t.Fatalf("normalize create: %v", err)

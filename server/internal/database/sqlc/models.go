@@ -61,14 +61,12 @@ type Call struct {
 	FromUri             string             `db:"from_uri" json:"from_uri"`
 	ToUri               string             `db:"to_uri" json:"to_uri"`
 	SipCallID           *string            `db:"sip_call_id" json:"sip_call_id"`
-	ProviderID          *uuid.UUID         `db:"provider_id" json:"provider_id"`
 	StartedAt           pgtype.Timestamptz `db:"started_at" json:"started_at"`
 	AnsweredAt          pgtype.Timestamptz `db:"answered_at" json:"answered_at"`
 	EndedAt             pgtype.Timestamptz `db:"ended_at" json:"ended_at"`
 	HangupReason        *string            `db:"hangup_reason" json:"hangup_reason"`
 	CreatedAt           pgtype.Timestamptz `db:"created_at" json:"created_at"`
 	UpdatedAt           pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
-	RoutingDecisionID   *uuid.UUID         `db:"routing_decision_id" json:"routing_decision_id"`
 }
 
 type CallParticipant struct {
@@ -88,8 +86,7 @@ type CallParticipant struct {
 
 type CarrierConnection struct {
 	ID                      uuid.UUID          `db:"id" json:"id"`
-	OrganizationID          *uuid.UUID         `db:"organization_id" json:"organization_id"`
-	ProviderID              uuid.UUID          `db:"provider_id" json:"provider_id"`
+	OrganizationID          uuid.UUID          `db:"organization_id" json:"organization_id"`
 	Name                    string             `db:"name" json:"name"`
 	Status                  string             `db:"status" json:"status"`
 	OutboundAuthMethod      string             `db:"outbound_auth_method" json:"outbound_auth_method"`
@@ -101,7 +98,6 @@ type CarrierConnection struct {
 	InboundSecretCiphertext *string            `db:"inbound_secret_ciphertext" json:"inbound_secret_ciphertext"`
 	MaxCps                  int32              `db:"max_cps" json:"max_cps"`
 	MaxConcurrentCalls      int32              `db:"max_concurrent_calls" json:"max_concurrent_calls"`
-	MaxDailyMinutes         *int64             `db:"max_daily_minutes" json:"max_daily_minutes"`
 	Codecs                  []string           `db:"codecs" json:"codecs"`
 	SupportsVideo           bool               `db:"supports_video" json:"supports_video"`
 	SupportsFax             bool               `db:"supports_fax" json:"supports_fax"`
@@ -126,26 +122,6 @@ type CarrierDigestCredential struct {
 	Ha1Md5              string             `db:"ha1_md5" json:"ha1_md5"`
 	CreatedAt           pgtype.Timestamptz `db:"created_at" json:"created_at"`
 	UpdatedAt           pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
-}
-
-type CarrierProvider struct {
-	ID        uuid.UUID          `db:"id" json:"id"`
-	Slug      string             `db:"slug" json:"slug"`
-	Name      string             `db:"name" json:"name"`
-	Status    string             `db:"status" json:"status"`
-	CreatedAt pgtype.Timestamptz `db:"created_at" json:"created_at"`
-	UpdatedAt pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
-}
-
-type CarrierRouteMetric struct {
-	TrunkEndpointID       uuid.UUID          `db:"trunk_endpoint_id" json:"trunk_endpoint_id"`
-	AsrBasisPoints        int32              `db:"asr_basis_points" json:"asr_basis_points"`
-	AlocMilliseconds      int64              `db:"aloc_milliseconds" json:"aloc_milliseconds"`
-	LatencyMilliseconds   int32              `db:"latency_milliseconds" json:"latency_milliseconds"`
-	PacketLossBasisPoints int32              `db:"packet_loss_basis_points" json:"packet_loss_basis_points"`
-	SampleCount           int64              `db:"sample_count" json:"sample_count"`
-	ObservedAt            pgtype.Timestamptz `db:"observed_at" json:"observed_at"`
-	UpdatedAt             pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 }
 
 type Conference struct {
@@ -326,47 +302,6 @@ type Recording struct {
 	CompletedAt     pgtype.Timestamptz `db:"completed_at" json:"completed_at"`
 	CreatedAt       pgtype.Timestamptz `db:"created_at" json:"created_at"`
 	UpdatedAt       pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
-}
-
-type RoutingAttempt struct {
-	ID                   uuid.UUID          `db:"id" json:"id"`
-	RoutingDecisionID    uuid.UUID          `db:"routing_decision_id" json:"routing_decision_id"`
-	CallID               uuid.UUID          `db:"call_id" json:"call_id"`
-	Attempt              int32              `db:"attempt" json:"attempt"`
-	CarrierConnectionID  uuid.UUID          `db:"carrier_connection_id" json:"carrier_connection_id"`
-	TrunkID              uuid.UUID          `db:"trunk_id" json:"trunk_id"`
-	TrunkEndpointID      uuid.UUID          `db:"trunk_endpoint_id" json:"trunk_endpoint_id"`
-	Outcome              string             `db:"outcome" json:"outcome"`
-	FailureClass         *string            `db:"failure_class" json:"failure_class"`
-	SipStatus            *int32             `db:"sip_status" json:"sip_status"`
-	DurationMilliseconds int64              `db:"duration_milliseconds" json:"duration_milliseconds"`
-	CreatedAt            pgtype.Timestamptz `db:"created_at" json:"created_at"`
-}
-
-type RoutingDecision struct {
-	ID                          uuid.UUID          `db:"id" json:"id"`
-	OrganizationID              uuid.UUID          `db:"organization_id" json:"organization_id"`
-	Destination                 string             `db:"destination" json:"destination"`
-	SelectedCarrierConnectionID uuid.UUID          `db:"selected_carrier_connection_id" json:"selected_carrier_connection_id"`
-	SelectedTrunkID             uuid.UUID          `db:"selected_trunk_id" json:"selected_trunk_id"`
-	SelectedTrunkEndpointID     uuid.UUID          `db:"selected_trunk_endpoint_id" json:"selected_trunk_endpoint_id"`
-	CandidateCount              int32              `db:"candidate_count" json:"candidate_count"`
-	CreatedAt                   pgtype.Timestamptz `db:"created_at" json:"created_at"`
-}
-
-type RoutingDecisionCandidate struct {
-	RoutingDecisionID     uuid.UUID          `db:"routing_decision_id" json:"routing_decision_id"`
-	Rank                  int32              `db:"rank" json:"rank"`
-	CarrierConnectionID   uuid.UUID          `db:"carrier_connection_id" json:"carrier_connection_id"`
-	TrunkID               uuid.UUID          `db:"trunk_id" json:"trunk_id"`
-	TrunkEndpointID       uuid.UUID          `db:"trunk_endpoint_id" json:"trunk_endpoint_id"`
-	RateMicros            int64              `db:"rate_micros" json:"rate_micros"`
-	AsrBasisPoints        int32              `db:"asr_basis_points" json:"asr_basis_points"`
-	AlocMilliseconds      int64              `db:"aloc_milliseconds" json:"aloc_milliseconds"`
-	LatencyMilliseconds   int32              `db:"latency_milliseconds" json:"latency_milliseconds"`
-	PacketLossBasisPoints int32              `db:"packet_loss_basis_points" json:"packet_loss_basis_points"`
-	MetricsObservedAt     pgtype.Timestamptz `db:"metrics_observed_at" json:"metrics_observed_at"`
-	ScoreMicros           int64              `db:"score_micros" json:"score_micros"`
 }
 
 type Session struct {
