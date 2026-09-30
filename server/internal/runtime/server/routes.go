@@ -12,7 +12,7 @@ import (
 	"github.com/coffeyvidzro/monogo/internal/platform/logging"
 	"github.com/coffeyvidzro/monogo/internal/platform/metrics"
 	"github.com/coffeyvidzro/monogo/internal/platform/middleware"
-	"github.com/coffeyvidzro/monogo/internal/telecom"
+	"github.com/coffeyvidzro/monogo/internal/telephony"
 	"github.com/coffeyvidzro/monogo/internal/tenancy"
 )
 
@@ -64,9 +64,9 @@ func newRouter(cfg config.Config, logger *logging.Logger, modules *modules) *chi
 		)
 		platform.RegisterRoutes(r, modules.platform, organizationAccess)
 		ai.RegisterRoutes(r, modules.ai, organizationAccess)
-		telecom.RegisterRoutes(
+		telephony.RegisterRoutes(
 			r,
-			modules.telecom,
+			modules.telephony,
 			organizationAccess,
 			modules.platform.Idempotency.Middleware.Handle,
 		)

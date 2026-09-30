@@ -7,7 +7,7 @@ import (
 	"fmt"
 
 	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
-	"github.com/coffeyvidzro/monogo/internal/telecom/calls"
+	"github.com/coffeyvidzro/monogo/internal/telephony/calls"
 )
 
 const (

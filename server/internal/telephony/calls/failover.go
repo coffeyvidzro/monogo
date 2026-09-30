@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/coffeyvidzro/monogo/internal/runtime/calling"
-	"github.com/coffeyvidzro/monogo/internal/telecom/routing"
+	"github.com/coffeyvidzro/monogo/internal/telephony/routing"
 )
 
 const maxOutboundAttempts = 3

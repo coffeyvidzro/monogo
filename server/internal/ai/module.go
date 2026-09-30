@@ -7,7 +7,7 @@ import (
 	"github.com/coffeyvidzro/monogo/internal/ai/tools"
 	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
 	"github.com/coffeyvidzro/monogo/internal/security/encryption"
-	"github.com/coffeyvidzro/monogo/internal/telecom/calls"
+	"github.com/coffeyvidzro/monogo/internal/telephony/calls"
 )
 
 type Dependencies struct {

@@ -21,10 +21,10 @@ import (
 	"github.com/coffeyvidzro/monogo/internal/runtime/calling"
 	"github.com/coffeyvidzro/monogo/internal/runtime/voiceai"
 	"github.com/coffeyvidzro/monogo/internal/security/encryption"
-	"github.com/coffeyvidzro/monogo/internal/telecom/calls"
-	"github.com/coffeyvidzro/monogo/internal/telecom/recordings"
-	"github.com/coffeyvidzro/monogo/internal/telecom/routing"
-	"github.com/coffeyvidzro/monogo/internal/telecom/trunks"
+	"github.com/coffeyvidzro/monogo/internal/telephony/calls"
+	"github.com/coffeyvidzro/monogo/internal/telephony/recordings"
+	"github.com/coffeyvidzro/monogo/internal/telephony/routing"
+	"github.com/coffeyvidzro/monogo/internal/telephony/trunks"
 )
 
 type modules struct {

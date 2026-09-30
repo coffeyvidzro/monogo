@@ -1,4 +1,4 @@
-package telecom
+package telephony
 
 import (
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -7,17 +7,17 @@ import (
 	"github.com/coffeyvidzro/monogo/internal/platform/metrics"
 	"github.com/coffeyvidzro/monogo/internal/runtime/calling"
 	"github.com/coffeyvidzro/monogo/internal/security/encryption"
-	"github.com/coffeyvidzro/monogo/internal/telecom/calls"
-	"github.com/coffeyvidzro/monogo/internal/telecom/carriers"
-	"github.com/coffeyvidzro/monogo/internal/telecom/conferences"
-	"github.com/coffeyvidzro/monogo/internal/telecom/numbers"
-	"github.com/coffeyvidzro/monogo/internal/telecom/realtime"
-	"github.com/coffeyvidzro/monogo/internal/telecom/recordings"
-	"github.com/coffeyvidzro/monogo/internal/telecom/routing"
-	"github.com/coffeyvidzro/monogo/internal/telecom/sip_domains"
-	"github.com/coffeyvidzro/monogo/internal/telecom/subscribers"
-	"github.com/coffeyvidzro/monogo/internal/telecom/trunks"
-	"github.com/coffeyvidzro/monogo/internal/telecom/voice"
+	"github.com/coffeyvidzro/monogo/internal/telephony/calls"
+	"github.com/coffeyvidzro/monogo/internal/telephony/carriers"
+	"github.com/coffeyvidzro/monogo/internal/telephony/conferences"
+	"github.com/coffeyvidzro/monogo/internal/telephony/numbers"
+	"github.com/coffeyvidzro/monogo/internal/telephony/realtime"
+	"github.com/coffeyvidzro/monogo/internal/telephony/recordings"
+	"github.com/coffeyvidzro/monogo/internal/telephony/routing"
+	"github.com/coffeyvidzro/monogo/internal/telephony/sip_domains"
+	"github.com/coffeyvidzro/monogo/internal/telephony/subscribers"
+	"github.com/coffeyvidzro/monogo/internal/telephony/trunks"
+	"github.com/coffeyvidzro/monogo/internal/telephony/voice"
 )
 
 type Dependencies struct {

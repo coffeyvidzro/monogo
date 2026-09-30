@@ -7,7 +7,7 @@ import (
 
 	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
 	"github.com/coffeyvidzro/monogo/internal/platform/outbox"
-	"github.com/coffeyvidzro/monogo/internal/telecom/routing"
+	"github.com/coffeyvidzro/monogo/internal/telephony/routing"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 )

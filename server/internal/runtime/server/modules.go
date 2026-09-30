@@ -20,10 +20,10 @@ import (
 	"github.com/coffeyvidzro/monogo/internal/runtime/calling"
 	"github.com/coffeyvidzro/monogo/internal/security/authn"
 	"github.com/coffeyvidzro/monogo/internal/security/encryption"
-	"github.com/coffeyvidzro/monogo/internal/telecom"
-	"github.com/coffeyvidzro/monogo/internal/telecom/conferences"
-	"github.com/coffeyvidzro/monogo/internal/telecom/realtime"
-	"github.com/coffeyvidzro/monogo/internal/telecom/recordings"
+	"github.com/coffeyvidzro/monogo/internal/telephony"
+	"github.com/coffeyvidzro/monogo/internal/telephony/conferences"
+	"github.com/coffeyvidzro/monogo/internal/telephony/realtime"
+	"github.com/coffeyvidzro/monogo/internal/telephony/recordings"
 	"github.com/coffeyvidzro/monogo/internal/tenancy"
 )
 
@@ -35,7 +35,7 @@ type modules struct {
 	tenancy              *tenancy.Module
 	platform             *platform.Module
 	ai                   *ai.Module
-	telecom              *telecom.Module
+	telephony            *telephony.Module
 	authn                *middleware.AuthnMiddleware
 	organizationsContext *middleware.OrganizationMiddleware
 	rateLimit            *middleware.RateLimitMiddleware
@@ -116,7 +116,7 @@ func newModules(ctx context.Context, cfg config.Config) (*modules, error) {
 	platformModule := platform.New(postgresClient.Pool(), queries)
 
 	metricsRegistry := metrics.New(redisClient)
-	telecomModule, err := telecom.New(telecom.Dependencies{
+	telephonyModule, err := telephony.New(telephony.Dependencies{
 		DB:                   postgresClient.Pool(),
 		Queries:              queries,
 		CallsController:      calling.NewController(freeSwitch),
@@ -130,12 +130,12 @@ func newModules(ctx context.Context, cfg config.Config) (*modules, error) {
 	})
 	if err != nil {
 		closeDependencies()
-		return nil, fmt.Errorf("initialize telecom: %w", err)
+		return nil, fmt.Errorf("initialize telephony: %w", err)
 	}
 
 	aiModule := ai.New(queries, ai.Dependencies{
 		CredentialCipher: credentialCipher,
-		Calls:            telecomModule.Calls.Service,
+		Calls:            telephonyModule.Calls.Service,
 	})
 
 	resolver := authn.NewResolver(identityModule.Session.Service, tenancyModule.Credentials.Service)
@@ -161,7 +161,7 @@ func newModules(ctx context.Context, cfg config.Config) (*modules, error) {
 		tenancy:              tenancyModule,
 		platform:             platformModule,
 		ai:                   aiModule,
-		telecom:              telecomModule,
+		telephony:            telephonyModule,
 		authn:                authMiddleware,
 		organizationsContext: organizationMiddleware,
 		rateLimit:            rateLimitMiddleware,
