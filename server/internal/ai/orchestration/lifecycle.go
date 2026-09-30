@@ -11,20 +11,19 @@ import (
 	"github.com/google/uuid"
 )
 
-// AttachCall resolves the active Voice Agent bound to a call's Voice
-// Application and creates the durable AI session snapshot. Replays return the
+// AttachCall resolves the Voice Agent attached to a call and creates the durable AI session snapshot. Replays return the
 // existing active session so downstream media attachment can be retried
 // without creating duplicate conversation history.
 func (s *Service) AttachCall(
 	ctx context.Context,
-	organizationID, callID, applicationID uuid.UUID,
+	organizationID, callID, voiceAgentID uuid.UUID,
 ) (sqlc.VoiceAgentSession, bool, error) {
 	if organizationID == uuid.Nil || callID == uuid.Nil {
 		return sqlc.VoiceAgentSession{}, false, apperror.NewBadRequest(
 			"organization_id and call_id are required",
 		)
 	}
-	if applicationID == uuid.Nil {
+	if voiceAgentID == uuid.Nil {
 		return sqlc.VoiceAgentSession{}, false, nil
 	}
 
@@ -36,7 +35,7 @@ func (s *Service) AttachCall(
 		return sqlc.VoiceAgentSession{}, false, err
 	}
 
-	agent, err := s.agents.ResolveByApplication(ctx, organizationID, applicationID)
+	agent, err := s.agents.Get(ctx, organizationID, voiceAgentID)
 	if err != nil {
 		if appErrorCode(err, "NOT_FOUND") {
 			return sqlc.VoiceAgentSession{}, false, nil
