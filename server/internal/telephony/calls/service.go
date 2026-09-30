@@ -192,9 +192,9 @@ func (s *Service) AdmitInbound(
 
 	decision, err := s.router.ResolveInbound(ctx, routing.InboundRequest{
 		OrganizationID:      req.OrganizationID,
-		ApplicationID:       req.ApplicationID,
+		VoiceAgentID:       req.VoiceAgentID,
 		PhoneNumberID:       req.PhoneNumberID,
-		VoiceBindingID:      req.VoiceBindingID,
+		VoiceAgentBindingID:      req.VoiceAgentBindingID,
 		CarrierConnectionID: req.CarrierConnectionID,
 		CalledNumber:        req.ToURI,
 	})
@@ -293,8 +293,8 @@ func (s *Service) AdmitInbound(
 func validateExistingInbound(call sqlc.Call, req InboundAdmissionRequest) error {
 	if call.Direction != string(DirectionInbound) ||
 		call.OrganizationID != req.OrganizationID ||
-		call.ApplicationID == nil ||
-		*call.ApplicationID != req.ApplicationID ||
+		call.VoiceAgentID == nil ||
+		*call.VoiceAgentID != req.VoiceAgentID ||
 		call.ToUri != req.ToURI {
 		return apperror.NewConflict("SIP Call-ID is already associated with a different call")
 	}

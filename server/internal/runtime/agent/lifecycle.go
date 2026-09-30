@@ -38,7 +38,7 @@ func (r *Runtime) HandleLifecycle(
 }
 
 func (r *Runtime) attach(ctx context.Context, call sqlc.Call, channelID string) error {
-	if call.ApplicationID == nil {
+	if call.VoiceAgentID == nil {
 		return nil
 	}
 	channelUUID, err := uuid.Parse(strings.TrimSpace(channelID))
@@ -50,7 +50,7 @@ func (r *Runtime) attach(ctx context.Context, call sqlc.Call, channelID string) 
 		ctx,
 		call.OrganizationID,
 		call.ID,
-		*call.ApplicationID,
+		*call.VoiceAgentID,
 	)
 	if err != nil {
 		return fmt.Errorf("attach durable Voice Agent session: %w", err)

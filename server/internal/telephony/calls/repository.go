@@ -36,7 +36,7 @@ func (r *Repository) Create(
 	return r.mutate(ctx, "call.initiated", func(queries *sqlc.Queries) (sqlc.Call, error) {
 		return queries.CreateCall(ctx, sqlc.CreateCallParams{
 			OrganizationID: organizationID,
-			ApplicationID:  req.ApplicationID,
+			VoiceAgentID:  req.VoiceAgentID,
 			Direction:      string(req.Direction),
 			State:          nil,
 			FromUri:        req.FromURI,
@@ -51,12 +51,12 @@ func (r *Repository) CreateInbound(
 	req InboundAdmissionRequest,
 ) (sqlc.Call, error) {
 	state := string(StateRinging)
-	applicationID := req.ApplicationID
+	applicationID := req.VoiceAgentID
 	sipCallID := req.SIPCallID
 	return r.mutate(ctx, "call.ringing", func(queries *sqlc.Queries) (sqlc.Call, error) {
 		return queries.CreateCall(ctx, sqlc.CreateCallParams{
 			OrganizationID: req.OrganizationID,
-			ApplicationID:  &applicationID,
+			VoiceAgentID:  &applicationID,
 			Direction:      string(DirectionInbound),
 			State:          &state,
 			FromUri:        req.FromURI,

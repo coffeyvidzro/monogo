@@ -61,9 +61,9 @@ type InboundAdmissionRequest struct {
 	ChannelID           string
 	SIPCallID           string
 	OrganizationID      uuid.UUID
-	ApplicationID       uuid.UUID
+	VoiceAgentID       uuid.UUID
 	PhoneNumberID       uuid.UUID
-	VoiceBindingID      uuid.UUID
+	VoiceAgentBindingID      uuid.UUID
 	CarrierConnectionID uuid.UUID
 	FromURI             string
 	ToURI               string
@@ -71,7 +71,7 @@ type InboundAdmissionRequest struct {
 }
 
 type CreateRequest struct {
-	ApplicationID   *uuid.UUID `json:"application_id,omitempty"`
+	VoiceAgentID   *uuid.UUID `json:"voice_agent_id,omitempty"`
 	TrunkID         *uuid.UUID `json:"trunk_id,omitempty"`
 	FromURI         string     `json:"from_uri"`
 	ToURI           string     `json:"to_uri"`
@@ -120,7 +120,7 @@ type RouteAttribution struct {
 type CallResponse struct {
 	ID                  uuid.UUID  `json:"id"`
 	OrganizationID      uuid.UUID  `json:"organization_id"`
-	ApplicationID       *uuid.UUID `json:"application_id,omitempty"`
+	VoiceAgentID       *uuid.UUID `json:"voice_agent_id,omitempty"`
 	CarrierConnectionID *uuid.UUID `json:"carrier_connection_id,omitempty"`
 	TrunkID             *uuid.UUID `json:"trunk_id,omitempty"`
 	TrunkEndpointID     *uuid.UUID `json:"trunk_endpoint_id,omitempty"`
@@ -142,7 +142,7 @@ func callResponse(call sqlc.Call) CallResponse {
 	return CallResponse{
 		ID:                  call.ID,
 		OrganizationID:      call.OrganizationID,
-		ApplicationID:       call.ApplicationID,
+		VoiceAgentID:       call.VoiceAgentID,
 		CarrierConnectionID: call.CarrierConnectionID,
 		TrunkID:             call.TrunkID,
 		TrunkEndpointID:     call.TrunkEndpointID,
