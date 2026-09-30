@@ -11,8 +11,6 @@ const (
 	// updating, and revoking organization tokens requires an owner/admin session
 	// so a compromised token cannot mint a more privileged replacement.
 	ScopeCredentialsRead        Scope = "credentials:read"
-	ScopeVoiceApplicationsRead  Scope = "voice-applications:read"
-	ScopeVoiceApplicationsWrite Scope = "voice-applications:write"
 	ScopeVoiceAgentsRead        Scope = "voice-agents:read"
 	ScopeVoiceAgentsWrite       Scope = "voice-agents:write"
 	ScopeCallsRead              Scope = "calls:read"
@@ -45,7 +43,6 @@ func (s Scope) IsValid() bool {
 		ScopeMembersRead,
 		ScopeMembersWrite,
 		ScopeCredentialsRead,
-		ScopeVoiceApplicationsRead, ScopeVoiceApplicationsWrite,
 		ScopeVoiceAgentsRead, ScopeVoiceAgentsWrite,
 		ScopeCallsRead, ScopeCallsWrite,
 		ScopeRecordingsRead, ScopeRecordingsWrite,

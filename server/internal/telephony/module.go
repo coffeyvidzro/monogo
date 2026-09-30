@@ -16,7 +16,6 @@ import (
 	"github.com/coffeyvidzro/monogo/internal/telephony/sip_domains"
 	"github.com/coffeyvidzro/monogo/internal/telephony/subscribers"
 	"github.com/coffeyvidzro/monogo/internal/telephony/trunks"
-	"github.com/coffeyvidzro/monogo/internal/telephony/voice"
 	"github.com/coffeyvidzro/monogo/internal/telephony/webrtc"
 )
 
@@ -44,7 +43,6 @@ type Module struct {
 	SIPDomains  SIPDomainsModule
 	Subscribers SubscribersModule
 	Trunks      TrunksModule
-	Voice       VoiceModule
 }
 
 type CallsModule struct {
@@ -105,11 +103,6 @@ type TrunksModule struct {
 	Handler    *trunks.Handler
 }
 
-type VoiceModule struct {
-	Repository *voice.Repository
-	Service    *voice.Service
-	Handler    *voice.Handler
-}
 
 func New(deps Dependencies) (*Module, error) {
 	routingRepository := routing.NewRepository(deps.Queries, deps.DB)
@@ -128,8 +121,6 @@ func New(deps Dependencies) (*Module, error) {
 	numbersRepository := numbers.NewRepository(deps.Queries)
 	numbersService := numbers.NewService(numbersRepository)
 
-	voiceRepository := voice.NewRepository(deps.Queries)
-	voiceService := voice.NewService(voiceRepository)
 
 	recordingsRepository := recordings.NewRepository(deps.DB)
 	recordingsService := recordings.NewService(recordingsRepository, deps.RecordingStorage)

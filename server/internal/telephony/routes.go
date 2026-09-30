@@ -13,7 +13,6 @@ import (
 	"github.com/coffeyvidzro/monogo/internal/telephony/sip_domains"
 	"github.com/coffeyvidzro/monogo/internal/telephony/subscribers"
 	"github.com/coffeyvidzro/monogo/internal/telephony/trunks"
-	"github.com/coffeyvidzro/monogo/internal/telephony/voice"
 	"github.com/coffeyvidzro/monogo/internal/telephony/webrtc"
 )
 
@@ -37,11 +36,6 @@ func RegisterRoutes(
 		idempotency,
 	)
 
-	voice.RegisterRoutes(
-		router,
-		module.Voice.Handler,
-		organizationAccess("voice-applications"),
-	)
 	carriers.RegisterRoutes(router, module.Carriers.Handler, organizationAccess("carriers"))
 
 	recordings.RegisterRoutes(
