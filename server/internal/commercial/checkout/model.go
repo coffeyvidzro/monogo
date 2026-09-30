@@ -18,18 +18,12 @@ const (
 	StatusCancelled  = "cancelled"
 	StatusExpired    = "expired"
 
-	ActionNone                 = "none"
-	ActionWait                 = "wait"
-	ActionAuthorizeMobileMoney = "authorize_mobile_money"
-	ActionSubmitOTP            = "submit_otp"
-	ActionSubmitPhone          = "submit_phone"
-	ActionUnsupported          = "unsupported"
+	ActionNone = "none"
+	ActionWait = "wait"
 
-	ProviderStripe   = "stripe"
-	ProviderPaystack = "paystack"
+	ProviderStripe = "stripe"
 
-	PaymentMethodCard        = "card"
-	PaymentMethodMobileMoney = "mobile_money"
+	PaymentMethodCard = "card"
 )
 
 var ErrInvalidInput = errors.New("invalid checkout input")
@@ -68,15 +62,4 @@ type ConfirmRequest struct {
 	CheckoutID     uuid.UUID
 	Provider       string `json:"provider"`
 	PaymentMethod  string `json:"payment_method"`
-	Email          string `json:"email,omitempty"`
-	Phone          string `json:"phone,omitempty"`
-	MobileNetwork  string `json:"mobile_network,omitempty"`
-}
-
-type ContinueRequest struct {
-	OrganizationID uuid.UUID
-	CheckoutID     uuid.UUID
-	Action         string  `json:"action"`
-	Phone          *string `json:"phone,omitempty"`
-	OTP            *string `json:"otp,omitempty"`
 }

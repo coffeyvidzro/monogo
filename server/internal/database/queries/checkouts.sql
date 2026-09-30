@@ -46,15 +46,6 @@ WHERE c.id = sqlc.arg(checkout_id)
   AND c.expires_at > sqlc.arg(now_at)
 RETURNING c.*;
 
--- name: GetCheckoutForContinuation :one
-SELECT c.*
-FROM checkouts AS c
-WHERE c.id = sqlc.arg(checkout_id)
-  AND c.organization_id = sqlc.arg(organization_id)
-  AND c.status = 'processing'
-  AND c.expires_at > sqlc.arg(now_at)
-LIMIT 1;
-
 -- name: UpdateCheckoutAction :one
 UPDATE checkouts AS c
 SET

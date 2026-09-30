@@ -11,6 +11,7 @@ func validateCreateRequest(req *CreateRequest) error {
 	if req.OrganizationID == uuid.Nil {
 		return fmt.Errorf("%w: organization id is required", ErrInvalidInput)
 	}
+
 	req.Purpose = strings.ToLower(strings.TrimSpace(req.Purpose))
 	switch req.Purpose {
 	case PurposeSubscription:
@@ -30,6 +31,7 @@ func validateCreateRequest(req *CreateRequest) error {
 	default:
 		return fmt.Errorf("%w: purpose is invalid", ErrInvalidInput)
 	}
+
 	return nil
 }
 
@@ -37,17 +39,12 @@ func validateConfirmRequest(req *ConfirmRequest) error {
 	if req.OrganizationID == uuid.Nil || req.CheckoutID == uuid.Nil {
 		return fmt.Errorf("%w: organization and checkout ids are required", ErrInvalidInput)
 	}
+
 	req.Provider = strings.ToLower(strings.TrimSpace(req.Provider))
 	req.PaymentMethod = strings.ToLower(strings.TrimSpace(req.PaymentMethod))
 	if req.Provider != ProviderStripe || req.PaymentMethod != PaymentMethodCard {
 		return fmt.Errorf("%w: Stripe card is the only supported payment method", ErrInvalidInput)
 	}
-	if req.Email != "" || req.Phone != "" || req.MobileNetwork != "" {
-		return fmt.Errorf("%w: Stripe card payment does not accept mobile money details", ErrInvalidInput)
-	}
-	return nil
-}
 
-func validateContinueRequest(req *ContinueRequest) error {
-	return fmt.Errorf("%w: checkout continuation is not supported", ErrInvalidInput)
+	return nil
 }

@@ -200,12 +200,9 @@ func (s *Service) Confirm(
 	started, err := s.providers.Start(
 		ctx,
 		payments.StartRequest{
-			Payment:       payment,
-			Reference:     row.Reference,
-			Purpose:       row.Purpose,
-			Email:         req.Email,
-			Phone:         req.Phone,
-			MobileNetwork: req.MobileNetwork,
+			Payment:   payment,
+			Reference: row.Reference,
+			Purpose:   row.Purpose,
 		},
 	)
 	if err != nil {
@@ -240,65 +237,6 @@ func (s *Service) Confirm(
 	result.ClientSecret = started.ClientSecret
 	result.ProviderPaymentID = payment.ProviderPaymentID
 	return result, nil
-}
-
-func (s *Service) Continue(
-	ctx context.Context,
-	req ContinueRequest,
-) (Checkout, error) {
-	if err := validateContinueRequest(&req); err != nil {
-		return Checkout{}, apperror.NewBadRequest(err.Error())
-	}
-
-	current, err := s.repo.GetForContinuation(
-		ctx,
-		req.OrganizationID,
-		req.CheckoutID,
-		s.now().UTC(),
-	)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return Checkout{}, apperror.NewConflict("checkout cannot continue")
-	}
-	if err != nil {
-		return Checkout{}, apperror.NewInternal("continue checkout", err)
-	}
-	if current.NextAction != req.Action {
-		return Checkout{}, apperror.NewConflict("checkout continuation action does not match next action")
-	}
-	if current.Provider == nil ||
-		current.PaymentMethod == nil ||
-		*current.Provider != ProviderPaystack ||
-		*current.PaymentMethod != PaymentMethodMobileMoney {
-		return Checkout{}, apperror.NewConflict("checkout provider does not support continuation action")
-	}
-
-	switch req.Action {
-	case ActionAuthorizeMobileMoney:
-		row, err := s.repo.UpdateAction(
-			ctx,
-			req.OrganizationID,
-			req.CheckoutID,
-			ActionWait,
-			nil,
-		)
-		if errors.Is(err, pgx.ErrNoRows) {
-			return Checkout{}, apperror.NewConflict("checkout cannot continue")
-		}
-		if err != nil {
-			return Checkout{}, apperror.NewInternal("advance checkout continuation", err)
-		}
-
-		return checkoutFromRow(row), nil
-
-	case ActionSubmitPhone, ActionSubmitOTP:
-		return Checkout{}, apperror.NewServiceUnavailable(
-			"checkout provider continuation is not configured",
-			nil,
-		)
-
-	default:
-		return Checkout{}, apperror.NewConflict("checkout action cannot be continued")
-	}
 }
 
 func checkoutFromRow(row sqlc.Checkout) Checkout {

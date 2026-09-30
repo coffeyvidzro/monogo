@@ -14,12 +14,9 @@ type ProviderService struct {
 }
 
 type StartRequest struct {
-	Payment       Payment
-	Reference     string
-	Purpose       string
-	Email         string
-	Phone         string
-	MobileNetwork string
+	Payment   Payment
+	Reference string
+	Purpose   string
 }
 
 type StartResult struct {
