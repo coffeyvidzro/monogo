@@ -1,45 +1,56 @@
-import Link from "next/link";
-
 export default function Home() {
   return (
-    <main className="flex min-h-screen items-center bg-background">
-      <div className="mx-auto w-full max-w-5xl px-5 py-16 sm:px-6 lg:px-8">
-        <div className="max-w-3xl">
-          <p className="font-mono text-xs font-medium uppercase tracking-[0.16em] text-brand-orange">
-            Coming soon
-          </p>
+    <main className="min-h-screen bg-background text-foreground">
+      <div className="mx-auto flex min-h-screen w-full max-w-6xl flex-col px-5 sm:px-6 lg:px-8">
+        <section className="grid flex-1 items-center gap-14 py-16 lg:grid-cols-[minmax(0,1.15fr)_minmax(320px,0.85fr)] lg:gap-16 lg:py-20">
+          <div className="rounded-2xl border border-border bg-muted/30 p-5 sm:p-6">
+            <div className="flex items-center justify-between border-b border-border pb-4">
+              <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
+                Connection path
+              </p>
+              <span className="size-2 rounded-full bg-brand-orange" />
+            </div>
 
-          <h1 className="mt-6 font-heading text-5xl font-semibold leading-[0.96] tracking-[-0.055em] sm:text-6xl lg:text-7xl">
-            Leamout
-          </h1>
+            <div className="relative mt-6 min-h-[320px]">
+              <div className="mx-auto w-fit rounded-lg border border-border bg-background px-4 py-3 text-center">
+                <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
+                  Your application
+                </p>
+              </div>
 
-          <p className="mt-6 max-w-2xl text-lg leading-8 text-muted-foreground sm:text-xl">
-            Programmable communications infrastructure for voice, messaging,
-            numbers, and carrier connectivity.
-          </p>
+              <div className="mx-auto h-10 w-px bg-brand-orange" />
 
-          <p className="mt-4 max-w-2xl text-base leading-7 text-muted-foreground">
-            Bring your own carriers or use Leamout-managed connectivity through
-            one programmable control plane.
-          </p>
+              <div className="mx-auto w-fit rounded-lg bg-brand-charcoal px-5 py-3 text-center text-brand-white">
+                <p className="font-heading text-sm font-semibold tracking-[-0.02em]">
+                  Leamout
+                </p>
+              </div>
 
-          <div className="mt-10 flex flex-col gap-3 sm:flex-row sm:items-center">
-            <Link
-              href="mailto:hello@leamout.com?subject=Leamout%20Waitlist"
-              className="inline-flex h-11 items-center justify-center rounded-full bg-primary px-5 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-85"
-            >
-              Join the waitlist
-            </Link>
+              <div className="relative mx-auto h-14 w-40">
+                <div className="absolute left-1/2 top-0 h-7 w-px -translate-x-1/2 bg-brand-orange" />
+                <div className="absolute left-[25%] right-[25%] top-7 h-px bg-brand-orange" />
+                <div className="absolute left-[25%] top-7 h-7 w-px bg-brand-orange" />
+                <div className="absolute right-[25%] top-7 h-7 w-px bg-brand-orange" />
+              </div>
 
-            <span className="text-sm text-muted-foreground">
-              We&apos;ll share updates as Leamout gets closer to launch.
-            </span>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="rounded-lg border border-border bg-background px-3 py-4 text-center">
+                  <p className="font-mono text-[10px] uppercase tracking-[0.11em] text-muted-foreground">
+                    Your carrier
+                  </p>
+                  <p className="mt-1 text-xs text-foreground">BYOC</p>
+                </div>
+
+                <div className="rounded-lg border border-border bg-background px-3 py-4 text-center">
+                  <p className="font-mono text-[10px] uppercase tracking-[0.11em] text-muted-foreground">
+                    Leamout carrier
+                  </p>
+                  <p className="mt-1 text-xs text-foreground">Managed</p>
+                </div>
+              </div>
+            </div>
           </div>
-        </div>
-
-        <div className="mt-20 border-t border-border pt-6 text-xs text-muted-foreground">
-          © {new Date().getFullYear()} Leamout
-        </div>
+        </section>
       </div>
     </main>
   );
