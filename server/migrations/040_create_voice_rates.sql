@@ -16,7 +16,7 @@ CREATE TABLE voice_rates (
     CONSTRAINT chk_voice_rates_direction
         CHECK (direction IN ('inbound', 'outbound')),
     CONSTRAINT chk_voice_rates_currency
-        CHECK (currency ~ '^[A-Z]{3}$'),
+        CHECK (currency = 'USD'),
     CONSTRAINT chk_voice_rates_rate
         CHECK (rate_micros > 0),
     CONSTRAINT chk_voice_rates_effective_window

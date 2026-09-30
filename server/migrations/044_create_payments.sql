@@ -24,12 +24,9 @@ CREATE TABLE payments (
         REFERENCES checkouts (id, organization_id)
         ON DELETE RESTRICT,
     CONSTRAINT chk_payments_provider
-        CHECK (provider IN ('stripe', 'paystack')),
+        CHECK (provider = 'stripe'),
     CONSTRAINT chk_payments_payment_method
-        CHECK (
-            (provider = 'stripe' AND payment_method = 'card')
-            OR (provider = 'paystack' AND payment_method = 'mobile_money')
-        ),
+        CHECK (payment_method = 'card'),
     CONSTRAINT chk_payments_attempt
         CHECK (attempt > 0),
     CONSTRAINT chk_payments_provider_payment_id
@@ -40,7 +37,7 @@ CREATE TABLE payments (
     CONSTRAINT chk_payments_amount
         CHECK (amount_micros > 0),
     CONSTRAINT chk_payments_currency
-        CHECK (currency ~ '^[A-Z]{3}$'),
+        CHECK (currency = 'USD'),
     CONSTRAINT chk_payments_status
         CHECK (status IN ('pending', 'processing', 'succeeded', 'failed', 'cancelled')),
     CONSTRAINT chk_payments_paid_at

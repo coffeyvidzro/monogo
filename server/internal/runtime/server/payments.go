@@ -49,37 +49,6 @@ func registerPaymentProviderRoutes(
 		},
 	)
 
-	router.Post(
-		"/v1/provider-webhooks/payments/paystack",
-		func(w http.ResponseWriter, r *http.Request) {
-			payload, err := readPaymentWebhookBody(r)
-			if err != nil {
-				http.Error(w, "invalid body", http.StatusBadRequest)
-				return
-			}
-
-			webhook, err := modules.commercial.Payments.Providers.ParsePaystackWebhook(
-				payload,
-				r.Header.Get("X-Paystack-Signature"),
-			)
-			if err != nil {
-				http.Error(w, "invalid Paystack webhook", http.StatusUnauthorized)
-				return
-			}
-
-			if err := processPaymentProviderWebhook(
-				r.Context(),
-				modules,
-				webhook,
-				payload,
-			); err != nil {
-				http.Error(w, "process Paystack webhook", http.StatusInternalServerError)
-				return
-			}
-
-			w.WriteHeader(http.StatusNoContent)
-		},
-	)
 }
 
 func readPaymentWebhookBody(r *http.Request) ([]byte, error) {

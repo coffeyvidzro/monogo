@@ -26,32 +26,16 @@ CREATE TABLE checkouts (
     CONSTRAINT chk_checkouts_amount
         CHECK (amount_micros > 0),
     CONSTRAINT chk_checkouts_currency
-        CHECK (currency ~ '^[A-Z]{3}$'),
+        CHECK (currency = 'USD'),
     CONSTRAINT chk_checkouts_status
         CHECK (status IN ('pending', 'processing', 'succeeded', 'failed', 'cancelled', 'expired')),
     CONSTRAINT chk_checkouts_payment_binding
         CHECK (
             (provider IS NULL AND payment_method IS NULL)
-            OR (
-                provider IS NOT NULL
-                AND payment_method IS NOT NULL
-                AND (
-                    (provider = 'stripe' AND payment_method = 'card')
-                    OR (provider = 'paystack' AND payment_method = 'mobile_money')
-                )
-            )
+            OR (provider = 'stripe' AND payment_method = 'card')
         ),
     CONSTRAINT chk_checkouts_action
-        CHECK (
-            next_action IN (
-                'none',
-                'wait',
-                'authorize_mobile_money',
-                'submit_otp',
-                'submit_phone',
-                'unsupported'
-            )
-        ),
+        CHECK (next_action IN ('none', 'wait')),
     CONSTRAINT chk_checkouts_purchase_shape
         CHECK (
             (purpose = 'subscription' AND subscription_id IS NOT NULL)

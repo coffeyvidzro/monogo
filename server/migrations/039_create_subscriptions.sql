@@ -17,7 +17,7 @@ CREATE TABLE subscription_plans (
     CONSTRAINT chk_subscription_plans_name
         CHECK (length(btrim(name)) BETWEEN 1 AND 120),
     CONSTRAINT chk_subscription_plans_currency
-        CHECK (currency ~ '^[A-Z]{3}$'),
+        CHECK (currency = 'USD'),
     CONSTRAINT chk_subscription_plans_interval
         CHECK (interval = 'month'),
     CONSTRAINT chk_subscription_plans_amount
@@ -49,7 +49,7 @@ CREATE TABLE subscriptions (
     CONSTRAINT chk_subscriptions_status
         CHECK (status IN ('pending', 'active', 'past_due', 'cancelled')),
     CONSTRAINT chk_subscriptions_currency
-        CHECK (currency ~ '^[A-Z]{3}$'),
+        CHECK (currency = 'USD'),
     CONSTRAINT chk_subscriptions_amount
         CHECK (amount_micros >= 0),
     CONSTRAINT chk_subscriptions_interval

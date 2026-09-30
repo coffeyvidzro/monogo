@@ -349,47 +349,6 @@ func (q *Queries) GetCheckoutByID(ctx context.Context, arg GetCheckoutByIDParams
 	return i, err
 }
 
-const getCheckoutForContinuation = `-- name: GetCheckoutForContinuation :one
-SELECT c.id, c.organization_id, c.purpose, c.subscription_id, c.reference, c.amount_micros, c.currency, c.status, c.provider, c.payment_method, c.next_action, c.provider_message, c.expires_at, c.failure_code, c.completed_at, c.created_at, c.updated_at
-FROM checkouts AS c
-WHERE c.id = $1
-  AND c.organization_id = $2
-  AND c.status = 'processing'
-  AND c.expires_at > $3
-LIMIT 1
-`
-
-type GetCheckoutForContinuationParams struct {
-	CheckoutID     uuid.UUID          `db:"checkout_id" json:"checkout_id"`
-	OrganizationID uuid.UUID          `db:"organization_id" json:"organization_id"`
-	NowAt          pgtype.Timestamptz `db:"now_at" json:"now_at"`
-}
-
-func (q *Queries) GetCheckoutForContinuation(ctx context.Context, arg GetCheckoutForContinuationParams) (Checkout, error) {
-	row := q.db.QueryRow(ctx, getCheckoutForContinuation, arg.CheckoutID, arg.OrganizationID, arg.NowAt)
-	var i Checkout
-	err := row.Scan(
-		&i.ID,
-		&i.OrganizationID,
-		&i.Purpose,
-		&i.SubscriptionID,
-		&i.Reference,
-		&i.AmountMicros,
-		&i.Currency,
-		&i.Status,
-		&i.Provider,
-		&i.PaymentMethod,
-		&i.NextAction,
-		&i.ProviderMessage,
-		&i.ExpiresAt,
-		&i.FailureCode,
-		&i.CompletedAt,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-	)
-	return i, err
-}
-
 const updateCheckoutAction = `-- name: UpdateCheckoutAction :one
 UPDATE checkouts AS c
 SET

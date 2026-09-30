@@ -24,10 +24,12 @@
                             │
                          payment
                             │
-                  ┌─────────┴─────────┐
-                  │                   │
-               Stripe             Paystack
-                Card             Mobile Money
+                            │
+                         Stripe
+                           │
+                          Card
+                           │
+                          USD
 ```
 
 The two commercial branches share payment collection infrastructure, not
@@ -40,16 +42,15 @@ spending semantics:
 - Managed calls, messages, and numbers resolve a retail rate and consume the
   wallet directly. They do not create a provider checkout or card/mobile-money
   payment for every usage operation.
-- Stripe and Paystack are payment adapters. Neither provider is the source of
-  truth for subscription entitlement, wallet balance, pricing, or telecom
-  usage.
+- Stripe is the v1 payment adapter for both subscription collection and wallet
+  top-ups. Stripe is not the source of truth for subscription entitlement,
+  wallet balance, pricing, or telecom usage.
 - A checkout is the customer purchase session. A payment is a provider attempt
   for that checkout; retries may create another payment attempt without
   duplicating the commercial purchase or its fulfillment.
 
-This separation lets Monogo use Stripe cards and Paystack mobile money through
-one local settlement model while keeping platform access independent from
-managed carrier credit.
+This separation lets Monogo use one Stripe card settlement path while keeping
+platform access independent from managed carrier credit.
 
 Monogo has two independent customer billing obligations:
 
@@ -83,6 +84,20 @@ managed carrier credit.
 
 Commercial recovery endpoints remain available while service access is blocked
 so an organization can pay its subscription, inspect its wallet, or add funds.
+
+## Currency
+
+The v1 commercial system is USD-only.
+
+- Subscription plans and subscriptions are denominated in USD.
+- Prepaid wallets are denominated in USD.
+- Managed voice and product retail rates are denominated in USD.
+- Checkouts and payment attempts are denominated in USD.
+- Stripe card payments are the only supported funding rail.
+
+Local-currency payment rails and foreign-exchange conversion are intentionally
+out of scope. A future provider must preserve the settled USD commercial amount
+or introduce an explicit FX accounting model.
 
 ## Subscription
 
@@ -276,5 +291,5 @@ pricing, wallet authorization, and settlement are stable.
 3. Retail rate resolution.
 4. Fixed-price managed charging.
 5. Managed voice settlement.
-6. Stripe/Paystack subscription payments and wallet top-ups.
+6. Stripe card subscription payments and wallet top-ups.
 7. Supplier accounting and reconciliation.

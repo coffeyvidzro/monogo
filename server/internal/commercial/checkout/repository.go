@@ -85,22 +85,6 @@ func (r *Repository) Confirm(
 	return sqlc.Checkout(row), nil
 }
 
-func (r *Repository) GetForContinuation(
-	ctx context.Context,
-	organizationID uuid.UUID,
-	id uuid.UUID,
-	now time.Time,
-) (sqlc.Checkout, error) {
-	return r.queries.GetCheckoutForContinuation(
-		ctx,
-		sqlc.GetCheckoutForContinuationParams{
-			CheckoutID:     id,
-			OrganizationID: organizationID,
-			NowAt:          pgconv.TimeToTimestamptz(now),
-		},
-	)
-}
-
 func (r *Repository) Complete(
 	ctx context.Context,
 	organizationID uuid.UUID,
