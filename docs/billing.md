@@ -1,8 +1,7 @@
 # Billing model
 
 Leamout is a subscription software platform. Customers bring and pay their own
-carriers directly; Leamout does not resell telecom usage, phone numbers, or
-messaging capacity.
+carriers directly; Leamout does not resell telecom usage or phone numbers.
 
 ## Commercial architecture
 
@@ -31,10 +30,10 @@ Stripe moves money. It is not the entitlement source of truth.
 
 Carrier connectivity is customer-owned.
 
-Customers configure their own carrier connections, SIP trunks, phone numbers,
-and messaging connections. Their carrier bills them directly. Leamout does not
-maintain prepaid telecom wallets, retail voice rates, product rates, managed
-number purchases, or managed number renewals.
+Customers configure their own carrier connections, SIP trunks, and phone
+numbers. Their carrier bills them directly. Leamout does not maintain prepaid
+telecom wallets, retail voice rates, managed number purchases, or managed
+number renewals.
 
 An active Leamout subscription answers one commercial question:
 
@@ -51,7 +50,8 @@ card payments.
 
 Telephony remains a core product capability. BYOC does not mean removing
 carrier connections, trunks, routing, SIP, phone-number bindings, WebRTC, or
-media control. It means Leamout orchestrates customer-owned connectivity rather
+media control. SMS and WhatsApp are intentionally outside the voice-runtime
+product boundary. It means Leamout orchestrates customer-owned connectivity rather
 than becoming the carrier of record.
 
 This keeps the commercial model focused while engineering moves toward the

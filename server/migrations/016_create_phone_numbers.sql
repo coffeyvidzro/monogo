@@ -5,7 +5,6 @@ CREATE TABLE IF NOT EXISTS phone_numbers (
     country_code CHAR(2) NOT NULL,
     carrier_connection_id UUID REFERENCES carrier_connections(id) ON DELETE SET NULL,
     voice_enabled BOOLEAN NOT NULL DEFAULT true,
-    sms_enabled BOOLEAN NOT NULL DEFAULT false,
     status TEXT NOT NULL DEFAULT 'active',
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),

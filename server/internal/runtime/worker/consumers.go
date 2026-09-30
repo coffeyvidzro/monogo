@@ -177,11 +177,6 @@ func runWorkloads(ctx context.Context, logger *logging.Logger, modules *modules)
 	run("idempotency cleanup", modules.idempotencyCleanup.Run)
 	run("checkout expiration", modules.checkoutExpiration.Run)
 	run("trunk endpoint health checks", modules.trunkHealth.Run)
-	if modules.messaging != nil {
-		run("messaging outbound consumer", modules.messaging.RunOutbound)
-		run("messaging inbound consumer", modules.messaging.RunInbound)
-		run("messaging submission reconciliation", modules.messaging.jobs.RunSubmissionReconciliation)
-	}
 
 	return group.Wait()
 }

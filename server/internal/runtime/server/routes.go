@@ -30,7 +30,6 @@ func newRouter(cfg config.Config, logger *logging.Logger, modules *modules) *chi
 	)
 
 	registerHealthRoutes(router, modules)
-	registerMessagingProviderRoutes(router, modules)
 	registerPaymentProviderRoutes(router, modules)
 	router.Handle("/metrics", metrics.Handler(modules.metrics))
 

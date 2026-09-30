@@ -23,7 +23,7 @@ the [realtime media-plane guide](docs/media-plane.md).
 - `opensips`: public SIP edge and carrier authentication.
 - `freeswitch`: call application runtime.
 - `rtpengine`: carrier/media boundary.
-- PostgreSQL, Redis, and NATS: durable state, admission state, and messaging.
+- PostgreSQL, Redis, and NATS: durable state, admission state, and asynchronous events.
 
 ## Validation
 

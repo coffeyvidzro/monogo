@@ -45,7 +45,7 @@ func normalizeCreate(req *CreateRequest) error {
 }
 
 func validateUpdate(req UpdateRequest) error {
-	if req.VoiceEnabled == nil && req.SmsEnabled == nil {
+	if req.VoiceEnabled == nil {
 		return apperror.NewBadRequest("at least one capability is required")
 	}
 	return nil

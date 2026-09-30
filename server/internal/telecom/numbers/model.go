@@ -13,12 +13,10 @@ type CreateRequest struct {
 	CountryCode         string     `json:"country_code"`
 	CarrierConnectionID *uuid.UUID `json:"carrier_connection_id,omitempty"`
 	VoiceEnabled        *bool      `json:"voice_enabled,omitempty"`
-	SmsEnabled          *bool      `json:"sms_enabled,omitempty"`
 }
 
 type UpdateRequest struct {
 	VoiceEnabled *bool `json:"voice_enabled,omitempty"`
-	SmsEnabled   *bool `json:"sms_enabled,omitempty"`
 }
 
 type SetCarrierConnectionRequest struct {
@@ -32,7 +30,6 @@ type Response struct {
 	CountryCode         string     `json:"country_code"`
 	CarrierConnectionID *uuid.UUID `json:"carrier_connection_id,omitempty"`
 	VoiceEnabled        bool       `json:"voice_enabled"`
-	SmsEnabled          bool       `json:"sms_enabled"`
 	Status              string     `json:"status"`
 	CreatedAt           time.Time  `json:"created_at"`
 	UpdatedAt           time.Time  `json:"updated_at"`
@@ -46,7 +43,6 @@ func response(row sqlc.PhoneNumber) Response {
 		CountryCode:         row.CountryCode,
 		CarrierConnectionID: row.CarrierConnectionID,
 		VoiceEnabled:        row.VoiceEnabled,
-		SmsEnabled:          row.SmsEnabled,
 		Status:              row.Status,
 		CreatedAt:           pgconv.TimestamptzToTime(row.CreatedAt),
 		UpdatedAt:           pgconv.TimestamptzToTime(row.UpdatedAt),

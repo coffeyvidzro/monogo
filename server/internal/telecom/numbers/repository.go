@@ -26,7 +26,6 @@ func (r *Repository) Create(
 		CountryCode:         req.CountryCode,
 		CarrierConnectionID: req.CarrierConnectionID,
 		VoiceEnabled:        req.VoiceEnabled,
-		SmsEnabled:          req.SmsEnabled,
 	})
 }
 
@@ -51,7 +50,6 @@ func (r *Repository) Update(
 		ID:             id,
 		OrganizationID: organizationID,
 		VoiceEnabled:   req.VoiceEnabled,
-		SmsEnabled:     req.SmsEnabled,
 	})
 }
 
