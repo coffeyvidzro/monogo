@@ -3,7 +3,6 @@ package telecom
 import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/coffeyvidzro/monogo/internal/commercial/subscriptions"
 	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
 	"github.com/coffeyvidzro/monogo/internal/platform/metrics"
 	"github.com/coffeyvidzro/monogo/internal/runtime/calling"
@@ -27,7 +26,6 @@ type Dependencies struct {
 	CallsController      *calling.Controller
 	CallsChannelStore    *calling.ChannelStore
 	CallsAdmission       *calling.AdmissionLimiter
-	CallsSubscriptions   *subscriptions.Service
 	ConferenceController conferences.Controller
 	CredentialCipher     *encryption.Cipher
 	RealtimeService      *realtime.Service
@@ -121,7 +119,6 @@ func New(deps Dependencies) (*Module, error) {
 	callsService := calls.NewService(
 		callsRepository,
 		routingService,
-		deps.CallsSubscriptions,
 		deps.CallsController,
 		deps.CallsChannelStore,
 		deps.CallsAdmission,

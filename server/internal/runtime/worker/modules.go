@@ -6,8 +6,6 @@ import (
 	"time"
 
 	"github.com/coffeyvidzro/monogo/internal/ai"
-	"github.com/coffeyvidzro/monogo/internal/commercial"
-	"github.com/coffeyvidzro/monogo/internal/commercial/checkout"
 	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
 	"github.com/coffeyvidzro/monogo/internal/integrations/freeswitch"
 	"github.com/coffeyvidzro/monogo/internal/integrations/minio"
@@ -45,7 +43,6 @@ type modules struct {
 	recordingReconciliation *recordings.ReconciliationJob
 	recordingIngestion      *recordings.IngestionJob
 	idempotencyCleanup      *idempotency.CleanupJob
-	checkoutExpiration      *checkout.ExpirationJob
 	trunkHealth             *trunks.HealthCheckJob
 }
 
@@ -99,17 +96,6 @@ func newModules(ctx context.Context, cfg config.Config, logger *logging.Logger) 
 	}
 
 	queries := sqlc.New(postgresClient.Pool())
-	commercialModule := commercial.New(commercial.Dependencies{
-		DB:      postgresClient.Pool(),
-		Queries: queries,
-	})
-	checkoutExpiration, err := checkout.NewExpirationJob(
-		commercialModule.Checkout.Service,
-	)
-	if err != nil {
-		closeDependencies()
-		return nil, fmt.Errorf("initialize checkout expiration: %w", err)
-	}
 	credentialCipher, err := encryption.New(cfg.EncryptionKey)
 	if err != nil {
 		closeDependencies()
@@ -124,7 +110,6 @@ func newModules(ctx context.Context, cfg config.Config, logger *logging.Logger) 
 	callsService := calls.NewService(
 		callsRepository,
 		routingService,
-		commercialModule.Subscriptions.Service,
 		callController,
 		calling.NewChannelStore(redisClient),
 		admissionLimiter,
@@ -241,7 +226,6 @@ func newModules(ctx context.Context, cfg config.Config, logger *logging.Logger) 
 		recordingReconciliation: recordingReconciliation,
 		recordingIngestion:      recordingIngestion,
 		idempotencyCleanup:      idempotencyCleanup,
-		checkoutExpiration:      checkoutExpiration,
 		trunkHealth:             trunkHealth,
 	}, nil
 }

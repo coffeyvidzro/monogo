@@ -6,7 +6,6 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/coffeyvidzro/monogo/internal/ai"
-	"github.com/coffeyvidzro/monogo/internal/commercial"
 	"github.com/coffeyvidzro/monogo/internal/identity"
 	"github.com/coffeyvidzro/monogo/internal/platform"
 	"github.com/coffeyvidzro/monogo/internal/platform/config"
@@ -30,18 +29,9 @@ func newRouter(cfg config.Config, logger *logging.Logger, modules *modules) *chi
 	)
 
 	registerHealthRoutes(router, modules)
-	registerPaymentProviderRoutes(router, modules)
 	router.Handle("/metrics", metrics.Handler(modules.metrics))
 
 	organizationAccess := func(resource string) func(http.Handler) http.Handler {
-		return func(next http.Handler) http.Handler {
-			requireAuthenticated := modules.organizationsContext.RequireAuthenticated(modules.authn)
-			requireAccess := modules.organizationsContext.RequireAccess(resource)
-			requireSubscription := middleware.RequireSubscription(modules.commercial.Subscriptions.Service)
-			return requireAuthenticated(modules.rateLimit.Handle(requireAccess(requireSubscription(next))))
-		}
-	}
-	commercialAccess := func(resource string) func(http.Handler) http.Handler {
 		return func(next http.Handler) http.Handler {
 			requireAuthenticated := modules.organizationsContext.RequireAuthenticated(modules.authn)
 			requireAccess := modules.organizationsContext.RequireAccess(resource)
@@ -74,12 +64,6 @@ func newRouter(cfg config.Config, logger *logging.Logger, modules *modules) *chi
 		)
 		platform.RegisterRoutes(r, modules.platform, organizationAccess)
 		ai.RegisterRoutes(r, modules.ai, organizationAccess)
-		commercial.RegisterRoutes(
-			r,
-			modules.commercial,
-			commercialAccess,
-			modules.platform.Idempotency.Middleware.Handle,
-		)
 		telecom.RegisterRoutes(
 			r,
 			modules.telecom,

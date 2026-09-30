@@ -5,13 +5,11 @@ import (
 	"fmt"
 
 	"github.com/coffeyvidzro/monogo/internal/ai"
-	"github.com/coffeyvidzro/monogo/internal/commercial"
 	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
 	"github.com/coffeyvidzro/monogo/internal/identity"
 	"github.com/coffeyvidzro/monogo/internal/integrations/coturn"
 	"github.com/coffeyvidzro/monogo/internal/integrations/freeswitch"
 	"github.com/coffeyvidzro/monogo/internal/integrations/minio"
-	"github.com/coffeyvidzro/monogo/internal/integrations/payments/stripe"
 	"github.com/coffeyvidzro/monogo/internal/integrations/postgres"
 	redisintegration "github.com/coffeyvidzro/monogo/internal/integrations/redis"
 	"github.com/coffeyvidzro/monogo/internal/platform"
@@ -37,7 +35,6 @@ type modules struct {
 	tenancy              *tenancy.Module
 	platform             *platform.Module
 	ai                   *ai.Module
-	commercial           *commercial.Module
 	telecom              *telecom.Module
 	authn                *middleware.AuthnMiddleware
 	organizationsContext *middleware.OrganizationMiddleware
@@ -118,29 +115,6 @@ func newModules(ctx context.Context, cfg config.Config) (*modules, error) {
 	tenancyModule := tenancy.New(queries)
 	platformModule := platform.New(postgresClient.Pool(), queries)
 
-	var stripeClient *stripe.Client
-	if cfg.Stripe.SecretKey != "" || cfg.Stripe.WebhookSecret != "" {
-		if cfg.Stripe.SecretKey == "" || cfg.Stripe.WebhookSecret == "" {
-			closeDependencies()
-			return nil, fmt.Errorf("initialize Stripe payment provider: secret key and webhook secret are both required")
-		}
-		stripeConfig := stripe.DefaultConfig(
-			cfg.Stripe.SecretKey,
-			cfg.Stripe.WebhookSecret,
-		)
-		stripeConfig.BaseURL = cfg.Stripe.APIBaseURL
-		stripeClient, err = stripe.New(stripeConfig)
-		if err != nil {
-			closeDependencies()
-			return nil, fmt.Errorf("initialize Stripe payment provider: %w", err)
-		}
-	}
-
-	commercialModule := commercial.New(commercial.Dependencies{
-		DB:      postgresClient.Pool(),
-		Queries: queries,
-		Stripe:  stripeClient,
-	})
 	metricsRegistry := metrics.New(redisClient)
 	telecomModule, err := telecom.New(telecom.Dependencies{
 		DB:                   postgresClient.Pool(),
@@ -148,7 +122,6 @@ func newModules(ctx context.Context, cfg config.Config) (*modules, error) {
 		CallsController:      calling.NewController(freeSwitch),
 		CallsChannelStore:    calling.NewChannelStore(redisClient),
 		CallsAdmission:       calling.NewAdmissionLimiter(redisClient),
-		CallsSubscriptions:   commercialModule.Subscriptions.Service,
 		ConferenceController: conferences.NewFreeSWITCHController(freeSwitch),
 		CredentialCipher:     credentialCipher,
 		RealtimeService:      turnService,
@@ -188,7 +161,6 @@ func newModules(ctx context.Context, cfg config.Config) (*modules, error) {
 		tenancy:              tenancyModule,
 		platform:             platformModule,
 		ai:                   aiModule,
-		commercial:           commercialModule,
 		telecom:              telecomModule,
 		authn:                authMiddleware,
 		organizationsContext: organizationMiddleware,

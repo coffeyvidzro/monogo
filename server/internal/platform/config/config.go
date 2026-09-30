@@ -10,12 +10,6 @@ import (
 	"github.com/joho/godotenv"
 )
 
-type StripeConfig struct {
-	SecretKey     string `env:"SECRET_KEY"`
-	WebhookSecret string `env:"WEBHOOK_SECRET"`
-	APIBaseURL    string `env:"API_BASE_URL" envDefault:"https://api.stripe.com/v1"`
-}
-
 type MinIOConfig struct {
 	AccessKey string `env:"APP_ACCESS_KEY,required"`
 	SecretKey string `env:"APP_SECRET_KEY,required"`
@@ -32,7 +26,6 @@ type Config struct {
 	MediaControlURL       string       `env:"MEDIA_CONTROL_URL" envDefault:"http://127.0.0.1:8090"`
 	MediaControlToken     string       `env:"MEDIA_CONTROL_TOKEN"`
 	EncryptionKey         string       `env:"ENCRYPTION_KEY,required"`
-	Stripe                StripeConfig `envPrefix:"STRIPE_"`
 	MinIO                 MinIOConfig  `envPrefix:"MINIO_"`
 	TURNAuthSecret        string       `env:"TURN_AUTH_SECRET,required"`
 	TURNPublicURLs        []string     `env:"TURN_PUBLIC_URLS" envSeparator:"," envDefault:"stun:localhost:3478,turn:localhost:3478?transport=udp,turn:localhost:3478?transport=tcp"`
@@ -69,9 +62,6 @@ func (c *Config) normalize() {
 	c.MediaControlURL = strings.TrimRight(strings.TrimSpace(c.MediaControlURL), "/")
 	c.MediaControlToken = strings.TrimSpace(c.MediaControlToken)
 	c.EncryptionKey = strings.TrimSpace(c.EncryptionKey)
-	c.Stripe.SecretKey = strings.TrimSpace(c.Stripe.SecretKey)
-	c.Stripe.WebhookSecret = strings.TrimSpace(c.Stripe.WebhookSecret)
-	c.Stripe.APIBaseURL = strings.TrimRight(strings.TrimSpace(c.Stripe.APIBaseURL), "/")
 	c.MinIO.AccessKey = strings.TrimSpace(c.MinIO.AccessKey)
 	c.MinIO.SecretKey = strings.TrimSpace(c.MinIO.SecretKey)
 	c.TURNAuthSecret = strings.TrimSpace(c.TURNAuthSecret)

@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 
-	"github.com/coffeyvidzro/monogo/internal/commercial/subscriptions"
 	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
 	"github.com/coffeyvidzro/monogo/internal/runtime/calling"
 	"github.com/coffeyvidzro/monogo/internal/telecom/routing"
@@ -16,7 +15,6 @@ import (
 type Service struct {
 	repo          *Repository
 	router        *routing.Service
-	subscriptions *subscriptions.Service
 	controller    *calling.Controller
 	channels      *calling.ChannelStore
 	admission     *calling.AdmissionLimiter
@@ -31,7 +29,6 @@ type routeAttemptMetrics interface {
 func NewService(
 	repo *Repository,
 	router *routing.Service,
-	subscriptionsService *subscriptions.Service,
 	controller *calling.Controller,
 	channels *calling.ChannelStore,
 	admission *calling.AdmissionLimiter,
@@ -42,9 +39,6 @@ func NewService(
 	}
 	if router == nil {
 		panic("calls: routing service is required")
-	}
-	if subscriptionsService == nil {
-		panic("calls: subscription service is required")
 	}
 	if controller == nil {
 		panic("calls: controller is required")
@@ -58,7 +52,6 @@ func NewService(
 	return &Service{
 		repo:          repo,
 		router:        router,
-		subscriptions: subscriptionsService,
 		controller:    controller,
 		channels:      channels,
 		admission:     admission,
@@ -72,12 +65,6 @@ func (s *Service) Create(ctx context.Context, organizationID uuid.UUID, req Crea
 	}
 	req, err := normalizeCreateRequest(req)
 	if err != nil {
-		return sqlc.Call{}, err
-	}
-	if err := s.subscriptions.RequireActive(
-		ctx,
-		organizationID,
-	); err != nil {
 		return sqlc.Call{}, err
 	}
 
@@ -229,16 +216,6 @@ func (s *Service) AdmitInbound(
 		)
 	}
 
-	if err := s.subscriptions.RequireActive(
-		ctx,
-		req.OrganizationID,
-	); err != nil {
-		return sqlc.Call{}, s.rejectInbound(
-			ctx,
-			req.ChannelID,
-			err,
-		)
-	}
 
 	decision, err := s.router.ResolveInbound(ctx, routing.InboundRequest{
 		OrganizationID:      req.OrganizationID,

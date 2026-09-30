@@ -109,28 +109,14 @@ The telephony layer remains a first-class part of the product.
 - **Calls, conferences, and recordings**: programmable voice primitives used by
   the Agent Runtime.
 
-## Commercial model
+## Commercial boundary
 
-Leamout is subscription software.
+Billing and payment processing are intentionally not part of the current
+runtime. The repository is focused on telephony, realtime media, and autonomous
+voice-agent infrastructure while the commercial model is redesigned separately.
 
-```text
-Customer
-   |
-   +-- carrier / SIP trunk / numbers ------> carrier bills customer
-   |
-   +-- Leamout subscription --------------> Stripe
-                                               |
-                                               v
-                                      platform entitlement
-```
+Customer carrier spend remains outside Leamout.
 
-Stripe handles subscription payments. Leamout remains the source of truth for
-platform entitlement.
-
-There is no prepaid telecom wallet, managed-carrier billing, retail telecom
-rate table, or usage resale path.
-
-See [docs/billing.md](docs/billing.md) for the commercial model.
 
 ## Services
 
