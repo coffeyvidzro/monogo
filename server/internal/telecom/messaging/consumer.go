@@ -53,7 +53,6 @@ func (c *Consumer) HandleQueued(ctx context.Context, message sqlc.Message) (sqlc
 	if err != nil {
 		return sqlc.Message{}, fmt.Errorf("resolve messaging connection: %w", err)
 	}
-	managed := connection.Scope == "platform"
 	_, err = c.service.SetProviderAttribution(ctx, message.OrganizationID, message.ID, connection.ID)
 	if err != nil {
 		return sqlc.Message{}, err
@@ -73,36 +72,17 @@ func (c *Consumer) HandleQueued(ctx context.Context, message sqlc.Message) (sqlc
 	if err != nil {
 		return sqlc.Message{}, err
 	}
-	if managed {
-		if err := c.service.AuthorizeManagedOutbound(ctx, message); err != nil {
-			if _, requeueErr := c.service.RequeueSubmission(
-				ctx,
-				message.OrganizationID,
-				message.ID,
-			); requeueErr != nil {
-				return sqlc.Message{}, errors.Join(err, requeueErr)
-			}
-
-			return sqlc.Message{}, err
-		}
-	}
 	result, err := c.runtime.Send(ctx, request)
 	if err != nil {
 		var submissionError *runtimemessaging.SubmissionError
 		if errors.As(err, &submissionError) {
 			switch submissionError.Outcome {
 			case runtimemessaging.SubmissionNotSubmitted:
-				if managed {
-					_ = c.service.ReleaseManagedOutbound(ctx, message)
-				}
 				if _, requeueErr := c.service.RequeueSubmission(ctx, message.OrganizationID, message.ID); requeueErr != nil {
 					return sqlc.Message{}, errors.Join(err, requeueErr)
 				}
 				return sqlc.Message{}, fmt.Errorf("submit %s message: %w", message.Channel, err)
 			case runtimemessaging.SubmissionRejected:
-				if managed {
-					_ = c.service.ReleaseManagedOutbound(ctx, message)
-				}
 				code := "provider_rejected"
 				detail := err.Error()
 				return c.service.MarkFailed(ctx, message.OrganizationID, message.ID, Failure{
@@ -113,11 +93,6 @@ func (c *Consumer) HandleQueued(ctx context.Context, message sqlc.Message) (sqlc
 		}
 		code := "submission_outcome_unknown"
 		detail := fmt.Sprintf("%s submission may have reached the provider: %v", message.Channel, err)
-		if managed {
-			if captureErr := c.service.CaptureManagedOutbound(ctx, message); captureErr != nil {
-				return sqlc.Message{}, errors.Join(err, captureErr)
-			}
-		}
 		return c.service.MarkSubmissionUnknown(ctx, message.OrganizationID, message.ID, Failure{
 			Code:    &code,
 			Message: &detail,
@@ -127,20 +102,10 @@ func (c *Consumer) HandleQueued(ctx context.Context, message sqlc.Message) (sqlc
 	if providerID == "" {
 		code := "submission_outcome_unknown"
 		detail := "transport accepted message without returning a provider message id"
-		if managed {
-			if captureErr := c.service.CaptureManagedOutbound(ctx, message); captureErr != nil {
-				return sqlc.Message{}, captureErr
-			}
-		}
 		return c.service.MarkSubmissionUnknown(ctx, message.OrganizationID, message.ID, Failure{
 			Code:    &code,
 			Message: &detail,
 		})
-	}
-	if managed {
-		if err := c.service.CaptureManagedOutbound(ctx, message); err != nil {
-			return sqlc.Message{}, err
-		}
 	}
 	return c.service.MarkSubmitted(ctx, message.OrganizationID, message.ID, providerID)
 }

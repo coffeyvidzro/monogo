@@ -9,8 +9,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/coffeyvidzro/monogo/internal/commercial/pricing"
-	"github.com/coffeyvidzro/monogo/internal/commercial/wallets"
 	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
 	"github.com/coffeyvidzro/monogo/pkg/apperror"
 	"github.com/google/uuid"
@@ -18,90 +16,7 @@ import (
 )
 
 type Service struct {
-	repo    *Repository
-	pricing *pricing.Service
-	wallets *wallets.Service
-}
-
-func (s *Service) ConfigureBilling(
-	pricingService *pricing.Service,
-	walletsService *wallets.Service,
-) {
-	s.pricing = pricingService
-	s.wallets = walletsService
-}
-
-func (s *Service) AuthorizeManagedOutbound(
-	ctx context.Context,
-	message sqlc.Message,
-) error {
-	if s.pricing == nil || s.wallets == nil {
-		return apperror.NewServiceUnavailable("managed messaging billing is not configured", nil)
-	}
-	product := pricing.ProductSMSOutbound
-	if message.Channel == string(ChannelWhatsApp) {
-		product = pricing.ProductWhatsAppOutbound
-	}
-	rate, err := s.pricing.ResolveProductRate(
-		ctx,
-		pricing.ResolveProductRateRequest{
-			OrganizationID: message.OrganizationID,
-			Product:        product,
-			Selector:       "*",
-			Currency:       wallets.CurrencyUSD,
-		},
-	)
-	if err != nil {
-		return err
-	}
-	referenceType := "message"
-	referenceID := message.ID
-	_, err = s.wallets.Hold(
-		ctx,
-		wallets.HoldRequest{
-			OrganizationID: message.OrganizationID,
-			OperationID:    managedMessageOperationID(message.ID),
-			AmountMicros:   rate.RateMicros,
-			Reason:         "managed_message",
-			ReferenceType:  &referenceType,
-			ReferenceID:    &referenceID,
-		},
-	)
-
-	return err
-}
-
-func (s *Service) CaptureManagedOutbound(
-	ctx context.Context,
-	message sqlc.Message,
-) error {
-	_, err := s.wallets.Capture(
-		ctx,
-		message.OrganizationID,
-		managedMessageOperationID(message.ID),
-	)
-
-	return err
-}
-
-func (s *Service) ReleaseManagedOutbound(
-	ctx context.Context,
-	message sqlc.Message,
-) error {
-	_, err := s.wallets.Release(
-		ctx,
-		message.OrganizationID,
-		managedMessageOperationID(message.ID),
-	)
-
-	return err
-}
-
-func managedMessageOperationID(messageID uuid.UUID) uuid.UUID {
-	return uuid.NewSHA1(
-		messageID,
-		[]byte("managed_message:unit:1"),
-	)
+	repo *Repository
 }
 
 func (s *Service) ReconcileStaleSubmissions(ctx context.Context, staleBefore time.Time) error {
@@ -175,20 +90,13 @@ func (s *Service) authorizeCreatedOutbound(
 	ctx context.Context,
 	message sqlc.Message,
 ) (sqlc.Message, error) {
-	connection, err := s.repo.ResolveConnection(
+	if _, err := s.repo.ResolveConnection(
 		ctx,
 		message.OrganizationID,
 		Channel(message.Channel),
-	)
-	if err != nil {
+	); err != nil {
 		return sqlc.Message{}, apperror.NewServiceUnavailable("resolve messaging connection", err)
 	}
-	if connection.Scope == "platform" {
-		if err := s.AuthorizeManagedOutbound(ctx, message); err != nil {
-			return sqlc.Message{}, err
-		}
-	}
-
 	return message, nil
 }
 

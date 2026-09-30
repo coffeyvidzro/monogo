@@ -144,8 +144,6 @@ func New(deps Dependencies) (*Module, error) {
 		callsRepository,
 		routingService,
 		deps.CallsSubscriptions,
-		deps.CallsPricing,
-		deps.CallsWallets,
 		deps.CallsController,
 		deps.CallsChannelStore,
 		deps.CallsAdmission,
@@ -167,10 +165,6 @@ func New(deps Dependencies) (*Module, error) {
 
 	messagingRepository := messaging.NewRepository(deps.DB)
 	messagingService := messaging.NewService(messagingRepository)
-	messagingService.ConfigureBilling(
-		deps.CallsPricing,
-		deps.CallsWallets,
-	)
 
 	recordingsRepository := recordings.NewRepository(deps.DB)
 	recordingsService := recordings.NewService(recordingsRepository, deps.RecordingStorage)

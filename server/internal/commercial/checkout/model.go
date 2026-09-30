@@ -9,7 +9,6 @@ import (
 
 const (
 	PurposeSubscription = "subscription"
-	PurposeWalletTopup  = "wallet_topup"
 
 	StatusPending    = "pending"
 	StatusProcessing = "processing"
@@ -54,7 +53,6 @@ type CreateRequest struct {
 	OrganizationID uuid.UUID
 	Purpose        string     `json:"purpose"`
 	SubscriptionID *uuid.UUID `json:"subscription_id,omitempty"`
-	AmountMicros   int64      `json:"amount_micros,omitempty"`
 }
 
 type ConfirmRequest struct {

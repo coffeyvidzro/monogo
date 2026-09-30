@@ -3,12 +3,9 @@ package calls
 import (
 	"context"
 	"errors"
-	"math"
 	"strings"
 
-	"github.com/coffeyvidzro/monogo/internal/commercial/pricing"
 	"github.com/coffeyvidzro/monogo/internal/commercial/subscriptions"
-	"github.com/coffeyvidzro/monogo/internal/commercial/wallets"
 	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
 	"github.com/coffeyvidzro/monogo/internal/runtime/calling"
 	"github.com/coffeyvidzro/monogo/internal/telecom/routing"
@@ -17,19 +14,11 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-const (
-	managedVoicePrepaidSeconds int32 = 600
-	managedVoiceBillingSeconds int64 = 60
-	managedVoiceBillingReason        = "managed_voice"
-	managedVoiceReferenceType        = "call"
-)
 
 type Service struct {
 	repo          *Repository
 	router        *routing.Service
 	subscriptions *subscriptions.Service
-	pricing       *pricing.Service
-	wallets       *wallets.Service
 	controller    *calling.Controller
 	channels      *calling.ChannelStore
 	admission     *calling.AdmissionLimiter
@@ -45,8 +34,6 @@ func NewService(
 	repo *Repository,
 	router *routing.Service,
 	subscriptionsService *subscriptions.Service,
-	pricingService *pricing.Service,
-	walletsService *wallets.Service,
 	controller *calling.Controller,
 	channels *calling.ChannelStore,
 	admission *calling.AdmissionLimiter,
@@ -61,12 +48,6 @@ func NewService(
 	if subscriptionsService == nil {
 		panic("calls: subscription service is required")
 	}
-	if pricingService == nil {
-		panic("calls: pricing service is required")
-	}
-	if walletsService == nil {
-		panic("calls: wallet service is required")
-	}
 	if controller == nil {
 		panic("calls: controller is required")
 	}
@@ -80,8 +61,6 @@ func NewService(
 		repo:          repo,
 		router:        router,
 		subscriptions: subscriptionsService,
-		pricing:       pricingService,
-		wallets:       walletsService,
 		controller:    controller,
 		channels:      channels,
 		admission:     admission,
@@ -119,37 +98,13 @@ func (s *Service) Create(ctx context.Context, organizationID uuid.UUID, req Crea
 		_, _ = s.repo.MarkFailed(ctx, organizationID, call.ID, &reason)
 		return sqlc.Call{}, err
 	}
-	primary, ok := decision.Primary()
+	_, ok := decision.Primary()
 	if !ok {
 		reason := "route_resolution_failed"
 		_, _ = s.repo.MarkFailed(ctx, organizationID, call.ID, &reason)
 		return sqlc.Call{}, apperror.NewNotFound("no eligible outbound route")
 	}
 
-	managed := false
-	switch primary.ProvisioningMode {
-	case "byoc":
-	case "managed":
-		managed = true
-		decision, err = s.authorizeManagedOutbound(
-			ctx,
-			organizationID,
-			call.ID,
-			decision,
-		)
-		if err != nil {
-			reason := "managed_prepaid_authorization_failed"
-			_, _ = s.repo.MarkFailed(ctx, organizationID, call.ID, &reason)
-			return sqlc.Call{}, err
-		}
-	default:
-		reason := "invalid_provisioning_mode"
-		_, _ = s.repo.MarkFailed(ctx, organizationID, call.ID, &reason)
-		return sqlc.Call{}, apperror.NewServiceUnavailable(
-			"outbound route provisioning mode is invalid",
-			nil,
-		)
-	}
 
 	result, selected, err := executeRoutePlan(ctx, decision.Routes, func(
 		attemptCtx context.Context,
@@ -178,17 +133,11 @@ func (s *Service) Create(ctx context.Context, organizationID uuid.UUID, req Crea
 				Class: calling.OriginateFailureCapacity, Err: admissionErr,
 			}
 		}
-		maxDurationSeconds := int32(0)
-		if managed {
-			maxDurationSeconds = managedVoicePrepaidSeconds
-		}
-
 		result, originateErr := s.controller.Originate(attemptCtx, calling.OriginateRequest{
 			CallID: call.ID, Destination: req.ToURI, CallerID: req.FromURI,
 			CarrierConnectionID: route.CarrierConnectionID,
 			Host:                route.Host, Port: route.Port, Transport: route.Transport,
 			Privacy: req.Privacy, DTMFMode: req.DTMFMode, MediaEncryption: req.MediaEncryption,
-			MaxDurationSeconds: maxDurationSeconds,
 		})
 		if originateErr != nil {
 			_ = s.admission.Release(attemptCtx, route.CarrierConnectionID, call.ID.String())
@@ -214,18 +163,6 @@ func (s *Service) Create(ctx context.Context, organizationID uuid.UUID, req Crea
 	if err != nil {
 		reason := "originate_failed"
 		_, _ = s.repo.MarkFailed(ctx, organizationID, call.ID, &reason)
-		if managed {
-			if releaseErr := s.releaseManagedVoiceHold(
-				ctx,
-				organizationID,
-				call.ID,
-			); releaseErr != nil {
-				return sqlc.Call{}, apperror.NewInternal(
-					"release managed call prepaid hold",
-					errors.Join(err, releaseErr),
-				)
-			}
-		}
 		return sqlc.Call{}, apperror.NewInternal("originate call", err)
 	}
 	if decision.ID != uuid.Nil {
@@ -247,119 +184,6 @@ func (s *Service) Create(ctx context.Context, organizationID uuid.UUID, req Crea
 	}
 
 	return s.repo.Get(ctx, organizationID, call.ID)
-}
-
-func (s *Service) authorizeManagedOutbound(
-	ctx context.Context,
-	organizationID uuid.UUID,
-	callID uuid.UUID,
-	decision routing.OutboundDecision,
-) (routing.OutboundDecision, error) {
-	rate, err := s.pricing.ResolveVoiceRate(
-		ctx,
-		pricing.ResolveVoiceRateRequest{
-			OrganizationID:    organizationID,
-			DestinationDigits: decision.DestinationDigits,
-			Direction:         pricing.DirectionOutbound,
-			Currency:          wallets.CurrencyUSD,
-		},
-	)
-	if err != nil {
-		return routing.OutboundDecision{}, err
-	}
-	if rate.RateMicros <= 0 {
-		return routing.OutboundDecision{}, apperror.NewServiceUnavailable(
-			"managed outbound retail rate must be positive",
-			nil,
-		)
-	}
-	prepaidUnits := int64(managedVoicePrepaidSeconds) / managedVoiceBillingSeconds
-	if rate.RateMicros > math.MaxInt64/prepaidUnits {
-		return routing.OutboundDecision{}, apperror.NewServiceUnavailable(
-			"managed outbound retail authorization is too large",
-			nil,
-		)
-	}
-
-	routes := commerciallyEligibleManagedRoutes(
-		decision.Routes,
-		rate.RateMicros,
-	)
-	if len(routes) == 0 {
-		return routing.OutboundDecision{}, apperror.NewServiceUnavailable(
-			"no commercially eligible managed outbound route",
-			nil,
-		)
-	}
-
-	referenceType := managedVoiceReferenceType
-	referenceID := callID
-
-	if _, err := s.wallets.Hold(
-		ctx,
-		wallets.HoldRequest{
-			OrganizationID: organizationID,
-			OperationID:    managedVoiceOperationID(callID),
-			AmountMicros:   rate.RateMicros * prepaidUnits,
-			Reason:         managedVoiceBillingReason,
-			ReferenceType:  &referenceType,
-			ReferenceID:    &referenceID,
-		},
-	); err != nil {
-		return routing.OutboundDecision{}, err
-	}
-
-	decision.Routes = routes
-
-	return decision, nil
-}
-
-func commerciallyEligibleManagedRoutes(
-	routes []routing.OutboundRoute,
-	retailRateMicros int64,
-) []routing.OutboundRoute {
-	result := make(
-		[]routing.OutboundRoute,
-		0,
-		len(routes),
-	)
-
-	for _, route := range routes {
-		if route.ProvisioningMode != "managed" {
-			continue
-		}
-		if route.RateMicros > retailRateMicros {
-			continue
-		}
-
-		result = append(
-			result,
-			route,
-		)
-	}
-
-	return result
-}
-
-func managedVoiceOperationID(callID uuid.UUID) uuid.UUID {
-	return uuid.NewSHA1(
-		callID,
-		[]byte("managed_voice:unit:1"),
-	)
-}
-
-func (s *Service) releaseManagedVoiceHold(
-	ctx context.Context,
-	organizationID uuid.UUID,
-	callID uuid.UUID,
-) error {
-	_, err := s.wallets.Release(
-		ctx,
-		organizationID,
-		managedVoiceOperationID(callID),
-	)
-
-	return err
 }
 
 func optionalDecisionID(id uuid.UUID) *uuid.UUID {
@@ -496,21 +320,6 @@ func (s *Service) AdmitInbound(
 			apperror.NewInternal("set inbound route attribution", err),
 		)
 	}
-	managedInbound := decision.ProvisioningMode == "managed"
-	if managedInbound {
-		if err := s.authorizeManagedInbound(
-			ctx,
-			req.OrganizationID,
-			call.ID,
-			req.ToURI,
-			req.ChannelID,
-		); err != nil {
-			_ = s.admission.Release(ctx, decision.CarrierConnectionID, req.ChannelID)
-			reason := "managed_prepaid_authorization_failed"
-			_, _ = s.repo.MarkFailed(ctx, req.OrganizationID, call.ID, &reason)
-			return sqlc.Call{}, s.rejectInbound(ctx, req.ChannelID, err)
-		}
-	}
 
 	if err := s.admission.Bind(
 		ctx,
@@ -521,9 +330,6 @@ func (s *Service) AdmitInbound(
 		reason := "inbound_admission_binding_failed"
 		_, _ = s.repo.MarkFailed(ctx, req.OrganizationID, call.ID, &reason)
 		_ = s.admission.Release(ctx, decision.CarrierConnectionID, req.ChannelID)
-		if managedInbound {
-			_ = s.releaseManagedVoiceHold(ctx, req.OrganizationID, call.ID)
-		}
 		return sqlc.Call{}, s.rejectInbound(
 			ctx,
 			req.ChannelID,
@@ -535,75 +341,10 @@ func (s *Service) AdmitInbound(
 		_ = s.admission.Release(ctx, decision.CarrierConnectionID, call.ID.String())
 		reason := "inbound_channel_binding_failed"
 		_, _ = s.repo.MarkFailed(ctx, req.OrganizationID, call.ID, &reason)
-		if managedInbound {
-			_ = s.releaseManagedVoiceHold(ctx, req.OrganizationID, call.ID)
-		}
 		return sqlc.Call{}, s.rejectInbound(ctx, req.ChannelID, err)
 	}
 
 	return call, nil
-}
-
-func (s *Service) authorizeManagedInbound(
-	ctx context.Context,
-	organizationID uuid.UUID,
-	callID uuid.UUID,
-	destination string,
-	channelID string,
-) error {
-	destinationDigits := strings.TrimPrefix(
-		strings.TrimSpace(destination),
-		"+",
-	)
-	rate, err := s.pricing.ResolveVoiceRate(
-		ctx,
-		pricing.ResolveVoiceRateRequest{
-			OrganizationID:    organizationID,
-			DestinationDigits: destinationDigits,
-			Direction:         pricing.DirectionInbound,
-			Currency:          wallets.CurrencyUSD,
-		},
-	)
-	if err != nil {
-		return err
-	}
-	prepaidUnits := int64(managedVoicePrepaidSeconds) / managedVoiceBillingSeconds
-	if rate.RateMicros <= 0 || rate.RateMicros > math.MaxInt64/prepaidUnits {
-		return apperror.NewServiceUnavailable(
-			"managed inbound retail authorization is invalid",
-			nil,
-		)
-	}
-	referenceType := managedVoiceReferenceType
-	referenceID := callID
-	if _, err := s.wallets.Hold(
-		ctx,
-		wallets.HoldRequest{
-			OrganizationID: organizationID,
-			OperationID:    managedVoiceOperationID(callID),
-			AmountMicros:   rate.RateMicros * prepaidUnits,
-			Reason:         managedVoiceBillingReason,
-			ReferenceType:  &referenceType,
-			ReferenceID:    &referenceID,
-		},
-	); err != nil {
-		return err
-	}
-	if err := s.controller.SetMaxDuration(
-		ctx,
-		channelID,
-		managedVoicePrepaidSeconds,
-	); err != nil {
-		_ = s.releaseManagedVoiceHold(
-			ctx,
-			organizationID,
-			callID,
-		)
-
-		return apperror.NewServiceUnavailable("limit managed inbound duration", err)
-	}
-
-	return nil
 }
 
 func validateExistingInbound(call sqlc.Call, req InboundAdmissionRequest) error {

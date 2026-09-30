@@ -11,7 +11,6 @@ import (
 
 	"github.com/coffeyvidzro/monogo/internal/commercial/payments"
 	"github.com/coffeyvidzro/monogo/internal/commercial/subscriptions"
-	"github.com/coffeyvidzro/monogo/internal/commercial/wallets"
 	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
 	"github.com/coffeyvidzro/monogo/internal/integrations/payments/stripe"
 	"github.com/google/uuid"
@@ -365,81 +364,6 @@ func TestCompleteSubscriptionCheckoutActivatesAndReplays(t *testing.T) {
 	}
 
 	assertSubscriptionStatus(t, pool, subscriptionID, subscriptions.StatusActive)
-}
-
-func TestCompleteWalletTopupCreditsOnceAndReplays(t *testing.T) {
-	service, pool, organizationID, _ := newCheckoutTestService(t)
-	now := time.Date(2026, time.September, 29, 13, 0, 0, 0, time.UTC)
-	service.now = func() time.Time { return now }
-
-	checkout, err := service.Create(
-		context.Background(),
-		CreateRequest{
-			OrganizationID: organizationID,
-			Purpose:        PurposeWalletTopup,
-			AmountMicros:   50_000_000,
-		},
-	)
-	if err != nil {
-		t.Fatalf("create wallet top-up checkout: %v", err)
-	}
-	if _, err := service.Confirm(
-		context.Background(),
-		ConfirmRequest{
-			OrganizationID: organizationID,
-			CheckoutID:     checkout.ID,
-			Provider:       ProviderStripe,
-			PaymentMethod:  PaymentMethodCard,
-		},
-	); err != nil {
-		t.Fatalf("confirm wallet top-up checkout: %v", err)
-	}
-
-	completedAt := now.Add(time.Minute)
-	if _, err := service.Complete(
-		context.Background(),
-		organizationID,
-		checkout.ID,
-		completedAt,
-	); err != nil {
-		t.Fatalf("complete wallet top-up checkout: %v", err)
-	}
-	if _, err := service.Complete(
-		context.Background(),
-		organizationID,
-		checkout.ID,
-		completedAt,
-	); err != nil {
-		t.Fatalf("replay wallet top-up completion: %v", err)
-	}
-
-	var balance int64
-	if err := pool.QueryRow(
-		context.Background(),
-		`SELECT balance_micros
-		 FROM wallets
-		 WHERE organization_id = $1`,
-		organizationID,
-	).Scan(&balance); err != nil {
-		t.Fatalf("read wallet balance: %v", err)
-	}
-	if balance != 50_000_000 {
-		t.Fatalf("wallet balance = %d, want %d", balance, int64(50_000_000))
-	}
-
-	var ledgerCount int
-	if err := pool.QueryRow(
-		context.Background(),
-		`SELECT count(*)
-		 FROM wallet_ledger_entries
-		 WHERE operation_id = $1`,
-		checkout.ID,
-	).Scan(&ledgerCount); err != nil {
-		t.Fatalf("count top-up ledger entries: %v", err)
-	}
-	if ledgerCount != 1 {
-		t.Fatalf("ledger entries = %d, want 1", ledgerCount)
-	}
 }
 
 func TestSettleSuccessfulProviderEventIsAtomicAndConcurrent(t *testing.T) {
@@ -830,10 +754,6 @@ func newCheckoutTestService(
 	subscriptionsService := subscriptions.NewService(
 		subscriptions.NewRepository(queries),
 	)
-	walletsService := wallets.NewService(
-		wallets.NewRepository(queries),
-		pool,
-	)
 	paymentsService := payments.NewService(
 		payments.NewRepository(queries),
 	)
@@ -869,7 +789,6 @@ func newCheckoutTestService(
 		paymentsService,
 		providerService,
 		subscriptionsService,
-		walletsService,
 		pool,
 	)
 
@@ -903,53 +822,6 @@ func createCheckoutTestSchema(
 			cancelled_at TIMESTAMPTZ,
 			created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
 			updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
-		)`,
-		`CREATE TABLE wallets (
-			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-			organization_id UUID NOT NULL UNIQUE REFERENCES organizations(id),
-			currency CHAR(3) NOT NULL DEFAULT 'USD',
-			status TEXT NOT NULL DEFAULT 'active',
-			balance_micros BIGINT NOT NULL DEFAULT 0,
-			reserved_micros BIGINT NOT NULL DEFAULT 0,
-			created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-			updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-			UNIQUE (id, organization_id),
-			CHECK (balance_micros >= 0),
-			CHECK (reserved_micros >= 0),
-			CHECK (reserved_micros <= balance_micros)
-		)`,
-		`CREATE TABLE wallet_holds (
-			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-			wallet_id UUID NOT NULL,
-			organization_id UUID NOT NULL,
-			operation_id UUID NOT NULL UNIQUE,
-			amount_micros BIGINT NOT NULL,
-			reason TEXT NOT NULL,
-			reference_type TEXT,
-			reference_id UUID,
-			status TEXT NOT NULL DEFAULT 'active',
-			captured_at TIMESTAMPTZ,
-			released_at TIMESTAMPTZ,
-			created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-			updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-			FOREIGN KEY (wallet_id, organization_id)
-				REFERENCES wallets (id, organization_id)
-		)`,
-		`CREATE TABLE wallet_ledger_entries (
-			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-			wallet_id UUID NOT NULL,
-			organization_id UUID NOT NULL,
-			operation_id UUID NOT NULL UNIQUE,
-			direction TEXT NOT NULL,
-			reason TEXT NOT NULL,
-			amount_micros BIGINT NOT NULL,
-			balance_after_micros BIGINT NOT NULL,
-			reference_type TEXT,
-			reference_id UUID,
-			occurred_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-			created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-			FOREIGN KEY (wallet_id, organization_id)
-				REFERENCES wallets (id, organization_id)
 		)`,
 		`CREATE TABLE checkouts (
 			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

@@ -16,7 +16,6 @@ type ProviderService struct {
 type StartRequest struct {
 	Payment   Payment
 	Reference string
-	Purpose   string
 }
 
 type StartResult struct {
@@ -41,16 +40,12 @@ func (s *ProviderService) Start(ctx context.Context, req StartRequest) (StartRes
 	if err != nil {
 		return StartResult{}, err
 	}
-	productName := "Monogo subscription"
-	if req.Purpose == "wallet_topup" {
-		productName = "Wallet top-up"
-	}
 	session, err := s.Stripe.CreateCheckoutSession(ctx, stripe.CreateCheckoutSessionRequest{
 		AmountMinor:    amountMinor,
 		Currency:       req.Payment.Currency,
 		Reference:      req.Reference,
 		IdempotencyKey: req.Payment.ID.String(),
-		ProductName:    productName,
+		ProductName:    "Leamout subscription",
 	})
 	if err != nil {
 		return StartResult{}, fmt.Errorf("create Stripe checkout session: %w", err)

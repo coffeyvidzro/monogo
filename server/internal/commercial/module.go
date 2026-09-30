@@ -90,7 +90,6 @@ func New(deps Dependencies) *Module {
 		paymentsService,
 		paymentProviders,
 		subscriptionsService,
-		walletsService,
 		deps.DB,
 	)
 

@@ -8,7 +8,6 @@ import (
 
 	"github.com/coffeyvidzro/monogo/internal/commercial/payments"
 	"github.com/coffeyvidzro/monogo/internal/commercial/subscriptions"
-	"github.com/coffeyvidzro/monogo/internal/commercial/wallets"
 	"github.com/coffeyvidzro/monogo/internal/database/pgconv"
 	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
 	"github.com/coffeyvidzro/monogo/pkg/apperror"
@@ -25,7 +24,6 @@ type Service struct {
 	payments      *payments.Service
 	providers     *payments.ProviderService
 	subscriptions *subscriptions.Service
-	wallets       *wallets.Service
 	db            *pgxpool.Pool
 	now           func() time.Time
 }
@@ -35,7 +33,6 @@ func NewService(
 	paymentsService *payments.Service,
 	providerService *payments.ProviderService,
 	subscriptionsService *subscriptions.Service,
-	walletsService *wallets.Service,
 	db *pgxpool.Pool,
 ) *Service {
 	return &Service{
@@ -43,7 +40,6 @@ func NewService(
 		payments:      paymentsService,
 		providers:     providerService,
 		subscriptions: subscriptionsService,
-		wallets:       walletsService,
 		db:            db,
 		now:           time.Now,
 	}
@@ -55,7 +51,6 @@ func (s *Service) WithTx(tx pgx.Tx) *Service {
 		payments:      s.payments.WithTx(tx),
 		providers:     s.providers,
 		subscriptions: s.subscriptions.WithTx(tx),
-		wallets:       s.wallets.WithTx(tx),
 		now:           s.now,
 	}
 }
@@ -69,57 +64,31 @@ func (s *Service) Create(
 	}
 
 	now := s.now().UTC()
-	var (
-		subscriptionID *uuid.UUID
-		amountMicros   int64
-		currency       string
+	subscription, err := s.subscriptions.Get(
+		ctx,
+		req.OrganizationID,
+		*req.SubscriptionID,
 	)
-
-	switch req.Purpose {
-	case PurposeSubscription:
-		subscription, err := s.subscriptions.Get(
-			ctx,
-			req.OrganizationID,
-			*req.SubscriptionID,
-		)
-		if err != nil {
-			return Checkout{}, err
-		}
-		if subscription.Status != subscriptions.StatusPending {
-			return Checkout{}, apperror.NewConflict("subscription is not awaiting checkout")
-		}
-		if subscription.AmountMicros <= 0 {
-			return Checkout{}, apperror.NewBadRequest("subscription does not require checkout")
-		}
-
-		subscriptionID = &subscription.ID
-		amountMicros = subscription.AmountMicros
-		currency = subscription.Currency
-
-	case PurposeWalletTopup:
-		wallet, err := s.wallets.Create(
-			ctx,
-			wallets.CreateRequest{
-				OrganizationID: req.OrganizationID,
-			},
-		)
-		if err != nil {
-			return Checkout{}, err
-		}
-
-		amountMicros = req.AmountMicros
-		currency = wallet.Currency
+	if err != nil {
+		return Checkout{}, err
+	}
+	if subscription.Status != subscriptions.StatusPending {
+		return Checkout{}, apperror.NewConflict("subscription is not awaiting checkout")
+	}
+	if subscription.AmountMicros <= 0 {
+		return Checkout{}, apperror.NewBadRequest("subscription does not require checkout")
 	}
 
+	subscriptionID := subscription.ID
 	reference := newReference()
 	row, err := s.repo.Create(
 		ctx,
 		req.OrganizationID,
 		req.Purpose,
-		subscriptionID,
+		&subscriptionID,
 		reference,
-		amountMicros,
-		currency,
+		subscription.AmountMicros,
+		subscription.Currency,
 		now.Add(checkoutTTL),
 	)
 	if isUniqueViolation(err) {
@@ -202,7 +171,6 @@ func (s *Service) Confirm(
 		payments.StartRequest{
 			Payment:   payment,
 			Reference: row.Reference,
-			Purpose:   row.Purpose,
 		},
 	)
 	if err != nil {
@@ -290,17 +258,11 @@ func (s *Service) Complete(
 		completedAt = s.now().UTC()
 	}
 
-	switch current.Purpose {
-	case PurposeSubscription:
-		if err := s.completeSubscription(ctx, current, completedAt); err != nil {
-			return Checkout{}, err
-		}
-	case PurposeWalletTopup:
-		if err := s.completeWalletTopup(ctx, current, completedAt); err != nil {
-			return Checkout{}, err
-		}
-	default:
+	if current.Purpose != PurposeSubscription {
 		return Checkout{}, apperror.NewInternal("complete checkout", ErrInvalidInput)
+	}
+	if err := s.completeSubscription(ctx, current, completedAt); err != nil {
+		return Checkout{}, err
 	}
 
 	row, err := s.repo.Complete(ctx, organizationID, checkoutID, completedAt)
@@ -452,29 +414,6 @@ func (s *Service) completeSubscription(
 			SubscriptionID:     *checkout.SubscriptionID,
 			CurrentPeriodStart: periodStart,
 			CurrentPeriodEnd:   periodEnd,
-		},
-	)
-	return err
-}
-
-func (s *Service) completeWalletTopup(
-	ctx context.Context,
-	checkout Checkout,
-	completedAt time.Time,
-) error {
-	referenceType := "checkout"
-	referenceID := checkout.ID
-
-	_, err := s.wallets.Credit(
-		ctx,
-		wallets.MovementRequest{
-			OrganizationID: checkout.OrganizationID,
-			OperationID:    checkout.ID,
-			AmountMicros:   checkout.AmountMicros,
-			Reason:         "wallet_topup",
-			ReferenceType:  &referenceType,
-			ReferenceID:    &referenceID,
-			OccurredAt:     completedAt,
 		},
 	)
 	return err

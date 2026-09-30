@@ -13,23 +13,11 @@ func validateCreateRequest(req *CreateRequest) error {
 	}
 
 	req.Purpose = strings.ToLower(strings.TrimSpace(req.Purpose))
-	switch req.Purpose {
-	case PurposeSubscription:
-		if req.SubscriptionID == nil || *req.SubscriptionID == uuid.Nil {
-			return fmt.Errorf("%w: subscription id is required", ErrInvalidInput)
-		}
-		if req.AmountMicros != 0 {
-			return fmt.Errorf("%w: subscription amount is derived by checkout", ErrInvalidInput)
-		}
-	case PurposeWalletTopup:
-		if req.SubscriptionID != nil {
-			return fmt.Errorf("%w: wallet top-up cannot include subscription id", ErrInvalidInput)
-		}
-		if req.AmountMicros <= 0 {
-			return fmt.Errorf("%w: amount must be greater than zero", ErrInvalidInput)
-		}
-	default:
-		return fmt.Errorf("%w: purpose is invalid", ErrInvalidInput)
+	if req.Purpose != PurposeSubscription {
+		return fmt.Errorf("%w: purpose must be subscription", ErrInvalidInput)
+	}
+	if req.SubscriptionID == nil || *req.SubscriptionID == uuid.Nil {
+		return fmt.Errorf("%w: subscription id is required", ErrInvalidInput)
 	}
 
 	return nil
