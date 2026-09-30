@@ -12,14 +12,13 @@ import (
 )
 
 const createBYOCPhoneNumber = `-- name: CreateBYOCPhoneNumber :one
-INSERT INTO phone_numbers (organization_id, number, country_code, carrier_connection_id, voice_enabled, sms_enabled)
+INSERT INTO phone_numbers (organization_id, number, country_code, carrier_connection_id, voice_enabled)
 SELECT
     $1 AS organization_id,
     $2 AS number,
     $3 AS country_code,
     $4 AS carrier_connection_id,
-    COALESCE($5, true) AS voice_enabled,
-    COALESCE($6, false) AS sms_enabled
+    COALESCE($5, true) AS voice_enabled
 FROM organizations AS o
 LEFT JOIN carrier_connections AS cc
   ON cc.id = $4::UUID
@@ -28,7 +27,7 @@ LEFT JOIN carrier_connections AS cc
 WHERE o.id = $1
   AND o.status = 'active' AND o.deleted_at IS NULL
   AND ($4::UUID IS NULL OR cc.id IS NOT NULL)
-RETURNING id, organization_id, number, country_code, carrier_connection_id, voice_enabled, sms_enabled, status, created_at, updated_at
+RETURNING id, organization_id, number, country_code, carrier_connection_id, voice_enabled, status, created_at, updated_at
 `
 
 type CreateBYOCPhoneNumberParams struct {
@@ -37,7 +36,6 @@ type CreateBYOCPhoneNumberParams struct {
 	CountryCode         string     `db:"country_code" json:"country_code"`
 	CarrierConnectionID *uuid.UUID `db:"carrier_connection_id" json:"carrier_connection_id"`
 	VoiceEnabled        *bool      `db:"voice_enabled" json:"voice_enabled"`
-	SmsEnabled          *bool      `db:"sms_enabled" json:"sms_enabled"`
 }
 
 func (q *Queries) CreateBYOCPhoneNumber(ctx context.Context, arg CreateBYOCPhoneNumberParams) (PhoneNumber, error) {
@@ -47,7 +45,6 @@ func (q *Queries) CreateBYOCPhoneNumber(ctx context.Context, arg CreateBYOCPhone
 		arg.CountryCode,
 		arg.CarrierConnectionID,
 		arg.VoiceEnabled,
-		arg.SmsEnabled,
 	)
 	var i PhoneNumber
 	err := row.Scan(
@@ -57,7 +54,6 @@ func (q *Queries) CreateBYOCPhoneNumber(ctx context.Context, arg CreateBYOCPhone
 		&i.CountryCode,
 		&i.CarrierConnectionID,
 		&i.VoiceEnabled,
-		&i.SmsEnabled,
 		&i.Status,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -69,7 +65,7 @@ const getBackofficePhoneNumber = `-- name: GetBackofficePhoneNumber :one
 SELECT pn.id::TEXT AS id, pn.organization_id::TEXT AS organization_id, o.name AS organization_name,
        pn.number, pn.country_code::TEXT AS country_code,
        CAST(COALESCE(pn.carrier_connection_id::TEXT, '—') AS TEXT) AS carrier_connection_id,
-       COALESCE(cc.name, '—') AS carrier_connection_name, pn.voice_enabled, pn.sms_enabled, pn.status,
+       COALESCE(cc.name, '—') AS carrier_connection_name, pn.voice_enabled, pn.status,
        to_char(pn.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI') AS created_at,
        to_char(pn.updated_at AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI') AS updated_at
 FROM phone_numbers AS pn JOIN organizations AS o ON o.id = pn.organization_id
@@ -86,7 +82,6 @@ type GetBackofficePhoneNumberRow struct {
 	CarrierConnectionID   string `db:"carrier_connection_id" json:"carrier_connection_id"`
 	CarrierConnectionName string `db:"carrier_connection_name" json:"carrier_connection_name"`
 	VoiceEnabled          bool   `db:"voice_enabled" json:"voice_enabled"`
-	SmsEnabled            bool   `db:"sms_enabled" json:"sms_enabled"`
 	Status                string `db:"status" json:"status"`
 	CreatedAt             string `db:"created_at" json:"created_at"`
 	UpdatedAt             string `db:"updated_at" json:"updated_at"`
@@ -104,7 +99,6 @@ func (q *Queries) GetBackofficePhoneNumber(ctx context.Context, id uuid.UUID) (G
 		&i.CarrierConnectionID,
 		&i.CarrierConnectionName,
 		&i.VoiceEnabled,
-		&i.SmsEnabled,
 		&i.Status,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -113,7 +107,7 @@ func (q *Queries) GetBackofficePhoneNumber(ctx context.Context, id uuid.UUID) (G
 }
 
 const getPhoneNumberByID = `-- name: GetPhoneNumberByID :one
-SELECT pn.id, pn.organization_id, pn.number, pn.country_code, pn.carrier_connection_id, pn.voice_enabled, pn.sms_enabled, pn.status, pn.created_at, pn.updated_at FROM phone_numbers AS pn JOIN organizations AS o ON o.id = pn.organization_id
+SELECT pn.id, pn.organization_id, pn.number, pn.country_code, pn.carrier_connection_id, pn.voice_enabled, pn.status, pn.created_at, pn.updated_at FROM phone_numbers AS pn JOIN organizations AS o ON o.id = pn.organization_id
 WHERE pn.id = $1 AND pn.organization_id = $2
   AND pn.status <> 'released' AND o.status = 'active' AND o.deleted_at IS NULL LIMIT 1
 `
@@ -133,7 +127,6 @@ func (q *Queries) GetPhoneNumberByID(ctx context.Context, arg GetPhoneNumberByID
 		&i.CountryCode,
 		&i.CarrierConnectionID,
 		&i.VoiceEnabled,
-		&i.SmsEnabled,
 		&i.Status,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -142,7 +135,7 @@ func (q *Queries) GetPhoneNumberByID(ctx context.Context, arg GetPhoneNumberByID
 }
 
 const getPhoneNumberByNumber = `-- name: GetPhoneNumberByNumber :one
-SELECT pn.id, pn.organization_id, pn.number, pn.country_code, pn.carrier_connection_id, pn.voice_enabled, pn.sms_enabled, pn.status, pn.created_at, pn.updated_at FROM phone_numbers AS pn JOIN organizations AS o ON o.id = pn.organization_id
+SELECT pn.id, pn.organization_id, pn.number, pn.country_code, pn.carrier_connection_id, pn.voice_enabled, pn.status, pn.created_at, pn.updated_at FROM phone_numbers AS pn JOIN organizations AS o ON o.id = pn.organization_id
 WHERE pn.number = $1 AND pn.organization_id = $2
   AND pn.status = 'active' AND o.status = 'active' AND o.deleted_at IS NULL LIMIT 1
 `
@@ -162,7 +155,6 @@ func (q *Queries) GetPhoneNumberByNumber(ctx context.Context, arg GetPhoneNumber
 		&i.CountryCode,
 		&i.CarrierConnectionID,
 		&i.VoiceEnabled,
-		&i.SmsEnabled,
 		&i.Status,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -211,7 +203,7 @@ func (q *Queries) GetVoiceBindingByNumber(ctx context.Context, number string) (G
 const listBackofficePhoneNumbers = `-- name: ListBackofficePhoneNumbers :many
 SELECT pn.id::TEXT AS id, pn.organization_id::TEXT AS organization_id, o.name AS organization_name,
        pn.number, pn.country_code::TEXT AS country_code, COALESCE(cc.name, '—') AS carrier_connection_name,
-       pn.voice_enabled, pn.sms_enabled, pn.status,
+       pn.voice_enabled, pn.status,
        to_char(pn.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI') AS created_at
 FROM phone_numbers AS pn JOIN organizations AS o ON o.id = pn.organization_id
 LEFT JOIN carrier_connections AS cc ON cc.id = pn.carrier_connection_id
@@ -226,7 +218,6 @@ type ListBackofficePhoneNumbersRow struct {
 	CountryCode           string `db:"country_code" json:"country_code"`
 	CarrierConnectionName string `db:"carrier_connection_name" json:"carrier_connection_name"`
 	VoiceEnabled          bool   `db:"voice_enabled" json:"voice_enabled"`
-	SmsEnabled            bool   `db:"sms_enabled" json:"sms_enabled"`
 	Status                string `db:"status" json:"status"`
 	CreatedAt             string `db:"created_at" json:"created_at"`
 }
@@ -248,7 +239,6 @@ func (q *Queries) ListBackofficePhoneNumbers(ctx context.Context) ([]ListBackoff
 			&i.CountryCode,
 			&i.CarrierConnectionName,
 			&i.VoiceEnabled,
-			&i.SmsEnabled,
 			&i.Status,
 			&i.CreatedAt,
 		); err != nil {
@@ -263,7 +253,7 @@ func (q *Queries) ListBackofficePhoneNumbers(ctx context.Context) ([]ListBackoff
 }
 
 const listPhoneNumbersByCountry = `-- name: ListPhoneNumbersByCountry :many
-SELECT id, organization_id, number, country_code, carrier_connection_id, voice_enabled, sms_enabled, status, created_at, updated_at FROM phone_numbers WHERE organization_id = $1 AND country_code = $2 AND status <> 'released' ORDER BY number ASC
+SELECT id, organization_id, number, country_code, carrier_connection_id, voice_enabled, status, created_at, updated_at FROM phone_numbers WHERE organization_id = $1 AND country_code = $2 AND status <> 'released' ORDER BY number ASC
 `
 
 type ListPhoneNumbersByCountryParams struct {
@@ -287,7 +277,6 @@ func (q *Queries) ListPhoneNumbersByCountry(ctx context.Context, arg ListPhoneNu
 			&i.CountryCode,
 			&i.CarrierConnectionID,
 			&i.VoiceEnabled,
-			&i.SmsEnabled,
 			&i.Status,
 			&i.CreatedAt,
 			&i.UpdatedAt,
@@ -303,7 +292,7 @@ func (q *Queries) ListPhoneNumbersByCountry(ctx context.Context, arg ListPhoneNu
 }
 
 const listPhoneNumbersByOrganizationID = `-- name: ListPhoneNumbersByOrganizationID :many
-SELECT id, organization_id, number, country_code, carrier_connection_id, voice_enabled, sms_enabled, status, created_at, updated_at FROM phone_numbers WHERE organization_id = $1 AND status <> 'released' ORDER BY created_at DESC
+SELECT id, organization_id, number, country_code, carrier_connection_id, voice_enabled, status, created_at, updated_at FROM phone_numbers WHERE organization_id = $1 AND status <> 'released' ORDER BY created_at DESC
 `
 
 func (q *Queries) ListPhoneNumbersByOrganizationID(ctx context.Context, organizationID uuid.UUID) ([]PhoneNumber, error) {
@@ -322,7 +311,6 @@ func (q *Queries) ListPhoneNumbersByOrganizationID(ctx context.Context, organiza
 			&i.CountryCode,
 			&i.CarrierConnectionID,
 			&i.VoiceEnabled,
-			&i.SmsEnabled,
 			&i.Status,
 			&i.CreatedAt,
 			&i.UpdatedAt,
@@ -338,8 +326,8 @@ func (q *Queries) ListPhoneNumbersByOrganizationID(ctx context.Context, organiza
 }
 
 const releaseBYOCPhoneNumber = `-- name: ReleaseBYOCPhoneNumber :one
-UPDATE phone_numbers SET status = 'released', carrier_connection_id = NULL, voice_enabled = false, sms_enabled = false, updated_at = NOW()
-WHERE id = $1 AND organization_id = $2 AND status IN ('active', 'disabled') RETURNING id, organization_id, number, country_code, carrier_connection_id, voice_enabled, sms_enabled, status, created_at, updated_at
+UPDATE phone_numbers SET status = 'released', carrier_connection_id = NULL, voice_enabled = false, updated_at = NOW()
+WHERE id = $1 AND organization_id = $2 AND status IN ('active', 'disabled') RETURNING id, organization_id, number, country_code, carrier_connection_id, voice_enabled, status, created_at, updated_at
 `
 
 type ReleaseBYOCPhoneNumberParams struct {
@@ -357,7 +345,6 @@ func (q *Queries) ReleaseBYOCPhoneNumber(ctx context.Context, arg ReleaseBYOCPho
 		&i.CountryCode,
 		&i.CarrierConnectionID,
 		&i.VoiceEnabled,
-		&i.SmsEnabled,
 		&i.Status,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -370,7 +357,7 @@ UPDATE phone_numbers AS pn SET carrier_connection_id = $1, updated_at = NOW()
 FROM carrier_connections AS cc
 WHERE pn.id = $2 AND pn.organization_id = $3 AND pn.status = 'active'
   AND cc.id = $1 AND cc.organization_id = pn.organization_id AND cc.status = 'active'
-RETURNING pn.id, pn.organization_id, pn.number, pn.country_code, pn.carrier_connection_id, pn.voice_enabled, pn.sms_enabled, pn.status, pn.created_at, pn.updated_at
+RETURNING pn.id, pn.organization_id, pn.number, pn.country_code, pn.carrier_connection_id, pn.voice_enabled, pn.status, pn.created_at, pn.updated_at
 `
 
 type SetBYOCPhoneNumberCarrierConnectionParams struct {
@@ -389,7 +376,6 @@ func (q *Queries) SetBYOCPhoneNumberCarrierConnection(ctx context.Context, arg S
 		&i.CountryCode,
 		&i.CarrierConnectionID,
 		&i.VoiceEnabled,
-		&i.SmsEnabled,
 		&i.Status,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -399,24 +385,18 @@ func (q *Queries) SetBYOCPhoneNumberCarrierConnection(ctx context.Context, arg S
 
 const updatePhoneNumber = `-- name: UpdatePhoneNumber :one
 UPDATE phone_numbers SET voice_enabled = COALESCE($1, voice_enabled),
-    sms_enabled = COALESCE($2, sms_enabled), updated_at = NOW()
-WHERE id = $3 AND organization_id = $4 AND status = 'active' RETURNING id, organization_id, number, country_code, carrier_connection_id, voice_enabled, sms_enabled, status, created_at, updated_at
+    updated_at = NOW()
+WHERE id = $2 AND organization_id = $3 AND status = 'active' RETURNING id, organization_id, number, country_code, carrier_connection_id, voice_enabled, status, created_at, updated_at
 `
 
 type UpdatePhoneNumberParams struct {
 	VoiceEnabled   *bool     `db:"voice_enabled" json:"voice_enabled"`
-	SmsEnabled     *bool     `db:"sms_enabled" json:"sms_enabled"`
 	ID             uuid.UUID `db:"id" json:"id"`
 	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
 }
 
 func (q *Queries) UpdatePhoneNumber(ctx context.Context, arg UpdatePhoneNumberParams) (PhoneNumber, error) {
-	row := q.db.QueryRow(ctx, updatePhoneNumber,
-		arg.VoiceEnabled,
-		arg.SmsEnabled,
-		arg.ID,
-		arg.OrganizationID,
-	)
+	row := q.db.QueryRow(ctx, updatePhoneNumber, arg.VoiceEnabled, arg.ID, arg.OrganizationID)
 	var i PhoneNumber
 	err := row.Scan(
 		&i.ID,
@@ -425,7 +405,6 @@ func (q *Queries) UpdatePhoneNumber(ctx context.Context, arg UpdatePhoneNumberPa
 		&i.CountryCode,
 		&i.CarrierConnectionID,
 		&i.VoiceEnabled,
-		&i.SmsEnabled,
 		&i.Status,
 		&i.CreatedAt,
 		&i.UpdatedAt,

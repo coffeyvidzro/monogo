@@ -30,7 +30,6 @@ func RegisterRoutes(
 		idempotency,
 	)
 
-
 	numbers.RegisterRoutes(
 		router,
 		module.Numbers.Handler,
