@@ -12,6 +12,8 @@ import (
 	"github.com/coffeyvidzro/monogo/internal/integrations/coturn"
 	"github.com/coffeyvidzro/monogo/internal/integrations/freeswitch"
 	"github.com/coffeyvidzro/monogo/internal/integrations/minio"
+	"github.com/coffeyvidzro/monogo/internal/integrations/payments/paystack"
+	"github.com/coffeyvidzro/monogo/internal/integrations/payments/stripe"
 	"github.com/coffeyvidzro/monogo/internal/integrations/postgres"
 	redisintegration "github.com/coffeyvidzro/monogo/internal/integrations/redis"
 	"github.com/coffeyvidzro/monogo/internal/platform"
@@ -128,9 +130,41 @@ func newModules(ctx context.Context, cfg config.Config) (*modules, error) {
 	)
 	tenancyModule := tenancy.New(queries)
 	platformModule := platform.New(postgresClient.Pool(), queries)
+
+	var stripeClient *stripe.Client
+	if cfg.Stripe.SecretKey != "" || cfg.Stripe.WebhookSecret != "" {
+		if cfg.Stripe.SecretKey == "" || cfg.Stripe.WebhookSecret == "" {
+			closeDependencies()
+			return nil, fmt.Errorf("initialize Stripe payment provider: secret key and webhook secret are both required")
+		}
+		stripeConfig := stripe.DefaultConfig(
+			cfg.Stripe.SecretKey,
+			cfg.Stripe.WebhookSecret,
+		)
+		stripeConfig.BaseURL = cfg.Stripe.APIBaseURL
+		stripeClient, err = stripe.New(stripeConfig)
+		if err != nil {
+			closeDependencies()
+			return nil, fmt.Errorf("initialize Stripe payment provider: %w", err)
+		}
+	}
+
+	var paystackClient *paystack.Client
+	if cfg.Paystack.SecretKey != "" {
+		paystackConfig := paystack.DefaultConfig(cfg.Paystack.SecretKey)
+		paystackConfig.BaseURL = cfg.Paystack.APIBaseURL
+		paystackClient, err = paystack.New(paystackConfig)
+		if err != nil {
+			closeDependencies()
+			return nil, fmt.Errorf("initialize Paystack payment provider: %w", err)
+		}
+	}
+
 	commercialModule := commercial.New(commercial.Dependencies{
-		DB:      postgresClient.Pool(),
-		Queries: queries,
+		DB:       postgresClient.Pool(),
+		Queries:  queries,
+		Stripe:   stripeClient,
+		Paystack: paystackClient,
 	})
 	metricsRegistry := metrics.New(redisClient)
 	telecomModule, err := telecom.New(telecom.Dependencies{
