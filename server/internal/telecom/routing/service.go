@@ -57,7 +57,6 @@ func (s *Service) ResolveInbound(
 		VoiceBindingID:      req.VoiceBindingID,
 		CarrierConnectionID: req.CarrierConnectionID,
 		CalledNumber:        req.CalledNumber,
-		ProvisioningMode:    inbound.ProvisioningMode,
 		Limits:              inbound.Limits,
 	}, nil
 }

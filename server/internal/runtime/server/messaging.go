@@ -35,7 +35,7 @@ func registerMessagingProviderRoutes(router chi.Router, modules *modules) {
 			return
 		}
 		connection, err := modules.queries.GetMessagingConnection(r.Context(), id)
-		if err != nil || connection.Channel != "whatsapp" || connection.Scope != "organization" {
+		if err != nil || connection.Channel != "whatsapp" {
 			http.NotFound(w, r)
 			return
 		}
@@ -63,7 +63,7 @@ func registerMessagingProviderRoutes(router chi.Router, modules *modules) {
 			return
 		}
 		connection, err := modules.queries.GetMessagingConnection(r.Context(), id)
-		if err != nil || connection.Channel != "whatsapp" || connection.Scope != "organization" {
+		if err != nil || connection.Channel != "whatsapp" {
 			http.NotFound(w, r)
 			return
 		}
