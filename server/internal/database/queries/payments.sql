@@ -69,11 +69,11 @@ UPDATE payments
 SET
     status = 'succeeded',
     failure_code = NULL,
-    paid_at = sqlc.arg(paid_at)
+    paid_at = COALESCE(paid_at, sqlc.arg(paid_at))
 WHERE id = sqlc.arg(id)
   AND checkout_id = sqlc.arg(checkout_id)
   AND organization_id = sqlc.arg(organization_id)
-  AND status IN ('pending', 'processing')
+  AND status IN ('pending', 'processing', 'succeeded')
 RETURNING *;
 
 -- name: MarkPaymentAttemptFailed :one

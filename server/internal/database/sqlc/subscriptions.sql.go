@@ -16,13 +16,19 @@ const activateSubscription = `-- name: ActivateSubscription :one
 UPDATE subscriptions AS s
 SET
     status = 'active',
-    current_period_start = $1,
-    current_period_end = $2,
+    current_period_start = CASE
+        WHEN s.status = 'active' THEN s.current_period_start
+        ELSE $1
+    END,
+    current_period_end = CASE
+        WHEN s.status = 'active' THEN s.current_period_end
+        ELSE $2
+    END,
     started_at = COALESCE(s.started_at, $1),
     updated_at = NOW()
 WHERE s.id = $3
   AND s.organization_id = $4
-  AND s.status IN ('pending', 'past_due')
+  AND s.status IN ('pending', 'past_due', 'active')
   AND EXISTS (
       SELECT 1
       FROM organizations AS o

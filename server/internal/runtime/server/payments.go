@@ -122,23 +122,16 @@ func processPaymentProviderWebhook(
 			return err
 		}
 
-		payment, err = modules.commercial.Payments.Service.MarkSucceeded(
+		if _, err := modules.commercial.Checkout.Service.SettleSuccessfulProviderEvent(
 			ctx,
+			event,
 			payment,
-			paidAt,
-		)
-		if err != nil {
-			return err
-		}
-
-		if _, err := modules.commercial.Checkout.Service.Complete(
-			ctx,
-			payment.OrganizationID,
-			payment.CheckoutID,
 			paidAt,
 		); err != nil {
 			return err
 		}
+
+		return nil
 	}
 
 	_, err = modules.commercial.Payments.Service.MarkProviderEventProcessed(

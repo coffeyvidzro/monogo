@@ -31,6 +31,13 @@ func NewService(
 	}
 }
 
+func (s *Service) WithTx(tx pgx.Tx) *Service {
+	return &Service{
+		repo: s.repo.WithTx(tx),
+		now:  s.now,
+	}
+}
+
 func (s *Service) Create(
 	ctx context.Context,
 	req CreateRequest,
@@ -573,6 +580,14 @@ func (s *Service) applyMovement(
 	if err := normalizeMovementRequest(&req); err != nil {
 		return LedgerEntry{}, apperror.NewBadRequest(err.Error())
 	}
+	if s.db == nil {
+		return s.applyMovementWithRepository(
+			ctx,
+			s.repo,
+			direction,
+			req,
+		)
+	}
 
 	existing, err := s.repo.GetLedgerEntryByOperation(
 		ctx,
@@ -598,7 +613,29 @@ func (s *Service) applyMovement(
 		_ = tx.Rollback(ctx)
 	}()
 
-	repo := s.repo.WithTx(tx)
+	entry, err := s.applyMovementWithRepository(
+		ctx,
+		s.repo.WithTx(tx),
+		direction,
+		req,
+	)
+	if err != nil {
+		return LedgerEntry{}, err
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return LedgerEntry{}, apperror.NewInternal("commit wallet movement", err)
+	}
+
+	return entry, nil
+}
+
+func (s *Service) applyMovementWithRepository(
+	ctx context.Context,
+	repo *Repository,
+	direction string,
+	req MovementRequest,
+) (LedgerEntry, error) {
 
 	wallet, err := repo.LockActive(
 		ctx,
@@ -611,7 +648,7 @@ func (s *Service) applyMovement(
 		return LedgerEntry{}, apperror.NewInternal("lock wallet", err)
 	}
 
-	existing, err = repo.GetLedgerEntryByOperation(
+	existing, err := repo.GetLedgerEntryByOperation(
 		ctx,
 		req.OrganizationID,
 		req.OperationID,
@@ -620,10 +657,6 @@ func (s *Service) applyMovement(
 		if !sameMovement(existing, direction, req) {
 			return LedgerEntry{}, apperror.NewConflict("wallet operation conflicts with existing ledger entry")
 		}
-		if err := tx.Commit(ctx); err != nil {
-			return LedgerEntry{}, apperror.NewInternal("commit wallet replay", err)
-		}
-
 		return ledgerEntryFromRow(existing), nil
 	}
 	if !errors.Is(err, pgx.ErrNoRows) {
@@ -679,10 +712,6 @@ func (s *Service) applyMovement(
 		}
 
 		return LedgerEntry{}, apperror.NewInternal("create wallet ledger entry", err)
-	}
-
-	if err := tx.Commit(ctx); err != nil {
-		return LedgerEntry{}, apperror.NewInternal("commit wallet movement", err)
 	}
 
 	return ledgerEntryFromRow(entry), nil

@@ -145,11 +145,20 @@ func (q *Queries) ListUnprocessedPaymentProviderEvents(ctx context.Context, limi
 }
 
 const markPaymentProviderEventProcessed = `-- name: MarkPaymentProviderEventProcessed :one
-UPDATE payment_provider_events
-SET processed_at = $1
+WITH updated AS (
+    UPDATE payment_provider_events
+    SET processed_at = $1
+    WHERE id = $2
+      AND processed_at IS NULL
+    RETURNING id, payment_id, organization_id, provider, provider_event_id, event_type, payload_sha256, payload, received_at, processed_at
+)
+SELECT id, payment_id, organization_id, provider, provider_event_id, event_type, payload_sha256, payload, received_at, processed_at FROM updated
+UNION ALL
+SELECT id, payment_id, organization_id, provider, provider_event_id, event_type, payload_sha256, payload, received_at, processed_at
+FROM payment_provider_events
 WHERE id = $2
-  AND processed_at IS NULL
-RETURNING id, payment_id, organization_id, provider, provider_event_id, event_type, payload_sha256, payload, received_at, processed_at
+  AND processed_at IS NOT NULL
+LIMIT 1
 `
 
 type MarkPaymentProviderEventProcessedParams struct {

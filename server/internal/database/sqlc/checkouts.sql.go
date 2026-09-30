@@ -18,10 +18,10 @@ SET
     status = 'succeeded',
     next_action = 'none',
     provider_message = NULL,
-    completed_at = $1
+    completed_at = COALESCE(c.completed_at, $1)
 WHERE c.id = $2
   AND c.organization_id = $3
-  AND c.status = 'processing'
+  AND c.status IN ('processing', 'succeeded')
 RETURNING c.id, c.organization_id, c.purpose, c.subscription_id, c.reference, c.amount_micros, c.currency, c.status, c.provider, c.payment_method, c.next_action, c.provider_message, c.expires_at, c.failure_code, c.completed_at, c.created_at, c.updated_at
 `
 

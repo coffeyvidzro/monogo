@@ -25,6 +25,13 @@ func NewService(repo *Repository) *Service {
 	}
 }
 
+func (s *Service) WithTx(tx pgx.Tx) *Service {
+	return &Service{
+		repo: s.repo.WithTx(tx),
+		now:  s.now,
+	}
+}
+
 func (s *Service) Subscribe(
 	ctx context.Context,
 	req SubscribeRequest,

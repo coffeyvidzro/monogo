@@ -71,10 +71,10 @@ SET
     status = 'succeeded',
     next_action = 'none',
     provider_message = NULL,
-    completed_at = sqlc.arg(completed_at)
+    completed_at = COALESCE(c.completed_at, sqlc.arg(completed_at))
 WHERE c.id = sqlc.arg(checkout_id)
   AND c.organization_id = sqlc.arg(organization_id)
-  AND c.status = 'processing'
+  AND c.status IN ('processing', 'succeeded')
 RETURNING c.*;
 
 -- name: FailCheckout :one

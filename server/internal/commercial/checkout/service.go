@@ -49,6 +49,17 @@ func NewService(
 	}
 }
 
+func (s *Service) WithTx(tx pgx.Tx) *Service {
+	return &Service{
+		repo:          s.repo.WithTx(tx),
+		payments:      s.payments.WithTx(tx),
+		providers:     s.providers,
+		subscriptions: s.subscriptions.WithTx(tx),
+		wallets:       s.wallets.WithTx(tx),
+		now:           s.now,
+	}
+}
+
 func (s *Service) Create(
 	ctx context.Context,
 	req CreateRequest,
@@ -363,6 +374,68 @@ func (s *Service) Complete(
 	}
 
 	return checkoutFromRow(row), nil
+}
+
+func (s *Service) SettleSuccessfulProviderEvent(
+	ctx context.Context,
+	event payments.ProviderEvent,
+	payment payments.Payment,
+	paidAt time.Time,
+) (Checkout, error) {
+	if event.ID == uuid.Nil || payment.ID == uuid.Nil || event.PaymentID != payment.ID {
+		return Checkout{}, apperror.NewBadRequest("provider event does not match payment")
+	}
+	if event.OrganizationID != payment.OrganizationID {
+		return Checkout{}, apperror.NewBadRequest("provider event organization does not match payment")
+	}
+	if event.Provider != payment.Provider {
+		return Checkout{}, apperror.NewBadRequest("provider event provider does not match payment")
+	}
+	if paidAt.IsZero() {
+		paidAt = s.now().UTC()
+	}
+
+	tx, err := s.db.Begin(ctx)
+	if err != nil {
+		return Checkout{}, apperror.NewInternal("begin provider payment settlement", err)
+	}
+	defer func() {
+		_ = tx.Rollback(ctx)
+	}()
+
+	settlement := s.WithTx(tx)
+	settledPayment, err := settlement.payments.MarkSucceeded(
+		ctx,
+		payment,
+		paidAt,
+	)
+	if err != nil {
+		return Checkout{}, err
+	}
+
+	completed, err := settlement.Complete(
+		ctx,
+		settledPayment.OrganizationID,
+		settledPayment.CheckoutID,
+		paidAt,
+	)
+	if err != nil {
+		return Checkout{}, err
+	}
+
+	if _, err := settlement.payments.MarkProviderEventProcessed(
+		ctx,
+		event.ID,
+		s.now().UTC(),
+	); err != nil {
+		return Checkout{}, err
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return Checkout{}, apperror.NewInternal("commit provider payment settlement", err)
+	}
+
+	return completed, nil
 }
 
 func (s *Service) Fail(
