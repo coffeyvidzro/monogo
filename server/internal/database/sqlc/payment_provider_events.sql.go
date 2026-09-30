@@ -146,18 +146,18 @@ func (q *Queries) ListUnprocessedPaymentProviderEvents(ctx context.Context, limi
 
 const markPaymentProviderEventProcessed = `-- name: MarkPaymentProviderEventProcessed :one
 WITH updated AS (
-    UPDATE payment_provider_events
+    UPDATE payment_provider_events AS event
     SET processed_at = $1
-    WHERE id = $2
-      AND processed_at IS NULL
-    RETURNING id, payment_id, organization_id, provider, provider_event_id, event_type, payload_sha256, payload, received_at, processed_at
+    WHERE event.id = $2
+      AND event.processed_at IS NULL
+    RETURNING event.id, event.payment_id, event.organization_id, event.provider, event.provider_event_id, event.event_type, event.payload_sha256, event.payload, event.received_at, event.processed_at
 )
 SELECT id, payment_id, organization_id, provider, provider_event_id, event_type, payload_sha256, payload, received_at, processed_at FROM updated
 UNION ALL
-SELECT id, payment_id, organization_id, provider, provider_event_id, event_type, payload_sha256, payload, received_at, processed_at
-FROM payment_provider_events
-WHERE id = $2
-  AND processed_at IS NOT NULL
+SELECT event.id, event.payment_id, event.organization_id, event.provider, event.provider_event_id, event.event_type, event.payload_sha256, event.payload, event.received_at, event.processed_at
+FROM payment_provider_events AS event
+WHERE event.id = $2
+  AND event.processed_at IS NOT NULL
 LIMIT 1
 `
 
@@ -166,9 +166,22 @@ type MarkPaymentProviderEventProcessedParams struct {
 	ID          uuid.UUID          `db:"id" json:"id"`
 }
 
-func (q *Queries) MarkPaymentProviderEventProcessed(ctx context.Context, arg MarkPaymentProviderEventProcessedParams) (PaymentProviderEvent, error) {
+type MarkPaymentProviderEventProcessedRow struct {
+	ID              uuid.UUID          `db:"id" json:"id"`
+	PaymentID       uuid.UUID          `db:"payment_id" json:"payment_id"`
+	OrganizationID  uuid.UUID          `db:"organization_id" json:"organization_id"`
+	Provider        string             `db:"provider" json:"provider"`
+	ProviderEventID string             `db:"provider_event_id" json:"provider_event_id"`
+	EventType       string             `db:"event_type" json:"event_type"`
+	PayloadSha256   string             `db:"payload_sha256" json:"payload_sha256"`
+	Payload         []byte             `db:"payload" json:"payload"`
+	ReceivedAt      pgtype.Timestamptz `db:"received_at" json:"received_at"`
+	ProcessedAt     pgtype.Timestamptz `db:"processed_at" json:"processed_at"`
+}
+
+func (q *Queries) MarkPaymentProviderEventProcessed(ctx context.Context, arg MarkPaymentProviderEventProcessedParams) (MarkPaymentProviderEventProcessedRow, error) {
 	row := q.db.QueryRow(ctx, markPaymentProviderEventProcessed, arg.ProcessedAt, arg.ID)
-	var i PaymentProviderEvent
+	var i MarkPaymentProviderEventProcessedRow
 	err := row.Scan(
 		&i.ID,
 		&i.PaymentID,

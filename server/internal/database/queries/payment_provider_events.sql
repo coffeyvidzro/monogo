@@ -30,18 +30,18 @@ LIMIT 1;
 
 -- name: MarkPaymentProviderEventProcessed :one
 WITH updated AS (
-    UPDATE payment_provider_events
+    UPDATE payment_provider_events AS event
     SET processed_at = sqlc.arg(processed_at)
-    WHERE id = sqlc.arg(id)
-      AND processed_at IS NULL
-    RETURNING *
+    WHERE event.id = sqlc.arg(id)
+      AND event.processed_at IS NULL
+    RETURNING event.*
 )
 SELECT * FROM updated
 UNION ALL
-SELECT *
-FROM payment_provider_events
-WHERE id = sqlc.arg(id)
-  AND processed_at IS NOT NULL
+SELECT event.*
+FROM payment_provider_events AS event
+WHERE event.id = sqlc.arg(id)
+  AND event.processed_at IS NOT NULL
 LIMIT 1;
 
 -- name: ListUnprocessedPaymentProviderEvents :many

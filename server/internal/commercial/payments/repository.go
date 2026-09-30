@@ -184,11 +184,27 @@ func (r *Repository) MarkProviderEventProcessed(
 	id uuid.UUID,
 	processedAt time.Time,
 ) (sqlc.PaymentProviderEvent, error) {
-	return r.queries.MarkPaymentProviderEventProcessed(
+	row, err := r.queries.MarkPaymentProviderEventProcessed(
 		ctx,
 		sqlc.MarkPaymentProviderEventProcessedParams{
 			ProcessedAt: pgconv.TimeToTimestamptz(processedAt),
 			ID:          id,
 		},
 	)
+	if err != nil {
+		return sqlc.PaymentProviderEvent{}, err
+	}
+
+	return sqlc.PaymentProviderEvent{
+		ID:              row.ID,
+		PaymentID:       row.PaymentID,
+		OrganizationID:  row.OrganizationID,
+		Provider:        row.Provider,
+		ProviderEventID: row.ProviderEventID,
+		EventType:       row.EventType,
+		PayloadSha256:   row.PayloadSha256,
+		Payload:         row.Payload,
+		ReceivedAt:      row.ReceivedAt,
+		ProcessedAt:     row.ProcessedAt,
+	}, nil
 }
