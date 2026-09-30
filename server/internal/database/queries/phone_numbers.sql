@@ -1,7 +1,12 @@
 -- name: CreateBYOCPhoneNumber :one
 INSERT INTO phone_numbers (organization_id, number, country_code, carrier_connection_id, voice_enabled, sms_enabled)
-SELECT sqlc.arg(organization_id), sqlc.arg(number), sqlc.arg(country_code), sqlc.narg(carrier_connection_id),
-       COALESCE(sqlc.narg(voice_enabled), true), COALESCE(sqlc.narg(sms_enabled), false)
+SELECT
+    sqlc.arg(organization_id) AS organization_id,
+    sqlc.arg(number) AS number,
+    sqlc.arg(country_code) AS country_code,
+    sqlc.narg(carrier_connection_id) AS carrier_connection_id,
+    COALESCE(sqlc.narg(voice_enabled), true) AS voice_enabled,
+    COALESCE(sqlc.narg(sms_enabled), false) AS sms_enabled
 FROM organizations AS o
 LEFT JOIN carrier_connections AS cc
   ON cc.id = sqlc.narg(carrier_connection_id)::UUID

@@ -1,13 +1,15 @@
 -- name: CreateTrunk :one
 INSERT INTO trunks (organization_id, carrier_connection_id, name, direction, status)
-SELECT cc.organization_id, cc.id, sqlc.arg(name),
-       COALESCE(sqlc.narg(direction), 'bidirectional'),
-       COALESCE(sqlc.narg(status), 'active')
+SELECT
+    cc.organization_id AS organization_id,
+    cc.id AS carrier_connection_id,
+    sqlc.arg(name) AS name,
+    COALESCE(sqlc.narg(direction), 'bidirectional') AS direction,
+    COALESCE(sqlc.narg(status), 'active') AS status
 FROM carrier_connections AS cc
 WHERE cc.id = sqlc.arg(carrier_connection_id)
   AND cc.organization_id = sqlc.arg(organization_id)
   AND cc.status = 'active'
-  AND cp.status = 'active'
 RETURNING *;
 
 -- name: GetTrunkByID :one
