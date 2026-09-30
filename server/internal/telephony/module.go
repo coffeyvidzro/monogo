@@ -11,7 +11,7 @@ import (
 	"github.com/coffeyvidzro/monogo/internal/telephony/carriers"
 	"github.com/coffeyvidzro/monogo/internal/telephony/conferences"
 	"github.com/coffeyvidzro/monogo/internal/telephony/numbers"
-	"github.com/coffeyvidzro/monogo/internal/telephony/realtime"
+	"github.com/coffeyvidzro/monogo/internal/telephony/webrtc"
 	"github.com/coffeyvidzro/monogo/internal/telephony/recordings"
 	"github.com/coffeyvidzro/monogo/internal/telephony/routing"
 	"github.com/coffeyvidzro/monogo/internal/telephony/sip_domains"
@@ -28,7 +28,7 @@ type Dependencies struct {
 	CallsAdmission       *calling.AdmissionLimiter
 	ConferenceController conferences.Controller
 	CredentialCipher     *encryption.Cipher
-	RealtimeService      *realtime.Service
+	WebRTCService      *webrtc.Service
 	RecordingStorage     recordings.Storage
 	Metrics              *metrics.Registry
 }
@@ -38,7 +38,7 @@ type Module struct {
 	Carriers    CarriersModule
 	Conferences ConferencesModule
 	Numbers     NumbersModule
-	Realtime    RealtimeModule
+	Realtime    WebRTCModule
 	Recordings  RecordingsModule
 	Routing     RoutingModule
 	SIPDomains  SIPDomainsModule
@@ -71,9 +71,9 @@ type NumbersModule struct {
 	Handler    *numbers.Handler
 }
 
-type RealtimeModule struct {
-	Service *realtime.Service
-	Handler *realtime.Handler
+type WebRTCModule struct {
+	Service *webrtc.Service
+	Handler *webrtc.Handler
 }
 
 type RecordingsModule struct {
@@ -201,9 +201,9 @@ func New(deps Dependencies) (*Module, error) {
 			Service:    trunksService,
 			Handler:    trunks.NewHandler(trunksService),
 		},
-		Realtime: RealtimeModule{
-			Service: deps.RealtimeService,
-			Handler: realtime.NewHandler(deps.RealtimeService),
+		WebRTC: WebRTCModule{
+			Service: deps.WebRTCService,
+			Handler: webrtc.NewHandler(deps.WebRTCService),
 		},
 	}, nil
 }

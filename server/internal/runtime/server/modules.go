@@ -22,7 +22,7 @@ import (
 	"github.com/coffeyvidzro/monogo/internal/security/encryption"
 	"github.com/coffeyvidzro/monogo/internal/telephony"
 	"github.com/coffeyvidzro/monogo/internal/telephony/conferences"
-	"github.com/coffeyvidzro/monogo/internal/telephony/realtime"
+	"github.com/coffeyvidzro/monogo/internal/telephony/webrtc"
 	"github.com/coffeyvidzro/monogo/internal/telephony/recordings"
 	"github.com/coffeyvidzro/monogo/internal/tenancy"
 )
@@ -91,7 +91,7 @@ func newModules(ctx context.Context, cfg config.Config) (*modules, error) {
 		closeDependencies()
 		return nil, fmt.Errorf("initialize Coturn integration: %w", err)
 	}
-	turnService, err := realtime.NewService(coturnClient, redisClient)
+	turnService, err := webrtc.NewService(coturnClient, redisClient)
 	if err != nil {
 		closeDependencies()
 		return nil, fmt.Errorf("initialize TURN credentials: %w", err)
@@ -124,7 +124,7 @@ func newModules(ctx context.Context, cfg config.Config) (*modules, error) {
 		CallsAdmission:       calling.NewAdmissionLimiter(redisClient),
 		ConferenceController: conferences.NewFreeSWITCHController(freeSwitch),
 		CredentialCipher:     credentialCipher,
-		RealtimeService:      turnService,
+		WebRTCService:      turnService,
 		RecordingStorage:     recordingStorage,
 		Metrics:              metricsRegistry,
 	})

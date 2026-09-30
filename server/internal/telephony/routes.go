@@ -9,7 +9,7 @@ import (
 	"github.com/coffeyvidzro/monogo/internal/telephony/carriers"
 	"github.com/coffeyvidzro/monogo/internal/telephony/conferences"
 	"github.com/coffeyvidzro/monogo/internal/telephony/numbers"
-	"github.com/coffeyvidzro/monogo/internal/telephony/realtime"
+	"github.com/coffeyvidzro/monogo/internal/telephony/webrtc"
 	"github.com/coffeyvidzro/monogo/internal/telephony/recordings"
 	"github.com/coffeyvidzro/monogo/internal/telephony/sip_domains"
 	"github.com/coffeyvidzro/monogo/internal/telephony/subscribers"
@@ -74,9 +74,9 @@ func RegisterRoutes(
 		organizationAccess("conferences"),
 	)
 
-	realtime.RegisterRoutes(
+	webrtc.RegisterRoutes(
 		router,
-		module.Realtime.Handler,
-		organizationAccess("realtime"),
+		module.WebRTC.Handler,
+		organizationAccess("webrtc"),
 	)
 }

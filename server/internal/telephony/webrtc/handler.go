@@ -1,4 +1,4 @@
-package realtime
+package webrtc
 
 import (
 	"errors"
@@ -15,7 +15,7 @@ type Handler struct {
 
 func NewHandler(service *Service) *Handler {
 	if service == nil {
-		panic("realtime: service is required")
+		panic("webrtc: service is required")
 	}
 	return &Handler{service: service}
 }

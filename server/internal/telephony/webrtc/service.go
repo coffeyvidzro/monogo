@@ -1,4 +1,4 @@
-package realtime
+package webrtc
 
 import (
 	"context"
