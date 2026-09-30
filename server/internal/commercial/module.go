@@ -8,12 +8,16 @@ import (
 	"github.com/coffeyvidzro/monogo/internal/commercial/subscriptions"
 	"github.com/coffeyvidzro/monogo/internal/commercial/wallets"
 	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
+	"github.com/coffeyvidzro/monogo/internal/integrations/payments/paystack"
+	"github.com/coffeyvidzro/monogo/internal/integrations/payments/stripe"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type Dependencies struct {
-	DB      *pgxpool.Pool
-	Queries *sqlc.Queries
+	DB       *pgxpool.Pool
+	Queries  *sqlc.Queries
+	Stripe   *stripe.Client
+	Paystack *paystack.Client
 }
 
 type Module struct {
@@ -34,6 +38,7 @@ type CheckoutModule struct {
 type PaymentsModule struct {
 	Repository *payments.Repository
 	Service    *payments.Service
+	Providers  *payments.ProviderService
 }
 
 type WalletsModule struct {
@@ -79,6 +84,10 @@ func New(deps Dependencies) *Module {
 
 	paymentsRepository := payments.NewRepository(deps.Queries)
 	paymentsService := payments.NewService(paymentsRepository)
+	paymentProviders := payments.NewProviderService(
+		deps.Stripe,
+		deps.Paystack,
+	)
 
 	checkoutRepository := checkout.NewRepository(deps.Queries)
 	checkoutService := checkout.NewService(
@@ -103,6 +112,7 @@ func New(deps Dependencies) *Module {
 		Payments: PaymentsModule{
 			Repository: paymentsRepository,
 			Service:    paymentsService,
+			Providers:  paymentProviders,
 		},
 		Wallets: WalletsModule{
 			Repository: walletsRepository,
