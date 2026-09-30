@@ -34,7 +34,7 @@ type modules struct {
 	freeSwitch              *freeswitch.Client
 	callsService            *calls.Service
 	callConsumer            *calls.Consumer
-	agentRuntime                 *agent.Runtime
+	agentRuntime            *agent.Runtime
 	callReconciliation      *calls.ReconciliationJob
 	outbox                  *outbox.PublisherJob
 	webhookConsumer         *webhooks.Consumer
@@ -119,7 +119,7 @@ func newModules(ctx context.Context, cfg config.Config, logger *logging.Logger) 
 		CredentialCipher: credentialCipher,
 		Calls:            callsService,
 	})
-	agentRuntimeRuntime, err := agent.New(
+	agentRuntime, err := agent.New(
 		aiModule.Orchestration,
 		freeSwitch,
 		agent.DefaultConfig(cfg.MediaControlURL, cfg.MediaControlToken),
@@ -127,7 +127,7 @@ func newModules(ctx context.Context, cfg config.Config, logger *logging.Logger) 
 	)
 	if err != nil {
 		closeDependencies()
-		return nil, fmt.Errorf("initialize Voice Agent runtime: %w", err)
+		return nil, fmt.Errorf("initialize agent runtime: %w", err)
 	}
 
 	callConsumer := calls.NewConsumer(callsService)
@@ -217,7 +217,7 @@ func newModules(ctx context.Context, cfg config.Config, logger *logging.Logger) 
 		freeSwitch:              freeSwitch,
 		callsService:            callsService,
 		callConsumer:            callConsumer,
-		agentRuntime:                 agentRuntimeRuntime,
+		agentRuntime:            agentRuntime,
 		callReconciliation:      callReconciliation,
 		outbox:                  outboxJob,
 		webhookConsumer:         webhooks.NewConsumer(natsClient, webhookService),

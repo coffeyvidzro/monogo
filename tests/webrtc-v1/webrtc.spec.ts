@@ -59,7 +59,7 @@ test("browser call uses a forced TURN relay through RTPengine", async ({
 
     try {
         const iceResponse = await request.post(
-            `${apiURL}/v1/realtime/ice-credentials`,
+            `${apiURL}/v1/webrtc/ice-credentials`,
             { headers },
         );
         expect(iceResponse.ok(), await iceResponse.text()).toBeTruthy();

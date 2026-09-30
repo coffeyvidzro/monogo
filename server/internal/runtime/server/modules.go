@@ -124,7 +124,7 @@ func newModules(ctx context.Context, cfg config.Config) (*modules, error) {
 		CallsAdmission:       calling.NewAdmissionLimiter(redisClient),
 		ConferenceController: conferences.NewFreeSWITCHController(freeSwitch),
 		CredentialCipher:     credentialCipher,
-		WebRTCService:      turnService,
+		WebRTCService:        turnService,
 		RecordingStorage:     recordingStorage,
 		Metrics:              metricsRegistry,
 	})

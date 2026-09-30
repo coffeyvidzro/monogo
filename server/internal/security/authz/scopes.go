@@ -11,16 +11,12 @@ const (
 	// updating, and revoking organization tokens requires an owner/admin session
 	// so a compromised token cannot mint a more privileged replacement.
 	ScopeCredentialsRead        Scope = "credentials:read"
-	ScopeLicensingRead          Scope = "licensing:read"
-	ScopeLicensingWrite         Scope = "licensing:write"
 	ScopeVoiceApplicationsRead  Scope = "voice-applications:read"
 	ScopeVoiceApplicationsWrite Scope = "voice-applications:write"
 	ScopeVoiceAgentsRead        Scope = "voice-agents:read"
 	ScopeVoiceAgentsWrite       Scope = "voice-agents:write"
 	ScopeCallsRead              Scope = "calls:read"
 	ScopeCallsWrite             Scope = "calls:write"
-	ScopeMessagesRead           Scope = "messages:read"
-	ScopeMessagesWrite          Scope = "messages:write"
 	ScopeRecordingsRead         Scope = "recordings:read"
 	ScopeRecordingsWrite        Scope = "recordings:write"
 	ScopeSubscribersRead        Scope = "subscribers:read"
@@ -39,8 +35,8 @@ const (
 	ScopeAuditWrite             Scope = "audit:write"
 	ScopeConferencesRead        Scope = "conferences:read"
 	ScopeConferencesWrite       Scope = "conferences:write"
-	ScopeRealtimeRead           Scope = "realtime:read"
-	ScopeRealtimeWrite          Scope = "realtime:write"
+	ScopeWebRTCRead           Scope = "webrtc:read"
+	ScopeWebRTCWrite          Scope = "webrtc:write"
 )
 
 func (s Scope) IsValid() bool {
@@ -48,13 +44,9 @@ func (s Scope) IsValid() bool {
 	case ScopeOrganizationRead,
 		ScopeMembersRead,
 		ScopeMembersWrite,
-		ScopeCredentialsRead,
-		ScopeLicensingRead, ScopeLicensingWrite,
-		ScopeVoiceApplicationsRead, ScopeVoiceApplicationsWrite,
+		ScopeCredentialsRead,		ScopeVoiceApplicationsRead, ScopeVoiceApplicationsWrite,
 		ScopeVoiceAgentsRead, ScopeVoiceAgentsWrite,
-		ScopeCallsRead, ScopeCallsWrite,
-		ScopeMessagesRead, ScopeMessagesWrite,
-		ScopeRecordingsRead, ScopeRecordingsWrite,
+		ScopeCallsRead, ScopeCallsWrite,		ScopeRecordingsRead, ScopeRecordingsWrite,
 		ScopeSubscribersRead, ScopeSubscribersWrite,
 		ScopeNumbersRead, ScopeNumbersWrite,
 		ScopeSIPDomainsRead, ScopeSIPDomainsWrite,
@@ -63,7 +55,7 @@ func (s Scope) IsValid() bool {
 		ScopeWebhooksRead, ScopeWebhooksWrite,
 		ScopeAuditRead, ScopeAuditWrite,
 		ScopeConferencesRead, ScopeConferencesWrite,
-		ScopeRealtimeRead, ScopeRealtimeWrite:
+		ScopeWebRTCRead, ScopeWebRTCWrite:
 		return true
 	default:
 		return false

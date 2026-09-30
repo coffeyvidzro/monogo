@@ -365,11 +365,11 @@ media/
 runtime/
   calling/
   media/
-  voiceai/
+  agent/
   server/
   worker/
 
-telecom/
+telephony/
   calls/
   routing/
   trunks/

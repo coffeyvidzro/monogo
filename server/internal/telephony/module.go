@@ -28,7 +28,7 @@ type Dependencies struct {
 	CallsAdmission       *calling.AdmissionLimiter
 	ConferenceController conferences.Controller
 	CredentialCipher     *encryption.Cipher
-	WebRTCService      *webrtc.Service
+	WebRTCService        *webrtc.Service
 	RecordingStorage     recordings.Storage
 	Metrics              *metrics.Registry
 }
@@ -38,7 +38,7 @@ type Module struct {
 	Carriers    CarriersModule
 	Conferences ConferencesModule
 	Numbers     NumbersModule
-	Realtime    WebRTCModule
+	WebRTC      WebRTCModule
 	Recordings  RecordingsModule
 	Routing     RoutingModule
 	SIPDomains  SIPDomainsModule

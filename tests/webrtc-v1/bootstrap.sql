@@ -16,7 +16,7 @@ VALUES (
     'webrtc-v1-acceptance',
     'Y6rtC8BR465xPLxeDGcWiQyGBL6zR5L9JcqWYj8naWE',
     'lm_org_v1smoke0',
-    '["calls:read","calls:write","realtime:read","realtime:write","sip-domains:read","sip-domains:write","subscribers:read","subscribers:write"]'::jsonb
+    '["calls:read","calls:write","webrtc:read","webrtc:write","sip-domains:read","sip-domains:write","subscribers:read","subscribers:write"]'::jsonb
 )
 ON CONFLICT (id) DO NOTHING;
 
