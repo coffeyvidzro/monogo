@@ -2,19 +2,15 @@ package payments
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"fmt"
 	"strings"
 	"time"
 
-	"github.com/coffeyvidzro/monogo/internal/integrations/payments/paystack"
 	"github.com/coffeyvidzro/monogo/internal/integrations/payments/stripe"
 )
 
 type ProviderService struct {
-	Stripe   *stripe.Client
-	Paystack *paystack.Client
+	Stripe *stripe.Client
 }
 
 type StartRequest struct {
@@ -33,157 +29,76 @@ type StartResult struct {
 	ProviderMessage   *string
 }
 
-func NewProviderService(
-	stripeClient *stripe.Client,
-	paystackClient *paystack.Client,
-) *ProviderService {
-	return &ProviderService{
-		Stripe:   stripeClient,
-		Paystack: paystackClient,
-	}
+func NewProviderService(stripeClient *stripe.Client) *ProviderService {
+	return &ProviderService{Stripe: stripeClient}
 }
 
-func (s *ProviderService) Start(
-	ctx context.Context,
-	req StartRequest,
-) (StartResult, error) {
+func (s *ProviderService) Start(ctx context.Context, req StartRequest) (StartResult, error) {
+	if req.Payment.Provider != "stripe" {
+		return StartResult{}, fmt.Errorf("unsupported payment provider %q", req.Payment.Provider)
+	}
+	if s == nil || s.Stripe == nil {
+		return StartResult{}, fmt.Errorf("stripe provider is not configured")
+	}
 	amountMinor, err := microsToMinor(req.Payment.AmountMicros)
 	if err != nil {
 		return StartResult{}, err
 	}
-
-	switch req.Payment.Provider {
-	case "stripe":
-		if s == nil || s.Stripe == nil {
-			return StartResult{}, fmt.Errorf("stripe provider is not configured")
-		}
-		productName := "Monogo subscription"
-		if req.Purpose == "wallet_topup" {
-			productName = "Wallet top-up"
-		}
-		session, err := s.Stripe.CreateCheckoutSession(
-			ctx,
-			stripe.CreateCheckoutSessionRequest{
-				AmountMinor:    amountMinor,
-				Currency:       req.Payment.Currency,
-				Reference:      req.Reference,
-				IdempotencyKey: req.Payment.ID.String(),
-				ProductName:    productName,
-			},
-		)
-		if err != nil {
-			return StartResult{}, fmt.Errorf("create Stripe checkout session: %w", err)
-		}
-		if strings.TrimSpace(session.ID) == "" || strings.TrimSpace(session.ClientSecret) == "" {
-			return StartResult{}, fmt.Errorf("stripe checkout session is incomplete")
-		}
-		if session.AmountTotal != amountMinor ||
-			strings.ToUpper(session.Currency) != req.Payment.Currency {
-			return StartResult{}, fmt.Errorf("stripe checkout amount or currency does not match payment")
-		}
-		clientSecret := session.ClientSecret
-		return StartResult{
-			ProviderPaymentID: session.ID,
-			ClientSecret:      &clientSecret,
-			NextAction:        "wait",
-		}, nil
-
-	case "paystack":
-		if s == nil || s.Paystack == nil {
-			return StartResult{}, fmt.Errorf("paystack provider is not configured")
-		}
-		charge, err := s.Paystack.ChargeMobileMoney(
-			ctx,
-			paystack.ChargeRequest{
-				Email:       req.Email,
-				AmountMinor: amountMinor,
-				Currency:    req.Payment.Currency,
-				Reference:   req.Reference,
-				MobileMoney: paystack.MobileMoney{
-					Phone:   req.Phone,
-					Network: paystack.MobileMoneyNetwork(req.MobileNetwork),
-				},
-			},
-		)
-		if err != nil {
-			return StartResult{}, fmt.Errorf("create Paystack mobile money charge: %w", err)
-		}
-		if charge.Reference != req.Reference {
-			return StartResult{}, fmt.Errorf("paystack returned an unexpected charge reference")
-		}
-		state := paystack.MapCharge(charge)
-		message := strings.TrimSpace(state.Message)
-		var providerMessage *string
-		if message != "" {
-			providerMessage = &message
-		}
-		return StartResult{
-			ProviderPaymentID: charge.Reference,
-			NextAction:        state.NextAction,
-			ProviderMessage:   providerMessage,
-		}, nil
-
-	default:
-		return StartResult{}, fmt.Errorf("unsupported payment provider %q", req.Payment.Provider)
+	productName := "Monogo subscription"
+	if req.Purpose == "wallet_topup" {
+		productName = "Wallet top-up"
 	}
+	session, err := s.Stripe.CreateCheckoutSession(ctx, stripe.CreateCheckoutSessionRequest{
+		AmountMinor: amountMinor,
+		Currency: req.Payment.Currency,
+		Reference: req.Reference,
+		IdempotencyKey: req.Payment.ID.String(),
+		ProductName: productName,
+	})
+	if err != nil {
+		return StartResult{}, fmt.Errorf("create Stripe checkout session: %w", err)
+	}
+	if strings.TrimSpace(session.ID) == "" || strings.TrimSpace(session.ClientSecret) == "" {
+		return StartResult{}, fmt.Errorf("stripe checkout session is incomplete")
+	}
+	if session.AmountTotal != amountMinor || strings.ToUpper(session.Currency) != req.Payment.Currency {
+		return StartResult{}, fmt.Errorf("stripe checkout amount or currency does not match payment")
+	}
+	clientSecret := session.ClientSecret
+	return StartResult{
+		ProviderPaymentID: session.ID,
+		ClientSecret: &clientSecret,
+		NextAction: "wait",
+	}, nil
 }
 
-func (s *ProviderService) Verify(
-	ctx context.Context,
-	payment Payment,
-) (time.Time, error) {
+func (s *ProviderService) Verify(ctx context.Context, payment Payment) (time.Time, error) {
+	if payment.Provider != "stripe" {
+		return time.Time{}, fmt.Errorf("unsupported payment provider %q", payment.Provider)
+	}
 	if payment.ProviderPaymentID == nil || strings.TrimSpace(*payment.ProviderPaymentID) == "" {
 		return time.Time{}, fmt.Errorf("payment provider id is required")
 	}
-
+	if s == nil || s.Stripe == nil {
+		return time.Time{}, fmt.Errorf("stripe provider is not configured")
+	}
 	amountMinor, err := microsToMinor(payment.AmountMicros)
 	if err != nil {
 		return time.Time{}, err
 	}
-
-	switch payment.Provider {
-	case "stripe":
-		if s == nil || s.Stripe == nil {
-			return time.Time{}, fmt.Errorf("stripe provider is not configured")
-		}
-		session, err := s.Stripe.RetrieveCheckoutSession(ctx, *payment.ProviderPaymentID)
-		if err != nil {
-			return time.Time{}, fmt.Errorf("retrieve Stripe checkout session: %w", err)
-		}
-		if session.ID != *payment.ProviderPaymentID {
-			return time.Time{}, fmt.Errorf("stripe returned an unexpected checkout session")
-		}
-		if session.Status != "complete" || session.PaymentStatus != "paid" {
-			return time.Time{}, fmt.Errorf("stripe payment is not settled")
-		}
-		if session.AmountTotal != amountMinor ||
-			strings.ToUpper(session.Currency) != payment.Currency {
-			return time.Time{}, fmt.Errorf("stripe settlement amount or currency does not match payment")
-		}
-
-	case "paystack":
-		if s == nil || s.Paystack == nil {
-			return time.Time{}, fmt.Errorf("paystack provider is not configured")
-		}
-		transaction, err := s.Paystack.VerifyTransaction(ctx, *payment.ProviderPaymentID)
-		if err != nil {
-			return time.Time{}, fmt.Errorf("verify Paystack transaction: %w", err)
-		}
-		if transaction.Reference != *payment.ProviderPaymentID {
-			return time.Time{}, fmt.Errorf("paystack returned an unexpected transaction reference")
-		}
-		if transaction.Status != "success" {
-			return time.Time{}, fmt.Errorf("paystack payment is not settled")
-		}
-		if transaction.AmountMinor != amountMinor ||
-			strings.ToUpper(transaction.Currency) != payment.Currency {
-			return time.Time{}, fmt.Errorf("paystack settlement amount or currency does not match payment")
-		}
-
-	default:
-		return time.Time{}, fmt.Errorf("unsupported payment provider %q", payment.Provider)
+	session, err := s.Stripe.RetrieveCheckoutSession(ctx, *payment.ProviderPaymentID)
+	if err != nil {
+		return time.Time{}, fmt.Errorf("retrieve Stripe checkout session: %w", err)
 	}
-
+	if session.ID != *payment.ProviderPaymentID {
+		return time.Time{}, fmt.Errorf("stripe returned an unexpected checkout session")
+	}
+	if session.Status != "complete" || session.PaymentStatus != "paid" {
+		return time.Time{}, fmt.Errorf("stripe payment is not settled")
+	}
+	if session.AmountTotal != amountMinor || strings.ToUpper(session.Currency) != payment.Currency {
+		return time.Time{}, fmt.Errorf("stripe settlement amount or currency does not match payment")
+	}
 	return time.Now().UTC(), nil
 }
 
@@ -202,15 +117,10 @@ type ProviderWebhook struct {
 	EventType         string
 }
 
-func (s *ProviderService) ParseStripeWebhook(
-	payload []byte,
-	signature string,
-	now time.Time,
-) (ProviderWebhook, error) {
+func (s *ProviderService) ParseStripeWebhook(payload []byte, signature string, now time.Time) (ProviderWebhook, error) {
 	if s == nil || s.Stripe == nil {
 		return ProviderWebhook{}, fmt.Errorf("stripe provider is not configured")
 	}
-
 	event, err := s.Stripe.ParseWebhook(payload, signature, now)
 	if err != nil {
 		return ProviderWebhook{}, err
@@ -219,45 +129,16 @@ func (s *ProviderService) ParseStripeWebhook(
 	if err != nil {
 		return ProviderWebhook{}, err
 	}
-
 	return ProviderWebhook{
-		Provider:          "stripe",
+		Provider: "stripe",
 		ProviderPaymentID: session.ID,
-		ProviderEventID:   event.ID,
-		EventType:         event.Type,
-	}, nil
-}
-
-func (s *ProviderService) ParsePaystackWebhook(
-	payload []byte,
-	signature string,
-) (ProviderWebhook, error) {
-	if s == nil || s.Paystack == nil {
-		return ProviderWebhook{}, fmt.Errorf("paystack provider is not configured")
-	}
-
-	event, err := s.Paystack.ParseWebhook(payload, signature)
-	if err != nil {
-		return ProviderWebhook{}, err
-	}
-
-	sum := sha256.Sum256(payload)
-	return ProviderWebhook{
-		Provider:          "paystack",
-		ProviderPaymentID: event.Data.Reference,
-		ProviderEventID:   event.Event + ":" + event.Data.Reference + ":" + hex.EncodeToString(sum[:]),
-		EventType:         event.Event,
+		ProviderEventID: event.ID,
+		EventType: event.Type,
 	}, nil
 }
 
 func IsSuccessfulProviderEvent(provider, eventType string) bool {
-	switch provider {
-	case "stripe":
-		return eventType == "checkout.session.completed" ||
-			eventType == "checkout.session.async_payment_succeeded"
-	case "paystack":
-		return eventType == "charge.success"
-	default:
-		return false
-	}
+	return provider == "stripe" &&
+		(eventType == "checkout.session.completed" ||
+			eventType == "checkout.session.async_payment_succeeded")
 }

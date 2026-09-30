@@ -99,36 +99,6 @@ func (h *Handler) Confirm(
 	httputil.OK(w, result)
 }
 
-func (h *Handler) Continue(
-	w http.ResponseWriter,
-	r *http.Request,
-) {
-	organizationID, checkoutID, err := checkoutRequestIDs(r)
-	if err != nil {
-		httputil.Error(w, err)
-		return
-	}
-
-	req, err := helper.DecodeJSON[ContinueRequest](r)
-	if err != nil {
-		httputil.Error(w, err)
-		return
-	}
-	req.OrganizationID = organizationID
-	req.CheckoutID = checkoutID
-
-	result, err := h.service.Continue(
-		r.Context(),
-		req,
-	)
-	if err != nil {
-		httputil.Error(w, err)
-		return
-	}
-
-	httputil.OK(w, result)
-}
-
 func checkoutRequestIDs(r *http.Request) (uuid.UUID, uuid.UUID, error) {
 	organizationID, err := checkoutOrganizationID(r)
 	if err != nil {

@@ -2,7 +2,6 @@ package checkout
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -14,7 +13,6 @@ import (
 	"github.com/coffeyvidzro/monogo/internal/commercial/subscriptions"
 	"github.com/coffeyvidzro/monogo/internal/commercial/wallets"
 	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
-	"github.com/coffeyvidzro/monogo/internal/integrations/payments/paystack"
 	"github.com/coffeyvidzro/monogo/internal/integrations/payments/stripe"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -160,61 +158,6 @@ func TestConfirmCheckoutCreatesInternalPaymentAttempt(t *testing.T) {
 	}
 }
 
-func TestContinueCheckoutRejectsUnsupportedProvider(t *testing.T) {
-	service, pool, organizationID, subscriptionID := newCheckoutTestService(t)
-	now := time.Date(2026, time.September, 29, 13, 0, 0, 0, time.UTC)
-	service.now = func() time.Time { return now }
-
-	checkout, err := service.Create(
-		context.Background(),
-		CreateRequest{
-			OrganizationID: organizationID,
-			Purpose:        PurposeSubscription,
-			SubscriptionID: &subscriptionID,
-		},
-	)
-	if err != nil {
-		t.Fatalf("create checkout: %v", err)
-	}
-	if _, err := service.Confirm(
-		context.Background(),
-		ConfirmRequest{
-			OrganizationID: organizationID,
-			CheckoutID:     checkout.ID,
-			Provider:       ProviderStripe,
-			PaymentMethod:  PaymentMethodCard,
-		},
-	); err != nil {
-		t.Fatalf("confirm checkout: %v", err)
-	}
-
-	if _, err := pool.Exec(
-		context.Background(),
-		`UPDATE checkouts
-		 SET next_action = 'submit_otp',
-		     provider_message = 'Enter the OTP'
-		 WHERE id = $1`,
-		checkout.ID,
-	); err != nil {
-		t.Fatalf("set checkout continuation action: %v", err)
-	}
-
-	otp := "123456"
-	if _, err := service.Continue(
-		context.Background(),
-		ContinueRequest{
-			OrganizationID: organizationID,
-			CheckoutID:     checkout.ID,
-			Action:         ActionSubmitOTP,
-			OTP:            &otp,
-		},
-	); err == nil {
-		t.Fatal("stripe checkout continuation succeeded")
-	}
-
-	assertCheckoutNextAction(t, pool, checkout.ID, ActionSubmitOTP)
-}
-
 func TestConfirmCheckoutRollsBackOnConflictingPaymentAttempt(t *testing.T) {
 	service, pool, organizationID, subscriptionID := newCheckoutTestService(t)
 	now := time.Date(2026, time.September, 29, 13, 0, 0, 0, time.UTC)
@@ -243,7 +186,7 @@ func TestConfirmCheckoutRollsBackOnConflictingPaymentAttempt(t *testing.T) {
 			amount_micros,
 			currency,
 			status
-		) VALUES ($1, $2, 'paystack', 'mobile_money', 1, $3, 'USD', 'pending')`,
+		) VALUES ($1, $2, 'stripe', 'card', 1, $3 + 1, 'USD', 'pending')`,
 		checkout.ID,
 		organizationID,
 		testSubscriptionAmountMicros,
@@ -324,7 +267,7 @@ func TestConfirmCheckoutRollsBackWhenActivePaymentConflicts(t *testing.T) {
 			attempt,
 			amount_micros,
 			currency
-		) VALUES ($1, $2, 'paystack', 'mobile_money', 1, $3, 'USD')`,
+		) VALUES ($1, $2, 'stripe', 'card', 1, $3 + 1, 'USD')`,
 		checkout.ID,
 		organizationID,
 		testSubscriptionAmountMicros,
@@ -364,98 +307,6 @@ func TestConfirmCheckoutRollsBackWhenActivePaymentConflicts(t *testing.T) {
 	if provider != nil || paymentMethod != nil {
 		t.Fatalf("payment binding persisted after rollback: provider=%v method=%v", provider, paymentMethod)
 	}
-}
-
-func TestContinueRejectsStaleAction(t *testing.T) {
-	service, pool, organizationID, subscriptionID := newCheckoutTestService(t)
-	now := time.Date(2026, time.September, 29, 13, 0, 0, 0, time.UTC)
-	service.now = func() time.Time { return now }
-
-	checkout := createConfirmedCheckoutForContinuation(
-		t,
-		service,
-		pool,
-		organizationID,
-		subscriptionID,
-		ActionSubmitOTP,
-	)
-
-	phone := "+233201234567"
-	if _, err := service.Continue(
-		context.Background(),
-		ContinueRequest{
-			OrganizationID: organizationID,
-			CheckoutID:     checkout.ID,
-			Action:         ActionSubmitPhone,
-			Phone:          &phone,
-		},
-	); err == nil {
-		t.Fatal("stale continuation action succeeded")
-	}
-
-	assertCheckoutNextAction(t, pool, checkout.ID, ActionSubmitOTP)
-}
-
-func TestContinueAuthorizeMobileMoneyAdvancesToWait(t *testing.T) {
-	service, pool, organizationID, subscriptionID := newCheckoutTestService(t)
-	now := time.Date(2026, time.September, 29, 13, 0, 0, 0, time.UTC)
-	service.now = func() time.Time { return now }
-
-	checkout := createConfirmedCheckoutForContinuation(
-		t,
-		service,
-		pool,
-		organizationID,
-		subscriptionID,
-		ActionAuthorizeMobileMoney,
-	)
-
-	continued, err := service.Continue(
-		context.Background(),
-		ContinueRequest{
-			OrganizationID: organizationID,
-			CheckoutID:     checkout.ID,
-			Action:         ActionAuthorizeMobileMoney,
-		},
-	)
-	if err != nil {
-		t.Fatalf("continue mobile money authorization: %v", err)
-	}
-	if continued.NextAction != ActionWait {
-		t.Fatalf("next action = %q, want %q", continued.NextAction, ActionWait)
-	}
-
-	assertCheckoutNextAction(t, pool, checkout.ID, ActionWait)
-}
-
-func TestContinueOTPDoesNotAdvanceWithoutProviderAdapter(t *testing.T) {
-	service, pool, organizationID, subscriptionID := newCheckoutTestService(t)
-	now := time.Date(2026, time.September, 29, 13, 0, 0, 0, time.UTC)
-	service.now = func() time.Time { return now }
-
-	checkout := createConfirmedCheckoutForContinuation(
-		t,
-		service,
-		pool,
-		organizationID,
-		subscriptionID,
-		ActionSubmitOTP,
-	)
-
-	otp := "123456"
-	if _, err := service.Continue(
-		context.Background(),
-		ContinueRequest{
-			OrganizationID: organizationID,
-			CheckoutID:     checkout.ID,
-			Action:         ActionSubmitOTP,
-			OTP:            &otp,
-		},
-	); err == nil {
-		t.Fatal("otp continuation succeeded without provider adapter")
-	}
-
-	assertCheckoutNextAction(t, pool, checkout.ID, ActionSubmitOTP)
 }
 
 func TestCompleteSubscriptionCheckoutActivatesAndReplays(t *testing.T) {
@@ -537,11 +388,8 @@ func TestCompleteWalletTopupCreditsOnceAndReplays(t *testing.T) {
 		ConfirmRequest{
 			OrganizationID: organizationID,
 			CheckoutID:     checkout.ID,
-			Provider:       ProviderPaystack,
-			PaymentMethod:  PaymentMethodMobileMoney,
-			Email:          "customer@example.com",
-			Phone:          "0551234567",
-			MobileNetwork:  "mtn",
+			Provider:       ProviderStripe,
+			PaymentMethod:  PaymentMethodCard,
 		},
 	); err != nil {
 		t.Fatalf("confirm wallet top-up checkout: %v", err)
@@ -615,11 +463,8 @@ func TestSettleSuccessfulProviderEventIsAtomicAndConcurrent(t *testing.T) {
 		ConfirmRequest{
 			OrganizationID: organizationID,
 			CheckoutID:     checkout.ID,
-			Provider:       ProviderPaystack,
-			PaymentMethod:  PaymentMethodMobileMoney,
-			Email:          "customer@example.com",
-			Phone:          "0551234567",
-			MobileNetwork:  "mtn",
+			Provider:       ProviderStripe,
+			PaymentMethod:  PaymentMethodCard,
 		},
 	)
 	if err != nil {
@@ -629,11 +474,11 @@ func TestSettleSuccessfulProviderEventIsAtomicAndConcurrent(t *testing.T) {
 	event, payment, err := service.payments.RecordProviderEvent(
 		context.Background(),
 		payments.RecordProviderEventRequest{
-			Provider:          ProviderPaystack,
+			Provider:          ProviderStripe,
 			ProviderPaymentID: *confirmed.ProviderPaymentID,
 			ProviderEventID:   "evt_atomic_success",
-			EventType:         "charge.success",
-			Payload:           []byte(`{"event":"charge.success"}`),
+			EventType:         "checkout.session.completed",
+			Payload:           []byte(`{"type":"checkout.session.completed"}`),
 			ReceivedAt:        now,
 		},
 	)
@@ -693,11 +538,8 @@ func TestSettleSuccessfulProviderEventRollsBackOnFulfillmentFailure(t *testing.T
 		ConfirmRequest{
 			OrganizationID: organizationID,
 			CheckoutID:     checkout.ID,
-			Provider:       ProviderPaystack,
-			PaymentMethod:  PaymentMethodMobileMoney,
-			Email:          "customer@example.com",
-			Phone:          "0551234567",
-			MobileNetwork:  "mtn",
+			Provider:       ProviderStripe,
+			PaymentMethod:  PaymentMethodCard,
 		},
 	)
 	if err != nil {
@@ -706,11 +548,11 @@ func TestSettleSuccessfulProviderEventRollsBackOnFulfillmentFailure(t *testing.T
 	event, payment, err := service.payments.RecordProviderEvent(
 		context.Background(),
 		payments.RecordProviderEventRequest{
-			Provider:          ProviderPaystack,
+			Provider:          ProviderStripe,
 			ProviderPaymentID: *confirmed.ProviderPaymentID,
 			ProviderEventID:   "evt_atomic_rollback",
-			EventType:         "charge.success",
-			Payload:           []byte(`{"event":"charge.success"}`),
+			EventType:         "checkout.session.completed",
+			Payload:           []byte(`{"type":"checkout.session.completed"}`),
 			ReceivedAt:        now,
 		},
 	)
@@ -906,81 +748,6 @@ func TestExpireDueCheckoutReleasesSubscriptionSlot(t *testing.T) {
 	}
 }
 
-func createConfirmedCheckoutForContinuation(
-	t *testing.T,
-	service *Service,
-	pool *pgxpool.Pool,
-	organizationID uuid.UUID,
-	subscriptionID uuid.UUID,
-	nextAction string,
-) Checkout {
-	t.Helper()
-
-	checkout, err := service.Create(
-		context.Background(),
-		CreateRequest{
-			OrganizationID: organizationID,
-			Purpose:        PurposeSubscription,
-			SubscriptionID: &subscriptionID,
-		},
-	)
-	if err != nil {
-		t.Fatalf("create checkout: %v", err)
-	}
-	if _, err := service.Confirm(
-		context.Background(),
-		ConfirmRequest{
-			OrganizationID: organizationID,
-			CheckoutID:     checkout.ID,
-			Provider:       ProviderPaystack,
-			PaymentMethod:  PaymentMethodMobileMoney,
-			Email:          "customer@example.com",
-			Phone:          "0551234567",
-			MobileNetwork:  "mtn",
-		},
-	); err != nil {
-		t.Fatalf("confirm checkout: %v", err)
-	}
-
-	if _, err := pool.Exec(
-		context.Background(),
-		`UPDATE checkouts
-		 SET next_action = $1,
-		     provider_message = 'provider action required'
-		 WHERE id = $2`,
-		nextAction,
-		checkout.ID,
-	); err != nil {
-		t.Fatalf("set checkout continuation action: %v", err)
-	}
-
-	checkout.NextAction = nextAction
-	return checkout
-}
-
-func assertCheckoutNextAction(
-	t *testing.T,
-	pool *pgxpool.Pool,
-	checkoutID uuid.UUID,
-	want string,
-) {
-	t.Helper()
-
-	var action string
-	if err := pool.QueryRow(
-		context.Background(),
-		`SELECT next_action
-		 FROM checkouts
-		 WHERE id = $1`,
-		checkoutID,
-	).Scan(&action); err != nil {
-		t.Fatalf("read checkout next action: %v", err)
-	}
-	if action != want {
-		t.Fatalf("next action = %q, want %q", action, want)
-	}
-}
-
 func newCheckoutTestService(
 	t *testing.T,
 ) (*Service, *pgxpool.Pool, uuid.UUID, uuid.UUID) {
@@ -1083,16 +850,6 @@ func newCheckoutTestService(
 				r.Form.Get("line_items[0][price_data][currency]"),
 				r.Form.Get("line_items[0][price_data][unit_amount]"),
 			)
-		case "/charge":
-			var req paystack.ChargeRequest
-			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-				t.Fatalf("decode Paystack test request: %v", err)
-			}
-			_, _ = fmt.Fprintf(
-				w,
-				`{"status":true,"message":"Charge attempted","data":{"reference":%q,"status":"pay_offline","display_text":"Approve the payment"}}`,
-				req.Reference,
-			)
 		default:
 			http.NotFound(w, r)
 		}
@@ -1106,17 +863,7 @@ func newCheckoutTestService(
 	if err != nil {
 		t.Fatalf("create Stripe test client: %v", err)
 	}
-	paystackConfig := paystack.DefaultConfig("sk_test")
-	paystackConfig.BaseURL = providerServer.URL
-	paystackConfig.HTTPClient = providerServer.Client()
-	paystackClient, err := paystack.New(paystackConfig)
-	if err != nil {
-		t.Fatalf("create Paystack test client: %v", err)
-	}
-	providerService := payments.NewProviderService(
-		stripeClient,
-		paystackClient,
-	)
+	providerService := payments.NewProviderService(stripeClient)
 	service := NewService(
 		NewRepository(queries),
 		paymentsService,

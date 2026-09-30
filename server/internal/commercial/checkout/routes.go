@@ -26,8 +26,4 @@ func RegisterRoutes(
 		idempotency,
 	).Post("/checkouts/{checkout_id}/confirm", handler.Confirm)
 
-	router.With(
-		authMiddleware,
-		idempotency,
-	).Post("/checkouts/{checkout_id}/continue", handler.Continue)
 }
