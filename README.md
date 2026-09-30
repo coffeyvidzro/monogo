@@ -1,15 +1,16 @@
 # Monogo
 
-Monogo is the carrier-grade AI voice runtime and telephony control plane behind
-Leamout.
+**Leamout is the carrier-grade runtime and control plane for autonomous voice agents.**
 
-It connects customer-owned SIP carriers, trunks, phone numbers, PBXs, and
-WebRTC endpoints to a realtime voice-agent runtime. Leamout owns call control,
-media orchestration, agent execution, routing, observability, and platform
-operations. Customers keep their carrier relationships and pay their carriers
-directly.
+Monogo is the core runtime implementation behind Leamout. It connects
+customer-owned SIP carriers, trunks, phone numbers, PBXs, and WebRTC endpoints
+to realtime autonomous voice agents.
 
-Monogo is not intended to be a general-purpose CPaaS or telecom reseller.
+Leamout owns call control, media orchestration, agent execution, routing,
+observability, and platform operations. Customers keep their carrier
+relationships and pay their carriers directly.
+
+Leamout is not a general-purpose CPaaS or telecom reseller.
 
 ## Product model
 
