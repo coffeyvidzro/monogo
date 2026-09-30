@@ -46,11 +46,8 @@ SELECT
     c.direction,
     c.state,
     c.media_state,
-    c.answered_at,
-    cc.scope AS carrier_scope
+    c.answered_at
 FROM calls AS c
-LEFT JOIN carrier_connections AS cc
-  ON cc.id = c.carrier_connection_id
 WHERE c.id = sqlc.arg(id)
 LIMIT 1;
 
@@ -114,8 +111,7 @@ ORDER BY created_at ASC;
 SELECT
     cc.max_cps,
     cc.max_concurrent_calls,
-    cc.max_daily_minutes,
-    pn.provisioning_mode
+    cc.max_daily_minutes
 FROM phone_numbers AS pn
 JOIN carrier_connections AS cc
   ON cc.id = pn.carrier_connection_id
@@ -133,18 +129,7 @@ WHERE pn.id = sqlc.arg(phone_number_id)
   AND pn.voice_enabled = true
   AND cc.status = 'active'
   AND cc.inbound_enabled = true
-  AND (
-      (
-          cc.scope = 'organization'
-          AND cc.organization_id = pn.organization_id
-          AND pn.provisioning_mode = 'byoc'
-      )
-      OR (
-          cc.scope = 'platform'
-          AND cc.organization_id IS NULL
-          AND pn.provisioning_mode = 'managed'
-      )
-  )
+  AND cc.organization_id = pn.organization_id
   AND va.id = sqlc.arg(application_id)
   AND va.organization_id = pn.organization_id
   AND va.status = 'active'

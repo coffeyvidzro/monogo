@@ -39,12 +39,5 @@ VALUES
         'Generic SIP',
         'sip',
         'active'
-    ),
-    (
-        '4bfe6a6c-5658-42f6-9d74-29a54b7eed2d',
-        'leamout',
-        'Leamout Carrier',
-        'sip',
-        'active'
     )
 ON CONFLICT (slug) DO NOTHING;

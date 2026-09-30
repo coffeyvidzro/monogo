@@ -1,7 +1,6 @@
 CREATE TABLE IF NOT EXISTS messaging_connections (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    organization_id UUID REFERENCES organizations(id) ON DELETE CASCADE,
-    scope TEXT NOT NULL CHECK (scope IN ('platform', 'organization')),
+    organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
     channel TEXT NOT NULL CHECK (channel IN ('sms', 'whatsapp')),
     name TEXT NOT NULL,
     status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'disabled')),
@@ -9,15 +8,11 @@ CREATE TABLE IF NOT EXISTS messaging_connections (
     encrypted_secret TEXT NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    CONSTRAINT uq_messaging_connections_id_organization UNIQUE (id, organization_id),
-    CONSTRAINT chk_messaging_connections_scope CHECK (
-        (scope = 'platform' AND organization_id IS NULL)
-        OR (scope = 'organization' AND organization_id IS NOT NULL)
-    )
+    CONSTRAINT uq_messaging_connections_id_organization UNIQUE (id, organization_id)
 );
 
 CREATE INDEX IF NOT EXISTS idx_messaging_connections_routing
-    ON messaging_connections (scope, organization_id, channel, created_at) WHERE status = 'active';
+    ON messaging_connections (organization_id, channel, created_at) WHERE status = 'active';
 
 CREATE TRIGGER set_messaging_connections_updated_at
 BEFORE UPDATE ON messaging_connections
