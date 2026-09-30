@@ -6,6 +6,7 @@ CREATE TABLE IF NOT EXISTS sip_domains (
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
 
+    CONSTRAINT uq_sip_domains_id_organization UNIQUE (id, organization_id),
     CONSTRAINT chk_sip_domains_status CHECK (status IN ('active', 'disabled'))
 );
 

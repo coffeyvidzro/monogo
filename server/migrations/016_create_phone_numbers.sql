@@ -8,6 +8,7 @@ CREATE TABLE IF NOT EXISTS phone_numbers (
     status TEXT NOT NULL DEFAULT 'active',
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    CONSTRAINT uq_phone_numbers_id_organization UNIQUE (id, organization_id),
     CONSTRAINT chk_phone_numbers_number CHECK (number ~ '^\+[1-9][0-9]{6,14}$'),
     CONSTRAINT chk_phone_numbers_country_code CHECK (country_code ~ '^[A-Z]{2}$'),
     CONSTRAINT chk_phone_numbers_status CHECK (status IN ('active', 'disabled', 'porting', 'released'))

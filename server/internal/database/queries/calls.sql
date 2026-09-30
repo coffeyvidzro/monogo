@@ -1,7 +1,7 @@
 -- name: CreateCall :one
 INSERT INTO calls (
     organization_id,
-    application_id,
+    voice_agent_id,
     direction,
     state,
     from_uri,
@@ -9,7 +9,7 @@ INSERT INTO calls (
     sip_call_id
 ) VALUES (
     sqlc.arg(organization_id),
-    sqlc.narg(application_id),
+    sqlc.narg(voice_agent_id),
     sqlc.arg(direction),
     COALESCE(sqlc.narg(state), 'initiating'),
     sqlc.arg(from_uri),
@@ -86,10 +86,12 @@ SELECT
 FROM phone_numbers AS pn
 JOIN carrier_connections AS cc
   ON cc.id = pn.carrier_connection_id
-JOIN voice_bindings AS vb
-  ON vb.phone_number_id = pn.id
-JOIN voice_applications AS va
-  ON va.id = vb.voice_application_id
+JOIN voice_agent_bindings AS binding
+  ON binding.phone_number_id = pn.id
+ AND binding.organization_id = pn.organization_id
+JOIN voice_agents AS agent
+  ON agent.id = binding.voice_agent_id
+ AND agent.organization_id = binding.organization_id
 JOIN organizations AS o
   ON o.id = pn.organization_id
 WHERE pn.id = sqlc.arg(phone_number_id)
@@ -101,9 +103,9 @@ WHERE pn.id = sqlc.arg(phone_number_id)
   AND cc.status = 'active'
   AND cc.inbound_enabled = true
   AND cc.organization_id = pn.organization_id
-  AND va.id = sqlc.arg(application_id)
-  AND va.organization_id = pn.organization_id
-  AND va.status = 'active'
+  AND binding.id = sqlc.arg(voice_agent_binding_id)
+  AND agent.id = sqlc.arg(voice_agent_id)
+  AND agent.status = 'active'
   AND o.status = 'active'
   AND o.deleted_at IS NULL
 LIMIT 1;
@@ -262,8 +264,8 @@ SELECT
     c.from_uri,
     c.to_uri,
     COALESCE(c.sip_call_id, '—')::TEXT AS sip_call_id,
-    COALESCE(c.application_id::TEXT, '—')::TEXT AS application_id,
-    COALESCE(va.name, '—')::TEXT AS application_name,
+    COALESCE(c.voice_agent_id::TEXT, '—')::TEXT AS voice_agent_id,
+    COALESCE(agent.name, '—')::TEXT AS voice_agent_name,
     COALESCE(c.carrier_connection_id::TEXT, '—')::TEXT AS carrier_connection_id,
     COALESCE(cc.name, '—')::TEXT AS carrier_connection_name,
     COALESCE(c.trunk_id::TEXT, '—')::TEXT AS trunk_id,
@@ -288,12 +290,12 @@ SELECT
     to_char(c.updated_at AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI:SS')::TEXT AS updated_at
 FROM calls AS c
 JOIN organizations AS o ON o.id = c.organization_id
-LEFT JOIN voice_applications AS va ON va.id = c.application_id
+LEFT JOIN voice_agents AS agent ON agent.id = c.voice_agent_id
 LEFT JOIN carrier_connections AS cc ON cc.id = c.carrier_connection_id
 LEFT JOIN trunks AS t ON t.id = c.trunk_id
 LEFT JOIN recordings AS r
   ON r.call_id = c.id
  AND r.organization_id = c.organization_id
 WHERE c.id = sqlc.arg(id)
-GROUP BY c.id, o.name, va.name, cc.name, t.name
+GROUP BY c.id, o.name, agent.name, cc.name, t.name
 LIMIT 1;

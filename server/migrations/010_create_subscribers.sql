@@ -14,6 +14,7 @@ CREATE TABLE IF NOT EXISTS subscribers (
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
 
+    UNIQUE (id, organization_id),
     UNIQUE (sip_domain_id, username),
     UNIQUE (domain, username)
 );
