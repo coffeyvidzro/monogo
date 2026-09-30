@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/coffeyvidzro/monogo/pkg/apperror"
-	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -57,7 +56,6 @@ func (s *Service) ResolveInbound(
 		VoiceBindingID:      req.VoiceBindingID,
 		CarrierConnectionID: req.CarrierConnectionID,
 		CalledNumber:        req.CalledNumber,
-		ProvisioningMode:    inbound.ProvisioningMode,
 		Limits:              inbound.Limits,
 	}, nil
 }
@@ -70,53 +68,16 @@ func (s *Service) ResolveOutbound(
 	if err := validateOutboundRequest(req); err != nil {
 		return OutboundDecision{}, err
 	}
-
-	if req.TrunkID != nil {
-		route, err := s.repo.ResolveBYOCOutbound(ctx, req.OrganizationID, *req.TrunkID)
-		if errors.Is(err, pgx.ErrNoRows) {
-			return OutboundDecision{}, apperror.NewNotFound("no eligible outbound route")
-		}
-		if err != nil {
-			return OutboundDecision{}, apperror.NewInternal("resolve outbound route", err)
-		}
-		return OutboundDecision{Routes: []OutboundRoute{route}}, nil
+	if req.TrunkID == nil {
+		return OutboundDecision{}, apperror.NewBadRequest("trunk_id is required for outbound calls")
 	}
 
-	destination, digits, err := managedDestination(req.Destination)
-	if err != nil {
-		return OutboundDecision{}, err
-	}
-	now := s.now().UTC()
-	candidates, err := s.repo.ListManagedOutboundCandidates(ctx, digits, now)
-	if err != nil {
-		return OutboundDecision{}, apperror.NewInternal("load managed route candidates", err)
-	}
-	normalized := make([]CarrierCandidate, 0, len(candidates))
-	byEndpoint := make(map[uuid.UUID]managedRouteCandidate, len(candidates))
-	for _, candidate := range candidates {
-		normalized = append(normalized, candidate.Candidate)
-		byEndpoint[candidate.Candidate.EndpointID] = candidate
-	}
-	ranked, err := RankCarriers(now, s.orchestrationPolicy, normalized)
-	if errors.Is(err, ErrNoEligibleCarrier) {
+	route, err := s.repo.ResolveBYOCOutbound(ctx, req.OrganizationID, *req.TrunkID)
+	if errors.Is(err, pgx.ErrNoRows) {
 		return OutboundDecision{}, apperror.NewNotFound("no eligible outbound route")
 	}
 	if err != nil {
-		return OutboundDecision{}, apperror.NewInternal("rank managed route candidates", err)
+		return OutboundDecision{}, apperror.NewInternal("resolve outbound route", err)
 	}
-	routes := make([]OutboundRoute, 0, len(ranked))
-	for _, rankedCandidate := range ranked {
-		route := byEndpoint[rankedCandidate.Candidate.EndpointID].Route
-		route.ScoreMicros = rankedCandidate.Score
-		routes = append(routes, route)
-	}
-	decisionID, err := s.repo.RecordManagedDecision(ctx, req.OrganizationID, destination, ranked, byEndpoint)
-	if err != nil {
-		return OutboundDecision{}, apperror.NewInternal("record managed routing decision", err)
-	}
-	return OutboundDecision{
-		ID:                decisionID,
-		DestinationDigits: digits,
-		Routes:            routes,
-	}, nil
+	return OutboundDecision{Routes: []OutboundRoute{route}}, nil
 }

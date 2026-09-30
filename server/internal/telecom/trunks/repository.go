@@ -56,35 +56,6 @@ func (r *Repository) Create(ctx context.Context, arg sqlc.CreateTrunkParams) (sq
 	return r.queries.CreateTrunk(ctx, arg)
 }
 
-func (r *Repository) CreateManaged(ctx context.Context, organizationID uuid.UUID, name string, direction, status *string) (sqlc.Trunk, error) {
-	return r.queries.CreateManagedTrunk(ctx, sqlc.CreateManagedTrunkParams{
-		OrganizationID: &organizationID,
-		Name:           name,
-		Direction:      direction,
-		Status:         status,
-	})
-}
-
-func (r *Repository) CreateCredential(ctx context.Context, organizationID, trunkID uuid.UUID, username, realm, ha1 string) (sqlc.TrunkCredential, error) {
-	return r.queries.CreateTrunkCredential(ctx, sqlc.CreateTrunkCredentialParams{
-		TrunkID:        trunkID,
-		OrganizationID: &organizationID,
-		Username:       username,
-		Realm:          realm,
-		Ha1Md5:         ha1,
-	})
-}
-
-func (r *Repository) RotateCredential(ctx context.Context, organizationID, trunkID uuid.UUID, username, realm, ha1 string) (sqlc.TrunkCredential, error) {
-	return r.queries.RotateTrunkCredential(ctx, sqlc.RotateTrunkCredentialParams{
-		TrunkID:        trunkID,
-		OrganizationID: organizationID,
-		Username:       username,
-		Realm:          realm,
-		Ha1Md5:         ha1,
-	})
-}
-
 func (r *Repository) List(ctx context.Context, organizationID uuid.UUID) ([]sqlc.Trunk, error) {
 	return r.queries.ListTrunksByOrganizationID(ctx, &organizationID)
 }

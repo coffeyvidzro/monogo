@@ -2,8 +2,6 @@ package trunks
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/base64"
 	"errors"
 	"fmt"
 	"time"
@@ -11,7 +9,6 @@ import (
 	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
 	"github.com/coffeyvidzro/monogo/internal/platform/outbox"
 	"github.com/coffeyvidzro/monogo/pkg/apperror"
-	"github.com/coffeyvidzro/monogo/pkg/hasher"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -33,99 +30,44 @@ func NewService(repo *Repository, db ...*pgxpool.Pool) *Service {
 	return service
 }
 
-func (s *Service) Create(ctx context.Context, organizationID uuid.UUID, req CreateRequest) (CreateResult, error) {
+func (s *Service) Create(ctx context.Context, organizationID uuid.UUID, req CreateRequest) (sqlc.Trunk, error) {
 	if err := validateID(organizationID, "organization_id"); err != nil {
-		return CreateResult{}, err
+		return sqlc.Trunk{}, err
 	}
-	mode, err := normalizeProvisioningMode(req.Type)
-	if err != nil {
-		return CreateResult{}, err
+	if req.CarrierConnectionID == nil {
+		return sqlc.Trunk{}, apperror.NewBadRequest("carrier_connection_id is required")
 	}
-	req.Type = mode
+	if err := validateID(*req.CarrierConnectionID, "carrier_connection_id"); err != nil {
+		return sqlc.Trunk{}, err
+	}
 	name, err := normalizeName(req.Name)
 	if err != nil {
-		return CreateResult{}, err
+		return sqlc.Trunk{}, err
 	}
 	if req.Direction != nil {
 		value, err := normalizeChoice(*req.Direction, directions, "direction")
 		if err != nil {
-			return CreateResult{}, err
+			return sqlc.Trunk{}, err
 		}
 		req.Direction = &value
 	}
 	if req.Status != nil {
 		value, err := normalizeChoice(*req.Status, statuses, "status")
 		if err != nil {
-			return CreateResult{}, err
+			return sqlc.Trunk{}, err
 		}
 		req.Status = &value
 	}
-	switch mode {
-	case ProvisioningModeManaged:
-		if req.CarrierConnectionID != nil {
-			return CreateResult{}, apperror.NewBadRequest("carrier_connection_id is not accepted for managed trunks")
-		}
-		credential, ha1, err := s.newManagedSIPCredential()
-		if err != nil {
-			return CreateResult{}, apperror.NewInternal("generate managed SIP credential", err)
-		}
-		item, err := s.mutateTrunk(ctx, EventTrunkCreated, func(repo *Repository) (sqlc.Trunk, error) {
-			trunk, err := repo.CreateManaged(ctx, organizationID, name, req.Direction, req.Status)
-			if err != nil {
-				return sqlc.Trunk{}, err
-			}
-			if _, err := repo.CreateCredential(ctx, organizationID, trunk.ID, credential.Username, credential.Realm, ha1); err != nil {
-				return sqlc.Trunk{}, err
-			}
-			return trunk, nil
+	item, err := s.mutateTrunk(ctx, EventTrunkCreated, func(repo *Repository) (sqlc.Trunk, error) {
+		return repo.Create(ctx, sqlc.CreateTrunkParams{
+			OrganizationID:      &organizationID,
+			CarrierConnectionID: *req.CarrierConnectionID,
+			Name:                name,
+			Direction:           req.Direction,
+			Status:              req.Status,
 		})
-		if err != nil {
-			return CreateResult{}, writeError(err, "managed trunk", "managed trunk could not be created")
-		}
-		return CreateResult{Trunk: item, Credential: &credential}, nil
-	case ProvisioningModeBYOC:
-		if req.CarrierConnectionID == nil {
-			return CreateResult{}, apperror.NewBadRequest("carrier_connection_id is required for BYOC trunks")
-		}
-		if err := validateID(*req.CarrierConnectionID, "carrier_connection_id"); err != nil {
-			return CreateResult{}, err
-		}
-		item, err := s.mutateTrunk(ctx, EventTrunkCreated, func(repo *Repository) (sqlc.Trunk, error) {
-			return repo.Create(ctx, sqlc.CreateTrunkParams{OrganizationID: &organizationID, CarrierConnectionID: *req.CarrierConnectionID, ProvisioningMode: string(ProvisioningModeBYOC), Name: name, Direction: req.Direction, Status: req.Status})
-		})
-		if err != nil {
-			return CreateResult{}, writeError(err, "trunk", "carrier connection not found")
-		}
-		return CreateResult{Trunk: item}, nil
-	}
-	return CreateResult{}, apperror.NewBadRequest("type must be byoc or managed")
-}
-
-func (s *Service) RotateCredential(ctx context.Context, organizationID, trunkID uuid.UUID) (SIPCredential, error) {
-	if err := validateID(organizationID, "organization_id"); err != nil {
-		return SIPCredential{}, err
-	}
-	if err := validateID(trunkID, "trunk id"); err != nil {
-		return SIPCredential{}, err
-	}
-	item, err := s.Get(ctx, organizationID, trunkID)
-	if err != nil {
-		return SIPCredential{}, err
-	}
-	if ProvisioningMode(item.ProvisioningMode) != ProvisioningModeManaged || item.CarrierConnectionID != nil {
-		return SIPCredential{}, apperror.NewConflict("SIP credentials are only available for Cloud-authoritative managed trunks")
-	}
-	if item.Status != "active" {
-		return SIPCredential{}, apperror.NewConflict("managed trunk must be active before rotating SIP credentials")
-	}
-	credential, ha1, err := s.newManagedSIPCredential()
-	if err != nil {
-		return SIPCredential{}, apperror.NewInternal("generate managed SIP credential", err)
-	}
-	if err := s.rotateCredential(ctx, item, credential, ha1); err != nil {
-		return SIPCredential{}, err
-	}
-	return credential, nil
+	})
+	return item, writeError(err, "trunk", "carrier connection not found")
 }
 
 func (s *Service) List(ctx context.Context, organizationID uuid.UUID) ([]sqlc.Trunk, error) {
@@ -199,7 +141,7 @@ func (s *Service) Delete(ctx context.Context, organizationID, id uuid.UUID) erro
 }
 
 func (s *Service) CreateEndpoint(ctx context.Context, organizationID, trunkID uuid.UUID, req EndpointCreateRequest) (sqlc.TrunkEndpoint, error) {
-	if _, err := s.requireBYOCTrunk(ctx, organizationID, trunkID); err != nil {
+	if _, err := s.Get(ctx, organizationID, trunkID); err != nil {
 		return sqlc.TrunkEndpoint{}, err
 	}
 	host, err := normalizeHost(req.Host)
@@ -242,7 +184,7 @@ func (s *Service) CreateEndpoint(ctx context.Context, organizationID, trunkID uu
 }
 
 func (s *Service) ListEndpoints(ctx context.Context, organizationID, trunkID uuid.UUID) ([]sqlc.TrunkEndpoint, error) {
-	if _, err := s.requireBYOCTrunk(ctx, organizationID, trunkID); err != nil {
+	if _, err := s.Get(ctx, organizationID, trunkID); err != nil {
 		return nil, err
 	}
 	items, err := s.repo.ListEndpoints(ctx, organizationID, trunkID)
@@ -253,7 +195,7 @@ func (s *Service) ListEndpoints(ctx context.Context, organizationID, trunkID uui
 }
 
 func (s *Service) GetEndpoint(ctx context.Context, organizationID, trunkID, id uuid.UUID) (sqlc.TrunkEndpoint, error) {
-	if _, err := s.requireBYOCTrunk(ctx, organizationID, trunkID); err != nil {
+	if _, err := s.Get(ctx, organizationID, trunkID); err != nil {
 		return sqlc.TrunkEndpoint{}, err
 	}
 	if err := validateID(id, "endpoint id"); err != nil {
@@ -320,55 +262,6 @@ func (s *Service) DeleteEndpoint(ctx context.Context, organizationID, trunkID, i
 		return repo.DeleteEndpoint(ctx, organizationID, trunkID, id)
 	})
 	return writeError(err, "trunk endpoint", "trunk endpoint not found")
-}
-
-func (s *Service) requireBYOCTrunk(ctx context.Context, organizationID, trunkID uuid.UUID) (sqlc.Trunk, error) {
-	item, err := s.Get(ctx, organizationID, trunkID)
-	if err != nil {
-		return sqlc.Trunk{}, err
-	}
-	if ProvisioningMode(item.ProvisioningMode) != ProvisioningModeBYOC {
-		return sqlc.Trunk{}, apperror.NewConflict("managed trunk endpoints are platform-managed")
-	}
-	return item, nil
-}
-
-func (s *Service) newManagedSIPCredential() (SIPCredential, string, error) {
-	usernameEntropy := make([]byte, 12)
-	if _, err := rand.Read(usernameEntropy); err != nil {
-		return SIPCredential{}, "", err
-	}
-	passwordEntropy := make([]byte, 32)
-	if _, err := rand.Read(passwordEntropy); err != nil {
-		return SIPCredential{}, "", err
-	}
-	username := "lm_sip_" + base64.RawURLEncoding.EncodeToString(usernameEntropy)
-	password := "lm_sip_" + base64.RawURLEncoding.EncodeToString(passwordEntropy)
-	credential := SIPCredential{Host: ManagedSIPHost, Port: ManagedSIPPort, Transport: ManagedSIPTransport, Realm: ManagedSIPRealm, Username: username, Password: password}
-	return credential, hasher.ComputeHA1MD5(username, credential.Realm, password), nil
-}
-
-func (s *Service) rotateCredential(ctx context.Context, trunk sqlc.Trunk, credential SIPCredential, ha1 string) error {
-	if s.db == nil || s.outbox == nil {
-		return apperror.NewServiceUnavailable("managed SIP credential store is unavailable", nil)
-	}
-	tx, err := s.db.Begin(ctx)
-	if err != nil {
-		return apperror.NewInternal("begin managed SIP credential rotation", err)
-	}
-	defer func() { _ = tx.Rollback(ctx) }()
-	repo := s.repo.WithTx(tx)
-	if _, err := repo.RotateCredential(ctx, *trunk.OrganizationID, trunk.ID, credential.Username, credential.Realm, ha1); err != nil {
-		return writeError(err, "managed SIP credential", "managed SIP credential not found")
-	}
-	occurredAt := time.Now().UTC()
-	if _, err := s.outbox.WithTx(tx).Insert(ctx, outbox.Event{Subject: string(EventTrunkCredentialRotated), AggregateType: "trunk", AggregateID: trunk.ID, Payload: Event{EventType: EventTrunkCredentialRotated, OrganizationID: *trunk.OrganizationID, TrunkID: trunk.ID, Resource: response(trunk), OccurredAt: occurredAt}, Headers: eventHeaders(EventTrunkCredentialRotated, *trunk.OrganizationID)}); err != nil {
-		return apperror.NewInternal("insert managed SIP credential rotation event", err)
-	}
-	if err := tx.Commit(ctx); err != nil {
-		return apperror.NewInternal("commit managed SIP credential rotation", err)
-	}
-	return nil
 }
 
 func (s *Service) mutateTrunk(ctx context.Context, eventType EventType, mutation func(*Repository) (sqlc.Trunk, error)) (sqlc.Trunk, error) {

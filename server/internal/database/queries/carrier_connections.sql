@@ -3,7 +3,6 @@ INSERT INTO carrier_connections (
     id,
     organization_id,
     provider_id,
-    scope,
     name,
     status,
     outbound_auth_method,
@@ -24,7 +23,6 @@ SELECT
     sqlc.arg(id) AS id,
     sqlc.arg(organization_id) AS organization_id,
     sqlc.arg(provider_id) AS provider_id,
-    'organization' AS scope,
     sqlc.arg(name) AS name,
     COALESCE(sqlc.narg(status), 'active') AS status,
     COALESCE(sqlc.narg(outbound_auth_method), 'none') AS outbound_auth_method,
@@ -46,7 +44,6 @@ WHERE o.id = sqlc.arg(organization_id)
   AND o.status = 'active'
   AND o.deleted_at IS NULL
   AND cp.status = 'active'
-  AND cp.slug <> 'leamout'
 RETURNING *;
 
 -- name: InsertCarrierDigestCredential :exec
@@ -62,60 +59,13 @@ SELECT cc.id, cc.organization_id, sqlc.arg(direction)::TEXT,
        sqlc.arg(username)::TEXT, sqlc.arg(realm)::TEXT, sqlc.arg(ha1_md5)::TEXT
 FROM carrier_connections AS cc
 WHERE cc.id = sqlc.arg(carrier_connection_id)
-  AND cc.organization_id = sqlc.arg(organization_id)
-  AND cc.scope = 'organization';
-
--- name: CreatePlatformCarrierConnection :one
-INSERT INTO carrier_connections (
-    organization_id,
-    provider_id,
-    scope,
-    name,
-    status,
-    outbound_auth_method,
-    auth_username,
-    auth_secret_ciphertext,
-    inbound_enabled,
-    inbound_auth_method,
-    inbound_username,
-    inbound_secret_ciphertext,
-    max_cps,
-    max_concurrent_calls,
-    max_daily_minutes,
-    codecs,
-    supports_video,
-    supports_fax
-)
-SELECT
-    NULL::UUID AS organization_id,
-    sqlc.arg(provider_id) AS provider_id,
-    'platform' AS scope,
-    sqlc.arg(name) AS name,
-    COALESCE(sqlc.narg(status), 'active') AS status,
-    COALESCE(sqlc.narg(outbound_auth_method), 'none') AS outbound_auth_method,
-    sqlc.narg(auth_username) AS auth_username,
-    sqlc.narg(auth_secret_ciphertext) AS auth_secret_ciphertext,
-    COALESCE(sqlc.narg(inbound_enabled), false) AS inbound_enabled,
-    COALESCE(sqlc.narg(inbound_auth_method), 'ip') AS inbound_auth_method,
-    sqlc.narg(inbound_username) AS inbound_username,
-    sqlc.narg(inbound_secret_ciphertext) AS inbound_secret_ciphertext,
-    COALESCE(sqlc.narg(max_cps), 10) AS max_cps,
-    COALESCE(sqlc.narg(max_concurrent_calls), 100) AS max_concurrent_calls,
-    sqlc.narg(max_daily_minutes) AS max_daily_minutes,
-    COALESCE(sqlc.narg(codecs), ARRAY['PCMU','PCMA']::TEXT[]) AS codecs,
-    COALESCE(sqlc.narg(supports_video), false) AS supports_video,
-    COALESCE(sqlc.narg(supports_fax), false) AS supports_fax
-FROM carrier_providers AS cp
-WHERE cp.id = sqlc.arg(provider_id)
-  AND cp.status = 'active'
-RETURNING *;
+  AND cc.organization_id = sqlc.arg(organization_id);
 
 -- name: GetCarrierConnectionByID :one
 SELECT
     cc.id,
     cc.organization_id,
     cc.provider_id,
-    cc.scope,
     cc.name,
     cc.status,
     cc.outbound_auth_method,
@@ -143,16 +93,7 @@ LEFT JOIN carrier_digest_credentials AS inbound_digest
   ON inbound_digest.carrier_connection_id = cc.id
  AND inbound_digest.direction = 'inbound'
 WHERE cc.id = sqlc.arg(id)
-  AND cc.scope = 'organization'
   AND cc.organization_id = sqlc.arg(organization_id)
-LIMIT 1;
-
--- name: GetPlatformCarrierConnectionByID :one
-SELECT *
-FROM carrier_connections
-WHERE id = sqlc.arg(id)
-  AND scope = 'platform'
-  AND organization_id IS NULL
 LIMIT 1;
 
 -- name: ListCarrierConnectionsByOrganizationID :many
@@ -160,7 +101,6 @@ SELECT
     cc.id,
     cc.organization_id,
     cc.provider_id,
-    cc.scope,
     cc.name,
     cc.status,
     cc.outbound_auth_method,
@@ -187,8 +127,7 @@ LEFT JOIN carrier_digest_credentials AS outbound_digest
 LEFT JOIN carrier_digest_credentials AS inbound_digest
   ON inbound_digest.carrier_connection_id = cc.id
  AND inbound_digest.direction = 'inbound'
-WHERE cc.scope = 'organization'
-  AND cc.organization_id = sqlc.arg(organization_id)
+WHERE cc.organization_id = sqlc.arg(organization_id)
 ORDER BY cc.created_at DESC;
 
 -- name: ListActiveCarrierConnectionsByOrganizationID :many
@@ -196,7 +135,6 @@ SELECT
     id,
     organization_id,
     provider_id,
-    scope,
     name,
     status,
     outbound_auth_method,
@@ -215,42 +153,9 @@ SELECT
     created_at,
     updated_at
 FROM carrier_connections
-WHERE scope = 'organization'
-  AND organization_id = sqlc.arg(organization_id)
+WHERE organization_id = sqlc.arg(organization_id)
   AND status = 'active'
 ORDER BY created_at DESC;
-
--- name: ListPlatformCarrierConnections :many
-SELECT *
-FROM carrier_connections
-WHERE scope = 'platform'
-  AND organization_id IS NULL
-ORDER BY created_at DESC;
-
--- name: ListActivePlatformCarrierConnections :many
-SELECT *
-FROM carrier_connections
-WHERE scope = 'platform'
-  AND organization_id IS NULL
-  AND status = 'active'
-ORDER BY created_at DESC;
-
--- name: ListProviderRoutingTargets :many
-SELECT
-    cc.id AS carrier_connection_id,
-    resource.provider_resource_id
-FROM carrier_connections AS cc
-JOIN carrier_connection_provider_resources AS resource
-  ON resource.carrier_connection_id = cc.id
- AND resource.provider_id = cc.provider_id
- AND resource.resource_type = 'voice_in_trunk'
-WHERE cc.provider_id = sqlc.arg(provider_id)
-  AND cc.scope = 'platform'
-  AND cc.organization_id IS NULL
-  AND cc.status = 'active'
-  AND cc.inbound_enabled = true
-ORDER BY cc.created_at ASC
-LIMIT 2;
 
 -- name: GetCarrierConnectionCredentials :one
 SELECT
@@ -262,23 +167,7 @@ SELECT
     inbound_secret_ciphertext
 FROM carrier_connections
 WHERE id = sqlc.arg(id)
-  AND scope = 'organization'
   AND organization_id = sqlc.arg(organization_id)
-  AND status = 'active'
-LIMIT 1;
-
--- name: GetPlatformCarrierConnectionCredentials :one
-SELECT
-    outbound_auth_method,
-    auth_username,
-    auth_secret_ciphertext,
-    inbound_auth_method,
-    inbound_username,
-    inbound_secret_ciphertext
-FROM carrier_connections
-WHERE id = sqlc.arg(id)
-  AND scope = 'platform'
-  AND organization_id IS NULL
   AND status = 'active'
 LIMIT 1;
 
@@ -296,26 +185,7 @@ SET
     supports_fax = COALESCE(sqlc.narg(supports_fax), supports_fax),
     updated_at = NOW()
 WHERE id = sqlc.arg(id)
-  AND scope = 'organization'
   AND organization_id = sqlc.arg(organization_id)
-RETURNING *;
-
--- name: UpdatePlatformCarrierConnection :one
-UPDATE carrier_connections
-SET
-    name = COALESCE(sqlc.narg(name), name),
-    status = COALESCE(sqlc.narg(status), status),
-    inbound_enabled = COALESCE(sqlc.narg(inbound_enabled), inbound_enabled),
-    max_cps = COALESCE(sqlc.narg(max_cps), max_cps),
-    max_concurrent_calls = COALESCE(sqlc.narg(max_concurrent_calls), max_concurrent_calls),
-    max_daily_minutes = COALESCE(sqlc.narg(max_daily_minutes), max_daily_minutes),
-    codecs = COALESCE(sqlc.narg(codecs), codecs),
-    supports_video = COALESCE(sqlc.narg(supports_video), supports_video),
-    supports_fax = COALESCE(sqlc.narg(supports_fax), supports_fax),
-    updated_at = NOW()
-WHERE id = sqlc.arg(id)
-  AND scope = 'platform'
-  AND organization_id IS NULL
 RETURNING *;
 
 -- name: SetCarrierConnectionOutboundDigestAuth :exec
@@ -326,7 +196,6 @@ WITH updated AS (
         auth_secret_ciphertext = sqlc.narg(auth_secret_ciphertext),
         updated_at = NOW()
     WHERE carrier_connections.id = sqlc.arg(id)
-      AND carrier_connections.scope = 'organization'
       AND carrier_connections.organization_id = sqlc.arg(organization_id)
     RETURNING id, organization_id
 )
@@ -350,7 +219,6 @@ WITH updated AS (
         auth_secret_ciphertext = NULL,
         updated_at = NOW()
     WHERE carrier_connections.id = sqlc.arg(id)
-      AND carrier_connections.scope = 'organization'
       AND carrier_connections.organization_id = sqlc.arg(organization_id)
     RETURNING id
 )
@@ -367,7 +235,6 @@ WITH updated AS (
         inbound_secret_ciphertext = sqlc.narg(inbound_secret_ciphertext),
         updated_at = NOW()
     WHERE carrier_connections.id = sqlc.arg(id)
-      AND carrier_connections.scope = 'organization'
       AND carrier_connections.organization_id = sqlc.arg(organization_id)
     RETURNING id, organization_id
 )
@@ -391,7 +258,6 @@ WITH updated AS (
         inbound_secret_ciphertext = NULL,
         updated_at = NOW()
     WHERE carrier_connections.id = sqlc.arg(id)
-      AND carrier_connections.scope = 'organization'
       AND carrier_connections.organization_id = sqlc.arg(organization_id)
     RETURNING id
 )
@@ -408,7 +274,6 @@ WITH updated AS (
         inbound_secret_ciphertext = NULL,
         updated_at = NOW()
     WHERE carrier_connections.id = sqlc.arg(id)
-      AND carrier_connections.scope = 'organization'
       AND carrier_connections.organization_id = sqlc.arg(organization_id)
     RETURNING id
 )
@@ -423,7 +288,6 @@ SET
     status = 'disabled',
     updated_at = NOW()
 WHERE id = sqlc.arg(id)
-  AND scope = 'organization'
   AND organization_id = sqlc.arg(organization_id)
   AND status = 'active';
 
@@ -433,7 +297,6 @@ SET
     status = 'active',
     updated_at = NOW()
 WHERE id = sqlc.arg(id)
-  AND scope = 'organization'
   AND organization_id = sqlc.arg(organization_id)
   AND status = 'disabled';
 
@@ -449,7 +312,6 @@ SELECT
     sqlc.arg(cidr) AS cidr
 FROM carrier_connections AS cc
 WHERE cc.id = sqlc.arg(carrier_connection_id)
-  AND cc.scope = 'organization'
   AND cc.organization_id = sqlc.arg(organization_id)
 RETURNING *;
 
@@ -461,7 +323,6 @@ JOIN carrier_connections AS cc
  AND cc.organization_id = src.organization_id
 WHERE src.carrier_connection_id = sqlc.arg(carrier_connection_id)
   AND src.organization_id = sqlc.arg(organization_id)
-  AND cc.scope = 'organization'
 ORDER BY src.cidr ASC;
 
 -- name: DeleteCarrierConnectionSourceIP :exec
@@ -471,7 +332,6 @@ WHERE src.id = sqlc.arg(id)
   AND src.carrier_connection_id = sqlc.arg(carrier_connection_id)
   AND src.organization_id = sqlc.arg(organization_id)
   AND cc.id = src.carrier_connection_id
-  AND cc.scope = 'organization'
   AND cc.organization_id = src.organization_id;
 
 -- name: ResolveCarrierConnectionBySourceIP :one
@@ -481,7 +341,6 @@ JOIN carrier_connections AS cc
   ON cc.id = src.carrier_connection_id
  AND cc.organization_id = src.organization_id
 WHERE sqlc.arg(source_ip)::INET <<= src.cidr
-  AND cc.scope = 'organization'
   AND cc.status = 'active'
   AND cc.inbound_enabled = true
   AND cc.inbound_auth_method = 'ip'
@@ -492,10 +351,9 @@ LIMIT 1;
 SELECT
     cc.id::TEXT AS id,
     CAST(COALESCE(cc.organization_id::TEXT, '—') AS TEXT) AS organization_id,
-    COALESCE(o.name, 'Platform') AS organization_name,
+    COALESCE(o.name, '—') AS organization_name,
     cc.name,
     cp.name AS provider_name,
-    cc.scope,
     cc.status,
     cc.inbound_enabled,
     cc.max_cps,
@@ -510,7 +368,6 @@ GROUP BY
     o.name,
     cc.name,
     cp.name,
-    cc.scope,
     cc.status,
     cc.inbound_enabled,
     cc.max_cps,
@@ -523,11 +380,10 @@ LIMIT 100;
 SELECT
     cc.id::TEXT AS id,
     CAST(COALESCE(cc.organization_id::TEXT, '—') AS TEXT) AS organization_id,
-    COALESCE(o.name, 'Platform') AS organization_name,
+    COALESCE(o.name, '—') AS organization_name,
     cc.provider_id::TEXT AS provider_id,
     cp.name AS provider_name,
     cc.name,
-    cc.scope,
     cc.status,
     cc.outbound_auth_method,
     cc.inbound_enabled,
@@ -558,10 +414,3 @@ FROM carrier_connection_source_ips AS src
 WHERE src.carrier_connection_id = sqlc.arg(carrier_connection_id)
 ORDER BY src.created_at;
 
--- name: ListBackofficeCarrierConnectionResources :many
-SELECT resource_type, provider_resource_id,
-       to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI') AS created_at,
-       to_char(updated_at AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI') AS updated_at
-FROM carrier_connection_provider_resources
-WHERE carrier_connection_id = sqlc.arg(carrier_connection_id)
-ORDER BY resource_type;

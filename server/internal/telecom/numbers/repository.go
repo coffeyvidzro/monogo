@@ -2,14 +2,9 @@ package numbers
 
 import (
 	"context"
-	"errors"
-	"fmt"
-	"time"
 
-	"github.com/coffeyvidzro/monogo/internal/database/pgconv"
 	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
 )
 
 type Repository struct {
@@ -20,10 +15,10 @@ func NewRepository(queries *sqlc.Queries) *Repository {
 	return &Repository{queries: queries}
 }
 
-func (r *Repository) CreateBYOC(
+func (r *Repository) Create(
 	ctx context.Context,
 	organizationID uuid.UUID,
-	req CreateBYOCRequest,
+	req CreateRequest,
 ) (sqlc.PhoneNumber, error) {
 	return r.queries.CreateBYOCPhoneNumber(ctx, sqlc.CreateBYOCPhoneNumberParams{
 		OrganizationID:      organizationID,
@@ -31,7 +26,6 @@ func (r *Repository) CreateBYOC(
 		CountryCode:         req.CountryCode,
 		CarrierConnectionID: req.CarrierConnectionID,
 		VoiceEnabled:        req.VoiceEnabled,
-		SmsEnabled:          req.SmsEnabled,
 	})
 }
 
@@ -56,11 +50,10 @@ func (r *Repository) Update(
 		ID:             id,
 		OrganizationID: organizationID,
 		VoiceEnabled:   req.VoiceEnabled,
-		SmsEnabled:     req.SmsEnabled,
 	})
 }
 
-func (r *Repository) SetBYOCConnection(
+func (r *Repository) SetCarrierConnection(
 	ctx context.Context,
 	organizationID uuid.UUID,
 	id uuid.UUID,
@@ -73,319 +66,9 @@ func (r *Repository) SetBYOCConnection(
 	})
 }
 
-func (r *Repository) ReleaseBYOC(ctx context.Context, organizationID, id uuid.UUID) (sqlc.PhoneNumber, error) {
+func (r *Repository) Release(ctx context.Context, organizationID, id uuid.UUID) (sqlc.PhoneNumber, error) {
 	return r.queries.ReleaseBYOCPhoneNumber(ctx, sqlc.ReleaseBYOCPhoneNumberParams{
 		ID:             id,
 		OrganizationID: organizationID,
 	})
-}
-
-func (r *Repository) WithQueries(queries *sqlc.Queries) *Repository {
-	return NewRepository(queries)
-}
-
-func (r *Repository) ManagedRoutingTargets(
-	ctx context.Context,
-) (sqlc.CarrierProvider, []sqlc.ListProviderRoutingTargetsRow, error) {
-	provider, err := r.queries.GetCarrierProviderBySlug(ctx, "didww")
-	if err != nil {
-		return sqlc.CarrierProvider{}, nil, err
-	}
-	targets, err := r.ManagedRoutingTargetsForProvider(ctx, provider.ID)
-	return provider, targets, err
-}
-
-func (r *Repository) ManagedRoutingTargetsForProvider(
-	ctx context.Context,
-	providerID uuid.UUID,
-) ([]sqlc.ListProviderRoutingTargetsRow, error) {
-	return r.queries.ListProviderRoutingTargets(ctx, providerID)
-}
-
-func (r *Repository) CreateManagedOrder(
-	ctx context.Context,
-	organizationID uuid.UUID,
-	key string,
-	hash string,
-	request ManagedPurchaseRequest,
-	availableDIDID string,
-	skuID string,
-) (ManagedOrder, bool, error) {
-	params := sqlc.CreateManagedNumberOrderParams{
-		ID:             uuid.New(),
-		OrganizationID: organizationID,
-		IdempotencyKey: key,
-		RequestHash:    hash,
-		Number:         request.Number,
-		CountryCode:    request.CountryCode,
-		AvailableDidID: availableDIDID,
-		SkuID:          skuID,
-	}
-	row, err := r.queries.CreateManagedNumberOrder(ctx, params)
-	created := err == nil
-	if errors.Is(err, pgx.ErrNoRows) {
-		params := sqlc.GetManagedNumberOrderByKeyParams{
-			OrganizationID: organizationID,
-			IdempotencyKey: key,
-		}
-		row, err = r.queries.GetManagedNumberOrderByKey(ctx, params)
-	}
-	return managedOrder(row), created, err
-}
-
-func (r *Repository) GetManagedOrder(
-	ctx context.Context,
-	organizationID uuid.UUID,
-	id uuid.UUID,
-) (ManagedOrder, error) {
-	params := sqlc.GetManagedNumberOrderParams{
-		OrganizationID: organizationID,
-		ID:             id,
-	}
-	row, err := r.queries.GetManagedNumberOrder(ctx, params)
-	return managedOrder(row), err
-}
-
-func (r *Repository) GetManagedOrderByKey(
-	ctx context.Context,
-	organizationID uuid.UUID,
-	idempotencyKey string,
-) (ManagedOrder, error) {
-	row, err := r.queries.GetManagedNumberOrderByKey(
-		ctx,
-		sqlc.GetManagedNumberOrderByKeyParams{
-			OrganizationID: organizationID,
-			IdempotencyKey: idempotencyKey,
-		},
-	)
-	return managedOrder(row), err
-}
-
-func (r *Repository) GetManagedOrderInternal(ctx context.Context, id uuid.UUID) (ManagedOrder, error) {
-	row, err := r.queries.GetManagedNumberOrderInternal(ctx, id)
-	return managedOrder(row), err
-}
-
-func (r *Repository) ListManagedOrdersDue(ctx context.Context, limit int32) ([]ManagedOrder, error) {
-	rows, err := r.queries.ListManagedNumberOrdersForReconciliation(ctx, limit)
-	if err != nil {
-		return nil, err
-	}
-	orders := make([]ManagedOrder, 0, len(rows))
-	for _, row := range rows {
-		orders = append(orders, managedOrder(row))
-	}
-	return orders, nil
-}
-
-func (r *Repository) ClaimManagedSubmission(ctx context.Context, id uuid.UUID) (ManagedOrder, error) {
-	row, err := r.queries.ClaimManagedNumberOrderSubmission(ctx, id)
-	return managedOrder(row), err
-}
-
-func (r *Repository) MarkManagedOutcomeUnknown(
-	ctx context.Context,
-	id uuid.UUID,
-	code string,
-	message string,
-	next time.Time,
-) (ManagedOrder, error) {
-	params := sqlc.MarkManagedNumberOrderOutcomeUnknownParams{
-		ID:             id,
-		ErrorCode:      &code,
-		ErrorMessage:   &message,
-		ReconcileAfter: pgconv.TimeToTimestamptz(next),
-	}
-	row, err := r.queries.MarkManagedNumberOrderOutcomeUnknown(ctx, params)
-	return managedOrder(row), err
-}
-
-func (r *Repository) RecordManagedProviderOrder(
-	ctx context.Context,
-	id uuid.UUID,
-	providerOrderID string,
-	next time.Time,
-) (ManagedOrder, error) {
-	params := sqlc.RecordManagedNumberProviderOrderParams{
-		ID:              id,
-		ProviderOrderID: &providerOrderID,
-		ReconcileAfter:  pgconv.TimeToTimestamptz(next),
-	}
-	row, err := r.queries.RecordManagedNumberProviderOrder(ctx, params)
-	return managedOrder(row), err
-}
-
-func (r *Repository) RecordManagedOwnedDID(
-	ctx context.Context,
-	id uuid.UUID,
-	didID string,
-	verifiedAt time.Time,
-) (ManagedOrder, error) {
-	params := sqlc.RecordManagedNumberOwnedDIDParams{
-		ID:            id,
-		ProviderDidID: &didID,
-		VerifiedAt:    pgconv.TimeToTimestamptz(verifiedAt),
-	}
-	row, err := r.queries.RecordManagedNumberOwnedDID(ctx, params)
-	return managedOrder(row), err
-}
-
-func (r *Repository) ScheduleManagedReconciliation(
-	ctx context.Context,
-	id uuid.UUID,
-	code string,
-	next time.Time,
-) (ManagedOrder, error) {
-	params := sqlc.ScheduleManagedNumberReconciliationParams{
-		ID:             id,
-		ErrorCode:      &code,
-		ReconcileAfter: pgconv.TimeToTimestamptz(next),
-	}
-	row, err := r.queries.ScheduleManagedNumberReconciliation(ctx, params)
-	return managedOrder(row), err
-}
-
-func (r *Repository) MarkManagedManualReview(
-	ctx context.Context,
-	id uuid.UUID,
-	code string,
-) (ManagedOrder, error) {
-	params := sqlc.MarkManagedNumberOrderManualReviewParams{
-		ID:        id,
-		ErrorCode: &code,
-	}
-	row, err := r.queries.MarkManagedNumberOrderManualReview(ctx, params)
-	return managedOrder(row), err
-}
-
-func (r *Repository) LockManagedOrder(ctx context.Context, id uuid.UUID) (ManagedOrder, error) {
-	row, err := r.queries.LockManagedNumberOrder(ctx, id)
-	return managedOrder(row), err
-}
-
-func (r *Repository) CreateActivatedManagedNumber(
-	ctx context.Context,
-	order ManagedOrder,
-	didID string,
-	carrierConnectionID uuid.UUID,
-	nextRenewalAt time.Time,
-) (sqlc.PhoneNumber, error) {
-	params := sqlc.CreateManagedPhoneNumberParams{
-		OrganizationID:      order.OrganizationID,
-		Number:              order.Number,
-		CountryCode:         order.CountryCode,
-		ProviderID:          &order.ProviderID,
-		ProviderResourceID:  &didID,
-		CarrierConnectionID: &carrierConnectionID,
-		NextRenewalAt:       pgconv.TimeToTimestamptz(nextRenewalAt),
-	}
-	return r.queries.CreateManagedPhoneNumber(ctx, params)
-}
-
-func (r *Repository) CompleteManagedOrder(
-	ctx context.Context,
-	id uuid.UUID,
-	phoneNumberID uuid.UUID,
-	trunkID string,
-	verifiedAt time.Time,
-) (ManagedOrder, error) {
-	params := sqlc.CompleteManagedNumberOrderParams{
-		ID:             id,
-		PhoneNumberID:  &phoneNumberID,
-		InboundTrunkID: &trunkID,
-		VerifiedAt:     pgconv.TimeToTimestamptz(verifiedAt),
-	}
-	row, err := r.queries.CompleteManagedNumberOrder(ctx, params)
-	return managedOrder(row), err
-}
-
-func (r *Repository) ScheduleRenewals(ctx context.Context, now time.Time) error {
-	_, err := r.queries.AdvancePaidNumberRenewals(ctx)
-	if err != nil {
-		return err
-	}
-	_, err = r.queries.ScheduleNumberRenewals(ctx, pgconv.TimeToTimestamptz(now))
-	return err
-}
-
-func (r *Repository) ListRenewalsDue(
-	ctx context.Context,
-	now time.Time,
-	batch int32,
-) ([]sqlc.ListNumberRenewalsDueRow, error) {
-	return r.queries.ListNumberRenewalsDue(
-		ctx,
-		sqlc.ListNumberRenewalsDueParams{
-			Now:   pgconv.TimeToTimestamptz(now),
-			Batch: batch,
-		},
-	)
-}
-
-func (r *Repository) ClaimRenewal(
-	ctx context.Context,
-	id uuid.UUID,
-	now time.Time,
-) (sqlc.NumberRenewal, error) {
-	return r.queries.ClaimNumberRenewal(
-		ctx,
-		sqlc.ClaimNumberRenewalParams{
-			ID:  id,
-			Now: pgconv.TimeToTimestamptz(now),
-		},
-	)
-}
-
-func (r *Repository) CompleteRenewal(
-	ctx context.Context,
-	renewal sqlc.NumberRenewal,
-	amountMicros int64,
-	currency string,
-	paidAt time.Time,
-) error {
-	_, err := r.queries.MarkNumberRenewalPaid(
-		ctx,
-		sqlc.MarkNumberRenewalPaidParams{
-			AmountMicros: &amountMicros,
-			Currency:     &currency,
-			PaidAt:       pgconv.TimeToTimestamptz(paidAt),
-			ID:           renewal.ID,
-		},
-	)
-	if err != nil {
-		return err
-	}
-	rows, err := r.queries.AdvanceNumberRenewal(
-		ctx,
-		sqlc.AdvanceNumberRenewalParams{
-			PeriodEnd:     renewal.PeriodEnd,
-			PhoneNumberID: renewal.PhoneNumberID,
-			PeriodStart:   renewal.PeriodStart,
-		},
-	)
-	if err != nil {
-		return err
-	}
-	if rows != 1 {
-		return fmt.Errorf("number renewal period changed concurrently")
-	}
-	return nil
-}
-
-func (r *Repository) RetryRenewal(
-	ctx context.Context,
-	id uuid.UUID,
-	nextAttemptAt time.Time,
-	cause error,
-) error {
-	message := cause.Error()
-	_, err := r.queries.RetryNumberRenewal(
-		ctx,
-		sqlc.RetryNumberRenewalParams{
-			NextAttemptAt: pgconv.TimeToTimestamptz(nextAttemptAt),
-			LastError:     &message,
-			ID:            id,
-		},
-	)
-	return err
 }

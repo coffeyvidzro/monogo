@@ -225,7 +225,7 @@ def provision():
         "exec", "-T", "postgres", "psql", "-U", "leamout", "-d", "leamout",
         "-Atc",
         "SELECT id::text FROM carrier_providers "
-        "WHERE slug='generic-sip' AND adapter='sip' AND status='active'",
+        "WHERE slug='generic-sip' AND status='active'",
     ).strip()
     if not provider_id:
         raise Failure("migration-seeded generic SIP provider is unavailable")

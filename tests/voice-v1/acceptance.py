@@ -267,10 +267,10 @@ def deploy():
 
 def configure_provider():
     # The platform's carrier-provider catalog is an internal fixture.
-    # Migration 013 seeds the generic SIP adapter.
+    # Migration 013 seeds the generic SIP provider.
     provider_id = psql(
         "SELECT id::text FROM carrier_providers "
-        "WHERE slug='generic-sip' AND adapter='sip' AND status='active'"
+        "WHERE slug='generic-sip' AND status='active'"
     )
     if not provider_id:
         raise AcceptanceError("migration-seeded generic SIP provider is unavailable")

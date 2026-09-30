@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"strings"
-	"time"
 
 	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
 	"github.com/coffeyvidzro/monogo/pkg/apperror"
@@ -41,22 +40,6 @@ func (s *Service) ObserveLifecycle(ctx context.Context, event LifecycleEvent) er
 				return apperror.NewInternal("persist outbound SIP Call-ID", err)
 			}
 		}
-	}
-
-	if err := s.settleManagedVoiceLifecycle(
-		ctx,
-		snapshot,
-		event,
-	); err != nil {
-		if event.ChannelID != "" &&
-			(event.Type == LifecycleAnswered || event.Type == LifecycleActive) {
-			_ = s.controller.Hangup(
-				ctx,
-				event.ChannelID,
-			)
-		}
-
-		return err
 	}
 
 	if !isTerminalLifecycle(event.Type) && snapshot.CarrierConnectionID != nil {
@@ -103,116 +86,6 @@ func (s *Service) ObserveLifecycle(ctx context.Context, event LifecycleEvent) er
 		}
 	}
 	return err
-}
-
-func (s *Service) settleManagedVoiceLifecycle(
-	ctx context.Context,
-	snapshot LifecycleSnapshot,
-	event LifecycleEvent,
-) error {
-	if snapshot.CarrierScope == nil || *snapshot.CarrierScope != "platform" {
-		return nil
-	}
-
-	operationID := managedVoiceOperationID(event.CallID)
-
-	switch event.Type {
-	case LifecycleCompleted:
-		return s.captureManagedVoiceUsage(
-			ctx,
-			snapshot,
-			event,
-			operationID,
-		)
-	case LifecycleFailed, LifecycleCancelled:
-		if snapshot.State == string(StateAnswered) ||
-			snapshot.State == string(StateActive) {
-			return s.captureManagedVoiceUsage(
-				ctx,
-				snapshot,
-				event,
-				operationID,
-			)
-		}
-
-		if _, err := s.wallets.Release(
-			ctx,
-			snapshot.OrganizationID,
-			operationID,
-		); err != nil {
-			return apperror.NewInternal(
-				"release managed voice prepaid hold",
-				err,
-			)
-		}
-	}
-
-	return nil
-}
-
-func (s *Service) captureManagedVoiceUsage(
-	ctx context.Context,
-	snapshot LifecycleSnapshot,
-	event LifecycleEvent,
-	operationID uuid.UUID,
-) error {
-	if !snapshot.AnsweredAt.Valid {
-		_, err := s.wallets.Release(
-			ctx,
-			snapshot.OrganizationID,
-			operationID,
-		)
-
-		return err
-	}
-	endedAt := event.OccurredAt
-	if endedAt.IsZero() {
-		endedAt = time.Now().UTC()
-	}
-
-	hold, err := s.wallets.GetHold(
-		ctx,
-		snapshot.OrganizationID,
-		operationID,
-	)
-	if err != nil {
-		return apperror.NewInternal("get managed voice prepaid hold", err)
-	}
-	amountMicros := managedVoiceCaptureAmount(
-		hold.AmountMicros,
-		snapshot.AnsweredAt.Time,
-		endedAt,
-	)
-	_, err = s.wallets.CaptureAmount(
-		ctx,
-		snapshot.OrganizationID,
-		operationID,
-		amountMicros,
-	)
-	if err != nil {
-		return apperror.NewInternal("capture managed voice usage", err)
-	}
-
-	return nil
-}
-
-func managedVoiceCaptureAmount(
-	authorizedMicros int64,
-	answeredAt time.Time,
-	endedAt time.Time,
-) int64 {
-	maximumUnits := int64(managedVoicePrepaidSeconds) / managedVoiceBillingSeconds
-	unitRate := authorizedMicros / maximumUnits
-	billableSeconds := int64(endedAt.Sub(answeredAt).Seconds())
-	if billableSeconds < 1 {
-		billableSeconds = 1
-	}
-	units := (billableSeconds + managedVoiceBillingSeconds - 1) / managedVoiceBillingSeconds
-	if units > maximumUnits {
-		units = maximumUnits
-	}
-
-	return unitRate * units
 }
 
 func lifecycleAlreadyApplied(snapshot LifecycleSnapshot, eventType LifecycleEventType) bool {

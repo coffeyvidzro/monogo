@@ -1,7 +1,6 @@
 package numbers
 
 import (
-	"encoding/json"
 	"net/http"
 
 	"github.com/coffeyvidzro/monogo/internal/platform/middleware"
@@ -20,83 +19,18 @@ func NewHandler(service *Service) *Handler {
 	return &Handler{service: service}
 }
 
-func (h *Handler) PurchaseNumber(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 	organizationID, err := requestOrganizationID(r)
 	if err != nil {
 		httputil.Error(w, err)
 		return
 	}
-	req, err := helper.DecodeJSON[ManagedPurchaseRequest](r)
+	req, err := helper.DecodeJSON[CreateRequest](r)
 	if err != nil {
 		httputil.Error(w, err)
 		return
 	}
-	order, err := h.service.Purchase(r.Context(), organizationID, r.Header.Get("Idempotency-Key"), req)
-	if err != nil {
-		httputil.Error(w, err)
-		return
-	}
-	if order.Status == "completed" {
-		httputil.OK(w, order)
-		return
-	}
-	w.Header().Set("Location", "/v1/numbers/orders/"+order.ID.String())
-	writeAccepted(w, order)
-}
-
-func (h *Handler) GetManagedOrder(w http.ResponseWriter, r *http.Request) {
-	organizationID, err := requestOrganizationID(r)
-	if err != nil {
-		httputil.Error(w, err)
-		return
-	}
-	id, err := uuid.Parse(chi.URLParam(r, "order_id"))
-	if err != nil || id == uuid.Nil {
-		httputil.Error(w, apperror.NewBadRequest("invalid order id"))
-		return
-	}
-	order, err := h.service.GetManagedOrder(r.Context(), organizationID, id)
-	if err != nil {
-		httputil.Error(w, err)
-		return
-	}
-	httputil.OK(w, order)
-}
-
-func writeAccepted(w http.ResponseWriter, value any) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusAccepted)
-	_ = json.NewEncoder(w).Encode(value)
-}
-
-// SearchAvailable exposes display-only DIDWW inventory. Purchasing and
-// provisioning are deliberately not implemented by this endpoint.
-func (h *Handler) SearchAvailable(w http.ResponseWriter, r *http.Request) {
-	organizationID, err := requestOrganizationID(r)
-	if err != nil {
-		httputil.Error(w, err)
-		return
-	}
-	numbers, err := h.service.SearchAvailable(r.Context(), organizationID, r.URL.Query().Get("contains"))
-	if err != nil {
-		httputil.Error(w, err)
-		return
-	}
-	httputil.OK(w, map[string]any{"numbers": numbers})
-}
-
-func (h *Handler) CreateNumber(w http.ResponseWriter, r *http.Request) {
-	organizationID, err := requestOrganizationID(r)
-	if err != nil {
-		httputil.Error(w, err)
-		return
-	}
-	req, err := helper.DecodeJSON[CreateBYOCRequest](r)
-	if err != nil {
-		httputil.Error(w, err)
-		return
-	}
-	number, err := h.service.CreateBYOC(r.Context(), organizationID, req)
+	number, err := h.service.Create(r.Context(), organizationID, req)
 	if err != nil {
 		httputil.Error(w, err)
 		return
@@ -155,7 +89,7 @@ func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 	httputil.OK(w, response(number))
 }
 
-func (h *Handler) SetBYOCConnection(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) SetCarrierConnection(w http.ResponseWriter, r *http.Request) {
 	organizationID, numberID, err := requestIDs(r)
 	if err != nil {
 		httputil.Error(w, err)
@@ -166,7 +100,7 @@ func (h *Handler) SetBYOCConnection(w http.ResponseWriter, r *http.Request) {
 		httputil.Error(w, err)
 		return
 	}
-	number, err := h.service.SetBYOCConnection(r.Context(), organizationID, numberID, req)
+	number, err := h.service.SetCarrierConnection(r.Context(), organizationID, numberID, req)
 	if err != nil {
 		httputil.Error(w, err)
 		return

@@ -145,7 +145,7 @@ def provider():
     # Migration 013 seeds this provider; verify the real row is usable.
     provider_id = psql(
         "SELECT id::text FROM carrier_providers "
-        "WHERE slug='generic-sip' AND adapter='sip' AND status='active'"
+        "WHERE slug='generic-sip' AND status='active'"
     )
     if not provider_id:
         raise Failure("migration-seeded generic SIP provider is missing or inactive")

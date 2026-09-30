@@ -1,8 +1,6 @@
 package routing
 
 import (
-	"time"
-
 	"github.com/google/uuid"
 )
 
@@ -28,7 +26,6 @@ type InboundDecision struct {
 	VoiceBindingID      uuid.UUID
 	CarrierConnectionID uuid.UUID
 	CalledNumber        string
-	ProvisioningMode    string
 	Limits              Limits
 }
 
@@ -42,13 +39,10 @@ type OutboundRoute struct {
 	CarrierConnectionID uuid.UUID
 	TrunkID             uuid.UUID
 	TrunkEndpointID     uuid.UUID
-	ProvisioningMode    string
 	Host                string
 	Port                uint16
 	Transport           string
 	Limits              Limits
-	RateMicros          int64
-	ScoreMicros         int64
 }
 
 type OutboundDecision struct {
@@ -62,14 +56,4 @@ func (d OutboundDecision) Primary() (OutboundRoute, bool) {
 		return OutboundRoute{}, false
 	}
 	return d.Routes[0], true
-}
-
-type managedRouteCandidate struct {
-	Candidate             CarrierCandidate
-	Route                 OutboundRoute
-	ASRBasisPoints        int32
-	ALOCMilliseconds      int64
-	LatencyMilliseconds   int32
-	PacketLossBasisPoints int32
-	MetricsObservedAt     time.Time
 }

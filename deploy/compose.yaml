@@ -12,8 +12,6 @@ x-app-environment: &app-environment
   TURN_AUTH_SECRET: ${TURN_AUTH_SECRET:?TURN_AUTH_SECRET is required}
   TURN_PUBLIC_URLS: "stun:turn.${DOMAIN:?DOMAIN is required}:3478,turn:turn.${DOMAIN:?DOMAIN is required}:3478?transport=udp,turn:turn.${DOMAIN:?DOMAIN is required}:3478?transport=tcp"
   CORS_ORIGINS: ${CORS_ORIGINS:?CORS_ORIGINS is required}
-  DIDWW_API_KEY: ${DIDWW_API_KEY:?DIDWW_API_KEY is required}
-  COMMPEAK_API_AUTHORIZATION: ${COMMPEAK_API_AUTHORIZATION:?COMMPEAK_API_AUTHORIZATION is required}
   MINIO_APP_ACCESS_KEY: ${MINIO_APP_ACCESS_KEY:?MINIO_APP_ACCESS_KEY is required}
   MINIO_APP_SECRET_KEY: ${MINIO_APP_SECRET_KEY:?MINIO_APP_SECRET_KEY is required}
 

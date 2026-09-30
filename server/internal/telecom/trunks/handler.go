@@ -30,32 +30,12 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 		httputil.Error(w, err)
 		return
 	}
-	result, err := h.service.Create(r.Context(), org, req)
+	item, err := h.service.Create(r.Context(), org, req)
 	if err != nil {
 		httputil.Error(w, err)
 		return
 	}
-	if result.Credential != nil {
-		w.Header().Set("Cache-Control", "no-store")
-		httputil.Created(w, ManagedCreateResponse{Response: response(result.Trunk), SIP: *result.Credential})
-		return
-	}
-	httputil.Created(w, response(result.Trunk))
-}
-
-func (h *Handler) RotateCredential(w http.ResponseWriter, r *http.Request) {
-	org, trunk, err := trunkIDs(r)
-	if err != nil {
-		httputil.Error(w, err)
-		return
-	}
-	credential, err := h.service.RotateCredential(r.Context(), org, trunk)
-	if err != nil {
-		httputil.Error(w, err)
-		return
-	}
-	w.Header().Set("Cache-Control", "no-store")
-	httputil.OK(w, map[string]any{"sip": credential})
+	httputil.Created(w, response(item))
 }
 
 func (h *Handler) List(w http.ResponseWriter, r *http.Request) {

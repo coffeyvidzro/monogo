@@ -320,11 +320,8 @@ SELECT
     c.direction,
     c.state,
     c.media_state,
-    c.answered_at,
-    cc.scope AS carrier_scope
+    c.answered_at
 FROM calls AS c
-LEFT JOIN carrier_connections AS cc
-  ON cc.id = c.carrier_connection_id
 WHERE c.id = $1
 LIMIT 1
 `
@@ -337,7 +334,6 @@ type GetCallLifecycleSnapshotRow struct {
 	State               string             `db:"state" json:"state"`
 	MediaState          string             `db:"media_state" json:"media_state"`
 	AnsweredAt          pgtype.Timestamptz `db:"answered_at" json:"answered_at"`
-	CarrierScope        *string            `db:"carrier_scope" json:"carrier_scope"`
 }
 
 func (q *Queries) GetCallLifecycleSnapshot(ctx context.Context, id uuid.UUID) (GetCallLifecycleSnapshotRow, error) {
@@ -351,7 +347,6 @@ func (q *Queries) GetCallLifecycleSnapshot(ctx context.Context, id uuid.UUID) (G
 		&i.State,
 		&i.MediaState,
 		&i.AnsweredAt,
-		&i.CarrierScope,
 	)
 	return i, err
 }
@@ -395,8 +390,7 @@ const getInboundCallContext = `-- name: GetInboundCallContext :one
 SELECT
     cc.max_cps,
     cc.max_concurrent_calls,
-    cc.max_daily_minutes,
-    pn.provisioning_mode
+    cc.max_daily_minutes
 FROM phone_numbers AS pn
 JOIN carrier_connections AS cc
   ON cc.id = pn.carrier_connection_id
@@ -414,18 +408,7 @@ WHERE pn.id = $1
   AND pn.voice_enabled = true
   AND cc.status = 'active'
   AND cc.inbound_enabled = true
-  AND (
-      (
-          cc.scope = 'organization'
-          AND cc.organization_id = pn.organization_id
-          AND pn.provisioning_mode = 'byoc'
-      )
-      OR (
-          cc.scope = 'platform'
-          AND cc.organization_id IS NULL
-          AND pn.provisioning_mode = 'managed'
-      )
-  )
+  AND cc.organization_id = pn.organization_id
   AND va.id = $5
   AND va.organization_id = pn.organization_id
   AND va.status = 'active'
@@ -446,7 +429,6 @@ type GetInboundCallContextRow struct {
 	MaxCps             int32  `db:"max_cps" json:"max_cps"`
 	MaxConcurrentCalls int32  `db:"max_concurrent_calls" json:"max_concurrent_calls"`
 	MaxDailyMinutes    *int64 `db:"max_daily_minutes" json:"max_daily_minutes"`
-	ProvisioningMode   string `db:"provisioning_mode" json:"provisioning_mode"`
 }
 
 // Revalidate the DID-derived tenant and route tuple before the call service
@@ -460,12 +442,7 @@ func (q *Queries) GetInboundCallContext(ctx context.Context, arg GetInboundCallC
 		arg.ApplicationID,
 	)
 	var i GetInboundCallContextRow
-	err := row.Scan(
-		&i.MaxCps,
-		&i.MaxConcurrentCalls,
-		&i.MaxDailyMinutes,
-		&i.ProvisioningMode,
-	)
+	err := row.Scan(&i.MaxCps, &i.MaxConcurrentCalls, &i.MaxDailyMinutes)
 	return i, err
 }
 

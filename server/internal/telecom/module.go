@@ -3,19 +3,13 @@ package telecom
 import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/coffeyvidzro/monogo/internal/commercial/pricing"
-	"github.com/coffeyvidzro/monogo/internal/commercial/subscriptions"
-	"github.com/coffeyvidzro/monogo/internal/commercial/wallets"
 	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
-	"github.com/coffeyvidzro/monogo/internal/integrations/carriers/didww"
 	"github.com/coffeyvidzro/monogo/internal/platform/metrics"
 	"github.com/coffeyvidzro/monogo/internal/runtime/calling"
 	"github.com/coffeyvidzro/monogo/internal/security/encryption"
 	"github.com/coffeyvidzro/monogo/internal/telecom/calls"
 	"github.com/coffeyvidzro/monogo/internal/telecom/carriers"
 	"github.com/coffeyvidzro/monogo/internal/telecom/conferences"
-	"github.com/coffeyvidzro/monogo/internal/telecom/lifecycle"
-	"github.com/coffeyvidzro/monogo/internal/telecom/messaging"
 	"github.com/coffeyvidzro/monogo/internal/telecom/numbers"
 	"github.com/coffeyvidzro/monogo/internal/telecom/realtime"
 	"github.com/coffeyvidzro/monogo/internal/telecom/recordings"
@@ -32,12 +26,8 @@ type Dependencies struct {
 	CallsController      *calling.Controller
 	CallsChannelStore    *calling.ChannelStore
 	CallsAdmission       *calling.AdmissionLimiter
-	CallsSubscriptions   *subscriptions.Service
-	CallsPricing         *pricing.Service
-	CallsWallets         *wallets.Service
 	ConferenceController conferences.Controller
 	CredentialCipher     *encryption.Cipher
-	DIDWWInventory       *didww.Client
 	RealtimeService      *realtime.Service
 	RecordingStorage     recordings.Storage
 	Metrics              *metrics.Registry
@@ -48,8 +38,6 @@ type Module struct {
 	Carriers    CarriersModule
 	Conferences ConferencesModule
 	Numbers     NumbersModule
-	Lifecycle   LifecycleModule
-	Messaging   MessagingModule
 	Realtime    RealtimeModule
 	Recordings  RecordingsModule
 	Routing     RoutingModule
@@ -81,18 +69,6 @@ type NumbersModule struct {
 	Repository *numbers.Repository
 	Service    *numbers.Service
 	Handler    *numbers.Handler
-}
-
-type LifecycleModule struct {
-	Repository *lifecycle.Repository
-	Service    *lifecycle.Service
-	Handler    *lifecycle.Handler
-}
-
-type MessagingModule struct {
-	Repository *messaging.Repository
-	Service    *messaging.Service
-	Handler    *messaging.Handler
 }
 
 type RealtimeModule struct {
@@ -143,9 +119,6 @@ func New(deps Dependencies) (*Module, error) {
 	callsService := calls.NewService(
 		callsRepository,
 		routingService,
-		deps.CallsSubscriptions,
-		deps.CallsPricing,
-		deps.CallsWallets,
 		deps.CallsController,
 		deps.CallsChannelStore,
 		deps.CallsAdmission,
@@ -153,24 +126,10 @@ func New(deps Dependencies) (*Module, error) {
 	)
 
 	numbersRepository := numbers.NewRepository(deps.Queries)
-	numbersService := numbers.NewService(numbersRepository, deps.DIDWWInventory)
-	numbersService.ConfigureManaged(deps.DB)
-	numbersService.ConfigureBilling(
-		deps.CallsPricing,
-		deps.CallsWallets,
-	)
-	lifecycleRepository := lifecycle.NewRepository(deps.Queries)
-	lifecycleService := lifecycle.NewService(lifecycleRepository, deps.DB, didww.NewLifecycleProvider(deps.DIDWWInventory))
+	numbersService := numbers.NewService(numbersRepository)
 
 	voiceRepository := voice.NewRepository(deps.Queries)
 	voiceService := voice.NewService(voiceRepository)
-
-	messagingRepository := messaging.NewRepository(deps.DB)
-	messagingService := messaging.NewService(messagingRepository)
-	messagingService.ConfigureBilling(
-		deps.CallsPricing,
-		deps.CallsWallets,
-	)
 
 	recordingsRepository := recordings.NewRepository(deps.DB)
 	recordingsService := recordings.NewService(recordingsRepository, deps.RecordingStorage)
@@ -203,11 +162,6 @@ func New(deps Dependencies) (*Module, error) {
 			Service:    numbersService,
 			Handler:    numbers.NewHandler(numbersService),
 		},
-		Lifecycle: LifecycleModule{
-			Repository: lifecycleRepository,
-			Service:    lifecycleService,
-			Handler:    lifecycle.NewHandler(lifecycleService),
-		},
 		Routing: RoutingModule{
 			Repository: routingRepository,
 			Service:    routingService,
@@ -216,11 +170,6 @@ func New(deps Dependencies) (*Module, error) {
 			Repository: voiceRepository,
 			Service:    voiceService,
 			Handler:    voice.NewHandler(voiceService),
-		},
-		Messaging: MessagingModule{
-			Repository: messagingRepository,
-			Service:    messagingService,
-			Handler:    messaging.NewHandler(messagingService),
 		},
 		Recordings: RecordingsModule{
 			Repository: recordingsRepository,
