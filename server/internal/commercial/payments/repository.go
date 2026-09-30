@@ -195,16 +195,5 @@ func (r *Repository) MarkProviderEventProcessed(
 		return sqlc.PaymentProviderEvent{}, err
 	}
 
-	return sqlc.PaymentProviderEvent{
-		ID:              row.ID,
-		PaymentID:       row.PaymentID,
-		OrganizationID:  row.OrganizationID,
-		Provider:        row.Provider,
-		ProviderEventID: row.ProviderEventID,
-		EventType:       row.EventType,
-		PayloadSha256:   row.PayloadSha256,
-		Payload:         row.Payload,
-		ReceivedAt:      row.ReceivedAt,
-		ProcessedAt:     row.ProcessedAt,
-	}, nil
+	return sqlc.PaymentProviderEvent(row), nil
 }
