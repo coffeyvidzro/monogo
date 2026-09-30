@@ -16,6 +16,57 @@ preserving the provider-neutral payment and checkout records. Subscription
 renewal semantics should be decided before extending the same orchestration to
 subscriptions.
 
+## Provider strategy: do not replace Stripe and Paystack with Polar
+
+As of September 30, 2026, Polar is not an appropriate payment provider for
+Monogo's managed telecom products or prepaid wallet. Its binding
+[Acceptable Use Policy](https://polar.sh/legal/acceptable-use-policy) explicitly
+disallows **Telecommunication and eSIM Services**. The same policy also
+disallows services that facilitate customer transactions or balances, which
+makes a cash-denominated prepaid telecom wallet an additional material fit
+risk. This is a policy blocker, not an integration inconvenience.
+
+Polar is a Merchant of Record focused on software and digital products. That
+model is attractive for SaaS tax handling, subscription management, checkout,
+and refunds, but the Merchant of Record is the legal seller and controls product
+eligibility, account review, payment suspension, and some proactive refunds.
+Those controls conflict with using the resulting payment as immediately
+spendable carrier exposure unless the wallet also has explicit refund and
+negative-balance handling.
+
+Polar would also remove a launch-critical payment method. Its documented
+[checkout payment methods](https://polar.sh/docs/features/checkout/payment-methods)
+include cards, browser wallets, and a limited set of local methods, but not the
+Paystack mobile-money flow currently modeled by Monogo. In addition, Polar's
+[Merchant of Record fees](https://polar.sh/docs/merchant-of-record/fees) include
+a percentage and fixed per-transaction component. That fixed component is a
+poor default for small prepaid telecom top-ups and should be compared against
+the expected top-up distribution before any future reconsideration.
+
+Polar's usage credits are also not a replacement for the Monogo wallet. Polar
+describes those credits as balances for its usage meters, including optional
+overage billing. Monogo's wallet is settled money authorization for carrier
+exposure, with holds, capture, release, and an immutable financial ledger. The
+two have different accounting and operational semantics.
+
+### Recommendation
+
+- Retain Stripe for card payments and recurring platform subscriptions.
+- Retain Paystack where local mobile money is a launch requirement.
+- Keep Monogo's provider-neutral checkout, payment, provider-event, and wallet
+  records so either provider can be replaced without changing ledger truth.
+- Do not add a Polar adapter unless Polar gives written approval for the exact
+  telecom use case and the launch team accepts the payment-method, fee, refund,
+  and account-control trade-offs.
+- If written approval is obtained, consider Polar only for the standalone
+  Monogo software subscription first. Do not route wallet top-ups or managed
+  carrier usage through it without a separate legal, accounting, and refund
+  design review.
+
+The correct simplification is therefore not "one provider for everything." It
+is one provider-neutral local settlement state machine with multiple payment
+adapters selected by product and market.
+
 ## What exists today
 
 ### Sound foundations
