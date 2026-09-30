@@ -261,18 +261,6 @@ func (s *Service) DeleteEndpoint(ctx context.Context, organizationID, trunkID, i
 	return writeError(err, "trunk endpoint", "trunk endpoint not found")
 }
 
-func (s *Service) Get(ctx context.Context, organizationID, trunkID uuid.UUID) (sqlc.Trunk, error) {
-	item, err := s.Get(ctx, organizationID, trunkID)
-	if err != nil {
-		return sqlc.Trunk{}, err
-	}
-	if ProvisioningMode(item.ProvisioningMode) != ProvisioningModeBYOC {
-		return sqlc.Trunk{}, apperror.NewConflict("managed trunk endpoints are platform-managed")
-	}
-	return item, nil
-}
-
-
 func (s *Service) mutateTrunk(ctx context.Context, eventType EventType, mutation func(*Repository) (sqlc.Trunk, error)) (sqlc.Trunk, error) {
 	if s.db == nil || s.outbox == nil {
 		return sqlc.Trunk{}, fmt.Errorf("trunk database is required for domain events")

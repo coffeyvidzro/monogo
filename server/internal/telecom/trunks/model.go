@@ -64,7 +64,6 @@ type Event struct {
 type Response struct {
 	ID                  uuid.UUID        `json:"id"`
 	OrganizationID      *uuid.UUID       `json:"organization_id,omitempty"`
-	Type                ProvisioningMode `json:"type"`
 	CarrierConnectionID *uuid.UUID       `json:"carrier_connection_id,omitempty"`
 	Name                string           `json:"name"`
 	Direction           string           `json:"direction"`

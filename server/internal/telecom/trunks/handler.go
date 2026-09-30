@@ -30,7 +30,7 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 		httputil.Error(w, err)
 		return
 	}
-	result, err := h.service.Create(r.Context(), org, req)
+	item, err := h.service.Create(r.Context(), org, req)
 	if err != nil {
 		httputil.Error(w, err)
 		return

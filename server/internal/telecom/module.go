@@ -176,11 +176,6 @@ func New(deps Dependencies) (*Module, error) {
 			Service:    numbersService,
 			Handler:    numbers.NewHandler(numbersService),
 		},
-		Lifecycle: LifecycleModule{
-			Repository: lifecycleRepository,
-			Service:    lifecycleService,
-			Handler:    lifecycle.NewHandler(lifecycleService),
-		},
 		Routing: RoutingModule{
 			Repository: routingRepository,
 			Service:    routingService,

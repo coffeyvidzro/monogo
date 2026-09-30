@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/coffeyvidzro/monogo/pkg/apperror"
-	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 )
 

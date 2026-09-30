@@ -3,7 +3,6 @@ package calls
 import (
 	"context"
 	"errors"
-	"strings"
 
 	"github.com/coffeyvidzro/monogo/internal/commercial/subscriptions"
 	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
