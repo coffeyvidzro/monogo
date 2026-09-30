@@ -1,5 +1,5 @@
-// Package voiceai attaches durable Voice Agent sessions to live calls.
-package voiceai
+// Package agent attaches durable Voice Agent sessions to live calls.
+package agent
 
 import (
 	"fmt"

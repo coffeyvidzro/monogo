@@ -19,7 +19,7 @@ import (
 	"github.com/coffeyvidzro/monogo/internal/platform/outbox"
 	"github.com/coffeyvidzro/monogo/internal/platform/webhooks"
 	"github.com/coffeyvidzro/monogo/internal/runtime/calling"
-	"github.com/coffeyvidzro/monogo/internal/runtime/voiceai"
+	"github.com/coffeyvidzro/monogo/internal/runtime/agent"
 	"github.com/coffeyvidzro/monogo/internal/security/encryption"
 	"github.com/coffeyvidzro/monogo/internal/telephony/calls"
 	"github.com/coffeyvidzro/monogo/internal/telephony/recordings"
@@ -34,7 +34,7 @@ type modules struct {
 	freeSwitch              *freeswitch.Client
 	callsService            *calls.Service
 	callConsumer            *calls.Consumer
-	voiceAI                 *voiceai.Runtime
+	agentRuntime                 *agent.Runtime
 	callReconciliation      *calls.ReconciliationJob
 	outbox                  *outbox.PublisherJob
 	webhookConsumer         *webhooks.Consumer
@@ -119,10 +119,10 @@ func newModules(ctx context.Context, cfg config.Config, logger *logging.Logger) 
 		CredentialCipher: credentialCipher,
 		Calls:            callsService,
 	})
-	voiceAIRuntime, err := voiceai.New(
+	agentRuntimeRuntime, err := agent.New(
 		aiModule.Orchestration,
 		freeSwitch,
-		voiceai.DefaultConfig(cfg.MediaControlURL, cfg.MediaControlToken),
+		agent.DefaultConfig(cfg.MediaControlURL, cfg.MediaControlToken),
 		logger,
 	)
 	if err != nil {
@@ -217,7 +217,7 @@ func newModules(ctx context.Context, cfg config.Config, logger *logging.Logger) 
 		freeSwitch:              freeSwitch,
 		callsService:            callsService,
 		callConsumer:            callConsumer,
-		voiceAI:                 voiceAIRuntime,
+		agentRuntime:                 agentRuntimeRuntime,
 		callReconciliation:      callReconciliation,
 		outbox:                  outboxJob,
 		webhookConsumer:         webhooks.NewConsumer(natsClient, webhookService),

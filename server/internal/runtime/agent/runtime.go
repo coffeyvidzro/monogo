@@ -1,4 +1,4 @@
-package voiceai
+package agent
 
 import (
 	"fmt"
