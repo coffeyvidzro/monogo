@@ -352,7 +352,6 @@ GROUP BY
     cc.id,
     o.name,
     cc.name,
-    cp.name,
     cc.status,
     cc.inbound_enabled,
     cc.max_cps,
