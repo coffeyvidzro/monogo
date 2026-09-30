@@ -5,15 +5,11 @@ import (
 	"net/netip"
 	"strings"
 
-	"github.com/google/uuid"
 )
 
 var supportedCodecs = map[string]struct{}{"PCMU": {}, "PCMA": {}, "G722": {}, "OPUS": {}, "G729": {}}
 
 func normalizeCreate(req *CreateRequest) error {
-	if req.ProviderID == uuid.Nil {
-		return fmt.Errorf("provider_id is required")
-	}
 	name, err := normalizeName(req.Name)
 	if err != nil {
 		return err
@@ -31,9 +27,6 @@ func normalizeCreate(req *CreateRequest) error {
 	}
 	if req.MaxConcurrentCalls != nil && *req.MaxConcurrentCalls < 1 {
 		return fmt.Errorf("max_concurrent_calls must be greater than zero")
-	}
-	if req.MaxDailyMinutes != nil && *req.MaxDailyMinutes < 1 {
-		return fmt.Errorf("max_daily_minutes must be greater than zero")
 	}
 	codecs, err := normalizeCodecs(req.Codecs)
 	if err != nil {
@@ -72,7 +65,7 @@ func normalizeUpdate(req *UpdateRequest) error {
 		req.InboundEnabled == nil &&
 		req.MaxCPS == nil &&
 		req.MaxConcurrentCalls == nil &&
-		req.MaxDailyMinutes == nil &&
+
 		req.Codecs == nil &&
 		req.SupportsVideo == nil &&
 		req.SupportsFax == nil {
@@ -97,9 +90,6 @@ func normalizeUpdate(req *UpdateRequest) error {
 	}
 	if req.MaxConcurrentCalls != nil && *req.MaxConcurrentCalls < 1 {
 		return fmt.Errorf("max_concurrent_calls must be greater than zero")
-	}
-	if req.MaxDailyMinutes != nil && *req.MaxDailyMinutes < 1 {
-		return fmt.Errorf("max_daily_minutes must be greater than zero")
 	}
 	if req.Codecs != nil {
 		v, err := normalizeCodecs(*req.Codecs)

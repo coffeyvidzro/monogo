@@ -16,7 +16,6 @@ func TestAdmissionFailureReason(t *testing.T) {
 	}{
 		{name: "cps", err: calling.ErrAdmissionCPS, want: "carrier_cps_limit"},
 		{name: "concurrent", err: calling.ErrAdmissionConcurrent, want: "carrier_concurrent_limit"},
-		{name: "daily", err: ErrAdmissionDailyMinutes, want: "carrier_daily_minutes_limit"},
 	}
 
 	for _, tt := range tests {

@@ -45,7 +45,6 @@ func (r *Repository) Update(ctx context.Context, org, id uuid.UUID, req UpdateRe
 		InboundEnabled:     req.InboundEnabled,
 		MaxCps:             req.MaxCPS,
 		MaxConcurrentCalls: req.MaxConcurrentCalls,
-		MaxDailyMinutes:    req.MaxDailyMinutes,
 		Codecs:             codecs,
 		SupportsVideo:      req.SupportsVideo,
 		SupportsFax:        req.SupportsFax,

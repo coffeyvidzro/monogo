@@ -55,7 +55,6 @@ func (r *Repository) GetInboundContext(
 		Limits: Limits{
 			MaxCPS:             row.MaxCps,
 			MaxConcurrentCalls: row.MaxConcurrentCalls,
-			MaxDailyMinutes:    row.MaxDailyMinutes,
 		},
 	}, nil
 }
@@ -63,16 +62,16 @@ func (r *Repository) GetInboundContext(
 func (r *Repository) ResolveBYOCOutbound(
 	ctx context.Context,
 	organizationID, trunkID uuid.UUID,
-) (OutboundRoute, error) {
+) ([]OutboundRoute, error) {
 	trunk, err := r.queries.GetTrunkByID(ctx, sqlc.GetTrunkByIDParams{
 		ID:             trunkID,
 		OrganizationID: &organizationID,
 	})
 	if err != nil {
-		return OutboundRoute{}, err
+		return nil, err
 	}
 	if trunk.CarrierConnectionID == nil {
-		return OutboundRoute{}, pgx.ErrNoRows
+		return nil, pgx.ErrNoRows
 	}
 
 	connection, err := r.queries.GetCarrierConnectionByID(ctx, sqlc.GetCarrierConnectionByIDParams{
@@ -80,7 +79,7 @@ func (r *Repository) ResolveBYOCOutbound(
 		OrganizationID: &organizationID,
 	})
 	if err != nil {
-		return OutboundRoute{}, err
+		return nil, err
 	}
 
 	endpoints, err := r.queries.ListActiveOutboundTrunkEndpoints(
@@ -91,17 +90,18 @@ func (r *Repository) ResolveBYOCOutbound(
 		},
 	)
 	if err != nil {
-		return OutboundRoute{}, err
+		return nil, err
 	}
 
+	routes := make([]OutboundRoute, 0, len(endpoints))
 	for _, endpoint := range endpoints {
 		if endpoint.HealthStatus == "unhealthy" {
 			continue
 		}
 		if endpoint.Port < 1 || endpoint.Port > 65535 {
-			return OutboundRoute{}, fmt.Errorf("invalid trunk endpoint port: %d", endpoint.Port)
+			return nil, fmt.Errorf("invalid trunk endpoint port: %d", endpoint.Port)
 		}
-		return OutboundRoute{
+		routes = append(routes, OutboundRoute{
 			CarrierConnectionID: *trunk.CarrierConnectionID,
 			TrunkID:             trunk.ID,
 			TrunkEndpointID:     endpoint.ID,
@@ -111,10 +111,11 @@ func (r *Repository) ResolveBYOCOutbound(
 			Limits: Limits{
 				MaxCPS:             connection.MaxCps,
 				MaxConcurrentCalls: connection.MaxConcurrentCalls,
-				MaxDailyMinutes:    connection.MaxDailyMinutes,
 			},
-		}, nil
+		})
 	}
-
-	return OutboundRoute{}, pgx.ErrNoRows
+	if len(routes) == 0 {
+		return nil, pgx.ErrNoRows
+	}
+	return routes, nil
 }

@@ -14,7 +14,6 @@ type DigestCredential struct {
 }
 
 type CreateRequest struct {
-	ProviderID         uuid.UUID         `json:"provider_id"`
 	Name               string            `json:"name"`
 	Status             *string           `json:"status,omitempty"`
 	OutboundCredential *DigestCredential `json:"outbound_credential,omitempty"`
@@ -23,7 +22,6 @@ type CreateRequest struct {
 	InboundCredential  *DigestCredential `json:"inbound_credential,omitempty"`
 	MaxCPS             *int32            `json:"max_cps,omitempty"`
 	MaxConcurrentCalls *int32            `json:"max_concurrent_calls,omitempty"`
-	MaxDailyMinutes    *int64            `json:"max_daily_minutes,omitempty"`
 	Codecs             []string          `json:"codecs,omitempty"`
 	SupportsVideo      *bool             `json:"supports_video,omitempty"`
 	SupportsFax        *bool             `json:"supports_fax,omitempty"`
@@ -35,7 +33,6 @@ type UpdateRequest struct {
 	InboundEnabled     *bool     `json:"inbound_enabled,omitempty"`
 	MaxCPS             *int32    `json:"max_cps,omitempty"`
 	MaxConcurrentCalls *int32    `json:"max_concurrent_calls,omitempty"`
-	MaxDailyMinutes    *int64    `json:"max_daily_minutes,omitempty"`
 	Codecs             *[]string `json:"codecs,omitempty"`
 	SupportsVideo      *bool     `json:"supports_video,omitempty"`
 	SupportsFax        *bool     `json:"supports_fax,omitempty"`
@@ -69,7 +66,6 @@ type Response struct {
 	HasInboundCredentials  bool      `json:"has_inbound_credentials"`
 	MaxCPS                 int32     `json:"max_cps"`
 	MaxConcurrentCalls     int32     `json:"max_concurrent_calls"`
-	MaxDailyMinutes        *int64    `json:"max_daily_minutes,omitempty"`
 	Codecs                 []string  `json:"codecs"`
 	SupportsVideo          bool      `json:"supports_video"`
 	SupportsFax            bool      `json:"supports_fax"`

@@ -72,7 +72,6 @@ func (s *Service) Create(ctx context.Context, org uuid.UUID, req CreateRequest) 
 	row, err := transactionRepo.Create(ctx, sqlc.CreateCarrierConnectionParams{
 		ID:                      id,
 		OrganizationID:          &org,
-		ProviderID:              req.ProviderID,
 		Name:                    req.Name,
 		Status:                  req.Status,
 		OutboundAuthMethod:      &outMethod,
@@ -84,7 +83,6 @@ func (s *Service) Create(ctx context.Context, org uuid.UUID, req CreateRequest) 
 		InboundSecretCiphertext: inCipher,
 		MaxCps:                  req.MaxCPS,
 		MaxConcurrentCalls:      req.MaxConcurrentCalls,
-		MaxDailyMinutes:         req.MaxDailyMinutes,
 		Codecs:                  req.Codecs,
 		SupportsVideo:           req.SupportsVideo,
 		SupportsFax:             req.SupportsFax,
@@ -410,7 +408,6 @@ func responseFromRow(r sqlc.CarrierConnection) Response {
 	return Response{
 		ID:                     r.ID,
 		OrganizationID:         org,
-		ProviderID:             r.ProviderID,
 		Name:                   r.Name,
 		Status:                 r.Status,
 		OutboundAuthMethod:     r.OutboundAuthMethod,
@@ -422,7 +419,6 @@ func responseFromRow(r sqlc.CarrierConnection) Response {
 		HasInboundCredentials:  r.InboundSecretCiphertext != nil,
 		MaxCPS:                 r.MaxCps,
 		MaxConcurrentCalls:     r.MaxConcurrentCalls,
-		MaxDailyMinutes:        r.MaxDailyMinutes,
 		Codecs:                 r.Codecs,
 		SupportsVideo:          r.SupportsVideo,
 		SupportsFax:            r.SupportsFax,
@@ -439,7 +435,6 @@ func responseFromGet(r sqlc.GetCarrierConnectionByIDRow) Response {
 	return Response{
 		ID:                     r.ID,
 		OrganizationID:         org,
-		ProviderID:             r.ProviderID,
 		Name:                   r.Name,
 		Status:                 r.Status,
 		OutboundAuthMethod:     r.OutboundAuthMethod,
@@ -453,7 +448,6 @@ func responseFromGet(r sqlc.GetCarrierConnectionByIDRow) Response {
 		HasInboundCredentials:  boolValue(r.HasInboundCredentials),
 		MaxCPS:                 r.MaxCps,
 		MaxConcurrentCalls:     r.MaxConcurrentCalls,
-		MaxDailyMinutes:        r.MaxDailyMinutes,
 		Codecs:                 r.Codecs,
 		SupportsVideo:          r.SupportsVideo,
 		SupportsFax:            r.SupportsFax,
@@ -466,7 +460,6 @@ func responseFromList(r sqlc.ListCarrierConnectionsByOrganizationIDRow) Response
 	return Response{
 		ID:                     r.ID,
 		OrganizationID:         *r.OrganizationID,
-		ProviderID:             r.ProviderID,
 		Name:                   r.Name,
 		Status:                 r.Status,
 		OutboundAuthMethod:     r.OutboundAuthMethod,
@@ -480,7 +473,6 @@ func responseFromList(r sqlc.ListCarrierConnectionsByOrganizationIDRow) Response
 		HasInboundCredentials:  boolValue(r.HasInboundCredentials),
 		MaxCPS:                 r.MaxCps,
 		MaxConcurrentCalls:     r.MaxConcurrentCalls,
-		MaxDailyMinutes:        r.MaxDailyMinutes,
 		Codecs:                 r.Codecs,
 		SupportsVideo:          r.SupportsVideo,
 		SupportsFax:            r.SupportsFax,

@@ -16,7 +16,6 @@ type InboundRequest struct {
 type Limits struct {
 	MaxCPS             int32
 	MaxConcurrentCalls int32
-	MaxDailyMinutes    *int64
 }
 
 type InboundDecision struct {
@@ -46,7 +45,6 @@ type OutboundRoute struct {
 }
 
 type OutboundDecision struct {
-	ID                uuid.UUID
 	DestinationDigits string
 	Routes            []OutboundRoute
 }

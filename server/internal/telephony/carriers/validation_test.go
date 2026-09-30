@@ -3,12 +3,10 @@ package carriers
 import (
 	"testing"
 
-	"github.com/google/uuid"
 )
 
 func TestNormalizeCreateRejectsIncompleteDigestAuth(t *testing.T) {
 	req := CreateRequest{
-		ProviderID:        uuid.New(),
 		Name:              "Primary carrier",
 		InboundAuthMethod: stringPointer("digest"),
 	}
@@ -19,7 +17,6 @@ func TestNormalizeCreateRejectsIncompleteDigestAuth(t *testing.T) {
 
 func TestNormalizeCreateNormalizesAndDeduplicatesCodecs(t *testing.T) {
 	req := CreateRequest{
-		ProviderID: uuid.New(),
 		Name:       "  Primary carrier  ",
 		Codecs:     []string{"pcmu", "OPUS", "PCMU"},
 	}

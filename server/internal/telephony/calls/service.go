@@ -99,15 +99,9 @@ func (s *Service) Create(ctx context.Context, organizationID uuid.UUID, req Crea
 			CarrierConnectionID: &carrierID,
 			TrunkID:             &trunkID,
 			TrunkEndpointID:     &endpointID,
-			RoutingDecisionID:   optionalDecisionID(decision.ID),
 		}); attributionErr != nil {
 			return calling.OriginateResult{}, &calling.OriginateError{
 				Class: calling.OriginateFailureInternal, Err: attributionErr,
-			}
-		}
-		if limitErr := s.checkDailyMinutes(attemptCtx, route.CarrierConnectionID, route.Limits.MaxDailyMinutes); limitErr != nil {
-			return calling.OriginateResult{}, &calling.OriginateError{
-				Class: calling.OriginateFailureCapacity, Err: limitErr,
 			}
 		}
 		if admissionErr := s.admission.Acquire(
@@ -128,9 +122,6 @@ func (s *Service) Create(ctx context.Context, organizationID uuid.UUID, req Crea
 		}
 		return result, originateErr
 	}, func(attemptCtx context.Context, attempt routeAttemptOutcome) {
-		if decision.ID != uuid.Nil {
-			_ = s.repo.RecordRoutingAttempt(attemptCtx, decision.ID, call.ID, attempt)
-		}
 		if s.metrics != nil {
 			s.metrics.RouteAttempt(
 				attemptCtx, attempt.Route.CarrierConnectionID, attempt.Route.TrunkID,
@@ -149,16 +140,6 @@ func (s *Service) Create(ctx context.Context, organizationID uuid.UUID, req Crea
 		_, _ = s.repo.MarkFailed(ctx, organizationID, call.ID, &reason)
 		return sqlc.Call{}, apperror.NewInternal("originate call", err)
 	}
-	if decision.ID != uuid.Nil {
-		if err := s.repo.SetRoutingDecisionSelectedRoute(ctx, organizationID, decision.ID, selected); err != nil {
-			_ = s.controller.Hangup(ctx, result.ChannelID)
-			_ = s.admission.Release(ctx, selected.CarrierConnectionID, call.ID.String())
-			reason := "route_decision_update_failed"
-			_, _ = s.repo.MarkFailed(ctx, organizationID, call.ID, &reason)
-			return sqlc.Call{}, apperror.NewInternal("update selected routing decision", err)
-		}
-	}
-
 	if err := s.channels.Bind(ctx, call.ID, result.ChannelID); err != nil {
 		_ = s.controller.Hangup(ctx, result.ChannelID)
 		_ = s.admission.Release(ctx, selected.CarrierConnectionID, call.ID.String())
@@ -168,13 +149,6 @@ func (s *Service) Create(ctx context.Context, organizationID uuid.UUID, req Crea
 	}
 
 	return s.repo.Get(ctx, organizationID, call.ID)
-}
-
-func optionalDecisionID(id uuid.UUID) *uuid.UUID {
-	if id == uuid.Nil {
-		return nil
-	}
-	return &id
 }
 
 func (s *Service) AdmitInbound(
@@ -226,10 +200,6 @@ func (s *Service) AdmitInbound(
 	})
 	if err != nil {
 		return sqlc.Call{}, s.rejectInbound(ctx, req.ChannelID, err)
-	}
-
-	if err := s.checkDailyMinutes(ctx, decision.CarrierConnectionID, decision.Limits.MaxDailyMinutes); err != nil {
-		return sqlc.Call{}, s.rejectInbound(ctx, req.ChannelID, admissionError(err))
 	}
 
 	if err := s.admission.Acquire(
@@ -546,32 +516,12 @@ func (s *Service) controlContext(ctx context.Context, org, id uuid.UUID) (sqlc.C
 	return call, channelID, nil
 }
 
-func (s *Service) checkDailyMinutes(
-	ctx context.Context,
-	carrierConnectionID uuid.UUID,
-	maxDailyMinutes *int64,
-) error {
-	if maxDailyMinutes == nil {
-		return nil
-	}
-	usedSeconds, err := s.repo.CarrierDailyUsageSeconds(ctx, carrierConnectionID)
-	if err != nil {
-		return apperror.NewServiceUnavailable("read carrier daily usage", err)
-	}
-	if usedSeconds >= *maxDailyMinutes*60 {
-		return ErrAdmissionDailyMinutes
-	}
-	return nil
-}
-
 func admissionError(err error) error {
 	switch {
 	case errors.Is(err, calling.ErrAdmissionCPS):
 		return apperror.NewTooManyRequests("carrier CPS limit exceeded")
 	case errors.Is(err, calling.ErrAdmissionConcurrent):
 		return apperror.NewTooManyRequests("carrier concurrent call limit exceeded")
-	case errors.Is(err, ErrAdmissionDailyMinutes):
-		return apperror.NewTooManyRequests("carrier daily minute limit exceeded")
 	default:
 		return apperror.NewServiceUnavailable("carrier admission service unavailable", err)
 	}
@@ -583,8 +533,6 @@ func admissionFailureReason(err error) string {
 		return "carrier_cps_limit"
 	case errors.Is(err, calling.ErrAdmissionConcurrent):
 		return "carrier_concurrent_limit"
-	case errors.Is(err, ErrAdmissionDailyMinutes):
-		return "carrier_daily_minutes_limit"
 	default:
 		return "carrier_admission_failed"
 	}

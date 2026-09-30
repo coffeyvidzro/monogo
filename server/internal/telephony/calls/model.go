@@ -1,7 +1,6 @@
 package calls
 
 import (
-	"errors"
 	"time"
 
 	"github.com/coffeyvidzro/monogo/internal/database/pgconv"
@@ -9,7 +8,6 @@ import (
 	"github.com/google/uuid"
 )
 
-var ErrAdmissionDailyMinutes = errors.New("carrier daily minute limit exceeded")
 
 type Direction string
 
@@ -118,7 +116,6 @@ type RouteAttribution struct {
 	CarrierConnectionID *uuid.UUID
 	TrunkID             *uuid.UUID
 	TrunkEndpointID     *uuid.UUID
-	RoutingDecisionID   *uuid.UUID
 }
 
 type CallResponse struct {
@@ -134,7 +131,6 @@ type CallResponse struct {
 	FromURI             string     `json:"from_uri"`
 	ToURI               string     `json:"to_uri"`
 	SIPCallID           *string    `json:"sip_call_id,omitempty"`
-	ProviderID          *uuid.UUID `json:"provider_id,omitempty"`
 	StartedAt           *time.Time `json:"started_at,omitempty"`
 	AnsweredAt          *time.Time `json:"answered_at,omitempty"`
 	EndedAt             *time.Time `json:"ended_at,omitempty"`
@@ -157,7 +153,6 @@ func callResponse(call sqlc.Call) CallResponse {
 		FromURI:             call.FromUri,
 		ToURI:               call.ToUri,
 		SIPCallID:           call.SipCallID,
-		ProviderID:          call.ProviderID,
 		StartedAt:           pgconv.TimestamptzToTimePtr(call.StartedAt),
 		AnsweredAt:          pgconv.TimestamptzToTimePtr(call.AnsweredAt),
 		EndedAt:             pgconv.TimestamptzToTimePtr(call.EndedAt),

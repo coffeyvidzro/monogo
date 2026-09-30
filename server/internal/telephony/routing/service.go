@@ -3,17 +3,14 @@ package routing
 import (
 	"context"
 	"errors"
-	"time"
 
 	"github.com/coffeyvidzro/monogo/pkg/apperror"
 	"github.com/jackc/pgx/v5"
 )
 
 type Service struct {
-	repo                *Repository
-	policy              Policy
-	orchestrationPolicy OrchestrationPolicy
-	now                 func() time.Time
+	repo   *Repository
+	policy Policy
 }
 
 func NewService(repo *Repository, policy Policy) *Service {
@@ -23,11 +20,7 @@ func NewService(repo *Repository, policy Policy) *Service {
 	if policy == nil {
 		policy = DefaultPolicy{}
 	}
-	return &Service{
-		repo: repo, policy: policy,
-		orchestrationPolicy: DefaultOrchestrationPolicy(),
-		now:                 time.Now,
-	}
+	return &Service{repo: repo, policy: policy}
 }
 
 // ResolveInbound revalidates the DID-derived organization, application, and
@@ -72,12 +65,12 @@ func (s *Service) ResolveOutbound(
 		return OutboundDecision{}, apperror.NewBadRequest("trunk_id is required for outbound calls")
 	}
 
-	route, err := s.repo.ResolveBYOCOutbound(ctx, req.OrganizationID, *req.TrunkID)
+	routes, err := s.repo.ResolveBYOCOutbound(ctx, req.OrganizationID, *req.TrunkID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return OutboundDecision{}, apperror.NewNotFound("no eligible outbound route")
 	}
 	if err != nil {
 		return OutboundDecision{}, apperror.NewInternal("resolve outbound route", err)
 	}
-	return OutboundDecision{Routes: []OutboundRoute{route}}, nil
+	return OutboundDecision{Routes: routes}, nil
 }
