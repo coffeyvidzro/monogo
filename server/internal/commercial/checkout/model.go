@@ -31,7 +31,7 @@ type Checkout struct {
 	ID                uuid.UUID  `json:"id"`
 	OrganizationID    uuid.UUID  `json:"organization_id"`
 	Purpose           string     `json:"purpose"`
-	SubscriptionID    *uuid.UUID `json:"subscription_id,omitempty"`
+	SubscriptionID    uuid.UUID  `json:"subscription_id"`
 	Reference         string     `json:"reference"`
 	AmountMicros      int64      `json:"amount_micros"`
 	Currency          string     `json:"currency"`

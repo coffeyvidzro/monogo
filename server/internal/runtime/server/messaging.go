@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
 	"github.com/coffeyvidzro/monogo/internal/integrations/whatsapp"
 	domain "github.com/coffeyvidzro/monogo/internal/telecom/messaging"
 	"github.com/go-chi/chi/v5"
@@ -112,10 +111,7 @@ func registerMessagingProviderRoutes(router chi.Router, modules *modules) {
 			case whatsapp.EventMessage:
 				organizationID, resolveErr := modules.queries.ResolveInboundMessagingOrganization(
 					r.Context(),
-					sqlc.ResolveInboundMessagingOrganizationParams{
-						MessagingConnectionID: connection.ID,
-						ToAddress:             event.To,
-					},
+					connection.ID,
 				)
 				if resolveErr != nil {
 					http.Error(w, "resolve inbound organization", http.StatusUnprocessableEntity)

@@ -59,8 +59,7 @@ SELECT cc.id, cc.organization_id, sqlc.arg(direction)::TEXT,
        sqlc.arg(username)::TEXT, sqlc.arg(realm)::TEXT, sqlc.arg(ha1_md5)::TEXT
 FROM carrier_connections AS cc
 WHERE cc.id = sqlc.arg(carrier_connection_id)
-  AND cc.organization_id = sqlc.arg(organization_id)
-  AND cc.scope = 'organization';
+  AND cc.organization_id = sqlc.arg(organization_id);
 
 -- name: GetCarrierConnectionByID :one
 SELECT

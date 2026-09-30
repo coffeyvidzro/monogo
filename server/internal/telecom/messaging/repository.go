@@ -119,7 +119,7 @@ func (r *Repository) ResolveConnection(ctx context.Context, organizationID uuid.
 	// This is deliberately a first-active fallback. Destination, health,
 	// capacity, cost, and priority policy belongs in the future router.
 	return r.queries.ResolveMessagingConnection(ctx, sqlc.ResolveMessagingConnectionParams{
-		OrganizationID: &organizationID,
+		OrganizationID: organizationID,
 		Channel:        string(channel),
 	})
 }
@@ -129,10 +129,7 @@ func (r *Repository) ResolveInboundOrganization(
 	messagingConnectionID uuid.UUID,
 	to string,
 ) (uuid.UUID, error) {
-	return r.queries.ResolveInboundMessagingOrganization(ctx, sqlc.ResolveInboundMessagingOrganizationParams{
-		MessagingConnectionID: messagingConnectionID,
-		ToAddress:             to,
-	})
+	return r.queries.ResolveInboundMessagingOrganization(ctx, messagingConnectionID)
 }
 
 func (r *Repository) SetProviderAttribution(ctx context.Context, organizationID, id, messagingConnectionID uuid.UUID) (sqlc.Message, error) {

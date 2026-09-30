@@ -387,14 +387,14 @@ func (s *Service) completeSubscription(
 	checkout Checkout,
 	completedAt time.Time,
 ) error {
-	if checkout.SubscriptionID == nil {
+	if checkout.SubscriptionID == uuid.Nil {
 		return apperror.NewInternal("complete subscription checkout", ErrInvalidInput)
 	}
 
 	subscription, err := s.subscriptions.Get(
 		ctx,
 		checkout.OrganizationID,
-		*checkout.SubscriptionID,
+		checkout.SubscriptionID,
 	)
 	if err != nil {
 		return err
@@ -411,7 +411,7 @@ func (s *Service) completeSubscription(
 		ctx,
 		subscriptions.ActivateRequest{
 			OrganizationID:     checkout.OrganizationID,
-			SubscriptionID:     *checkout.SubscriptionID,
+			SubscriptionID:     checkout.SubscriptionID,
 			CurrentPeriodStart: periodStart,
 			CurrentPeriodEnd:   periodEnd,
 		},

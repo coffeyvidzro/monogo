@@ -118,7 +118,7 @@ func (r *Repository) CreateSourceIP(
 	cidr netip.Prefix,
 ) (sqlc.CarrierConnectionSourceIp, error) {
 	return r.queries.CreateCarrierConnectionSourceIP(ctx, sqlc.CreateCarrierConnectionSourceIPParams{
-		OrganizationID:      &org,
+		OrganizationID:      org,
 		CarrierConnectionID: id,
 		Cidr:                cidr,
 	})
@@ -127,7 +127,7 @@ func (r *Repository) CreateSourceIP(
 func (r *Repository) ListSourceIPs(ctx context.Context, org, id uuid.UUID) ([]sqlc.CarrierConnectionSourceIp, error) {
 	return r.queries.ListCarrierConnectionSourceIPs(ctx, sqlc.ListCarrierConnectionSourceIPsParams{
 		CarrierConnectionID: id,
-		OrganizationID:      &org,
+		OrganizationID:      org,
 	})
 }
 
@@ -135,7 +135,7 @@ func (r *Repository) DeleteSourceIP(ctx context.Context, org, id, sourceID uuid.
 	return r.queries.DeleteCarrierConnectionSourceIP(ctx, sqlc.DeleteCarrierConnectionSourceIPParams{
 		ID:                  sourceID,
 		CarrierConnectionID: id,
-		OrganizationID:      &org,
+		OrganizationID:      org,
 	})
 }
 

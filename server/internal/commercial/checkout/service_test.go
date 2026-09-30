@@ -49,7 +49,7 @@ func TestCreateSubscriptionCheckoutSnapshotsPurchase(t *testing.T) {
 	if result.Currency != "USD" {
 		t.Fatalf("currency = %q, want USD", result.Currency)
 	}
-	if result.SubscriptionID == nil || *result.SubscriptionID != subscriptionID {
+	if result.SubscriptionID != subscriptionID {
 		t.Fatalf("subscription id = %v, want %s", result.SubscriptionID, subscriptionID)
 	}
 	if result.Reference == "" {
