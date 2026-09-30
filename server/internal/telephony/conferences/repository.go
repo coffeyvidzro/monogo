@@ -52,7 +52,6 @@ func (r *Repository) Create(
 		func(repo *Repository) (sqlc.Conference, error) {
 			return repo.queries.CreateConference(ctx, sqlc.CreateConferenceParams{
 				OrganizationID: org,
-				ApplicationID:  req.ApplicationID,
 				Name:           req.Name,
 				StartedAt: pgtype.Timestamptz{
 					Time:  time.Now().UTC(),

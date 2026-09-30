@@ -9,7 +9,6 @@ import (
 )
 
 type CreateRequest struct {
-	ApplicationID *uuid.UUID `json:"application_id,omitempty"`
 	Name          string     `json:"name"`
 }
 
@@ -55,7 +54,6 @@ type Event struct {
 type ConferenceResponse struct {
 	ID             uuid.UUID  `json:"id"`
 	OrganizationID uuid.UUID  `json:"organization_id"`
-	ApplicationID  *uuid.UUID `json:"application_id,omitempty"`
 	Name           string     `json:"name"`
 	State          string     `json:"state"`
 	StartedAt      *time.Time `json:"started_at,omitempty"`
@@ -83,7 +81,6 @@ func conferenceResponse(value sqlc.Conference) ConferenceResponse {
 	return ConferenceResponse{
 		ID:             value.ID,
 		OrganizationID: value.OrganizationID,
-		ApplicationID:  value.ApplicationID,
 		Name:           value.Name,
 		State:          value.State,
 		StartedAt:      pgconv.TimestamptzToTimePtr(value.StartedAt),

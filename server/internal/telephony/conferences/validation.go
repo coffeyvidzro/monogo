@@ -19,9 +19,6 @@ func validateCreateRequest(req *CreateRequest) error {
 	if req.Name == "" {
 		return apperror.NewBadRequest("name is required")
 	}
-	if req.ApplicationID != nil && *req.ApplicationID == uuid.Nil {
-		return apperror.NewBadRequest("application_id is invalid")
-	}
 	return nil
 }
 
