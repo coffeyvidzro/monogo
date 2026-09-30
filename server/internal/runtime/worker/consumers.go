@@ -182,15 +182,6 @@ func runWorkloads(ctx context.Context, logger *logging.Logger, modules *modules)
 		run("messaging inbound consumer", modules.messaging.RunInbound)
 		run("messaging submission reconciliation", modules.messaging.jobs.RunSubmissionReconciliation)
 	}
-	if modules.numberRenewal != nil {
-		run("managed number renewal", modules.numberRenewal.Run)
-	}
-	if modules.numberReconciliation != nil {
-		run("managed number reconciliation", modules.numberReconciliation.Run)
-	}
-	if modules.lifecycleReconciliation != nil {
-		run("number lifecycle reconciliation", modules.lifecycleReconciliation.Run)
-	}
 
 	return group.Wait()
 }

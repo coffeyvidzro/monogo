@@ -9,17 +9,6 @@ import (
 	"github.com/caarlos0/env/v11"
 	"github.com/joho/godotenv"
 )
-
-type DIDWWConfig struct {
-	APIKey     string `env:"API_KEY,required"`
-	APIBaseURL string `env:"API_BASE_URL" envDefault:"https://api.didww.com/v3"`
-}
-
-type CommPeakConfig struct {
-	Authorization string `env:"API_AUTHORIZATION,required"`
-	APIBaseURL    string `env:"API_BASE_URL" envDefault:"https://api.commpeak.com"`
-}
-
 type StripeConfig struct {
 	SecretKey     string `env:"SECRET_KEY"`
 	WebhookSecret string `env:"WEBHOOK_SECRET"`
@@ -42,8 +31,6 @@ type Config struct {
 	MediaControlURL       string         `env:"MEDIA_CONTROL_URL" envDefault:"http://127.0.0.1:8090"`
 	MediaControlToken     string         `env:"MEDIA_CONTROL_TOKEN"`
 	EncryptionKey         string         `env:"ENCRYPTION_KEY,required"`
-	DIDWW                 DIDWWConfig    `envPrefix:"DIDWW_"`
-	CommPeak              CommPeakConfig `envPrefix:"COMMPEAK_"`
 	Stripe                StripeConfig   `envPrefix:"STRIPE_"`
 	MinIO                 MinIOConfig    `envPrefix:"MINIO_"`
 	TURNAuthSecret        string         `env:"TURN_AUTH_SECRET,required"`
@@ -81,10 +68,6 @@ func (c *Config) normalize() {
 	c.MediaControlURL = strings.TrimRight(strings.TrimSpace(c.MediaControlURL), "/")
 	c.MediaControlToken = strings.TrimSpace(c.MediaControlToken)
 	c.EncryptionKey = strings.TrimSpace(c.EncryptionKey)
-	c.DIDWW.APIKey = strings.TrimSpace(c.DIDWW.APIKey)
-	c.DIDWW.APIBaseURL = strings.TrimRight(strings.TrimSpace(c.DIDWW.APIBaseURL), "/")
-	c.CommPeak.Authorization = strings.TrimSpace(c.CommPeak.Authorization)
-	c.CommPeak.APIBaseURL = strings.TrimRight(strings.TrimSpace(c.CommPeak.APIBaseURL), "/")
 	c.Stripe.SecretKey = strings.TrimSpace(c.Stripe.SecretKey)
 	c.Stripe.WebhookSecret = strings.TrimSpace(c.Stripe.WebhookSecret)
 	c.Stripe.APIBaseURL = strings.TrimRight(strings.TrimSpace(c.Stripe.APIBaseURL), "/")

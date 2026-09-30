@@ -1,295 +1,59 @@
 # Billing model
 
+Leamout is a subscription software platform. Customers bring and pay their own
+carriers directly; Leamout does not resell telecom usage, phone numbers, or
+messaging capacity.
+
 ## Commercial architecture
 
 ```text
-                         MONOGO
-                            │
-             ┌──────────────┴──────────────┐
-             │                             │
-      Platform access              Managed usage
-             │                             │
-      subscriptions                    wallet
-             │                             │
-      subscription_plans        ┌──────────┴──────────┐
-                                │                     │
-                           voice_rates          product_rates
-                                │                     │
-                           Calls/minutes       SMS / WhatsApp /
-                                              Numbers
-             │                             │
-             └──────────────┬──────────────┘
-                            │
-                        checkout
-                            │
-                         payment
-                            │
-                            │
-                         Stripe
-                           │
-                          Card
-                           │
-                          USD
+Customer
+   |
+   +-- carrier / SIP trunk / numbers ------> carrier bills customer
+   |
+   +-- Leamout subscription --------------> Stripe
+                                               |
+                                               v
+                                      platform entitlement
 ```
 
-The two commercial branches share payment collection infrastructure, not
-spending semantics:
+## Source of truth
 
-- A subscription checkout collects the platform fee and activates a paid
-  entitlement period.
-- A wallet top-up checkout collects prepaid funds and creates one immutable
-  wallet credit after settlement.
-- Managed calls, messages, and numbers resolve a retail rate and consume the
-  wallet directly. They do not create a provider checkout or card/mobile-money
-  payment for every usage operation.
-- Stripe is the v1 payment adapter for both subscription collection and wallet
-  top-ups. Stripe is not the source of truth for subscription entitlement,
-  wallet balance, pricing, or telecom usage.
-- A checkout is the customer purchase session. A payment is a provider attempt
-  for that checkout; retries may create another payment attempt without
-  duplicating the commercial purchase or its fulfillment.
+- `subscription_plans` defines the USD monthly platform plans.
+- `subscriptions` defines whether an organization is entitled to use Leamout.
+- `checkouts` represents subscription purchase sessions.
+- `payments` and `payment_provider_events` record Stripe attempts and
+  authenticated provider events.
 
-This separation lets Monogo use one Stripe card settlement path while keeping
-platform access independent from managed carrier credit.
-
-Monogo has two independent customer billing obligations:
-
-1. **Subscription** pays for access to the Monogo platform.
-2. **Prepaid PAYG** pays for Monogo-managed telecom products.
-
-They must remain separate in storage, authorization, payment intent, and
-customer-facing balances.
-
-## Core rule
-
-An active subscription answers:
-
-> Is this organization allowed to use Monogo?
-
-The prepaid wallet answers:
-
-> Does this organization have enough funded balance for this managed operation?
-
-A wallet balance never activates a subscription. A subscription never provides
-managed carrier credit.
-
-## Access matrix
-
-| Subscription | Wallet | BYOC | Managed |
-| --- | --- | --- | --- |
-| active | funded | allowed | allowed |
-| active | empty | allowed | blocked |
-| inactive | funded | blocked | blocked |
-| inactive | empty | blocked | blocked |
-
-Commercial recovery endpoints remain available while service access is blocked
-so an organization can pay its subscription, inspect its wallet, or add funds.
-
-## Currency
-
-The v1 commercial system is USD-only.
-
-- Subscription plans and subscriptions are denominated in USD.
-- Prepaid wallets are denominated in USD.
-- Managed voice and product retail rates are denominated in USD.
-- Checkouts and payment attempts are denominated in USD.
-- Stripe card payments are the only supported funding rail.
-
-Local-currency payment rails and foreign-exchange conversion are intentionally
-out of scope. A future provider must preserve the settled USD commercial amount
-or introduce an explicit FX accounting model.
-
-## Subscription
-
-`subscription_plans` defines the monthly platform plans Monogo sells.
-
-`subscriptions` records the organization's current plan and entitlement
-period.
-
-The subscription is paid independently of the prepaid wallet. Subscription
-payments must not debit `wallets`.
-
-The initial subscription states are:
-
-- `pending`
-- `active`
-- `past_due`
-- `cancelled`
-
-New platform operations require an active subscription.
+Stripe moves money. It is not the entitlement source of truth.
 
 ## BYOC
 
-BYOC requires an active Monogo subscription.
+Carrier connectivity is customer-owned.
 
-The customer pays its carrier directly, so Monogo does not debit the prepaid
-wallet for carrier usage.
+Customers configure their own carrier connections, SIP trunks, phone numbers,
+and messaging connections. Their carrier bills them directly. Leamout does not
+maintain prepaid telecom wallets, retail voice rates, product rates, managed
+number purchases, or managed number renewals.
 
-The initial BYOC rule is therefore:
+An active Leamout subscription answers one commercial question:
 
-```
-active subscription
-        |
-        +-- no --> reject
-        |
-        +-- yes --> allow
-```
+> Is this organization allowed to use the Leamout platform?
 
-Any future Monogo-specific BYOC usage fee must be introduced explicitly as a
-separate commercial product. It must not be implied by carrier usage.
+Carrier spend is outside Leamout's customer billing ledger.
 
-## Prepaid PAYG
+## Currency
 
-Managed products consume the organization's prepaid wallet.
+Leamout subscription billing is USD-only in v1 and is collected through Stripe
+card payments.
 
-The initial managed products are:
+## Runtime boundary
 
-- managed voice
-- outbound SMS
-- outbound WhatsApp
-- number purchase
-- number renewal
+Telephony remains a core product capability. BYOC does not mean removing
+carrier integrations, trunks, routing, SIP, phone-number bindings, WebRTC, or
+media control. It means Leamout orchestrates customer-owned connectivity rather
+than becoming the carrier of record.
 
-The prepaid money model consists of:
-
-- `wallets`: current settled balance and reserved amount
-- `wallet_holds`: temporary authorization before an operation settles
-- `wallet_ledger_entries`: immutable credits and debits
-
-Available balance is:
-
-```
-balance_micros - reserved_micros
-```
-
-An operation must never authorize against the raw balance while ignoring
-reserved funds.
-
-## Wallet top-up
-
-A successful wallet top-up creates a wallet credit.
-
-```
-payment provider
-      |
-      v
-wallet top-up confirmed
-      |
-      v
-wallet ledger credit
-      |
-      v
-wallet balance increases
-```
-
-Payment-provider integration is not the source of wallet truth. The immutable
-wallet ledger is.
-
-Top-up payment intent and subscription payment intent are separate operations,
-even when they use the same payment provider.
-
-## Managed fixed-price operation
-
-For fixed-price products such as SMS:
-
-```
-active subscription?
-      |
-      v
-resolve customer retail price
-      |
-      v
-enough available wallet balance?
-      |
-      v
-create hold
-      |
-      v
-perform provider operation
-   /        \
-success    failure
-   |          |
-capture     release
-   |
-wallet debit
-```
-
-Capturing a hold creates exactly one immutable debit for its operation ID.
-Releasing a hold does not create a debit.
-
-Retries must reuse the same operation ID so they cannot charge the customer
-twice.
-
-## Managed voice
-
-Voice follows the same commercial model but needs separate credit-control
-behavior because the final duration is not known when the call starts.
-
-The billing foundation only requires:
-
-1. an active subscription;
-2. a customer-facing voice rate;
-3. sufficient prepaid authorization before Monogo creates carrier exposure;
-4. one final customer debit for the billable usage.
-
-Real-time call balance extension and forced hangup are voice credit-control
-features. They are not part of the foundational subscription/wallet model and
-must not introduce an arbitrary fixed call-duration rule into the core billing
-model.
-
-## Customer retail pricing
-
-Customer-facing prices are separate from wallets.
-
-`voice_rates` contains managed voice retail prices.
-
-`product_rates` contains fixed-unit retail prices for managed non-voice
-products.
-
-Pricing answers:
-
-> What should Monogo charge this customer?
-
-The wallet answers:
-
-> Does the customer have enough prepaid money, and what money moved?
-
-These responsibilities must not be merged.
-
-## Phase 1 source of truth
-
-| Responsibility | Source of truth |
-| --- | --- |
-| Platform plan catalog | `subscription_plans` |
-| Platform entitlement | `subscriptions` |
-| Current prepaid balance | `wallets` |
-| Temporary prepaid authorization | `wallet_holds` |
-| Settled prepaid money movement | `wallet_ledger_entries` |
-| Managed voice retail pricing | `voice_rates` |
-| Managed non-voice retail pricing | `product_rates` |
-
-## Out of scope for the billing foundation
-
-Supplier accounting is intentionally separate from customer billing.
-
-The following are not required to make Subscription + Prepaid PAYG work:
-
-- provider CDR accounting
-- provider charge reconciliation
-- gross-margin reporting
-- payment gateways
-- real-time voice OCS
-- provider invoice ingestion
-
-Those capabilities can be layered on after customer entitlement, retail
-pricing, wallet authorization, and settlement are stable.
-
-## Implementation order
-
-1. Subscription entitlement.
-2. Wallet credit, hold, capture, and release.
-3. Retail rate resolution.
-4. Fixed-price managed charging.
-5. Managed voice settlement.
-6. Stripe card subscription payments and wallet top-ups.
-7. Supplier accounting and reconciliation.
+This keeps the commercial model focused while engineering moves toward the
+Agent Runtime: realtime sessions, barge-in, model adapters, tools, handoffs, and
+observability.

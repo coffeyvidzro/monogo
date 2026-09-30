@@ -2,7 +2,7 @@ CREATE TABLE checkouts (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE RESTRICT,
     purpose TEXT NOT NULL,
-    subscription_id UUID REFERENCES subscriptions(id) ON DELETE RESTRICT,
+    subscription_id UUID NOT NULL REFERENCES subscriptions(id) ON DELETE RESTRICT,
     reference TEXT NOT NULL UNIQUE,
     amount_micros BIGINT NOT NULL,
     currency CHAR(3) NOT NULL,
@@ -20,7 +20,7 @@ CREATE TABLE checkouts (
     CONSTRAINT uq_checkouts_id_organization
         UNIQUE (id, organization_id),
     CONSTRAINT chk_checkouts_purpose
-        CHECK (purpose IN ('subscription', 'wallet_topup')),
+        CHECK (purpose = 'subscription'),
     CONSTRAINT chk_checkouts_reference
         CHECK (reference ~ '^[A-Za-z0-9._=-]+$'),
     CONSTRAINT chk_checkouts_amount
@@ -36,12 +36,6 @@ CREATE TABLE checkouts (
         ),
     CONSTRAINT chk_checkouts_action
         CHECK (next_action IN ('none', 'wait')),
-    CONSTRAINT chk_checkouts_purchase_shape
-        CHECK (
-            (purpose = 'subscription' AND subscription_id IS NOT NULL)
-            OR
-            (purpose = 'wallet_topup' AND subscription_id IS NULL)
-        ),
     CONSTRAINT chk_checkouts_message
         CHECK (
             provider_message IS NULL

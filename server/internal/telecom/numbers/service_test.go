@@ -12,41 +12,13 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 )
 
-func TestManagedNumberResponseHidesPlatformCarrier(t *testing.T) {
-	connectionID := uuid.New()
-	encoded, err := json.Marshal(response(sqlc.PhoneNumber{
-		ID:                  uuid.New(),
-		OrganizationID:      uuid.New(),
-		Number:              "+15551234567",
-		CountryCode:         "US",
-		ProvisioningMode:    "managed",
-		CarrierConnectionID: &connectionID,
-		Status:              "active",
-	}))
-	if err != nil {
-		t.Fatal(err)
-	}
-	var body map[string]any
-	if err := json.Unmarshal(encoded, &body); err != nil {
-		t.Fatal(err)
-	}
-	if body["type"] != "managed" {
-		t.Fatalf("managed number type = %v", body["type"])
-	}
-	if _, exposed := body["carrier_connection_id"]; exposed {
-		t.Fatal("managed response exposed the platform carrier connection")
-	}
-	if _, exposed := body["provisioning_mode"]; exposed {
-		t.Fatal("managed response exposed internal provisioning terminology")
-	}
-}
 
 func TestNormalizeBYOC(t *testing.T) {
-	request := CreateBYOCRequest{
+	request := CreateRequest{
 		Number:      " +233201234567 ",
 		CountryCode: " gh ",
 	}
-	if err := normalizeBYOC(&request); err != nil {
+	if err := normalizeCreate(&request); err != nil {
 		t.Fatal(err)
 	}
 	if request.Number != "+233201234567" || request.CountryCode != "GH" {
@@ -55,14 +27,14 @@ func TestNormalizeBYOC(t *testing.T) {
 }
 
 func TestNormalizeBYOCRejectsInvalidValues(t *testing.T) {
-	tests := []CreateBYOCRequest{
+	tests := []CreateRequest{
 		{Number: "0201234567", CountryCode: "GH"},
 		{Number: "+023201234567", CountryCode: "GH"},
 		{Number: "+233201234567", CountryCode: "GHA"},
 		{Number: "+233201234567", CountryCode: "GH", CarrierConnectionID: new(uuid.UUID)},
 	}
 	for _, req := range tests {
-		if err := normalizeBYOC(&req); err == nil {
+		if err := normalizeCreate(&req); err == nil {
 			t.Fatalf("expected validation error for %+v", req)
 		}
 	}

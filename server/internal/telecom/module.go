@@ -3,18 +3,14 @@ package telecom
 import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/coffeyvidzro/monogo/internal/commercial/pricing"
 	"github.com/coffeyvidzro/monogo/internal/commercial/subscriptions"
-	"github.com/coffeyvidzro/monogo/internal/commercial/wallets"
 	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
-	"github.com/coffeyvidzro/monogo/internal/integrations/carriers/didww"
 	"github.com/coffeyvidzro/monogo/internal/platform/metrics"
 	"github.com/coffeyvidzro/monogo/internal/runtime/calling"
 	"github.com/coffeyvidzro/monogo/internal/security/encryption"
 	"github.com/coffeyvidzro/monogo/internal/telecom/calls"
 	"github.com/coffeyvidzro/monogo/internal/telecom/carriers"
 	"github.com/coffeyvidzro/monogo/internal/telecom/conferences"
-	"github.com/coffeyvidzro/monogo/internal/telecom/lifecycle"
 	"github.com/coffeyvidzro/monogo/internal/telecom/messaging"
 	"github.com/coffeyvidzro/monogo/internal/telecom/numbers"
 	"github.com/coffeyvidzro/monogo/internal/telecom/realtime"
@@ -33,11 +29,8 @@ type Dependencies struct {
 	CallsChannelStore    *calling.ChannelStore
 	CallsAdmission       *calling.AdmissionLimiter
 	CallsSubscriptions   *subscriptions.Service
-	CallsPricing         *pricing.Service
-	CallsWallets         *wallets.Service
 	ConferenceController conferences.Controller
 	CredentialCipher     *encryption.Cipher
-	DIDWWInventory       *didww.Client
 	RealtimeService      *realtime.Service
 	RecordingStorage     recordings.Storage
 	Metrics              *metrics.Registry
@@ -48,7 +41,6 @@ type Module struct {
 	Carriers    CarriersModule
 	Conferences ConferencesModule
 	Numbers     NumbersModule
-	Lifecycle   LifecycleModule
 	Messaging   MessagingModule
 	Realtime    RealtimeModule
 	Recordings  RecordingsModule
@@ -81,12 +73,6 @@ type NumbersModule struct {
 	Repository *numbers.Repository
 	Service    *numbers.Service
 	Handler    *numbers.Handler
-}
-
-type LifecycleModule struct {
-	Repository *lifecycle.Repository
-	Service    *lifecycle.Service
-	Handler    *lifecycle.Handler
 }
 
 type MessagingModule struct {
@@ -151,14 +137,7 @@ func New(deps Dependencies) (*Module, error) {
 	)
 
 	numbersRepository := numbers.NewRepository(deps.Queries)
-	numbersService := numbers.NewService(numbersRepository, deps.DIDWWInventory)
-	numbersService.ConfigureManaged(deps.DB)
-	numbersService.ConfigureBilling(
-		deps.CallsPricing,
-		deps.CallsWallets,
-	)
-	lifecycleRepository := lifecycle.NewRepository(deps.Queries)
-	lifecycleService := lifecycle.NewService(lifecycleRepository, deps.DB, didww.NewLifecycleProvider(deps.DIDWWInventory))
+	numbersService := numbers.NewService(numbersRepository)
 
 	voiceRepository := voice.NewRepository(deps.Queries)
 	voiceService := voice.NewService(voiceRepository)
