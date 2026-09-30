@@ -39,7 +39,7 @@ CREATE TABLE number_renewals (
     CONSTRAINT chk_number_renewals_amount
         CHECK (amount_micros IS NULL OR amount_micros > 0),
     CONSTRAINT chk_number_renewals_currency
-        CHECK (currency IS NULL OR currency ~ '^[A-Z]{3}$'),
+        CHECK (currency IS NULL OR currency = 'USD'),
     CONSTRAINT chk_number_renewals_attempts
         CHECK (attempt_count >= 0),
     CONSTRAINT chk_number_renewals_paid

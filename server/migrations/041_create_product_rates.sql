@@ -21,7 +21,7 @@ CREATE TABLE product_rates (
     )),
     CONSTRAINT chk_product_rates_selector
         CHECK (selector = '*' OR selector ~ '^[A-Z]{2}$'),
-    CONSTRAINT chk_product_rates_currency CHECK (currency ~ '^[A-Z]{3}$'),
+    CONSTRAINT chk_product_rates_currency CHECK (currency = 'USD'),
     CONSTRAINT chk_product_rates_rate CHECK (rate_micros > 0),
     CONSTRAINT chk_product_rates_window
         CHECK (expires_at IS NULL OR expires_at > effective_at)

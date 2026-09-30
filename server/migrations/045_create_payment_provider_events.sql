@@ -17,7 +17,7 @@ CREATE TABLE payment_provider_events (
     CONSTRAINT uq_payment_provider_events_identity
         UNIQUE (provider, provider_event_id),
     CONSTRAINT chk_payment_provider_events_provider
-        CHECK (provider IN ('stripe', 'paystack')),
+        CHECK (provider = 'stripe'),
     CONSTRAINT chk_payment_provider_events_id
         CHECK (length(btrim(provider_event_id)) > 0),
     CONSTRAINT chk_payment_provider_events_type
