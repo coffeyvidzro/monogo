@@ -14,27 +14,27 @@ import (
 
 func TestStripeProviderVerification(t *testing.T) {
 	tests := []struct {
-		name     string
-		body     string
-		wantErr  bool
+		name    string
+		body    string
+		wantErr bool
 	}{
 		{
 			name: "paid",
 			body: `{"id":"cs_test_123","status":"complete","payment_status":"paid","amount_total":500,"currency":"usd"}`,
 		},
 		{
-			name: "unpaid",
-			body: `{"id":"cs_test_123","status":"open","payment_status":"unpaid","amount_total":500,"currency":"usd"}`,
+			name:    "unpaid",
+			body:    `{"id":"cs_test_123","status":"open","payment_status":"unpaid","amount_total":500,"currency":"usd"}`,
 			wantErr: true,
 		},
 		{
-			name: "wrong amount",
-			body: `{"id":"cs_test_123","status":"complete","payment_status":"paid","amount_total":600,"currency":"usd"}`,
+			name:    "wrong amount",
+			body:    `{"id":"cs_test_123","status":"complete","payment_status":"paid","amount_total":600,"currency":"usd"}`,
 			wantErr: true,
 		},
 		{
-			name: "wrong currency",
-			body: `{"id":"cs_test_123","status":"complete","payment_status":"paid","amount_total":500,"currency":"ghs"}`,
+			name:    "wrong currency",
+			body:    `{"id":"cs_test_123","status":"complete","payment_status":"paid","amount_total":500,"currency":"ghs"}`,
 			wantErr: true,
 		},
 	}

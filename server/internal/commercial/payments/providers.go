@@ -94,7 +94,6 @@ func microsToMinor(amountMicros int64) (int64, error) {
 	return amountMicros / microsPerMinor, nil
 }
 
-
 type ProviderWebhook struct {
 	Provider          string
 	ProviderPaymentID string
