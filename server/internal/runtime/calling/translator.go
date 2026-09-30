@@ -44,9 +44,9 @@ type InboundEvent struct {
 	ChannelID           string
 	SIPCallID           string
 	OrganizationID      uuid.UUID
-	ApplicationID       uuid.UUID
+	VoiceAgentID       uuid.UUID
 	PhoneNumberID       uuid.UUID
-	VoiceBindingID      uuid.UUID
+	VoiceAgentBindingID      uuid.UUID
 	CarrierConnectionID uuid.UUID
 	FromURI             string
 	ToURI               string
@@ -77,8 +77,8 @@ func TranslateInboundFreeSWITCHEvent(event freeswitch.Event) (InboundEvent, erro
 		"organization_id":       event.Header("variable_sip_h_X-Leamout-Organization-ID"),
 		"carrier_connection_id": event.Header("variable_sip_h_X-Leamout-Carrier-Connection-ID"),
 		"phone_number_id":       event.Header("variable_sip_h_X-Leamout-Phone-Number-ID"),
-		"voice_binding_id":      event.Header("variable_sip_h_X-Leamout-Voice-Binding-ID"),
-		"application_id":        event.Header("variable_sip_h_X-Leamout-Voice-Application-ID"),
+		"voice_agent_binding_id":      event.Header("variable_sip_h_X-Leamout-Voice-Agent-Binding-ID"),
+		"voice_agent_id":        event.Header("variable_sip_h_X-Leamout-Voice-Agent-ID"),
 	}
 	hasTrustedMetadata := false
 	for _, value := range headers {
@@ -111,11 +111,11 @@ func TranslateInboundFreeSWITCHEvent(event freeswitch.Event) (InboundEvent, erro
 	if err != nil {
 		return InboundEvent{}, err
 	}
-	voiceBindingID, err := parseID("voice_binding_id")
+	voiceBindingID, err := parseID("voice_agent_binding_id")
 	if err != nil {
 		return InboundEvent{}, err
 	}
-	applicationID, err := parseID("application_id")
+	voiceAgentID, err := parseID("voice_agent_id")
 	if err != nil {
 		return InboundEvent{}, err
 	}
@@ -145,9 +145,9 @@ func TranslateInboundFreeSWITCHEvent(event freeswitch.Event) (InboundEvent, erro
 		ChannelID:           channelID,
 		SIPCallID:           sipCallID,
 		OrganizationID:      organizationID,
-		ApplicationID:       applicationID,
+		VoiceAgentID:       voiceAgentID,
 		PhoneNumberID:       phoneNumberID,
-		VoiceBindingID:      voiceBindingID,
+		VoiceAgentBindingID:      voiceBindingID,
 		CarrierConnectionID: carrierConnectionID,
 		FromURI:             strings.TrimSpace(fromURI),
 		ToURI:               strings.TrimSpace(toURI),

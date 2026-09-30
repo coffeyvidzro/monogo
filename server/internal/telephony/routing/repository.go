@@ -27,14 +27,14 @@ func (r *Repository) GetInboundContext(
 	ctx context.Context,
 	req InboundRequest,
 ) (inboundContext, error) {
-	binding, err := r.queries.GetVoiceBindingByID(ctx, sqlc.GetVoiceBindingByIDParams{
-		ID:             req.VoiceBindingID,
+	binding, err := r.queries.GetVoiceAgentBindingByID(ctx, sqlc.GetVoiceAgentBindingByIDParams{
+		ID:             req.VoiceAgentBindingID,
 		OrganizationID: req.OrganizationID,
 	})
 	if err != nil {
 		return inboundContext{}, err
 	}
-	if binding.VoiceApplicationID != req.ApplicationID ||
+	if binding.VoiceVoiceAgentID != req.VoiceAgentID ||
 		binding.PhoneNumberID == nil ||
 		*binding.PhoneNumberID != req.PhoneNumberID {
 		return inboundContext{}, pgx.ErrNoRows
@@ -46,7 +46,7 @@ func (r *Repository) GetInboundContext(
 		OrganizationID:      req.OrganizationID,
 		CalledNumber:        req.CalledNumber,
 		CarrierConnectionID: &carrierConnectionID,
-		ApplicationID:       req.ApplicationID,
+		VoiceAgentID:       req.VoiceAgentID,
 	})
 	if err != nil {
 		return inboundContext{}, err

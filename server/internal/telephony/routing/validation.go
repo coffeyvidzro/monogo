@@ -19,14 +19,14 @@ func validateInboundRequest(req InboundRequest) error {
 	if req.OrganizationID == uuid.Nil {
 		return apperror.NewBadRequest("organization_id is required")
 	}
-	if req.ApplicationID == uuid.Nil {
-		return apperror.NewBadRequest("application_id is required")
+	if req.VoiceAgentID == uuid.Nil {
+		return apperror.NewBadRequest("voice_agent_id is required")
 	}
 	if req.PhoneNumberID == uuid.Nil {
 		return apperror.NewBadRequest("phone_number_id is required")
 	}
-	if req.VoiceBindingID == uuid.Nil {
-		return apperror.NewBadRequest("voice_binding_id is required")
+	if req.VoiceAgentBindingID == uuid.Nil {
+		return apperror.NewBadRequest("voice_agent_binding_id is required")
 	}
 	if req.CarrierConnectionID == uuid.Nil {
 		return apperror.NewBadRequest("carrier_connection_id is required")

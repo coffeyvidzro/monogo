@@ -109,7 +109,7 @@ func TestTranslateFreeSWITCHHangupKeepsCauseAsReason(t *testing.T) {
 
 func TestTranslateInboundFreeSWITCHEvent(t *testing.T) {
 	organizationID := uuid.New()
-	applicationID := uuid.New()
+	voiceAgentID := uuid.New()
 	phoneNumberID := uuid.New()
 	bindingID := uuid.New()
 	carrierID := uuid.New()
@@ -122,8 +122,8 @@ func TestTranslateInboundFreeSWITCHEvent(t *testing.T) {
 			"variable_sip_h_X-Leamout-Organization-ID":       organizationID.String(),
 			"variable_sip_h_X-Leamout-Carrier-Connection-ID": carrierID.String(),
 			"variable_sip_h_X-Leamout-Phone-Number-ID":       phoneNumberID.String(),
-			"variable_sip_h_X-Leamout-Voice-Binding-ID":      bindingID.String(),
-			"variable_sip_h_X-Leamout-Voice-Application-ID":  applicationID.String(),
+			"variable_sip_h_X-Leamout-Voice-Agent-Binding-ID":      bindingID.String(),
+			"variable_sip_h_X-Leamout-Voice-Agent-ID":  voiceAgentID.String(),
 			"Caller-Caller-ID-Number":                        "+14155550100",
 			"Caller-Destination-Number":                      "+14155550199",
 			"Event-Date-Timestamp":                           "1787990400000000",
@@ -136,9 +136,9 @@ func TestTranslateInboundFreeSWITCHEvent(t *testing.T) {
 		t.Fatalf("unexpected inbound identity: %+v", event)
 	}
 	if event.OrganizationID != organizationID ||
-		event.ApplicationID != applicationID ||
+		event.VoiceAgentID != voiceAgentID ||
 		event.PhoneNumberID != phoneNumberID ||
-		event.VoiceBindingID != bindingID ||
+		event.VoiceAgentBindingID != bindingID ||
 		event.CarrierConnectionID != carrierID {
 		t.Fatalf("unexpected inbound admission identity: %+v", event)
 	}
