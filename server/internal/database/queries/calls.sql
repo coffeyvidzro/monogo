@@ -42,7 +42,6 @@ LIMIT 1;
 SELECT
     c.organization_id,
     c.carrier_connection_id,
-    c.routing_decision_id,
     c.direction,
     c.state,
     c.media_state,
@@ -50,33 +49,6 @@ SELECT
 FROM calls AS c
 WHERE c.id = sqlc.arg(id)
 LIMIT 1;
-
--- name: GetCarrierDailyUsageSeconds :one
-WITH bounds AS (
-    SELECT
-        date_trunc('day', NOW() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC' AS day_start,
-        (date_trunc('day', NOW() AT TIME ZONE 'UTC') + INTERVAL '1 day') AT TIME ZONE 'UTC' AS day_end
-)
-SELECT COALESCE(
-    SUM(
-        GREATEST(
-            EXTRACT(
-                EPOCH FROM (
-                    LEAST(COALESCE(c.ended_at, NOW()), b.day_end)
-                    - GREATEST(c.answered_at, b.day_start)
-                )
-            ),
-            0
-        )
-    ),
-    0
-)::BIGINT AS usage_seconds
-FROM calls AS c
-CROSS JOIN bounds AS b
-WHERE c.carrier_connection_id = sqlc.arg(carrier_connection_id)
-  AND c.answered_at IS NOT NULL
-  AND c.answered_at < b.day_end
-  AND COALESCE(c.ended_at, NOW()) > b.day_start;
 
 -- name: ListCalls :many
 SELECT *
@@ -110,8 +82,7 @@ ORDER BY created_at ASC;
 -- name: GetInboundCallContext :one
 SELECT
     cc.max_cps,
-    cc.max_concurrent_calls,
-    cc.max_daily_minutes
+    cc.max_concurrent_calls
 FROM phone_numbers AS pn
 JOIN carrier_connections AS cc
   ON cc.id = pn.carrier_connection_id
@@ -143,7 +114,6 @@ SET
     carrier_connection_id = sqlc.arg(carrier_connection_id),
     trunk_id = sqlc.arg(trunk_id),
     trunk_endpoint_id = sqlc.arg(trunk_endpoint_id),
-    routing_decision_id = sqlc.narg(routing_decision_id),
     updated_at = NOW()
 WHERE organization_id = sqlc.arg(organization_id)
   AND id = sqlc.arg(id)
@@ -296,8 +266,6 @@ SELECT
     COALESCE(va.name, '—')::TEXT AS application_name,
     COALESCE(c.carrier_connection_id::TEXT, '—')::TEXT AS carrier_connection_id,
     COALESCE(cc.name, '—')::TEXT AS carrier_connection_name,
-    COALESCE(cp.id::TEXT, '—')::TEXT AS provider_id,
-    COALESCE(cp.name, '—')::TEXT AS provider_name,
     COALESCE(c.trunk_id::TEXT, '—')::TEXT AS trunk_id,
     COALESCE(t.name, '—')::TEXT AS trunk_name,
     COALESCE(c.trunk_endpoint_id::TEXT, '—')::TEXT AS trunk_endpoint_id,
@@ -322,11 +290,10 @@ FROM calls AS c
 JOIN organizations AS o ON o.id = c.organization_id
 LEFT JOIN voice_applications AS va ON va.id = c.application_id
 LEFT JOIN carrier_connections AS cc ON cc.id = c.carrier_connection_id
-LEFT JOIN carrier_providers AS cp ON cp.id = cc.provider_id
 LEFT JOIN trunks AS t ON t.id = c.trunk_id
 LEFT JOIN recordings AS r
   ON r.call_id = c.id
  AND r.organization_id = c.organization_id
 WHERE c.id = sqlc.arg(id)
-GROUP BY c.id, o.name, va.name, cc.name, cp.id, cp.name, t.name
+GROUP BY c.id, o.name, va.name, cc.name, t.name
 LIMIT 1;

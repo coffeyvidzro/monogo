@@ -11,7 +11,6 @@ CREATE TABLE IF NOT EXISTS calls (
     from_uri TEXT NOT NULL,
     to_uri TEXT NOT NULL,
     sip_call_id TEXT,
-    provider_id UUID,
     started_at TIMESTAMPTZ,
     answered_at TIMESTAMPTZ,
     ended_at TIMESTAMPTZ,

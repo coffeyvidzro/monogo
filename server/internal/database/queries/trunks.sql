@@ -241,20 +241,17 @@ SELECT
     CAST(COALESCE(t.organization_id::TEXT, '—') AS TEXT) AS organization_id,
     COALESCE(o.name, '—') AS organization_name,
     t.name,
-    COALESCE(cp.name, '—') AS provider_name,
     t.direction,
     t.status,
     COUNT(te.id)::BIGINT AS endpoint_count
 FROM trunks AS t
 LEFT JOIN organizations AS o ON o.id = t.organization_id
 LEFT JOIN carrier_connections AS cc ON cc.id = t.carrier_connection_id
-LEFT JOIN carrier_providers AS cp ON cp.id = cc.provider_id
 LEFT JOIN trunk_endpoints AS te ON te.trunk_id = t.id
 GROUP BY
     t.id,
     o.name,
     t.name,
-    cp.name,
     t.direction,
     t.status,
     t.created_at
@@ -271,7 +268,6 @@ SELECT
     t.status,
     CAST(COALESCE(t.carrier_connection_id::TEXT, '—') AS TEXT) AS carrier_connection_id,
     COALESCE(cc.name, '—') AS carrier_connection_name,
-    COALESCE(cp.name, '—') AS provider_name,
     COUNT(te.id)::BIGINT AS endpoint_count,
     COUNT(te.id) FILTER (WHERE te.enabled)::BIGINT AS enabled_endpoint_count,
     to_char(t.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI') AS created_at,
@@ -279,10 +275,9 @@ SELECT
 FROM trunks AS t
 LEFT JOIN organizations AS o ON o.id = t.organization_id
 LEFT JOIN carrier_connections AS cc ON cc.id = t.carrier_connection_id
-LEFT JOIN carrier_providers AS cp ON cp.id = cc.provider_id
 LEFT JOIN trunk_endpoints AS te ON te.trunk_id = t.id
 WHERE t.id = sqlc.arg(id)
-GROUP BY t.id, o.name, cc.name, cp.name
+GROUP BY t.id, o.name, cc.name
 LIMIT 1;
 
 -- name: ListBackofficeTrunkEndpoints :many
