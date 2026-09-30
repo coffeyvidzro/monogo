@@ -90,7 +90,6 @@ type CarrierConnection struct {
 	ID                      uuid.UUID          `db:"id" json:"id"`
 	OrganizationID          *uuid.UUID         `db:"organization_id" json:"organization_id"`
 	ProviderID              uuid.UUID          `db:"provider_id" json:"provider_id"`
-	Scope                   string             `db:"scope" json:"scope"`
 	Name                    string             `db:"name" json:"name"`
 	Status                  string             `db:"status" json:"status"`
 	OutboundAuthMethod      string             `db:"outbound_auth_method" json:"outbound_auth_method"`
@@ -110,18 +109,9 @@ type CarrierConnection struct {
 	UpdatedAt               pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 }
 
-type CarrierConnectionProviderResource struct {
-	CarrierConnectionID uuid.UUID          `db:"carrier_connection_id" json:"carrier_connection_id"`
-	ProviderID          uuid.UUID          `db:"provider_id" json:"provider_id"`
-	ResourceType        string             `db:"resource_type" json:"resource_type"`
-	ProviderResourceID  string             `db:"provider_resource_id" json:"provider_resource_id"`
-	CreatedAt           pgtype.Timestamptz `db:"created_at" json:"created_at"`
-	UpdatedAt           pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
-}
-
 type CarrierConnectionSourceIp struct {
 	ID                  uuid.UUID          `db:"id" json:"id"`
-	OrganizationID      *uuid.UUID         `db:"organization_id" json:"organization_id"`
+	OrganizationID      uuid.UUID          `db:"organization_id" json:"organization_id"`
 	CarrierConnectionID uuid.UUID          `db:"carrier_connection_id" json:"carrier_connection_id"`
 	Cidr                netip.Prefix       `db:"cidr" json:"cidr"`
 	CreatedAt           pgtype.Timestamptz `db:"created_at" json:"created_at"`
@@ -163,7 +153,7 @@ type Checkout struct {
 	ID              uuid.UUID          `db:"id" json:"id"`
 	OrganizationID  uuid.UUID          `db:"organization_id" json:"organization_id"`
 	Purpose         string             `db:"purpose" json:"purpose"`
-	SubscriptionID  *uuid.UUID         `db:"subscription_id" json:"subscription_id"`
+	SubscriptionID  uuid.UUID          `db:"subscription_id" json:"subscription_id"`
 	Reference       string             `db:"reference" json:"reference"`
 	AmountMicros    int64              `db:"amount_micros" json:"amount_micros"`
 	Currency        string             `db:"currency" json:"currency"`
@@ -206,31 +196,6 @@ type ConferenceParticipant struct {
 	UpdatedAt         pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 }
 
-type EmergencyRegistration struct {
-	ID                uuid.UUID          `db:"id" json:"id"`
-	OrganizationID    uuid.UUID          `db:"organization_id" json:"organization_id"`
-	PhoneNumberID     uuid.UUID          `db:"phone_number_id" json:"phone_number_id"`
-	ProviderID        uuid.UUID          `db:"provider_id" json:"provider_id"`
-	Status            string             `db:"status" json:"status"`
-	Name              string             `db:"name" json:"name"`
-	AddressLine1      string             `db:"address_line1" json:"address_line1"`
-	AddressLine2      *string            `db:"address_line2" json:"address_line2"`
-	Locality          string             `db:"locality" json:"locality"`
-	Region            string             `db:"region" json:"region"`
-	PostalCode        string             `db:"postal_code" json:"postal_code"`
-	CountryCode       string             `db:"country_code" json:"country_code"`
-	ProviderReference *string            `db:"provider_reference" json:"provider_reference"`
-	ValidationMessage *string            `db:"validation_message" json:"validation_message"`
-	ActivatedAt       pgtype.Timestamptz `db:"activated_at" json:"activated_at"`
-	DeactivatedAt     pgtype.Timestamptz `db:"deactivated_at" json:"deactivated_at"`
-	CreatedAt         pgtype.Timestamptz `db:"created_at" json:"created_at"`
-	UpdatedAt         pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
-	IdempotencyKey    *string            `db:"idempotency_key" json:"idempotency_key"`
-	RequestHash       *string            `db:"request_hash" json:"request_hash"`
-	ReconcileAfter    pgtype.Timestamptz `db:"reconcile_after" json:"reconcile_after"`
-	ReconcileAttempts int32              `db:"reconcile_attempts" json:"reconcile_attempts"`
-}
-
 type Idempotency struct {
 	Scope               string             `db:"scope" json:"scope"`
 	IdempotencyKey      string             `db:"idempotency_key" json:"idempotency_key"`
@@ -245,33 +210,6 @@ type Idempotency struct {
 	LockedUntil         pgtype.Timestamptz `db:"locked_until" json:"locked_until"`
 	CompletedAt         pgtype.Timestamptz `db:"completed_at" json:"completed_at"`
 	ExpiresAt           pgtype.Timestamptz `db:"expires_at" json:"expires_at"`
-	CreatedAt           pgtype.Timestamptz `db:"created_at" json:"created_at"`
-	UpdatedAt           pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
-}
-
-type ManagedNumberOrder struct {
-	ID                  uuid.UUID          `db:"id" json:"id"`
-	OrganizationID      uuid.UUID          `db:"organization_id" json:"organization_id"`
-	ProviderID          uuid.UUID          `db:"provider_id" json:"provider_id"`
-	PhoneNumberID       *uuid.UUID         `db:"phone_number_id" json:"phone_number_id"`
-	IdempotencyKey      string             `db:"idempotency_key" json:"idempotency_key"`
-	RequestHash         string             `db:"request_hash" json:"request_hash"`
-	Number              string             `db:"number" json:"number"`
-	CountryCode         string             `db:"country_code" json:"country_code"`
-	AvailableDidID      string             `db:"available_did_id" json:"available_did_id"`
-	SkuID               string             `db:"sku_id" json:"sku_id"`
-	ProviderOrderID     *string            `db:"provider_order_id" json:"provider_order_id"`
-	ProviderDidID       *string            `db:"provider_did_id" json:"provider_did_id"`
-	InboundTrunkID      *string            `db:"inbound_trunk_id" json:"inbound_trunk_id"`
-	Status              string             `db:"status" json:"status"`
-	SubmittedAt         pgtype.Timestamptz `db:"submitted_at" json:"submitted_at"`
-	OwnershipVerifiedAt pgtype.Timestamptz `db:"ownership_verified_at" json:"ownership_verified_at"`
-	RoutingVerifiedAt   pgtype.Timestamptz `db:"routing_verified_at" json:"routing_verified_at"`
-	ActivatedAt         pgtype.Timestamptz `db:"activated_at" json:"activated_at"`
-	ReconcileAfter      pgtype.Timestamptz `db:"reconcile_after" json:"reconcile_after"`
-	ReconcileAttempts   int32              `db:"reconcile_attempts" json:"reconcile_attempts"`
-	ErrorCode           *string            `db:"error_code" json:"error_code"`
-	ErrorMessage        *string            `db:"error_message" json:"error_message"`
 	CreatedAt           pgtype.Timestamptz `db:"created_at" json:"created_at"`
 	UpdatedAt           pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 }
@@ -306,8 +244,7 @@ type Message struct {
 
 type MessagingConnection struct {
 	ID              uuid.UUID          `db:"id" json:"id"`
-	OrganizationID  *uuid.UUID         `db:"organization_id" json:"organization_id"`
-	Scope           string             `db:"scope" json:"scope"`
+	OrganizationID  uuid.UUID          `db:"organization_id" json:"organization_id"`
 	Channel         string             `db:"channel" json:"channel"`
 	Name            string             `db:"name" json:"name"`
 	Status          string             `db:"status" json:"status"`
@@ -315,45 +252,6 @@ type MessagingConnection struct {
 	EncryptedSecret string             `db:"encrypted_secret" json:"encrypted_secret"`
 	CreatedAt       pgtype.Timestamptz `db:"created_at" json:"created_at"`
 	UpdatedAt       pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
-}
-
-type NumberLifecycleOperation struct {
-	ID                uuid.UUID          `db:"id" json:"id"`
-	OrganizationID    uuid.UUID          `db:"organization_id" json:"organization_id"`
-	PhoneNumberID     *uuid.UUID         `db:"phone_number_id" json:"phone_number_id"`
-	ProviderID        uuid.UUID          `db:"provider_id" json:"provider_id"`
-	IdempotencyKey    string             `db:"idempotency_key" json:"idempotency_key"`
-	Operation         string             `db:"operation" json:"operation"`
-	Status            string             `db:"status" json:"status"`
-	ProviderReference *string            `db:"provider_reference" json:"provider_reference"`
-	RequestedNumber   string             `db:"requested_number" json:"requested_number"`
-	RequestPayload    []byte             `db:"request_payload" json:"request_payload"`
-	FailureCode       *string            `db:"failure_code" json:"failure_code"`
-	FailureMessage    *string            `db:"failure_message" json:"failure_message"`
-	SubmittedAt       pgtype.Timestamptz `db:"submitted_at" json:"submitted_at"`
-	CompletedAt       pgtype.Timestamptz `db:"completed_at" json:"completed_at"`
-	CreatedAt         pgtype.Timestamptz `db:"created_at" json:"created_at"`
-	UpdatedAt         pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
-	ReconcileAfter    pgtype.Timestamptz `db:"reconcile_after" json:"reconcile_after"`
-	ReconcileAttempts int32              `db:"reconcile_attempts" json:"reconcile_attempts"`
-}
-
-type NumberRenewal struct {
-	ID             uuid.UUID          `db:"id" json:"id"`
-	OrganizationID uuid.UUID          `db:"organization_id" json:"organization_id"`
-	PhoneNumberID  uuid.UUID          `db:"phone_number_id" json:"phone_number_id"`
-	PeriodStart    pgtype.Timestamptz `db:"period_start" json:"period_start"`
-	PeriodEnd      pgtype.Timestamptz `db:"period_end" json:"period_end"`
-	OperationID    uuid.UUID          `db:"operation_id" json:"operation_id"`
-	Status         string             `db:"status" json:"status"`
-	AmountMicros   *int64             `db:"amount_micros" json:"amount_micros"`
-	Currency       *string            `db:"currency" json:"currency"`
-	AttemptCount   int32              `db:"attempt_count" json:"attempt_count"`
-	NextAttemptAt  pgtype.Timestamptz `db:"next_attempt_at" json:"next_attempt_at"`
-	PaidAt         pgtype.Timestamptz `db:"paid_at" json:"paid_at"`
-	LastError      *string            `db:"last_error" json:"last_error"`
-	CreatedAt      pgtype.Timestamptz `db:"created_at" json:"created_at"`
-	UpdatedAt      pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 }
 
 type OpensipsCarrierDigestCredential struct {
@@ -371,14 +269,6 @@ type OpensipsInboundCarrierCredential struct {
 	Username            string    `db:"username" json:"username"`
 	Domain              string    `db:"domain" json:"domain"`
 	Ha1Md5              string    `db:"ha1_md5" json:"ha1_md5"`
-}
-
-type OpensipsManagedTrunkCredential struct {
-	TrunkID        uuid.UUID `db:"trunk_id" json:"trunk_id"`
-	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
-	Username       string    `db:"username" json:"username"`
-	Domain         string    `db:"domain" json:"domain"`
-	Ha1Md5         string    `db:"ha1_md5" json:"ha1_md5"`
 }
 
 type OpensipsOutboundCarrierCredential struct {
@@ -493,51 +383,12 @@ type PhoneNumber struct {
 	OrganizationID      uuid.UUID          `db:"organization_id" json:"organization_id"`
 	Number              string             `db:"number" json:"number"`
 	CountryCode         string             `db:"country_code" json:"country_code"`
-	ProvisioningMode    string             `db:"provisioning_mode" json:"provisioning_mode"`
 	CarrierConnectionID *uuid.UUID         `db:"carrier_connection_id" json:"carrier_connection_id"`
-	ProviderID          *uuid.UUID         `db:"provider_id" json:"provider_id"`
-	ProviderResourceID  *string            `db:"provider_resource_id" json:"provider_resource_id"`
 	VoiceEnabled        bool               `db:"voice_enabled" json:"voice_enabled"`
 	SmsEnabled          bool               `db:"sms_enabled" json:"sms_enabled"`
 	Status              string             `db:"status" json:"status"`
-	ErrorCode           *string            `db:"error_code" json:"error_code"`
-	ErrorMessage        *string            `db:"error_message" json:"error_message"`
 	CreatedAt           pgtype.Timestamptz `db:"created_at" json:"created_at"`
 	UpdatedAt           pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
-	NextRenewalAt       pgtype.Timestamptz `db:"next_renewal_at" json:"next_renewal_at"`
-}
-
-type PortInCase struct {
-	ID                    uuid.UUID          `db:"id" json:"id"`
-	OrganizationID        uuid.UUID          `db:"organization_id" json:"organization_id"`
-	LifecycleOperationID  uuid.UUID          `db:"lifecycle_operation_id" json:"lifecycle_operation_id"`
-	LosingCarrier         string             `db:"losing_carrier" json:"losing_carrier"`
-	AccountNumber         string             `db:"account_number" json:"account_number"`
-	AccountPinCiphertext  []byte             `db:"account_pin_ciphertext" json:"account_pin_ciphertext"`
-	AuthorizedName        string             `db:"authorized_name" json:"authorized_name"`
-	ServiceAddress        []byte             `db:"service_address" json:"service_address"`
-	DesiredPortDate       pgtype.Date        `db:"desired_port_date" json:"desired_port_date"`
-	Status                string             `db:"status" json:"status"`
-	ProviderCaseReference *string            `db:"provider_case_reference" json:"provider_case_reference"`
-	RejectionCode         *string            `db:"rejection_code" json:"rejection_code"`
-	RejectionMessage      *string            `db:"rejection_message" json:"rejection_message"`
-	FocAt                 pgtype.Timestamptz `db:"foc_at" json:"foc_at"`
-	ActivatedAt           pgtype.Timestamptz `db:"activated_at" json:"activated_at"`
-	CreatedAt             pgtype.Timestamptz `db:"created_at" json:"created_at"`
-	UpdatedAt             pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
-}
-
-type PortInDocument struct {
-	ID                uuid.UUID          `db:"id" json:"id"`
-	OrganizationID    uuid.UUID          `db:"organization_id" json:"organization_id"`
-	PortInCaseID      uuid.UUID          `db:"port_in_case_id" json:"port_in_case_id"`
-	DocumentType      string             `db:"document_type" json:"document_type"`
-	ObjectKey         string             `db:"object_key" json:"object_key"`
-	Sha256            string             `db:"sha256" json:"sha256"`
-	Status            string             `db:"status" json:"status"`
-	ProviderReference *string            `db:"provider_reference" json:"provider_reference"`
-	CreatedAt         pgtype.Timestamptz `db:"created_at" json:"created_at"`
-	UpdatedAt         pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 }
 
 type ProcessedEvent struct {
@@ -545,29 +396,6 @@ type ProcessedEvent struct {
 	EventID      uuid.UUID          `db:"event_id" json:"event_id"`
 	ProcessedAt  pgtype.Timestamptz `db:"processed_at" json:"processed_at"`
 	Metadata     []byte             `db:"metadata" json:"metadata"`
-}
-
-type ProductRate struct {
-	ID             uuid.UUID          `db:"id" json:"id"`
-	OrganizationID *uuid.UUID         `db:"organization_id" json:"organization_id"`
-	Product        string             `db:"product" json:"product"`
-	Selector       string             `db:"selector" json:"selector"`
-	Currency       string             `db:"currency" json:"currency"`
-	RateMicros     int64              `db:"rate_micros" json:"rate_micros"`
-	EffectiveAt    pgtype.Timestamptz `db:"effective_at" json:"effective_at"`
-	ExpiresAt      pgtype.Timestamptz `db:"expires_at" json:"expires_at"`
-	CreatedAt      pgtype.Timestamptz `db:"created_at" json:"created_at"`
-}
-
-type ProviderVoiceRate struct {
-	ID                  uuid.UUID          `db:"id" json:"id"`
-	CarrierConnectionID uuid.UUID          `db:"carrier_connection_id" json:"carrier_connection_id"`
-	DestinationPrefix   string             `db:"destination_prefix" json:"destination_prefix"`
-	RateMicros          int64              `db:"rate_micros" json:"rate_micros"`
-	BillingCurrency     string             `db:"billing_currency" json:"billing_currency"`
-	EffectiveAt         pgtype.Timestamptz `db:"effective_at" json:"effective_at"`
-	ExpiresAt           pgtype.Timestamptz `db:"expires_at" json:"expires_at"`
-	CreatedAt           pgtype.Timestamptz `db:"created_at" json:"created_at"`
 }
 
 type Recording struct {
@@ -704,23 +532,11 @@ type Trunk struct {
 	ID                  uuid.UUID          `db:"id" json:"id"`
 	OrganizationID      *uuid.UUID         `db:"organization_id" json:"organization_id"`
 	CarrierConnectionID *uuid.UUID         `db:"carrier_connection_id" json:"carrier_connection_id"`
-	ProvisioningMode    string             `db:"provisioning_mode" json:"provisioning_mode"`
 	Name                string             `db:"name" json:"name"`
 	Direction           string             `db:"direction" json:"direction"`
 	Status              string             `db:"status" json:"status"`
-	ManagedDefault      bool               `db:"managed_default" json:"managed_default"`
 	CreatedAt           pgtype.Timestamptz `db:"created_at" json:"created_at"`
 	UpdatedAt           pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
-}
-
-type TrunkCredential struct {
-	TrunkID        uuid.UUID          `db:"trunk_id" json:"trunk_id"`
-	OrganizationID uuid.UUID          `db:"organization_id" json:"organization_id"`
-	Username       string             `db:"username" json:"username"`
-	Realm          string             `db:"realm" json:"realm"`
-	Ha1Md5         string             `db:"ha1_md5" json:"ha1_md5"`
-	CreatedAt      pgtype.Timestamptz `db:"created_at" json:"created_at"`
-	UpdatedAt      pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 }
 
 type TrunkEndpoint struct {
@@ -883,60 +699,6 @@ type VoiceBinding struct {
 	PhoneNumberID      *uuid.UUID         `db:"phone_number_id" json:"phone_number_id"`
 	SipDomainID        *uuid.UUID         `db:"sip_domain_id" json:"sip_domain_id"`
 	SubscriberID       *uuid.UUID         `db:"subscriber_id" json:"subscriber_id"`
-	CreatedAt          pgtype.Timestamptz `db:"created_at" json:"created_at"`
-}
-
-type VoiceRate struct {
-	ID                uuid.UUID          `db:"id" json:"id"`
-	OrganizationID    *uuid.UUID         `db:"organization_id" json:"organization_id"`
-	DestinationPrefix string             `db:"destination_prefix" json:"destination_prefix"`
-	Direction         string             `db:"direction" json:"direction"`
-	Currency          string             `db:"currency" json:"currency"`
-	RateMicros        int64              `db:"rate_micros" json:"rate_micros"`
-	EffectiveAt       pgtype.Timestamptz `db:"effective_at" json:"effective_at"`
-	ExpiresAt         pgtype.Timestamptz `db:"expires_at" json:"expires_at"`
-	CreatedAt         pgtype.Timestamptz `db:"created_at" json:"created_at"`
-}
-
-type Wallet struct {
-	ID             uuid.UUID          `db:"id" json:"id"`
-	OrganizationID uuid.UUID          `db:"organization_id" json:"organization_id"`
-	Currency       string             `db:"currency" json:"currency"`
-	Status         string             `db:"status" json:"status"`
-	BalanceMicros  int64              `db:"balance_micros" json:"balance_micros"`
-	ReservedMicros int64              `db:"reserved_micros" json:"reserved_micros"`
-	CreatedAt      pgtype.Timestamptz `db:"created_at" json:"created_at"`
-	UpdatedAt      pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
-}
-
-type WalletHold struct {
-	ID             uuid.UUID          `db:"id" json:"id"`
-	WalletID       uuid.UUID          `db:"wallet_id" json:"wallet_id"`
-	OrganizationID uuid.UUID          `db:"organization_id" json:"organization_id"`
-	OperationID    uuid.UUID          `db:"operation_id" json:"operation_id"`
-	AmountMicros   int64              `db:"amount_micros" json:"amount_micros"`
-	Reason         string             `db:"reason" json:"reason"`
-	ReferenceType  *string            `db:"reference_type" json:"reference_type"`
-	ReferenceID    *uuid.UUID         `db:"reference_id" json:"reference_id"`
-	Status         string             `db:"status" json:"status"`
-	CapturedAt     pgtype.Timestamptz `db:"captured_at" json:"captured_at"`
-	ReleasedAt     pgtype.Timestamptz `db:"released_at" json:"released_at"`
-	CreatedAt      pgtype.Timestamptz `db:"created_at" json:"created_at"`
-	UpdatedAt      pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
-}
-
-type WalletLedgerEntry struct {
-	ID                 uuid.UUID          `db:"id" json:"id"`
-	WalletID           uuid.UUID          `db:"wallet_id" json:"wallet_id"`
-	OrganizationID     uuid.UUID          `db:"organization_id" json:"organization_id"`
-	OperationID        uuid.UUID          `db:"operation_id" json:"operation_id"`
-	Direction          string             `db:"direction" json:"direction"`
-	Reason             string             `db:"reason" json:"reason"`
-	AmountMicros       int64              `db:"amount_micros" json:"amount_micros"`
-	BalanceAfterMicros int64              `db:"balance_after_micros" json:"balance_after_micros"`
-	ReferenceType      *string            `db:"reference_type" json:"reference_type"`
-	ReferenceID        *uuid.UUID         `db:"reference_id" json:"reference_id"`
-	OccurredAt         pgtype.Timestamptz `db:"occurred_at" json:"occurred_at"`
 	CreatedAt          pgtype.Timestamptz `db:"created_at" json:"created_at"`
 }
 

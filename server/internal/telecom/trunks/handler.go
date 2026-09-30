@@ -38,7 +38,6 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 	httputil.Created(w, response(item))
 }
 
-
 func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 	org, err := organizationID(r)
 	if err != nil {

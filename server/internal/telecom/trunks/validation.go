@@ -15,7 +15,6 @@ func validateID(id uuid.UUID, field string) error {
 	return nil
 }
 
-
 func normalizeName(value string) (string, error) {
 	value = strings.TrimSpace(value)
 	if value == "" || len(value) > 255 {

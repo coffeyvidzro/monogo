@@ -32,7 +32,6 @@ func NewSnapshotIngestor(queries *sqlc.Queries) *SnapshotIngestor {
 	}
 }
 
-
 func validateHealthObservation(observation HealthObservation, now time.Time) error {
 	if observation.EndpointID == uuid.Nil || observation.SampleCount < 1 {
 		return fmt.Errorf("health observation requires an endpoint and measured sample")
@@ -52,7 +51,6 @@ func validateHealthObservation(observation HealthObservation, now time.Time) err
 	}
 	return nil
 }
-
 
 // IngestHealth accepts measured snapshots only. The endpoint's independently
 // managed health_status and its eligibility policy remain separate controls.

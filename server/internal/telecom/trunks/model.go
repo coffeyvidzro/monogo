@@ -10,9 +10,9 @@ import (
 
 type CreateRequest struct {
 	CarrierConnectionID *uuid.UUID `json:"carrier_connection_id"`
-	Name                string           `json:"name"`
-	Direction           *string          `json:"direction,omitempty"`
-	Status              *string          `json:"status,omitempty"`
+	Name                string     `json:"name"`
+	Direction           *string    `json:"direction,omitempty"`
+	Status              *string    `json:"status,omitempty"`
 }
 
 type UpdateRequest struct {
@@ -44,12 +44,12 @@ type EndpointUpdateRequest struct {
 type EventType string
 
 const (
-	EventTrunkCreated           EventType = "trunk.created"
-	EventTrunkUpdated           EventType = "trunk.updated"
-	EventTrunkDisabled          EventType = "trunk.disabled"
-	EventTrunkEndpointCreated   EventType = "trunk.endpoint.created"
-	EventTrunkEndpointUpdated   EventType = "trunk.endpoint.updated"
-	EventTrunkEndpointDeleted   EventType = "trunk.endpoint.deleted"
+	EventTrunkCreated         EventType = "trunk.created"
+	EventTrunkUpdated         EventType = "trunk.updated"
+	EventTrunkDisabled        EventType = "trunk.disabled"
+	EventTrunkEndpointCreated EventType = "trunk.endpoint.created"
+	EventTrunkEndpointUpdated EventType = "trunk.endpoint.updated"
+	EventTrunkEndpointDeleted EventType = "trunk.endpoint.deleted"
 )
 
 type Event struct {
@@ -62,14 +62,14 @@ type Event struct {
 }
 
 type Response struct {
-	ID                  uuid.UUID        `json:"id"`
-	OrganizationID      *uuid.UUID       `json:"organization_id,omitempty"`
-	CarrierConnectionID *uuid.UUID       `json:"carrier_connection_id,omitempty"`
-	Name                string           `json:"name"`
-	Direction           string           `json:"direction"`
-	Status              string           `json:"status"`
-	CreatedAt           time.Time        `json:"created_at"`
-	UpdatedAt           time.Time        `json:"updated_at"`
+	ID                  uuid.UUID  `json:"id"`
+	OrganizationID      *uuid.UUID `json:"organization_id,omitempty"`
+	CarrierConnectionID *uuid.UUID `json:"carrier_connection_id,omitempty"`
+	Name                string     `json:"name"`
+	Direction           string     `json:"direction"`
+	Status              string     `json:"status"`
+	CreatedAt           time.Time  `json:"created_at"`
+	UpdatedAt           time.Time  `json:"updated_at"`
 }
 
 type EndpointResponse struct {

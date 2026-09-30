@@ -13,7 +13,6 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-
 type Service struct {
 	repo          *Repository
 	router        *routing.Service
@@ -103,7 +102,6 @@ func (s *Service) Create(ctx context.Context, organizationID uuid.UUID, req Crea
 		_, _ = s.repo.MarkFailed(ctx, organizationID, call.ID, &reason)
 		return sqlc.Call{}, apperror.NewNotFound("no eligible outbound route")
 	}
-
 
 	result, selected, err := executeRoutePlan(ctx, decision.Routes, func(
 		attemptCtx context.Context,

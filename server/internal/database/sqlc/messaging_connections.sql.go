@@ -12,9 +12,7 @@ import (
 )
 
 const getMessagingConnection = `-- name: GetMessagingConnection :one
-SELECT id, organization_id, scope, channel, name, status, configuration, encrypted_secret, created_at, updated_at FROM messaging_connections
-WHERE id = $1 AND status = 'active'
-LIMIT 1
+SELECT id, organization_id, channel, name, status, configuration, encrypted_secret, created_at, updated_at FROM messaging_connections WHERE id = $1 AND status = 'active' LIMIT 1
 `
 
 func (q *Queries) GetMessagingConnection(ctx context.Context, id uuid.UUID) (MessagingConnection, error) {
@@ -23,7 +21,6 @@ func (q *Queries) GetMessagingConnection(ctx context.Context, id uuid.UUID) (Mes
 	err := row.Scan(
 		&i.ID,
 		&i.OrganizationID,
-		&i.Scope,
 		&i.Channel,
 		&i.Name,
 		&i.Status,
@@ -36,9 +33,7 @@ func (q *Queries) GetMessagingConnection(ctx context.Context, id uuid.UUID) (Mes
 }
 
 const listActiveMessagingConnections = `-- name: ListActiveMessagingConnections :many
-SELECT id, organization_id, scope, channel, name, status, configuration, encrypted_secret, created_at, updated_at FROM messaging_connections
-WHERE status = 'active'
-ORDER BY created_at ASC
+SELECT id, organization_id, channel, name, status, configuration, encrypted_secret, created_at, updated_at FROM messaging_connections WHERE status = 'active' ORDER BY created_at ASC
 `
 
 func (q *Queries) ListActiveMessagingConnections(ctx context.Context) ([]MessagingConnection, error) {
@@ -53,7 +48,6 @@ func (q *Queries) ListActiveMessagingConnections(ctx context.Context) ([]Messagi
 		if err := rows.Scan(
 			&i.ID,
 			&i.OrganizationID,
-			&i.Scope,
 			&i.Channel,
 			&i.Name,
 			&i.Status,
@@ -73,70 +67,34 @@ func (q *Queries) ListActiveMessagingConnections(ctx context.Context) ([]Messagi
 }
 
 const resolveInboundMessagingOrganization = `-- name: ResolveInboundMessagingOrganization :one
-SELECT COALESCE(connection.organization_id, number.organization_id)::uuid
-FROM messaging_connections AS connection
-LEFT JOIN phone_numbers AS number
-  ON connection.scope = 'platform'
- AND number.number = $1
- AND number.status = 'active'
- AND number.sms_enabled = TRUE
-WHERE connection.id = $2
-  AND connection.status = 'active'
-  AND (
-    (connection.scope = 'organization' AND connection.organization_id IS NOT NULL)
-    OR (
-      connection.channel = 'sms'
-      AND connection.scope = 'platform'
-      AND number.id IS NOT NULL
-    )
-  )
-LIMIT 1
+SELECT organization_id FROM messaging_connections
+WHERE id = $1 AND status = 'active' LIMIT 1
 `
 
-type ResolveInboundMessagingOrganizationParams struct {
-	ToAddress             string    `db:"to_address" json:"to_address"`
-	MessagingConnectionID uuid.UUID `db:"messaging_connection_id" json:"messaging_connection_id"`
-}
-
-func (q *Queries) ResolveInboundMessagingOrganization(ctx context.Context, arg ResolveInboundMessagingOrganizationParams) (uuid.UUID, error) {
-	row := q.db.QueryRow(ctx, resolveInboundMessagingOrganization, arg.ToAddress, arg.MessagingConnectionID)
-	var column_1 uuid.UUID
-	err := row.Scan(&column_1)
-	return column_1, err
+func (q *Queries) ResolveInboundMessagingOrganization(ctx context.Context, messagingConnectionID uuid.UUID) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, resolveInboundMessagingOrganization, messagingConnectionID)
+	var organization_id uuid.UUID
+	err := row.Scan(&organization_id)
+	return organization_id, err
 }
 
 const resolveMessagingConnection = `-- name: ResolveMessagingConnection :one
-SELECT id, organization_id, scope, channel, name, status, configuration, encrypted_secret, created_at, updated_at FROM messaging_connections
-WHERE (
-    (scope = 'organization' AND organization_id = $1)
-    OR (
-      scope = 'platform'
-      AND organization_id IS NULL
-      AND $2 = 'sms'
-    )
-  )
-  AND channel = $2
-  AND status = 'active'
-ORDER BY
-  CASE WHEN scope = 'organization' THEN 0 ELSE 1 END,
-  created_at ASC
-LIMIT 1
+SELECT id, organization_id, channel, name, status, configuration, encrypted_secret, created_at, updated_at FROM messaging_connections
+WHERE organization_id = $1 AND channel = $2 AND status = 'active'
+ORDER BY created_at ASC LIMIT 1
 `
 
 type ResolveMessagingConnectionParams struct {
-	OrganizationID *uuid.UUID  `db:"organization_id" json:"organization_id"`
-	Channel        interface{} `db:"channel" json:"channel"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	Channel        string    `db:"channel" json:"channel"`
 }
 
-// First-active fallback only. A later router will score destination, network,
-// health, capacity, cost, and priority before selecting a connection.
 func (q *Queries) ResolveMessagingConnection(ctx context.Context, arg ResolveMessagingConnectionParams) (MessagingConnection, error) {
 	row := q.db.QueryRow(ctx, resolveMessagingConnection, arg.OrganizationID, arg.Channel)
 	var i MessagingConnection
 	err := row.Scan(
 		&i.ID,
 		&i.OrganizationID,
-		&i.Scope,
 		&i.Channel,
 		&i.Name,
 		&i.Status,

@@ -118,4 +118,3 @@ func (r *Repository) ResolveBYOCOutbound(
 
 	return OutboundRoute{}, pgx.ErrNoRows
 }
-

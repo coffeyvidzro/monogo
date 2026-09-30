@@ -42,7 +42,6 @@ func (s *Service) ObserveLifecycle(ctx context.Context, event LifecycleEvent) er
 		}
 	}
 
-
 	if !isTerminalLifecycle(event.Type) && snapshot.CarrierConnectionID != nil {
 		if err := s.admission.Refresh(ctx, *snapshot.CarrierConnectionID, event.CallID); err != nil {
 			return apperror.NewServiceUnavailable("refresh carrier call lease", err)

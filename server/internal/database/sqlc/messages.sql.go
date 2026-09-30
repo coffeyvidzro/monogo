@@ -94,10 +94,7 @@ WHERE connection.id = $8
   AND connection.status = 'active'
   AND organization.status = 'active'
   AND organization.deleted_at IS NULL
-  AND (
-    (connection.scope = 'organization' AND connection.organization_id = $1)
-    OR (connection.scope = 'platform' AND connection.organization_id IS NULL)
-  )
+  AND connection.organization_id = $1
 ON CONFLICT (messaging_connection_id, provider_message_id)
 WHERE messaging_connection_id IS NOT NULL
   AND provider_message_id IS NOT NULL
@@ -911,10 +908,7 @@ WHERE message.organization_id = $1
   AND connection.status = 'active'
   AND organization.status = 'active'
   AND organization.deleted_at IS NULL
-  AND (
-    (connection.scope = 'organization' AND connection.organization_id = message.organization_id)
-    OR (connection.scope = 'platform' AND connection.organization_id IS NULL)
-  )
+  AND connection.organization_id = $1
   AND (
       message.messaging_connection_id IS NULL
       OR message.messaging_connection_id = connection.id

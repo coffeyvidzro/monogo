@@ -7,7 +7,6 @@ import (
 	"github.com/google/uuid"
 )
 
-
 func TestValidateHealthObservation(t *testing.T) {
 	now := time.Now().UTC()
 	base := HealthObservation{

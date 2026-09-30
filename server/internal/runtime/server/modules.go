@@ -109,7 +109,6 @@ func newModules(ctx context.Context, cfg config.Config) (*modules, error) {
 	}
 	recordingStorage := recordings.NewObjectStorage(objectClient)
 
-
 	queries := sqlc.New(postgresClient.Pool())
 	identityModule := identity.New(
 		queries,

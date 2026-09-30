@@ -56,7 +56,6 @@ func (r *Repository) Create(ctx context.Context, arg sqlc.CreateTrunkParams) (sq
 	return r.queries.CreateTrunk(ctx, arg)
 }
 
-
 func (r *Repository) List(ctx context.Context, organizationID uuid.UUID) ([]sqlc.Trunk, error) {
 	return r.queries.ListTrunksByOrganizationID(ctx, &organizationID)
 }

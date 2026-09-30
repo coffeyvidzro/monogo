@@ -46,26 +46,29 @@ func (s *Service) Create(ctx context.Context, organizationID uuid.UUID, req Crea
 	}
 	if req.Direction != nil {
 		value, err := normalizeChoice(*req.Direction, directions, "direction")
-		if err != nil { return sqlc.Trunk{}, err }
+		if err != nil {
+			return sqlc.Trunk{}, err
+		}
 		req.Direction = &value
 	}
 	if req.Status != nil {
 		value, err := normalizeChoice(*req.Status, statuses, "status")
-		if err != nil { return sqlc.Trunk{}, err }
+		if err != nil {
+			return sqlc.Trunk{}, err
+		}
 		req.Status = &value
 	}
 	item, err := s.mutateTrunk(ctx, EventTrunkCreated, func(repo *Repository) (sqlc.Trunk, error) {
 		return repo.Create(ctx, sqlc.CreateTrunkParams{
-			OrganizationID: &organizationID,
+			OrganizationID:      &organizationID,
 			CarrierConnectionID: *req.CarrierConnectionID,
-			Name: name,
-			Direction: req.Direction,
-			Status: req.Status,
+			Name:                name,
+			Direction:           req.Direction,
+			Status:              req.Status,
 		})
 	})
 	return item, writeError(err, "trunk", "carrier connection not found")
 }
-
 
 func (s *Service) List(ctx context.Context, organizationID uuid.UUID) ([]sqlc.Trunk, error) {
 	if err := validateID(organizationID, "organization_id"); err != nil {

@@ -235,7 +235,6 @@ func newModules(ctx context.Context, cfg config.Config, logger *logging.Logger) 
 		return nil, fmt.Errorf("initialize webhook delivery worker: %w", err)
 	}
 
-
 	return &modules{
 		postgres:                postgresClient,
 		redis:                   redisClient,

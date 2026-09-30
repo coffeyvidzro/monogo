@@ -12,7 +12,6 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 )
 
-
 func TestNormalizeBYOC(t *testing.T) {
 	request := CreateRequest{
 		Number:      " +233201234567 ",
