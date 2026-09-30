@@ -489,7 +489,6 @@ SELECT cc.id, cc.organization_id, $1::TEXT,
 FROM carrier_connections AS cc
 WHERE cc.id = $5
   AND cc.organization_id = $6
-  AND cc.scope = 'organization'
 `
 
 type InsertCarrierDigestCredentialParams struct {
