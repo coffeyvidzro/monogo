@@ -2,6 +2,8 @@ package payments
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"strings"
 	"time"
@@ -90,4 +92,72 @@ func microsToMinor(amountMicros int64) (int64, error) {
 		return 0, fmt.Errorf("amount cannot be represented in provider minor units")
 	}
 	return amountMicros / microsPerMinor, nil
+}
+
+
+type ProviderWebhook struct {
+	Provider          string
+	ProviderPaymentID string
+	ProviderEventID   string
+	EventType         string
+}
+
+func (s *ProviderService) ParseStripeWebhook(
+	payload []byte,
+	signature string,
+	now time.Time,
+) (ProviderWebhook, error) {
+	if s == nil || s.Stripe == nil {
+		return ProviderWebhook{}, fmt.Errorf("stripe provider is not configured")
+	}
+
+	event, err := s.Stripe.ParseWebhook(payload, signature, now)
+	if err != nil {
+		return ProviderWebhook{}, err
+	}
+	session, err := event.DecodeCheckoutSession()
+	if err != nil {
+		return ProviderWebhook{}, err
+	}
+
+	return ProviderWebhook{
+		Provider:          "stripe",
+		ProviderPaymentID: session.ID,
+		ProviderEventID:   event.ID,
+		EventType:         event.Type,
+	}, nil
+}
+
+func (s *ProviderService) ParsePaystackWebhook(
+	payload []byte,
+	signature string,
+) (ProviderWebhook, error) {
+	if s == nil || s.Paystack == nil {
+		return ProviderWebhook{}, fmt.Errorf("paystack provider is not configured")
+	}
+
+	event, err := s.Paystack.ParseWebhook(payload, signature)
+	if err != nil {
+		return ProviderWebhook{}, err
+	}
+
+	sum := sha256.Sum256(payload)
+	return ProviderWebhook{
+		Provider:          "paystack",
+		ProviderPaymentID: event.Data.Reference,
+		ProviderEventID:   event.Event + ":" + event.Data.Reference + ":" + hex.EncodeToString(sum[:]),
+		EventType:         event.Event,
+	}, nil
+}
+
+func IsSuccessfulProviderEvent(provider, eventType string) bool {
+	switch provider {
+	case "stripe":
+		return eventType == "checkout.session.completed" ||
+			eventType == "checkout.session.async_payment_succeeded"
+	case "paystack":
+		return eventType == "charge.success"
+	default:
+		return false
+	}
 }
