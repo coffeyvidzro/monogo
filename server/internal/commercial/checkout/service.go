@@ -23,6 +23,7 @@ const checkoutTTL = 30 * time.Minute
 type Service struct {
 	repo          *Repository
 	payments      *payments.Service
+	providers     *payments.ProviderService
 	subscriptions *subscriptions.Service
 	wallets       *wallets.Service
 	db            *pgxpool.Pool
@@ -32,6 +33,7 @@ type Service struct {
 func NewService(
 	repo *Repository,
 	paymentsService *payments.Service,
+	providerService *payments.ProviderService,
 	subscriptionsService *subscriptions.Service,
 	walletsService *wallets.Service,
 	db *pgxpool.Pool,
@@ -39,6 +41,7 @@ func NewService(
 	return &Service{
 		repo:          repo,
 		payments:      paymentsService,
+		providers:     providerService,
 		subscriptions: subscriptionsService,
 		wallets:       walletsService,
 		db:            db,
@@ -164,7 +167,7 @@ func (s *Service) Confirm(
 	}
 
 	paymentService := s.payments.WithTx(tx)
-	if _, err := paymentService.CreateAttempt(
+	payment, err := paymentService.CreateAttempt(
 		ctx,
 		payments.CreateAttemptRequest{
 			CheckoutID:     row.ID,
@@ -174,7 +177,8 @@ func (s *Service) Confirm(
 			AmountMicros:   row.AmountMicros,
 			Currency:       row.Currency,
 		},
-	); err != nil {
+	)
+	if err != nil {
 		return Checkout{}, err
 	}
 
@@ -182,7 +186,49 @@ func (s *Service) Confirm(
 		return Checkout{}, apperror.NewInternal("commit checkout confirmation", err)
 	}
 
-	return checkoutFromRow(row), nil
+	started, err := s.providers.Start(
+		ctx,
+		payments.StartRequest{
+			Payment:       payment,
+			Reference:     row.Reference,
+			Purpose:       row.Purpose,
+			Email:         req.Email,
+			Phone:         req.Phone,
+			MobileNetwork: req.MobileNetwork,
+		},
+	)
+	if err != nil {
+		return Checkout{}, apperror.NewServiceUnavailable("start provider payment", err)
+	}
+
+	payment, err = s.payments.AttachProviderPaymentID(
+		ctx,
+		payments.AttachProviderPaymentIDRequest{
+			CheckoutID:        row.ID,
+			OrganizationID:    row.OrganizationID,
+			PaymentID:         payment.ID,
+			ProviderPaymentID: started.ProviderPaymentID,
+		},
+	)
+	if err != nil {
+		return Checkout{}, err
+	}
+
+	row, err = s.repo.UpdateAction(
+		ctx,
+		row.OrganizationID,
+		row.ID,
+		started.NextAction,
+		started.ProviderMessage,
+	)
+	if err != nil {
+		return Checkout{}, apperror.NewInternal("update checkout provider action", err)
+	}
+
+	result := checkoutFromRow(row)
+	result.ClientSecret = started.ClientSecret
+	result.ProviderPaymentID = payment.ProviderPaymentID
+	return result, nil
 }
 
 func (s *Service) Continue(

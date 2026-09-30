@@ -30,6 +30,12 @@ func TestChargeMobileMoney(t *testing.T) {
 		if request.AmountMinor != 5000 {
 			t.Fatalf("amount = %d", request.AmountMinor)
 		}
+		if request.Currency != "GHS" {
+			t.Fatalf("currency = %q", request.Currency)
+		}
+		if request.Reference != "co_123" {
+			t.Fatalf("reference = %q", request.Reference)
+		}
 		if request.MobileMoney.Network != MobileMoneyNetworkMTN {
 			t.Fatalf("network = %q", request.MobileMoney.Network)
 		}
@@ -59,6 +65,8 @@ func TestChargeMobileMoney(t *testing.T) {
 	charge, err := client.ChargeMobileMoney(context.Background(), ChargeRequest{
 		Email:       "customer@example.com",
 		AmountMinor: 5000,
+		Currency:    "GHS",
+		Reference:   "co_123",
 		MobileMoney: MobileMoney{
 			Phone:   "0551234987",
 			Network: MobileMoneyNetworkMTN,

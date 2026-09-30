@@ -42,12 +42,26 @@ func validateConfirmRequest(req *ConfirmRequest) error {
 
 	req.Provider = strings.ToLower(strings.TrimSpace(req.Provider))
 	req.PaymentMethod = strings.ToLower(strings.TrimSpace(req.PaymentMethod))
+	req.Email = strings.TrimSpace(req.Email)
+	req.Phone = strings.TrimSpace(req.Phone)
+	req.MobileNetwork = strings.ToLower(strings.TrimSpace(req.MobileNetwork))
 
 	switch {
 	case req.Provider == ProviderStripe && req.PaymentMethod == PaymentMethodCard:
+		if req.Phone != "" || req.MobileNetwork != "" {
+			return fmt.Errorf("%w: Stripe card payment does not accept mobile money details", ErrInvalidInput)
+		}
 		return nil
 	case req.Provider == ProviderPaystack && req.PaymentMethod == PaymentMethodMobileMoney:
-		return nil
+		if req.Email == "" || req.Phone == "" {
+			return fmt.Errorf("%w: email and phone are required for mobile money", ErrInvalidInput)
+		}
+		switch req.MobileNetwork {
+		case "mtn", "atl", "vod":
+			return nil
+		default:
+			return fmt.Errorf("%w: mobile network is invalid", ErrInvalidInput)
+		}
 	default:
 		return fmt.Errorf("%w: provider and payment method are incompatible", ErrInvalidInput)
 	}

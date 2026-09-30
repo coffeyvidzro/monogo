@@ -52,6 +52,8 @@ type MobileMoney struct {
 type ChargeRequest struct {
 	Email       string      `json:"email"`
 	AmountMinor int64       `json:"amount"`
+	Currency    string      `json:"currency"`
+	Reference   string      `json:"reference"`
 	MobileMoney MobileMoney `json:"mobile_money"`
 }
 
@@ -61,6 +63,12 @@ func (r ChargeRequest) Validate() error {
 	}
 	if r.AmountMinor <= 0 {
 		return fmt.Errorf("paystack charge amount must be positive")
+	}
+	if strings.TrimSpace(r.Currency) == "" {
+		return fmt.Errorf("paystack charge currency is required")
+	}
+	if strings.TrimSpace(r.Reference) == "" {
+		return fmt.Errorf("paystack charge reference is required")
 	}
 	if strings.TrimSpace(r.MobileMoney.Phone) == "" {
 		return fmt.Errorf("paystack mobile money phone is required")

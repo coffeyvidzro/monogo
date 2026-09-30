@@ -46,8 +46,11 @@ func (c Config) Validate() error {
 }
 
 type CreateCheckoutSessionRequest struct {
-	AmountMinor int64
-	Currency    string
+	AmountMinor    int64
+	Currency       string
+	Reference      string
+	IdempotencyKey string
+	ProductName    string
 }
 
 func (r CreateCheckoutSessionRequest) Validate() error {
@@ -56,6 +59,15 @@ func (r CreateCheckoutSessionRequest) Validate() error {
 	}
 	if strings.TrimSpace(r.Currency) == "" {
 		return fmt.Errorf("stripe checkout currency is required")
+	}
+	if strings.TrimSpace(r.Reference) == "" {
+		return fmt.Errorf("stripe checkout reference is required")
+	}
+	if strings.TrimSpace(r.IdempotencyKey) == "" {
+		return fmt.Errorf("stripe idempotency key is required")
+	}
+	if strings.TrimSpace(r.ProductName) == "" {
+		return fmt.Errorf("stripe product name is required")
 	}
 	return nil
 }

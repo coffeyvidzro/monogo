@@ -2,6 +2,10 @@ package checkout
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"testing"
 	"time"
@@ -10,6 +14,8 @@ import (
 	"github.com/coffeyvidzro/monogo/internal/commercial/subscriptions"
 	"github.com/coffeyvidzro/monogo/internal/commercial/wallets"
 	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
+	"github.com/coffeyvidzro/monogo/internal/integrations/payments/paystack"
+	"github.com/coffeyvidzro/monogo/internal/integrations/payments/stripe"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -98,20 +104,28 @@ func TestConfirmCheckoutCreatesInternalPaymentAttempt(t *testing.T) {
 	if confirmed.PaymentMethod == nil || *confirmed.PaymentMethod != PaymentMethodCard {
 		t.Fatalf("payment method = %v, want %q", confirmed.PaymentMethod, PaymentMethodCard)
 	}
+	if confirmed.ClientSecret == nil || *confirmed.ClientSecret != "cs_test_checkout_secret" {
+		t.Fatalf("client secret = %v, want Stripe client secret", confirmed.ClientSecret)
+	}
+	if confirmed.ProviderPaymentID == nil || *confirmed.ProviderPaymentID != "cs_test_checkout" {
+		t.Fatalf("provider payment id = %v, want cs_test_checkout", confirmed.ProviderPaymentID)
+	}
 
 	var (
 		attempt       int32
 		amount        int64
 		provider      string
 		paymentMethod string
+		providerID    *string
+		status        string
 	)
 	if err := pool.QueryRow(
 		context.Background(),
-		`SELECT attempt, amount_micros, provider, payment_method
+		`SELECT attempt, amount_micros, provider, payment_method, provider_payment_id, status
 		 FROM payments
 		 WHERE checkout_id = $1`,
 		checkout.ID,
-	).Scan(&attempt, &amount, &provider, &paymentMethod); err != nil {
+	).Scan(&attempt, &amount, &provider, &paymentMethod, &providerID, &status); err != nil {
 		t.Fatalf("read payment attempt: %v", err)
 	}
 	if attempt != 1 {
@@ -125,6 +139,12 @@ func TestConfirmCheckoutCreatesInternalPaymentAttempt(t *testing.T) {
 	}
 	if paymentMethod != PaymentMethodCard {
 		t.Fatalf("payment method = %q, want %q", paymentMethod, PaymentMethodCard)
+	}
+	if providerID == nil || *providerID != "cs_test_checkout" {
+		t.Fatalf("stored provider payment id = %v, want cs_test_checkout", providerID)
+	}
+	if status != payments.StatusProcessing {
+		t.Fatalf("payment status = %q, want %q", status, payments.StatusProcessing)
 	}
 
 	var paymentCount int
@@ -519,6 +539,9 @@ func TestCompleteWalletTopupCreditsOnceAndReplays(t *testing.T) {
 			CheckoutID:     checkout.ID,
 			Provider:       ProviderPaystack,
 			PaymentMethod:  PaymentMethodMobileMoney,
+			Email:          "customer@example.com",
+			Phone:          "0551234567",
+			MobileNetwork:  "mtn",
 		},
 	); err != nil {
 		t.Fatalf("confirm wallet top-up checkout: %v", err)
@@ -702,6 +725,9 @@ func createConfirmedCheckoutForContinuation(
 			CheckoutID:     checkout.ID,
 			Provider:       ProviderPaystack,
 			PaymentMethod:  PaymentMethodMobileMoney,
+			Email:          "customer@example.com",
+			Phone:          "0551234567",
+			MobileNetwork:  "mtn",
 		},
 	); err != nil {
 		t.Fatalf("confirm checkout: %v", err)
@@ -835,9 +861,57 @@ func newCheckoutTestService(
 	paymentsService := payments.NewService(
 		payments.NewRepository(queries),
 	)
+	providerServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/checkout/sessions":
+			if err := r.ParseForm(); err != nil {
+				t.Fatalf("parse Stripe test form: %v", err)
+			}
+			_, _ = fmt.Fprintf(
+				w,
+				`{"id":"cs_test_checkout","client_secret":"cs_test_checkout_secret","status":"open","payment_status":"unpaid","currency":%q,"amount_total":%s}`,
+				r.Form.Get("line_items[0][price_data][currency]"),
+				r.Form.Get("line_items[0][price_data][unit_amount]"),
+			)
+		case "/charge":
+			var req paystack.ChargeRequest
+			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+				t.Fatalf("decode Paystack test request: %v", err)
+			}
+			_, _ = fmt.Fprintf(
+				w,
+				`{"status":true,"message":"Charge attempted","data":{"reference":%q,"status":"pay_offline","display_text":"Approve the payment"}}`,
+				req.Reference,
+			)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(providerServer.Close)
+
+	stripeConfig := stripe.DefaultConfig("sk_test", "whsec_test")
+	stripeConfig.BaseURL = providerServer.URL
+	stripeConfig.HTTPClient = providerServer.Client()
+	stripeClient, err := stripe.New(stripeConfig)
+	if err != nil {
+		t.Fatalf("create Stripe test client: %v", err)
+	}
+	paystackConfig := paystack.DefaultConfig("sk_test")
+	paystackConfig.BaseURL = providerServer.URL
+	paystackConfig.HTTPClient = providerServer.Client()
+	paystackClient, err := paystack.New(paystackConfig)
+	if err != nil {
+		t.Fatalf("create Paystack test client: %v", err)
+	}
+	providerService := payments.NewProviderService(
+		stripeClient,
+		paystackClient,
+	)
 	service := NewService(
 		NewRepository(queries),
 		paymentsService,
+		providerService,
 		subscriptionsService,
 		walletsService,
 		pool,

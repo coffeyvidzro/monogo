@@ -17,6 +17,22 @@ type ProviderService struct {
 	Paystack *paystack.Client
 }
 
+type StartRequest struct {
+	Payment       Payment
+	Reference     string
+	Purpose       string
+	Email         string
+	Phone         string
+	MobileNetwork string
+}
+
+type StartResult struct {
+	ProviderPaymentID string
+	ClientSecret      *string
+	NextAction        string
+	ProviderMessage   *string
+}
+
 func NewProviderService(
 	stripeClient *stripe.Client,
 	paystackClient *paystack.Client,
@@ -24,6 +40,91 @@ func NewProviderService(
 	return &ProviderService{
 		Stripe:   stripeClient,
 		Paystack: paystackClient,
+	}
+}
+
+func (s *ProviderService) Start(
+	ctx context.Context,
+	req StartRequest,
+) (StartResult, error) {
+	amountMinor, err := microsToMinor(req.Payment.AmountMicros)
+	if err != nil {
+		return StartResult{}, err
+	}
+
+	switch req.Payment.Provider {
+	case "stripe":
+		if s == nil || s.Stripe == nil {
+			return StartResult{}, fmt.Errorf("stripe provider is not configured")
+		}
+		productName := "Monogo subscription"
+		if req.Purpose == "wallet_topup" {
+			productName = "Wallet top-up"
+		}
+		session, err := s.Stripe.CreateCheckoutSession(
+			ctx,
+			stripe.CreateCheckoutSessionRequest{
+				AmountMinor:    amountMinor,
+				Currency:       req.Payment.Currency,
+				Reference:      req.Reference,
+				IdempotencyKey: req.Payment.ID.String(),
+				ProductName:    productName,
+			},
+		)
+		if err != nil {
+			return StartResult{}, fmt.Errorf("create Stripe checkout session: %w", err)
+		}
+		if strings.TrimSpace(session.ID) == "" || strings.TrimSpace(session.ClientSecret) == "" {
+			return StartResult{}, fmt.Errorf("stripe checkout session is incomplete")
+		}
+		if session.AmountTotal != amountMinor ||
+			strings.ToUpper(session.Currency) != req.Payment.Currency {
+			return StartResult{}, fmt.Errorf("stripe checkout amount or currency does not match payment")
+		}
+		clientSecret := session.ClientSecret
+		return StartResult{
+			ProviderPaymentID: session.ID,
+			ClientSecret:      &clientSecret,
+			NextAction:        "wait",
+		}, nil
+
+	case "paystack":
+		if s == nil || s.Paystack == nil {
+			return StartResult{}, fmt.Errorf("paystack provider is not configured")
+		}
+		charge, err := s.Paystack.ChargeMobileMoney(
+			ctx,
+			paystack.ChargeRequest{
+				Email:       req.Email,
+				AmountMinor: amountMinor,
+				Currency:    req.Payment.Currency,
+				Reference:   req.Reference,
+				MobileMoney: paystack.MobileMoney{
+					Phone:   req.Phone,
+					Network: paystack.MobileMoneyNetwork(req.MobileNetwork),
+				},
+			},
+		)
+		if err != nil {
+			return StartResult{}, fmt.Errorf("create Paystack mobile money charge: %w", err)
+		}
+		if charge.Reference != req.Reference {
+			return StartResult{}, fmt.Errorf("paystack returned an unexpected charge reference")
+		}
+		state := paystack.MapCharge(charge)
+		message := strings.TrimSpace(state.Message)
+		var providerMessage *string
+		if message != "" {
+			providerMessage = &message
+		}
+		return StartResult{
+			ProviderPaymentID: charge.Reference,
+			NextAction:        state.NextAction,
+			ProviderMessage:   providerMessage,
+		}, nil
+
+	default:
+		return StartResult{}, fmt.Errorf("unsupported payment provider %q", req.Payment.Provider)
 	}
 }
 
