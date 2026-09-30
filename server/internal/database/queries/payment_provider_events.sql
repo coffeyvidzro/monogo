@@ -29,11 +29,20 @@ WHERE provider = sqlc.arg(provider)
 LIMIT 1;
 
 -- name: MarkPaymentProviderEventProcessed :one
-UPDATE payment_provider_events
-SET processed_at = sqlc.arg(processed_at)
-WHERE id = sqlc.arg(id)
-  AND processed_at IS NULL
-RETURNING *;
+WITH updated AS (
+    UPDATE payment_provider_events AS event
+    SET processed_at = sqlc.arg(processed_at)
+    WHERE event.id = sqlc.arg(id)
+      AND event.processed_at IS NULL
+    RETURNING event.*
+)
+SELECT * FROM updated
+UNION ALL
+SELECT event.*
+FROM payment_provider_events AS event
+WHERE event.id = sqlc.arg(id)
+  AND event.processed_at IS NOT NULL
+LIMIT 1;
 
 -- name: ListUnprocessedPaymentProviderEvents :many
 SELECT *

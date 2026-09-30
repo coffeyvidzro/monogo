@@ -25,6 +25,9 @@ func TestCreateCheckoutSession(t *testing.T) {
 		if got := r.Header.Get("Stripe-Version"); got != DefaultAPIVersion {
 			t.Fatalf("Stripe-Version = %q", got)
 		}
+		if got := r.Header.Get("Idempotency-Key"); got != "payment-123" {
+			t.Fatalf("Idempotency-Key = %q", got)
+		}
 
 		payload, err := io.ReadAll(r.Body)
 		if err != nil {
@@ -53,6 +56,9 @@ func TestCreateCheckoutSession(t *testing.T) {
 		if got := values.Get("line_items[0][price_data][product_data][name]"); got != "Wallet top-up" {
 			t.Fatalf("product name = %q", got)
 		}
+		if got := values.Get("client_reference_id"); got != "co_123" {
+			t.Fatalf("client_reference_id = %q", got)
+		}
 
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{
@@ -76,8 +82,11 @@ func TestCreateCheckoutSession(t *testing.T) {
 	}
 
 	session, err := client.CreateCheckoutSession(context.Background(), CreateCheckoutSessionRequest{
-		AmountMinor: 5000,
-		Currency:    "USD",
+		AmountMinor:    5000,
+		Currency:       "USD",
+		Reference:      "co_123",
+		IdempotencyKey: "payment-123",
+		ProductName:    "Wallet top-up",
 	})
 	if err != nil {
 		t.Fatal(err)

@@ -1,5 +1,56 @@
 # Billing model
 
+## Commercial architecture
+
+```text
+                         MONOGO
+                            │
+             ┌──────────────┴──────────────┐
+             │                             │
+      Platform access              Managed usage
+             │                             │
+      subscriptions                    wallet
+             │                             │
+      subscription_plans        ┌──────────┴──────────┐
+                                │                     │
+                           voice_rates          product_rates
+                                │                     │
+                           Calls/minutes       SMS / WhatsApp /
+                                              Numbers
+             │                             │
+             └──────────────┬──────────────┘
+                            │
+                        checkout
+                            │
+                         payment
+                            │
+                  ┌─────────┴─────────┐
+                  │                   │
+               Stripe             Paystack
+                Card             Mobile Money
+```
+
+The two commercial branches share payment collection infrastructure, not
+spending semantics:
+
+- A subscription checkout collects the platform fee and activates a paid
+  entitlement period.
+- A wallet top-up checkout collects prepaid funds and creates one immutable
+  wallet credit after settlement.
+- Managed calls, messages, and numbers resolve a retail rate and consume the
+  wallet directly. They do not create a provider checkout or card/mobile-money
+  payment for every usage operation.
+- Stripe and Paystack are payment adapters. Neither provider is the source of
+  truth for subscription entitlement, wallet balance, pricing, or telecom
+  usage.
+- A checkout is the customer purchase session. A payment is a provider attempt
+  for that checkout; retries may create another payment attempt without
+  duplicating the commercial purchase or its fulfillment.
+
+This separation lets Monogo use Stripe cards and Paystack mobile money through
+one local settlement model while keeping platform access independent from
+managed carrier credit.
+
 Monogo has two independent customer billing obligations:
 
 1. **Subscription** pays for access to the Monogo platform.

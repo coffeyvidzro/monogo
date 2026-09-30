@@ -51,18 +51,26 @@ func (c *Client) CreateCheckoutSession(
 		return CheckoutSession{}, err
 	}
 
-	values := url.Values{
-		"mode":                                          {"payment"},
-		"ui_mode":                                       {"custom"},
-		"payment_method_types[0]":                       {"card"},
-		"line_items[0][quantity]":                       {"1"},
-		"line_items[0][price_data][currency]":           {strings.ToLower(request.Currency)},
-		"line_items[0][price_data][unit_amount]":        {strconv.FormatInt(request.AmountMinor, 10)},
-		"line_items[0][price_data][product_data][name]": {"Wallet top-up"},
-	}
+	values := make(url.Values)
+	values.Set("mode", "payment")
+	values.Set("ui_mode", "custom")
+	values.Set("payment_method_types[0]", "card")
+	values.Set("line_items[0][quantity]", "1")
+	values.Set("line_items[0][price_data][currency]", strings.ToLower(request.Currency))
+	values.Set("line_items[0][price_data][unit_amount]", strconv.FormatInt(request.AmountMinor, 10))
+	values.Set("line_items[0][price_data][product_data][name]", request.ProductName)
+	values.Set("client_reference_id", request.Reference)
+	values.Set("metadata[checkout_reference]", request.Reference)
 
 	var session CheckoutSession
-	if err := c.doForm(ctx, http.MethodPost, "/checkout/sessions", values, &session); err != nil {
+	if err := c.doForm(
+		ctx,
+		http.MethodPost,
+		"/checkout/sessions",
+		values,
+		request.IdempotencyKey,
+		&session,
+	); err != nil {
 		return CheckoutSession{}, err
 	}
 
@@ -81,6 +89,7 @@ func (c *Client) RetrieveCheckoutSession(ctx context.Context, id string) (Checko
 		http.MethodGet,
 		"/checkout/sessions/"+url.PathEscape(id),
 		nil,
+		"",
 		&session,
 	); err != nil {
 		return CheckoutSession{}, err
@@ -142,6 +151,7 @@ func (c *Client) doForm(
 	ctx context.Context,
 	method, path string,
 	values url.Values,
+	idempotencyKey string,
 	target any,
 ) error {
 	if ctx == nil {
@@ -160,6 +170,9 @@ func (c *Client) doForm(
 	req.Header.Set("Authorization", "Bearer "+c.secretKey)
 	req.Header.Set("Stripe-Version", DefaultAPIVersion)
 	req.Header.Set("Accept", "application/json")
+	if idempotencyKey != "" {
+		req.Header.Set("Idempotency-Key", idempotencyKey)
+	}
 	if values != nil {
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	}

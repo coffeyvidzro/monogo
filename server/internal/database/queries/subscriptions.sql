@@ -62,13 +62,19 @@ LIMIT 1;
 UPDATE subscriptions AS s
 SET
     status = 'active',
-    current_period_start = sqlc.arg(current_period_start),
-    current_period_end = sqlc.arg(current_period_end),
+    current_period_start = CASE
+        WHEN s.status = 'active' THEN s.current_period_start
+        ELSE sqlc.arg(current_period_start)
+    END,
+    current_period_end = CASE
+        WHEN s.status = 'active' THEN s.current_period_end
+        ELSE sqlc.arg(current_period_end)
+    END,
     started_at = COALESCE(s.started_at, sqlc.arg(current_period_start)),
     updated_at = NOW()
 WHERE s.id = sqlc.arg(id)
   AND s.organization_id = sqlc.arg(organization_id)
-  AND s.status IN ('pending', 'past_due')
+  AND s.status IN ('pending', 'past_due', 'active')
   AND EXISTS (
       SELECT 1
       FROM organizations AS o

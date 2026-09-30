@@ -5,10 +5,17 @@ import (
 
 	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 )
 
 type Repository struct {
 	queries *sqlc.Queries
+}
+
+func (r *Repository) WithTx(tx pgx.Tx) *Repository {
+	return &Repository{
+		queries: r.queries.WithTx(tx),
+	}
 }
 
 func NewRepository(queries *sqlc.Queries) *Repository {

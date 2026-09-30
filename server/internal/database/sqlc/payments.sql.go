@@ -309,11 +309,11 @@ UPDATE payments
 SET
     status = 'succeeded',
     failure_code = NULL,
-    paid_at = $1
+    paid_at = COALESCE(paid_at, $1)
 WHERE id = $2
   AND checkout_id = $3
   AND organization_id = $4
-  AND status IN ('pending', 'processing')
+  AND status IN ('pending', 'processing', 'succeeded')
 RETURNING id, checkout_id, organization_id, provider, payment_method, attempt, provider_payment_id, amount_micros, currency, status, failure_code, paid_at, metadata, created_at, updated_at
 `
 

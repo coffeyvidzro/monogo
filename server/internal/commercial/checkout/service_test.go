@@ -2,6 +2,10 @@ package checkout
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"testing"
 	"time"
@@ -10,6 +14,8 @@ import (
 	"github.com/coffeyvidzro/monogo/internal/commercial/subscriptions"
 	"github.com/coffeyvidzro/monogo/internal/commercial/wallets"
 	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
+	"github.com/coffeyvidzro/monogo/internal/integrations/payments/paystack"
+	"github.com/coffeyvidzro/monogo/internal/integrations/payments/stripe"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -98,20 +104,28 @@ func TestConfirmCheckoutCreatesInternalPaymentAttempt(t *testing.T) {
 	if confirmed.PaymentMethod == nil || *confirmed.PaymentMethod != PaymentMethodCard {
 		t.Fatalf("payment method = %v, want %q", confirmed.PaymentMethod, PaymentMethodCard)
 	}
+	if confirmed.ClientSecret == nil || *confirmed.ClientSecret != "cs_test_checkout_secret" {
+		t.Fatalf("client secret = %v, want Stripe client secret", confirmed.ClientSecret)
+	}
+	if confirmed.ProviderPaymentID == nil || *confirmed.ProviderPaymentID != "cs_test_checkout" {
+		t.Fatalf("provider payment id = %v, want cs_test_checkout", confirmed.ProviderPaymentID)
+	}
 
 	var (
 		attempt       int32
 		amount        int64
 		provider      string
 		paymentMethod string
+		providerID    *string
+		status        string
 	)
 	if err := pool.QueryRow(
 		context.Background(),
-		`SELECT attempt, amount_micros, provider, payment_method
+		`SELECT attempt, amount_micros, provider, payment_method, provider_payment_id, status
 		 FROM payments
 		 WHERE checkout_id = $1`,
 		checkout.ID,
-	).Scan(&attempt, &amount, &provider, &paymentMethod); err != nil {
+	).Scan(&attempt, &amount, &provider, &paymentMethod, &providerID, &status); err != nil {
 		t.Fatalf("read payment attempt: %v", err)
 	}
 	if attempt != 1 {
@@ -125,6 +139,12 @@ func TestConfirmCheckoutCreatesInternalPaymentAttempt(t *testing.T) {
 	}
 	if paymentMethod != PaymentMethodCard {
 		t.Fatalf("payment method = %q, want %q", paymentMethod, PaymentMethodCard)
+	}
+	if providerID == nil || *providerID != "cs_test_checkout" {
+		t.Fatalf("stored provider payment id = %v, want cs_test_checkout", providerID)
+	}
+	if status != payments.StatusProcessing {
+		t.Fatalf("payment status = %q, want %q", status, payments.StatusProcessing)
 	}
 
 	var paymentCount int
@@ -519,6 +539,9 @@ func TestCompleteWalletTopupCreditsOnceAndReplays(t *testing.T) {
 			CheckoutID:     checkout.ID,
 			Provider:       ProviderPaystack,
 			PaymentMethod:  PaymentMethodMobileMoney,
+			Email:          "customer@example.com",
+			Phone:          "0551234567",
+			MobileNetwork:  "mtn",
 		},
 	); err != nil {
 		t.Fatalf("confirm wallet top-up checkout: %v", err)
@@ -568,6 +591,215 @@ func TestCompleteWalletTopupCreditsOnceAndReplays(t *testing.T) {
 	}
 	if ledgerCount != 1 {
 		t.Fatalf("ledger entries = %d, want 1", ledgerCount)
+	}
+}
+
+func TestSettleSuccessfulProviderEventIsAtomicAndConcurrent(t *testing.T) {
+	service, pool, organizationID, _ := newCheckoutTestService(t)
+	now := time.Date(2026, time.September, 29, 13, 0, 0, 0, time.UTC)
+	service.now = func() time.Time { return now }
+
+	checkout, err := service.Create(
+		context.Background(),
+		CreateRequest{
+			OrganizationID: organizationID,
+			Purpose:        PurposeWalletTopup,
+			AmountMicros:   50_000_000,
+		},
+	)
+	if err != nil {
+		t.Fatalf("create wallet top-up checkout: %v", err)
+	}
+	confirmed, err := service.Confirm(
+		context.Background(),
+		ConfirmRequest{
+			OrganizationID: organizationID,
+			CheckoutID:     checkout.ID,
+			Provider:       ProviderPaystack,
+			PaymentMethod:  PaymentMethodMobileMoney,
+			Email:          "customer@example.com",
+			Phone:          "0551234567",
+			MobileNetwork:  "mtn",
+		},
+	)
+	if err != nil {
+		t.Fatalf("confirm wallet top-up checkout: %v", err)
+	}
+
+	event, payment, err := service.payments.RecordProviderEvent(
+		context.Background(),
+		payments.RecordProviderEventRequest{
+			Provider:          ProviderPaystack,
+			ProviderPaymentID: *confirmed.ProviderPaymentID,
+			ProviderEventID:   "evt_atomic_success",
+			EventType:         "charge.success",
+			Payload:           []byte(`{"event":"charge.success"}`),
+			ReceivedAt:        now,
+		},
+	)
+	if err != nil {
+		t.Fatalf("record provider event: %v", err)
+	}
+
+	start := make(chan struct{})
+	errorsByWorker := make(chan error, 2)
+	for range 2 {
+		go func() {
+			<-start
+			_, settleErr := service.SettleSuccessfulProviderEvent(
+				context.Background(),
+				event,
+				payment,
+				now.Add(time.Minute),
+			)
+			errorsByWorker <- settleErr
+		}()
+	}
+	close(start)
+	for range 2 {
+		if err := <-errorsByWorker; err != nil {
+			t.Fatalf("settle provider event: %v", err)
+		}
+	}
+
+	assertAtomicSettlementState(
+		t,
+		pool,
+		organizationID,
+		checkout.ID,
+		event.ID,
+		50_000_000,
+	)
+}
+
+func TestSettleSuccessfulProviderEventRollsBackOnFulfillmentFailure(t *testing.T) {
+	service, pool, organizationID, _ := newCheckoutTestService(t)
+	now := time.Date(2026, time.September, 29, 13, 0, 0, 0, time.UTC)
+	service.now = func() time.Time { return now }
+
+	checkout, err := service.Create(
+		context.Background(),
+		CreateRequest{
+			OrganizationID: organizationID,
+			Purpose:        PurposeWalletTopup,
+			AmountMicros:   50_000_000,
+		},
+	)
+	if err != nil {
+		t.Fatalf("create wallet top-up checkout: %v", err)
+	}
+	confirmed, err := service.Confirm(
+		context.Background(),
+		ConfirmRequest{
+			OrganizationID: organizationID,
+			CheckoutID:     checkout.ID,
+			Provider:       ProviderPaystack,
+			PaymentMethod:  PaymentMethodMobileMoney,
+			Email:          "customer@example.com",
+			Phone:          "0551234567",
+			MobileNetwork:  "mtn",
+		},
+	)
+	if err != nil {
+		t.Fatalf("confirm wallet top-up checkout: %v", err)
+	}
+	event, payment, err := service.payments.RecordProviderEvent(
+		context.Background(),
+		payments.RecordProviderEventRequest{
+			Provider:          ProviderPaystack,
+			ProviderPaymentID: *confirmed.ProviderPaymentID,
+			ProviderEventID:   "evt_atomic_rollback",
+			EventType:         "charge.success",
+			Payload:           []byte(`{"event":"charge.success"}`),
+			ReceivedAt:        now,
+		},
+	)
+	if err != nil {
+		t.Fatalf("record provider event: %v", err)
+	}
+	if _, err := pool.Exec(
+		context.Background(),
+		"UPDATE wallets SET status = 'frozen' WHERE organization_id = $1",
+		organizationID,
+	); err != nil {
+		t.Fatalf("freeze wallet: %v", err)
+	}
+
+	if _, err := service.SettleSuccessfulProviderEvent(
+		context.Background(),
+		event,
+		payment,
+		now.Add(time.Minute),
+	); err == nil {
+		t.Fatal("settlement succeeded with frozen wallet")
+	}
+
+	var (
+		paymentStatus  string
+		checkoutStatus string
+		processedAt    *time.Time
+		ledgerCount    int
+	)
+	if err := pool.QueryRow(
+		context.Background(),
+		`SELECT p.status, c.status, e.processed_at,
+		        (SELECT count(*) FROM wallet_ledger_entries WHERE operation_id = c.id)
+		 FROM payments p
+		 JOIN checkouts c ON c.id = p.checkout_id
+		 JOIN payment_provider_events e ON e.payment_id = p.id
+		 WHERE e.id = $1`,
+		event.ID,
+	).Scan(&paymentStatus, &checkoutStatus, &processedAt, &ledgerCount); err != nil {
+		t.Fatalf("read rolled back settlement: %v", err)
+	}
+	if paymentStatus != payments.StatusProcessing || checkoutStatus != StatusProcessing {
+		t.Fatalf("statuses after rollback = payment %q checkout %q", paymentStatus, checkoutStatus)
+	}
+	if processedAt != nil || ledgerCount != 0 {
+		t.Fatalf("settlement side effects after rollback: processed_at=%v ledger_count=%d", processedAt, ledgerCount)
+	}
+}
+
+func assertAtomicSettlementState(
+	t *testing.T,
+	pool *pgxpool.Pool,
+	organizationID uuid.UUID,
+	checkoutID uuid.UUID,
+	eventID uuid.UUID,
+	wantBalance int64,
+) {
+	t.Helper()
+
+	var (
+		paymentStatus  string
+		checkoutStatus string
+		processedAt    *time.Time
+		balance        int64
+		ledgerCount    int
+	)
+	if err := pool.QueryRow(
+		context.Background(),
+		`SELECT p.status, c.status, e.processed_at, w.balance_micros,
+		        (SELECT count(*) FROM wallet_ledger_entries WHERE operation_id = c.id)
+		 FROM payments p
+		 JOIN checkouts c ON c.id = p.checkout_id
+		 JOIN payment_provider_events e ON e.payment_id = p.id
+		 JOIN wallets w ON w.organization_id = c.organization_id
+		 WHERE c.id = $1 AND e.id = $2 AND c.organization_id = $3`,
+		checkoutID,
+		eventID,
+		organizationID,
+	).Scan(&paymentStatus, &checkoutStatus, &processedAt, &balance, &ledgerCount); err != nil {
+		t.Fatalf("read atomic settlement state: %v", err)
+	}
+	if paymentStatus != payments.StatusSucceeded || checkoutStatus != StatusSucceeded {
+		t.Fatalf("settled statuses = payment %q checkout %q", paymentStatus, checkoutStatus)
+	}
+	if processedAt == nil {
+		t.Fatal("provider event is not processed")
+	}
+	if balance != wantBalance || ledgerCount != 1 {
+		t.Fatalf("wallet settlement = balance %d ledger count %d", balance, ledgerCount)
 	}
 }
 
@@ -702,6 +934,9 @@ func createConfirmedCheckoutForContinuation(
 			CheckoutID:     checkout.ID,
 			Provider:       ProviderPaystack,
 			PaymentMethod:  PaymentMethodMobileMoney,
+			Email:          "customer@example.com",
+			Phone:          "0551234567",
+			MobileNetwork:  "mtn",
 		},
 	); err != nil {
 		t.Fatalf("confirm checkout: %v", err)
@@ -835,9 +1070,57 @@ func newCheckoutTestService(
 	paymentsService := payments.NewService(
 		payments.NewRepository(queries),
 	)
+	providerServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/checkout/sessions":
+			if err := r.ParseForm(); err != nil {
+				t.Fatalf("parse Stripe test form: %v", err)
+			}
+			_, _ = fmt.Fprintf(
+				w,
+				`{"id":"cs_test_checkout","client_secret":"cs_test_checkout_secret","status":"open","payment_status":"unpaid","currency":%q,"amount_total":%s}`,
+				r.Form.Get("line_items[0][price_data][currency]"),
+				r.Form.Get("line_items[0][price_data][unit_amount]"),
+			)
+		case "/charge":
+			var req paystack.ChargeRequest
+			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+				t.Fatalf("decode Paystack test request: %v", err)
+			}
+			_, _ = fmt.Fprintf(
+				w,
+				`{"status":true,"message":"Charge attempted","data":{"reference":%q,"status":"pay_offline","display_text":"Approve the payment"}}`,
+				req.Reference,
+			)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(providerServer.Close)
+
+	stripeConfig := stripe.DefaultConfig("sk_test", "whsec_test")
+	stripeConfig.BaseURL = providerServer.URL
+	stripeConfig.HTTPClient = providerServer.Client()
+	stripeClient, err := stripe.New(stripeConfig)
+	if err != nil {
+		t.Fatalf("create Stripe test client: %v", err)
+	}
+	paystackConfig := paystack.DefaultConfig("sk_test")
+	paystackConfig.BaseURL = providerServer.URL
+	paystackConfig.HTTPClient = providerServer.Client()
+	paystackClient, err := paystack.New(paystackConfig)
+	if err != nil {
+		t.Fatalf("create Paystack test client: %v", err)
+	}
+	providerService := payments.NewProviderService(
+		stripeClient,
+		paystackClient,
+	)
 	service := NewService(
 		NewRepository(queries),
 		paymentsService,
+		providerService,
 		subscriptionsService,
 		walletsService,
 		pool,
@@ -961,6 +1244,19 @@ func createCheckoutTestSchema(
 			metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
 			created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
 			updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+		)`,
+		`CREATE TABLE payment_provider_events (
+			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+			payment_id UUID NOT NULL,
+			organization_id UUID NOT NULL,
+			provider TEXT NOT NULL,
+			provider_event_id TEXT NOT NULL,
+			event_type TEXT NOT NULL,
+			payload_sha256 TEXT NOT NULL,
+			payload JSONB NOT NULL,
+			received_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+			processed_at TIMESTAMPTZ,
+			UNIQUE (provider, provider_event_id)
 		)`,
 	}
 

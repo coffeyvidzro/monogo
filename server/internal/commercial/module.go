@@ -93,6 +93,7 @@ func New(deps Dependencies) *Module {
 	checkoutService := checkout.NewService(
 		checkoutRepository,
 		paymentsService,
+		paymentProviders,
 		subscriptionsService,
 		walletsService,
 		deps.DB,
