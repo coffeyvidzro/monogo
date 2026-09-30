@@ -28,8 +28,8 @@ func normalizeCreateVoiceRateRequest(req *CreateVoiceRateRequest) error {
 	req.Direction = direction
 
 	req.Currency = strings.ToUpper(strings.TrimSpace(req.Currency))
-	if len(req.Currency) != 3 {
-		return fmt.Errorf("%w: currency must be a three-letter code", ErrInvalidInput)
+	if req.Currency != "USD" {
+		return fmt.Errorf("%w: currency must be USD", ErrInvalidInput)
 	}
 	if req.RateMicros <= 0 {
 		return fmt.Errorf("%w: rate must be positive", ErrInvalidInput)
@@ -64,8 +64,8 @@ func normalizeResolveVoiceRateRequest(req *ResolveVoiceRateRequest) error {
 	req.Direction = direction
 
 	req.Currency = strings.ToUpper(strings.TrimSpace(req.Currency))
-	if len(req.Currency) != 3 {
-		return fmt.Errorf("%w: currency must be a three-letter code", ErrInvalidInput)
+	if req.Currency != "USD" {
+		return fmt.Errorf("%w: currency must be USD", ErrInvalidInput)
 	}
 
 	return nil
@@ -92,8 +92,8 @@ func normalizeResolveProductRateRequest(req *ResolveProductRateRequest) error {
 	}
 
 	req.Currency = strings.ToUpper(strings.TrimSpace(req.Currency))
-	if len(req.Currency) != 3 {
-		return fmt.Errorf("%w: currency must be a three-letter code", ErrInvalidInput)
+	if req.Currency != "USD" {
+		return fmt.Errorf("%w: currency must be USD", ErrInvalidInput)
 	}
 
 	return nil

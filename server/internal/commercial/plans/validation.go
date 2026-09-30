@@ -20,8 +20,8 @@ func normalizeCreateRequest(req *CreateRequest) error {
 	}
 
 	req.Currency = strings.ToUpper(strings.TrimSpace(req.Currency))
-	if len(req.Currency) != 3 {
-		return fmt.Errorf("%w: currency must be a three-letter code", ErrInvalidInput)
+	if req.Currency != "USD" {
+		return fmt.Errorf("%w: currency must be USD", ErrInvalidInput)
 	}
 
 	if req.AmountMicros < 0 {
