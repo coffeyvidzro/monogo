@@ -103,7 +103,6 @@ type TrunksModule struct {
 	Handler    *trunks.Handler
 }
 
-
 func New(deps Dependencies) (*Module, error) {
 	routingRepository := routing.NewRepository(deps.Queries, deps.DB)
 	routingService := routing.NewService(routingRepository, nil)
@@ -120,7 +119,6 @@ func New(deps Dependencies) (*Module, error) {
 
 	numbersRepository := numbers.NewRepository(deps.Queries)
 	numbersService := numbers.NewService(numbersRepository)
-
 
 	recordingsRepository := recordings.NewRepository(deps.DB)
 	recordingsService := recordings.NewService(recordingsRepository, deps.RecordingStorage)

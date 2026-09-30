@@ -6,9 +6,9 @@ import (
 
 type InboundRequest struct {
 	OrganizationID      uuid.UUID
-	VoiceAgentID       uuid.UUID
+	VoiceAgentID        uuid.UUID
 	PhoneNumberID       uuid.UUID
-	VoiceAgentBindingID      uuid.UUID
+	VoiceAgentBindingID uuid.UUID
 	CarrierConnectionID uuid.UUID
 	CalledNumber        string
 }
@@ -20,9 +20,9 @@ type Limits struct {
 
 type InboundDecision struct {
 	OrganizationID      uuid.UUID
-	VoiceAgentID       uuid.UUID
+	VoiceAgentID        uuid.UUID
 	PhoneNumberID       uuid.UUID
-	VoiceAgentBindingID      uuid.UUID
+	VoiceAgentBindingID uuid.UUID
 	CarrierConnectionID uuid.UUID
 	CalledNumber        string
 	Limits              Limits

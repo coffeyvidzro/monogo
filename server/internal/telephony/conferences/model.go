@@ -9,7 +9,7 @@ import (
 )
 
 type CreateRequest struct {
-	Name          string     `json:"name"`
+	Name string `json:"name"`
 }
 
 type AddParticipantRequest struct {

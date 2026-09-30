@@ -44,9 +44,9 @@ type InboundEvent struct {
 	ChannelID           string
 	SIPCallID           string
 	OrganizationID      uuid.UUID
-	VoiceAgentID       uuid.UUID
+	VoiceAgentID        uuid.UUID
 	PhoneNumberID       uuid.UUID
-	VoiceAgentBindingID      uuid.UUID
+	VoiceAgentBindingID uuid.UUID
 	CarrierConnectionID uuid.UUID
 	FromURI             string
 	ToURI               string
@@ -74,11 +74,11 @@ func TranslateInboundFreeSWITCHEvent(event freeswitch.Event) (InboundEvent, erro
 	}
 
 	headers := map[string]string{
-		"organization_id":       event.Header("variable_sip_h_X-Leamout-Organization-ID"),
-		"carrier_connection_id": event.Header("variable_sip_h_X-Leamout-Carrier-Connection-ID"),
-		"phone_number_id":       event.Header("variable_sip_h_X-Leamout-Phone-Number-ID"),
-		"voice_agent_binding_id":      event.Header("variable_sip_h_X-Leamout-Voice-Agent-Binding-ID"),
-		"voice_agent_id":        event.Header("variable_sip_h_X-Leamout-Voice-Agent-ID"),
+		"organization_id":        event.Header("variable_sip_h_X-Leamout-Organization-ID"),
+		"carrier_connection_id":  event.Header("variable_sip_h_X-Leamout-Carrier-Connection-ID"),
+		"phone_number_id":        event.Header("variable_sip_h_X-Leamout-Phone-Number-ID"),
+		"voice_agent_binding_id": event.Header("variable_sip_h_X-Leamout-Voice-Agent-Binding-ID"),
+		"voice_agent_id":         event.Header("variable_sip_h_X-Leamout-Voice-Agent-ID"),
 	}
 	hasTrustedMetadata := false
 	for _, value := range headers {
@@ -145,9 +145,9 @@ func TranslateInboundFreeSWITCHEvent(event freeswitch.Event) (InboundEvent, erro
 		ChannelID:           channelID,
 		SIPCallID:           sipCallID,
 		OrganizationID:      organizationID,
-		VoiceAgentID:       voiceAgentID,
+		VoiceAgentID:        voiceAgentID,
 		PhoneNumberID:       phoneNumberID,
-		VoiceAgentBindingID:      voiceBindingID,
+		VoiceAgentBindingID: voiceBindingID,
 		CarrierConnectionID: carrierConnectionID,
 		FromURI:             strings.TrimSpace(fromURI),
 		ToURI:               strings.TrimSpace(toURI),

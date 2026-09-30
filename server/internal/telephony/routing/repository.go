@@ -46,7 +46,7 @@ func (r *Repository) GetInboundContext(
 		OrganizationID:      req.OrganizationID,
 		CalledNumber:        req.CalledNumber,
 		CarrierConnectionID: &carrierConnectionID,
-		VoiceAgentID:       req.VoiceAgentID,
+		VoiceAgentID:        req.VoiceAgentID,
 	})
 	if err != nil {
 		return inboundContext{}, err

@@ -192,9 +192,9 @@ func (s *Service) AdmitInbound(
 
 	decision, err := s.router.ResolveInbound(ctx, routing.InboundRequest{
 		OrganizationID:      req.OrganizationID,
-		VoiceAgentID:       req.VoiceAgentID,
+		VoiceAgentID:        req.VoiceAgentID,
 		PhoneNumberID:       req.PhoneNumberID,
-		VoiceAgentBindingID:      req.VoiceAgentBindingID,
+		VoiceAgentBindingID: req.VoiceAgentBindingID,
 		CarrierConnectionID: req.CarrierConnectionID,
 		CalledNumber:        req.ToURI,
 	})

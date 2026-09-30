@@ -119,14 +119,14 @@ func TestTranslateInboundFreeSWITCHEvent(t *testing.T) {
 		Headers: map[string]string{
 			"Unique-ID":            "fs-inbound-1",
 			"variable_sip_call_id": "sip-call-123",
-			"variable_sip_h_X-Leamout-Organization-ID":       organizationID.String(),
-			"variable_sip_h_X-Leamout-Carrier-Connection-ID": carrierID.String(),
-			"variable_sip_h_X-Leamout-Phone-Number-ID":       phoneNumberID.String(),
-			"variable_sip_h_X-Leamout-Voice-Agent-Binding-ID":      bindingID.String(),
-			"variable_sip_h_X-Leamout-Voice-Agent-ID":  voiceAgentID.String(),
-			"Caller-Caller-ID-Number":                        "+14155550100",
-			"Caller-Destination-Number":                      "+14155550199",
-			"Event-Date-Timestamp":                           "1787990400000000",
+			"variable_sip_h_X-Leamout-Organization-ID":        organizationID.String(),
+			"variable_sip_h_X-Leamout-Carrier-Connection-ID":  carrierID.String(),
+			"variable_sip_h_X-Leamout-Phone-Number-ID":        phoneNumberID.String(),
+			"variable_sip_h_X-Leamout-Voice-Agent-Binding-ID": bindingID.String(),
+			"variable_sip_h_X-Leamout-Voice-Agent-ID":         voiceAgentID.String(),
+			"Caller-Caller-ID-Number":                         "+14155550100",
+			"Caller-Destination-Number":                       "+14155550199",
+			"Event-Date-Timestamp":                            "1787990400000000",
 		},
 	})
 	if err != nil {

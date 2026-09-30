@@ -65,7 +65,6 @@ func (s *Service) Disable(ctx context.Context, organizationID, id uuid.UUID) err
 	return writeError(s.repo.Disable(ctx, organizationID, id), "disable voice agent")
 }
 
-
 func readError(err error, message string) error {
 	if err == nil {
 		return nil

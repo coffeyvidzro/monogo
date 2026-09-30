@@ -44,9 +44,9 @@ func (s *Service) ResolveInbound(
 
 	return InboundDecision{
 		OrganizationID:      req.OrganizationID,
-		VoiceAgentID:       req.VoiceAgentID,
+		VoiceAgentID:        req.VoiceAgentID,
 		PhoneNumberID:       req.PhoneNumberID,
-		VoiceAgentBindingID:      req.VoiceAgentBindingID,
+		VoiceAgentBindingID: req.VoiceAgentBindingID,
 		CarrierConnectionID: req.CarrierConnectionID,
 		CalledNumber:        req.CalledNumber,
 		Limits:              inbound.Limits,
