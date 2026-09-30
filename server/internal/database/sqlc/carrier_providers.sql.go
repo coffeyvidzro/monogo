@@ -12,7 +12,7 @@ import (
 )
 
 const getCarrierProviderByID = `-- name: GetCarrierProviderByID :one
-SELECT id, slug, name, adapter, status, created_at, updated_at
+SELECT id, slug, name, status, created_at, updated_at
 FROM carrier_providers
 WHERE id = $1
   AND status = 'active'
@@ -26,7 +26,6 @@ func (q *Queries) GetCarrierProviderByID(ctx context.Context, id uuid.UUID) (Car
 		&i.ID,
 		&i.Slug,
 		&i.Name,
-		&i.Adapter,
 		&i.Status,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -35,7 +34,7 @@ func (q *Queries) GetCarrierProviderByID(ctx context.Context, id uuid.UUID) (Car
 }
 
 const getCarrierProviderBySlug = `-- name: GetCarrierProviderBySlug :one
-SELECT id, slug, name, adapter, status, created_at, updated_at
+SELECT id, slug, name, status, created_at, updated_at
 FROM carrier_providers
 WHERE slug = $1
   AND status = 'active'
@@ -49,7 +48,6 @@ func (q *Queries) GetCarrierProviderBySlug(ctx context.Context, slug string) (Ca
 		&i.ID,
 		&i.Slug,
 		&i.Name,
-		&i.Adapter,
 		&i.Status,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -58,7 +56,7 @@ func (q *Queries) GetCarrierProviderBySlug(ctx context.Context, slug string) (Ca
 }
 
 const listCarrierProviders = `-- name: ListCarrierProviders :many
-SELECT id, slug, name, adapter, status, created_at, updated_at
+SELECT id, slug, name, status, created_at, updated_at
 FROM carrier_providers
 WHERE status = 'active'
 ORDER BY name ASC, slug ASC

@@ -50,7 +50,7 @@ card payments.
 ## Runtime boundary
 
 Telephony remains a core product capability. BYOC does not mean removing
-carrier integrations, trunks, routing, SIP, phone-number bindings, WebRTC, or
+carrier connections, trunks, routing, SIP, phone-number bindings, WebRTC, or
 media control. It means Leamout orchestrates customer-owned connectivity rather
 than becoming the carrier of record.
 

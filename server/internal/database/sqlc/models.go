@@ -132,7 +132,6 @@ type CarrierProvider struct {
 	ID        uuid.UUID          `db:"id" json:"id"`
 	Slug      string             `db:"slug" json:"slug"`
 	Name      string             `db:"name" json:"name"`
-	Adapter   string             `db:"adapter" json:"adapter"`
 	Status    string             `db:"status" json:"status"`
 	CreatedAt pgtype.Timestamptz `db:"created_at" json:"created_at"`
 	UpdatedAt pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
