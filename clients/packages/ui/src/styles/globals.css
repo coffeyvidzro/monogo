@@ -92,7 +92,7 @@
     var(--brand-charcoal)
   );
   --chart-5: color-mix(in srgb, var(--brand-gray) 45%, var(--brand-white));
-  --radius: 0.625rem;
+  --radius: 0.5rem;
   --sidebar: color-mix(in srgb, var(--brand-gray) 5%, var(--brand-white));
   --sidebar-foreground: var(--brand-charcoal);
   --sidebar-primary: var(--brand-charcoal);
