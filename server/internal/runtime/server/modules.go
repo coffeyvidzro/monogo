@@ -22,8 +22,8 @@ import (
 	"github.com/coffeyvidzro/monogo/internal/security/encryption"
 	"github.com/coffeyvidzro/monogo/internal/telephony"
 	"github.com/coffeyvidzro/monogo/internal/telephony/conferences"
-	"github.com/coffeyvidzro/monogo/internal/telephony/webrtc"
 	"github.com/coffeyvidzro/monogo/internal/telephony/recordings"
+	"github.com/coffeyvidzro/monogo/internal/telephony/webrtc"
 	"github.com/coffeyvidzro/monogo/internal/tenancy"
 )
 

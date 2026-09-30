@@ -11,13 +11,13 @@ import (
 	"github.com/coffeyvidzro/monogo/internal/telephony/carriers"
 	"github.com/coffeyvidzro/monogo/internal/telephony/conferences"
 	"github.com/coffeyvidzro/monogo/internal/telephony/numbers"
-	"github.com/coffeyvidzro/monogo/internal/telephony/webrtc"
 	"github.com/coffeyvidzro/monogo/internal/telephony/recordings"
 	"github.com/coffeyvidzro/monogo/internal/telephony/routing"
 	"github.com/coffeyvidzro/monogo/internal/telephony/sip_domains"
 	"github.com/coffeyvidzro/monogo/internal/telephony/subscribers"
 	"github.com/coffeyvidzro/monogo/internal/telephony/trunks"
 	"github.com/coffeyvidzro/monogo/internal/telephony/voice"
+	"github.com/coffeyvidzro/monogo/internal/telephony/webrtc"
 )
 
 type Dependencies struct {

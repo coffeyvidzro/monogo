@@ -35,8 +35,8 @@ const (
 	ScopeAuditWrite             Scope = "audit:write"
 	ScopeConferencesRead        Scope = "conferences:read"
 	ScopeConferencesWrite       Scope = "conferences:write"
-	ScopeWebRTCRead           Scope = "webrtc:read"
-	ScopeWebRTCWrite          Scope = "webrtc:write"
+	ScopeWebRTCRead             Scope = "webrtc:read"
+	ScopeWebRTCWrite            Scope = "webrtc:write"
 )
 
 func (s Scope) IsValid() bool {
@@ -44,9 +44,11 @@ func (s Scope) IsValid() bool {
 	case ScopeOrganizationRead,
 		ScopeMembersRead,
 		ScopeMembersWrite,
-		ScopeCredentialsRead,		ScopeVoiceApplicationsRead, ScopeVoiceApplicationsWrite,
+		ScopeCredentialsRead,
+		ScopeVoiceApplicationsRead, ScopeVoiceApplicationsWrite,
 		ScopeVoiceAgentsRead, ScopeVoiceAgentsWrite,
-		ScopeCallsRead, ScopeCallsWrite,		ScopeRecordingsRead, ScopeRecordingsWrite,
+		ScopeCallsRead, ScopeCallsWrite,
+		ScopeRecordingsRead, ScopeRecordingsWrite,
 		ScopeSubscribersRead, ScopeSubscribersWrite,
 		ScopeNumbersRead, ScopeNumbersWrite,
 		ScopeSIPDomainsRead, ScopeSIPDomainsWrite,
