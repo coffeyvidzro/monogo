@@ -140,18 +140,6 @@ def deploy():
     return "signaling and control stack is running"
 
 
-def provider():
-    # Carrier providers are internal platform inventory, not a public API.
-    # Migration 013 seeds this provider; verify the real row is usable.
-    provider_id = psql(
-        "SELECT id::text FROM carrier_providers "
-        "WHERE slug='generic-sip' AND status='active'"
-    )
-    if not provider_id:
-        raise Failure("migration-seeded generic SIP provider is missing or inactive")
-    S["provider"] = {"id": provider_id}
-    return f"migration-seeded generic SIP provider {provider_id} is active"
-
 
 def assert_digest_runtime(secret_name, expected_ha1):
     connection_id = S["connection"]["id"]
@@ -178,7 +166,6 @@ def connection_and_auth():
         "POST",
         "/v1/carrier-connections/",
         {
-            "provider_id": S["provider"]["id"],
             "name": "BYOC synthetic carrier",
             "inbound_enabled": True,
         },
@@ -294,7 +281,6 @@ def reject_cross_org_did_ownership():
         "POST",
         "/v1/carrier-connections/",
         {
-            "provider_id": S["provider"]["id"],
             "name": "BYOC foreign tenant carrier",
             "inbound_enabled": True,
         },

@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"net/netip"
 	"strings"
-
 )
 
 var supportedCodecs = map[string]struct{}{"PCMU": {}, "PCMA": {}, "G722": {}, "OPUS": {}, "G729": {}}
@@ -65,7 +64,6 @@ func normalizeUpdate(req *UpdateRequest) error {
 		req.InboundEnabled == nil &&
 		req.MaxCPS == nil &&
 		req.MaxConcurrentCalls == nil &&
-
 		req.Codecs == nil &&
 		req.SupportsVideo == nil &&
 		req.SupportsFax == nil {

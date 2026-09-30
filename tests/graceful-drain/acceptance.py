@@ -221,20 +221,11 @@ def rtpengine_media_sockets():
 
 def provision():
     # Carrier-provider inventory is internal, seeded by migration 013.
-    provider_id = compose(
-        "exec", "-T", "postgres", "psql", "-U", "leamout", "-d", "leamout",
-        "-Atc",
-        "SELECT id::text FROM carrier_providers "
-        "WHERE slug='generic-sip' AND status='active'",
-    ).strip()
-    if not provider_id:
-        raise Failure("migration-seeded generic SIP provider is unavailable")
 
     connection = api(
         "POST",
         "/v1/carrier-connections/",
         {
-            "provider_id": provider_id,
             "name": "Graceful drain synthetic carrier",
             "inbound_enabled": True,
         },
