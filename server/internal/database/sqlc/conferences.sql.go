@@ -14,23 +14,20 @@ import (
 const createConference = `-- name: CreateConference :one
 INSERT INTO conferences (
     organization_id,
-    application_id,
     name,
     state,
     started_at
 ) VALUES (
     $1,
     $2,
-    $3,
-    COALESCE($4, 'active'),
-    COALESCE($5, NOW())
+    COALESCE($3, 'active'),
+    COALESCE($4, NOW())
 )
-RETURNING id, organization_id, application_id, name, state, started_at, ended_at, created_at, updated_at
+RETURNING id, organization_id, name, state, started_at, ended_at, created_at, updated_at
 `
 
 type CreateConferenceParams struct {
 	OrganizationID uuid.UUID   `db:"organization_id" json:"organization_id"`
-	ApplicationID  *uuid.UUID  `db:"application_id" json:"application_id"`
 	Name           string      `db:"name" json:"name"`
 	State          interface{} `db:"state" json:"state"`
 	StartedAt      interface{} `db:"started_at" json:"started_at"`
@@ -39,7 +36,6 @@ type CreateConferenceParams struct {
 func (q *Queries) CreateConference(ctx context.Context, arg CreateConferenceParams) (Conference, error) {
 	row := q.db.QueryRow(ctx, createConference,
 		arg.OrganizationID,
-		arg.ApplicationID,
 		arg.Name,
 		arg.State,
 		arg.StartedAt,
@@ -48,7 +44,6 @@ func (q *Queries) CreateConference(ctx context.Context, arg CreateConferencePara
 	err := row.Scan(
 		&i.ID,
 		&i.OrganizationID,
-		&i.ApplicationID,
 		&i.Name,
 		&i.State,
 		&i.StartedAt,
@@ -68,7 +63,7 @@ SET
 WHERE organization_id = $1
   AND id = $2
   AND state = 'active'
-RETURNING id, organization_id, application_id, name, state, started_at, ended_at, created_at, updated_at
+RETURNING id, organization_id, name, state, started_at, ended_at, created_at, updated_at
 `
 
 type EndConferenceParams struct {
@@ -82,7 +77,6 @@ func (q *Queries) EndConference(ctx context.Context, arg EndConferenceParams) (C
 	err := row.Scan(
 		&i.ID,
 		&i.OrganizationID,
-		&i.ApplicationID,
 		&i.Name,
 		&i.State,
 		&i.StartedAt,
@@ -148,8 +142,7 @@ func (q *Queries) EndConferenceParticipants(ctx context.Context, arg EndConferen
 
 const getBackofficeConference = `-- name: GetBackofficeConference :one
 SELECT c.id::TEXT AS id, c.organization_id::TEXT AS organization_id, o.name AS organization_name,
-       CAST(COALESCE(c.application_id::TEXT,'—') AS TEXT) AS application_id,
-       COALESCE(va.name,'—') AS application_name, c.name, c.state,
+       c.name, c.state,
        COUNT(cp.id)::BIGINT AS participant_count,
        COUNT(cp.id) FILTER (WHERE cp.left_at IS NULL)::BIGINT AS active_participant_count,
        CAST(COALESCE(to_char(c.started_at AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI'),'—') AS TEXT) AS started_at,
@@ -157,16 +150,14 @@ SELECT c.id::TEXT AS id, c.organization_id::TEXT AS organization_id, o.name AS o
        to_char(c.created_at AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI') AS created_at,
        to_char(c.updated_at AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI') AS updated_at
 FROM conferences c JOIN organizations o ON o.id=c.organization_id
-LEFT JOIN voice_applications va ON va.id=c.application_id LEFT JOIN conference_participants cp ON cp.conference_id=c.id
-WHERE c.id=$1 GROUP BY c.id,o.name,va.name LIMIT 1
+LEFT JOIN conference_participants cp ON cp.conference_id=c.id
+WHERE c.id=$1 GROUP BY c.id,o.name,o.name LIMIT 1
 `
 
 type GetBackofficeConferenceRow struct {
 	ID                     string `db:"id" json:"id"`
 	OrganizationID         string `db:"organization_id" json:"organization_id"`
 	OrganizationName       string `db:"organization_name" json:"organization_name"`
-	ApplicationID          string `db:"application_id" json:"application_id"`
-	ApplicationName        string `db:"application_name" json:"application_name"`
 	Name                   string `db:"name" json:"name"`
 	State                  string `db:"state" json:"state"`
 	ParticipantCount       int64  `db:"participant_count" json:"participant_count"`
@@ -184,8 +175,6 @@ func (q *Queries) GetBackofficeConference(ctx context.Context, id uuid.UUID) (Ge
 		&i.ID,
 		&i.OrganizationID,
 		&i.OrganizationName,
-		&i.ApplicationID,
-		&i.ApplicationName,
 		&i.Name,
 		&i.State,
 		&i.ParticipantCount,
@@ -199,7 +188,7 @@ func (q *Queries) GetBackofficeConference(ctx context.Context, id uuid.UUID) (Ge
 }
 
 const getConference = `-- name: GetConference :one
-SELECT id, organization_id, application_id, name, state, started_at, ended_at, created_at, updated_at
+SELECT id, organization_id, name, state, started_at, ended_at, created_at, updated_at
 FROM conferences
 WHERE organization_id = $1
   AND id = $2
@@ -217,7 +206,6 @@ func (q *Queries) GetConference(ctx context.Context, arg GetConferenceParams) (C
 	err := row.Scan(
 		&i.ID,
 		&i.OrganizationID,
-		&i.ApplicationID,
 		&i.Name,
 		&i.State,
 		&i.StartedAt,
@@ -229,7 +217,7 @@ func (q *Queries) GetConference(ctx context.Context, arg GetConferenceParams) (C
 }
 
 const getConferenceByName = `-- name: GetConferenceByName :one
-SELECT id, organization_id, application_id, name, state, started_at, ended_at, created_at, updated_at
+SELECT id, organization_id, name, state, started_at, ended_at, created_at, updated_at
 FROM conferences
 WHERE organization_id = $1
   AND name = $2
@@ -247,7 +235,6 @@ func (q *Queries) GetConferenceByName(ctx context.Context, arg GetConferenceByNa
 	err := row.Scan(
 		&i.ID,
 		&i.OrganizationID,
-		&i.ApplicationID,
 		&i.Name,
 		&i.State,
 		&i.StartedAt,
@@ -309,7 +296,7 @@ func (q *Queries) ListBackofficeConferences(ctx context.Context) ([]ListBackoffi
 }
 
 const listConferences = `-- name: ListConferences :many
-SELECT id, organization_id, application_id, name, state, started_at, ended_at, created_at, updated_at
+SELECT id, organization_id, name, state, started_at, ended_at, created_at, updated_at
 FROM conferences
 WHERE organization_id = $1
 ORDER BY created_at DESC
@@ -335,7 +322,6 @@ func (q *Queries) ListConferences(ctx context.Context, arg ListConferencesParams
 		if err := rows.Scan(
 			&i.ID,
 			&i.OrganizationID,
-			&i.ApplicationID,
 			&i.Name,
 			&i.State,
 			&i.StartedAt,

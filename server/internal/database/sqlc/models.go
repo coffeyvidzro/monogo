@@ -51,7 +51,7 @@ type AuthTransaction struct {
 type Call struct {
 	ID                  uuid.UUID          `db:"id" json:"id"`
 	OrganizationID      uuid.UUID          `db:"organization_id" json:"organization_id"`
-	ApplicationID       *uuid.UUID         `db:"application_id" json:"application_id"`
+	VoiceAgentID        *uuid.UUID         `db:"voice_agent_id" json:"voice_agent_id"`
 	CarrierConnectionID *uuid.UUID         `db:"carrier_connection_id" json:"carrier_connection_id"`
 	TrunkID             *uuid.UUID         `db:"trunk_id" json:"trunk_id"`
 	TrunkEndpointID     *uuid.UUID         `db:"trunk_endpoint_id" json:"trunk_endpoint_id"`
@@ -127,7 +127,6 @@ type CarrierDigestCredential struct {
 type Conference struct {
 	ID             uuid.UUID          `db:"id" json:"id"`
 	OrganizationID uuid.UUID          `db:"organization_id" json:"organization_id"`
-	ApplicationID  *uuid.UUID         `db:"application_id" json:"application_id"`
 	Name           string             `db:"name" json:"name"`
 	State          string             `db:"state" json:"state"`
 	StartedAt      pgtype.Timestamptz `db:"started_at" json:"started_at"`
@@ -401,11 +400,13 @@ type VoiceAgent struct {
 }
 
 type VoiceAgentBinding struct {
-	ID                 uuid.UUID          `db:"id" json:"id"`
-	OrganizationID     uuid.UUID          `db:"organization_id" json:"organization_id"`
-	VoiceAgentID       uuid.UUID          `db:"voice_agent_id" json:"voice_agent_id"`
-	VoiceApplicationID uuid.UUID          `db:"voice_application_id" json:"voice_application_id"`
-	CreatedAt          pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	ID             uuid.UUID          `db:"id" json:"id"`
+	OrganizationID uuid.UUID          `db:"organization_id" json:"organization_id"`
+	VoiceAgentID   uuid.UUID          `db:"voice_agent_id" json:"voice_agent_id"`
+	PhoneNumberID  *uuid.UUID         `db:"phone_number_id" json:"phone_number_id"`
+	SipDomainID    *uuid.UUID         `db:"sip_domain_id" json:"sip_domain_id"`
+	SubscriberID   *uuid.UUID         `db:"subscriber_id" json:"subscriber_id"`
+	CreatedAt      pgtype.Timestamptz `db:"created_at" json:"created_at"`
 }
 
 type VoiceAgentSession struct {
@@ -491,28 +492,6 @@ type VoiceAgentTurn struct {
 	TtsTtfbMs       *int32             `db:"tts_ttfb_ms" json:"tts_ttfb_ms"`
 	TurnLatencyMs   *int32             `db:"turn_latency_ms" json:"turn_latency_ms"`
 	CreatedAt       pgtype.Timestamptz `db:"created_at" json:"created_at"`
-}
-
-type VoiceApplication struct {
-	ID                 uuid.UUID          `db:"id" json:"id"`
-	OrganizationID     uuid.UUID          `db:"organization_id" json:"organization_id"`
-	Name               string             `db:"name" json:"name"`
-	RingTimeoutSeconds int32              `db:"ring_timeout_seconds" json:"ring_timeout_seconds"`
-	CallerID           *string            `db:"caller_id" json:"caller_id"`
-	Status             string             `db:"status" json:"status"`
-	VoiceUrl           *string            `db:"voice_url" json:"voice_url"`
-	CallbackUrl        *string            `db:"callback_url" json:"callback_url"`
-	CreatedAt          pgtype.Timestamptz `db:"created_at" json:"created_at"`
-	UpdatedAt          pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
-}
-
-type VoiceBinding struct {
-	ID                 uuid.UUID          `db:"id" json:"id"`
-	VoiceApplicationID uuid.UUID          `db:"voice_application_id" json:"voice_application_id"`
-	PhoneNumberID      *uuid.UUID         `db:"phone_number_id" json:"phone_number_id"`
-	SipDomainID        *uuid.UUID         `db:"sip_domain_id" json:"sip_domain_id"`
-	SubscriberID       *uuid.UUID         `db:"subscriber_id" json:"subscriber_id"`
-	CreatedAt          pgtype.Timestamptz `db:"created_at" json:"created_at"`
 }
 
 type WebhookDelivery struct {

@@ -92,7 +92,7 @@ SELECT d.id::TEXT AS id, d.organization_id::TEXT AS organization_id, o.name AS o
        to_char(d.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI') AS created_at,
        to_char(d.updated_at AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI') AS updated_at
 FROM sip_domains d JOIN organizations o ON o.id=d.organization_id
-LEFT JOIN subscribers s ON s.sip_domain_id=d.id LEFT JOIN voice_bindings vb ON vb.sip_domain_id=d.id
+LEFT JOIN subscribers s ON s.sip_domain_id=d.id LEFT JOIN voice_agent_bindings vb ON vb.sip_domain_id=d.id
 WHERE d.id=$1 GROUP BY d.id,o.name LIMIT 1
 `
 

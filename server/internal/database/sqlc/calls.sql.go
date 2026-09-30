@@ -15,7 +15,7 @@ import (
 const createCall = `-- name: CreateCall :one
 INSERT INTO calls (
     organization_id,
-    application_id,
+    voice_agent_id,
     direction,
     state,
     from_uri,
@@ -30,12 +30,12 @@ INSERT INTO calls (
     $6,
     $7
 )
-RETURNING id, organization_id, application_id, carrier_connection_id, trunk_id, trunk_endpoint_id, direction, state, media_state, from_uri, to_uri, sip_call_id, started_at, answered_at, ended_at, hangup_reason, created_at, updated_at
+RETURNING id, organization_id, voice_agent_id, carrier_connection_id, trunk_id, trunk_endpoint_id, direction, state, media_state, from_uri, to_uri, sip_call_id, started_at, answered_at, ended_at, hangup_reason, created_at, updated_at
 `
 
 type CreateCallParams struct {
 	OrganizationID uuid.UUID   `db:"organization_id" json:"organization_id"`
-	ApplicationID  *uuid.UUID  `db:"application_id" json:"application_id"`
+	VoiceAgentID   *uuid.UUID  `db:"voice_agent_id" json:"voice_agent_id"`
 	Direction      string      `db:"direction" json:"direction"`
 	State          interface{} `db:"state" json:"state"`
 	FromUri        string      `db:"from_uri" json:"from_uri"`
@@ -46,7 +46,7 @@ type CreateCallParams struct {
 func (q *Queries) CreateCall(ctx context.Context, arg CreateCallParams) (Call, error) {
 	row := q.db.QueryRow(ctx, createCall,
 		arg.OrganizationID,
-		arg.ApplicationID,
+		arg.VoiceAgentID,
 		arg.Direction,
 		arg.State,
 		arg.FromUri,
@@ -57,7 +57,7 @@ func (q *Queries) CreateCall(ctx context.Context, arg CreateCallParams) (Call, e
 	err := row.Scan(
 		&i.ID,
 		&i.OrganizationID,
-		&i.ApplicationID,
+		&i.VoiceAgentID,
 		&i.CarrierConnectionID,
 		&i.TrunkID,
 		&i.TrunkEndpointID,
@@ -88,8 +88,8 @@ SELECT
     c.from_uri,
     c.to_uri,
     COALESCE(c.sip_call_id, '—')::TEXT AS sip_call_id,
-    COALESCE(c.application_id::TEXT, '—')::TEXT AS application_id,
-    COALESCE(va.name, '—')::TEXT AS application_name,
+    COALESCE(c.voice_agent_id::TEXT, '—')::TEXT AS voice_agent_id,
+    COALESCE(agent.name, '—')::TEXT AS voice_agent_name,
     COALESCE(c.carrier_connection_id::TEXT, '—')::TEXT AS carrier_connection_id,
     COALESCE(cc.name, '—')::TEXT AS carrier_connection_name,
     COALESCE(c.trunk_id::TEXT, '—')::TEXT AS trunk_id,
@@ -114,14 +114,14 @@ SELECT
     to_char(c.updated_at AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI:SS')::TEXT AS updated_at
 FROM calls AS c
 JOIN organizations AS o ON o.id = c.organization_id
-LEFT JOIN voice_applications AS va ON va.id = c.application_id
+LEFT JOIN voice_agents AS agent ON agent.id = c.voice_agent_id
 LEFT JOIN carrier_connections AS cc ON cc.id = c.carrier_connection_id
 LEFT JOIN trunks AS t ON t.id = c.trunk_id
 LEFT JOIN recordings AS r
   ON r.call_id = c.id
  AND r.organization_id = c.organization_id
 WHERE c.id = $1
-GROUP BY c.id, o.name, va.name, cc.name, t.name
+GROUP BY c.id, o.name, agent.name, cc.name, t.name
 LIMIT 1
 `
 
@@ -135,8 +135,8 @@ type GetBackofficeCallRow struct {
 	FromUri               string `db:"from_uri" json:"from_uri"`
 	ToUri                 string `db:"to_uri" json:"to_uri"`
 	SipCallID             string `db:"sip_call_id" json:"sip_call_id"`
-	ApplicationID         string `db:"application_id" json:"application_id"`
-	ApplicationName       string `db:"application_name" json:"application_name"`
+	VoiceAgentID          string `db:"voice_agent_id" json:"voice_agent_id"`
+	VoiceAgentName        string `db:"voice_agent_name" json:"voice_agent_name"`
 	CarrierConnectionID   string `db:"carrier_connection_id" json:"carrier_connection_id"`
 	CarrierConnectionName string `db:"carrier_connection_name" json:"carrier_connection_name"`
 	TrunkID               string `db:"trunk_id" json:"trunk_id"`
@@ -166,8 +166,8 @@ func (q *Queries) GetBackofficeCall(ctx context.Context, id uuid.UUID) (GetBacko
 		&i.FromUri,
 		&i.ToUri,
 		&i.SipCallID,
-		&i.ApplicationID,
-		&i.ApplicationName,
+		&i.VoiceAgentID,
+		&i.VoiceAgentName,
 		&i.CarrierConnectionID,
 		&i.CarrierConnectionName,
 		&i.TrunkID,
@@ -187,7 +187,7 @@ func (q *Queries) GetBackofficeCall(ctx context.Context, id uuid.UUID) (GetBacko
 }
 
 const getCall = `-- name: GetCall :one
-SELECT id, organization_id, application_id, carrier_connection_id, trunk_id, trunk_endpoint_id, direction, state, media_state, from_uri, to_uri, sip_call_id, started_at, answered_at, ended_at, hangup_reason, created_at, updated_at
+SELECT id, organization_id, voice_agent_id, carrier_connection_id, trunk_id, trunk_endpoint_id, direction, state, media_state, from_uri, to_uri, sip_call_id, started_at, answered_at, ended_at, hangup_reason, created_at, updated_at
 FROM calls
 WHERE organization_id = $1
   AND id = $2
@@ -205,7 +205,7 @@ func (q *Queries) GetCall(ctx context.Context, arg GetCallParams) (Call, error) 
 	err := row.Scan(
 		&i.ID,
 		&i.OrganizationID,
-		&i.ApplicationID,
+		&i.VoiceAgentID,
 		&i.CarrierConnectionID,
 		&i.TrunkID,
 		&i.TrunkEndpointID,
@@ -226,7 +226,7 @@ func (q *Queries) GetCall(ctx context.Context, arg GetCallParams) (Call, error) 
 }
 
 const getCallBySIPCallID = `-- name: GetCallBySIPCallID :one
-SELECT id, organization_id, application_id, carrier_connection_id, trunk_id, trunk_endpoint_id, direction, state, media_state, from_uri, to_uri, sip_call_id, started_at, answered_at, ended_at, hangup_reason, created_at, updated_at
+SELECT id, organization_id, voice_agent_id, carrier_connection_id, trunk_id, trunk_endpoint_id, direction, state, media_state, from_uri, to_uri, sip_call_id, started_at, answered_at, ended_at, hangup_reason, created_at, updated_at
 FROM calls
 WHERE organization_id = $1
   AND sip_call_id = $2
@@ -244,7 +244,7 @@ func (q *Queries) GetCallBySIPCallID(ctx context.Context, arg GetCallBySIPCallID
 	err := row.Scan(
 		&i.ID,
 		&i.OrganizationID,
-		&i.ApplicationID,
+		&i.VoiceAgentID,
 		&i.CarrierConnectionID,
 		&i.TrunkID,
 		&i.TrunkEndpointID,
@@ -265,7 +265,7 @@ func (q *Queries) GetCallBySIPCallID(ctx context.Context, arg GetCallBySIPCallID
 }
 
 const getCallBySIPCallIDGlobal = `-- name: GetCallBySIPCallIDGlobal :one
-SELECT id, organization_id, application_id, carrier_connection_id, trunk_id, trunk_endpoint_id, direction, state, media_state, from_uri, to_uri, sip_call_id, started_at, answered_at, ended_at, hangup_reason, created_at, updated_at
+SELECT id, organization_id, voice_agent_id, carrier_connection_id, trunk_id, trunk_endpoint_id, direction, state, media_state, from_uri, to_uri, sip_call_id, started_at, answered_at, ended_at, hangup_reason, created_at, updated_at
 FROM calls
 WHERE sip_call_id = $1
 LIMIT 1
@@ -277,7 +277,7 @@ func (q *Queries) GetCallBySIPCallIDGlobal(ctx context.Context, sipCallID *strin
 	err := row.Scan(
 		&i.ID,
 		&i.OrganizationID,
-		&i.ApplicationID,
+		&i.VoiceAgentID,
 		&i.CarrierConnectionID,
 		&i.TrunkID,
 		&i.TrunkEndpointID,
@@ -340,10 +340,12 @@ SELECT
 FROM phone_numbers AS pn
 JOIN carrier_connections AS cc
   ON cc.id = pn.carrier_connection_id
-JOIN voice_bindings AS vb
-  ON vb.phone_number_id = pn.id
-JOIN voice_applications AS va
-  ON va.id = vb.voice_application_id
+JOIN voice_agent_bindings AS binding
+  ON binding.phone_number_id = pn.id
+ AND binding.organization_id = pn.organization_id
+JOIN voice_agents AS agent
+  ON agent.id = binding.voice_agent_id
+ AND agent.organization_id = binding.organization_id
 JOIN organizations AS o
   ON o.id = pn.organization_id
 WHERE pn.id = $1
@@ -355,9 +357,9 @@ WHERE pn.id = $1
   AND cc.status = 'active'
   AND cc.inbound_enabled = true
   AND cc.organization_id = pn.organization_id
-  AND va.id = $5
-  AND va.organization_id = pn.organization_id
-  AND va.status = 'active'
+  AND binding.id = $5
+  AND agent.id = $6
+  AND agent.status = 'active'
   AND o.status = 'active'
   AND o.deleted_at IS NULL
 LIMIT 1
@@ -368,7 +370,8 @@ type GetInboundCallContextParams struct {
 	OrganizationID      uuid.UUID  `db:"organization_id" json:"organization_id"`
 	CalledNumber        string     `db:"called_number" json:"called_number"`
 	CarrierConnectionID *uuid.UUID `db:"carrier_connection_id" json:"carrier_connection_id"`
-	ApplicationID       uuid.UUID  `db:"application_id" json:"application_id"`
+	VoiceAgentBindingID uuid.UUID  `db:"voice_agent_binding_id" json:"voice_agent_binding_id"`
+	VoiceAgentID        uuid.UUID  `db:"voice_agent_id" json:"voice_agent_id"`
 }
 
 type GetInboundCallContextRow struct {
@@ -384,7 +387,8 @@ func (q *Queries) GetInboundCallContext(ctx context.Context, arg GetInboundCallC
 		arg.OrganizationID,
 		arg.CalledNumber,
 		arg.CarrierConnectionID,
-		arg.ApplicationID,
+		arg.VoiceAgentBindingID,
+		arg.VoiceAgentID,
 	)
 	var i GetInboundCallContextRow
 	err := row.Scan(&i.MaxCps, &i.MaxConcurrentCalls)
@@ -494,7 +498,7 @@ func (q *Queries) ListBackofficeCalls(ctx context.Context) ([]ListBackofficeCall
 }
 
 const listCalls = `-- name: ListCalls :many
-SELECT id, organization_id, application_id, carrier_connection_id, trunk_id, trunk_endpoint_id, direction, state, media_state, from_uri, to_uri, sip_call_id, started_at, answered_at, ended_at, hangup_reason, created_at, updated_at
+SELECT id, organization_id, voice_agent_id, carrier_connection_id, trunk_id, trunk_endpoint_id, direction, state, media_state, from_uri, to_uri, sip_call_id, started_at, answered_at, ended_at, hangup_reason, created_at, updated_at
 FROM calls
 WHERE organization_id = $1
   AND ($2::text IS NULL OR state = $2::text)
@@ -527,7 +531,7 @@ func (q *Queries) ListCalls(ctx context.Context, arg ListCallsParams) ([]Call, e
 		if err := rows.Scan(
 			&i.ID,
 			&i.OrganizationID,
-			&i.ApplicationID,
+			&i.VoiceAgentID,
 			&i.CarrierConnectionID,
 			&i.TrunkID,
 			&i.TrunkEndpointID,
@@ -555,7 +559,7 @@ func (q *Queries) ListCalls(ctx context.Context, arg ListCallsParams) ([]Call, e
 }
 
 const listCallsForReconciliation = `-- name: ListCallsForReconciliation :many
-SELECT id, organization_id, application_id, carrier_connection_id, trunk_id, trunk_endpoint_id, direction, state, media_state, from_uri, to_uri, sip_call_id, started_at, answered_at, ended_at, hangup_reason, created_at, updated_at
+SELECT id, organization_id, voice_agent_id, carrier_connection_id, trunk_id, trunk_endpoint_id, direction, state, media_state, from_uri, to_uri, sip_call_id, started_at, answered_at, ended_at, hangup_reason, created_at, updated_at
 FROM calls
 WHERE state IN ('initiating', 'ringing', 'answered', 'active')
   AND sip_call_id IS NOT NULL
@@ -581,7 +585,7 @@ func (q *Queries) ListCallsForReconciliation(ctx context.Context, arg ListCallsF
 		if err := rows.Scan(
 			&i.ID,
 			&i.OrganizationID,
-			&i.ApplicationID,
+			&i.VoiceAgentID,
 			&i.CarrierConnectionID,
 			&i.TrunkID,
 			&i.TrunkEndpointID,
@@ -614,7 +618,7 @@ SET state = 'active', updated_at = NOW()
 WHERE organization_id = $1
   AND id = $2
   AND state IN ('answered', 'ringing')
-RETURNING id, organization_id, application_id, carrier_connection_id, trunk_id, trunk_endpoint_id, direction, state, media_state, from_uri, to_uri, sip_call_id, started_at, answered_at, ended_at, hangup_reason, created_at, updated_at
+RETURNING id, organization_id, voice_agent_id, carrier_connection_id, trunk_id, trunk_endpoint_id, direction, state, media_state, from_uri, to_uri, sip_call_id, started_at, answered_at, ended_at, hangup_reason, created_at, updated_at
 `
 
 type MarkCallActiveParams struct {
@@ -628,7 +632,7 @@ func (q *Queries) MarkCallActive(ctx context.Context, arg MarkCallActiveParams) 
 	err := row.Scan(
 		&i.ID,
 		&i.OrganizationID,
-		&i.ApplicationID,
+		&i.VoiceAgentID,
 		&i.CarrierConnectionID,
 		&i.TrunkID,
 		&i.TrunkEndpointID,
@@ -657,7 +661,7 @@ SET
 WHERE organization_id = $1
   AND id = $2
   AND state IN ('initiating', 'ringing')
-RETURNING id, organization_id, application_id, carrier_connection_id, trunk_id, trunk_endpoint_id, direction, state, media_state, from_uri, to_uri, sip_call_id, started_at, answered_at, ended_at, hangup_reason, created_at, updated_at
+RETURNING id, organization_id, voice_agent_id, carrier_connection_id, trunk_id, trunk_endpoint_id, direction, state, media_state, from_uri, to_uri, sip_call_id, started_at, answered_at, ended_at, hangup_reason, created_at, updated_at
 `
 
 type MarkCallAnsweredParams struct {
@@ -671,7 +675,7 @@ func (q *Queries) MarkCallAnswered(ctx context.Context, arg MarkCallAnsweredPara
 	err := row.Scan(
 		&i.ID,
 		&i.OrganizationID,
-		&i.ApplicationID,
+		&i.VoiceAgentID,
 		&i.CarrierConnectionID,
 		&i.TrunkID,
 		&i.TrunkEndpointID,
@@ -701,7 +705,7 @@ SET
 WHERE organization_id = $2
   AND id = $3
   AND state IN ('initiating', 'ringing')
-RETURNING id, organization_id, application_id, carrier_connection_id, trunk_id, trunk_endpoint_id, direction, state, media_state, from_uri, to_uri, sip_call_id, started_at, answered_at, ended_at, hangup_reason, created_at, updated_at
+RETURNING id, organization_id, voice_agent_id, carrier_connection_id, trunk_id, trunk_endpoint_id, direction, state, media_state, from_uri, to_uri, sip_call_id, started_at, answered_at, ended_at, hangup_reason, created_at, updated_at
 `
 
 type MarkCallCancelledParams struct {
@@ -716,7 +720,7 @@ func (q *Queries) MarkCallCancelled(ctx context.Context, arg MarkCallCancelledPa
 	err := row.Scan(
 		&i.ID,
 		&i.OrganizationID,
-		&i.ApplicationID,
+		&i.VoiceAgentID,
 		&i.CarrierConnectionID,
 		&i.TrunkID,
 		&i.TrunkEndpointID,
@@ -746,7 +750,7 @@ SET
 WHERE organization_id = $2
   AND id = $3
   AND state NOT IN ('completed', 'failed', 'cancelled')
-RETURNING id, organization_id, application_id, carrier_connection_id, trunk_id, trunk_endpoint_id, direction, state, media_state, from_uri, to_uri, sip_call_id, started_at, answered_at, ended_at, hangup_reason, created_at, updated_at
+RETURNING id, organization_id, voice_agent_id, carrier_connection_id, trunk_id, trunk_endpoint_id, direction, state, media_state, from_uri, to_uri, sip_call_id, started_at, answered_at, ended_at, hangup_reason, created_at, updated_at
 `
 
 type MarkCallCompletedParams struct {
@@ -761,7 +765,7 @@ func (q *Queries) MarkCallCompleted(ctx context.Context, arg MarkCallCompletedPa
 	err := row.Scan(
 		&i.ID,
 		&i.OrganizationID,
-		&i.ApplicationID,
+		&i.VoiceAgentID,
 		&i.CarrierConnectionID,
 		&i.TrunkID,
 		&i.TrunkEndpointID,
@@ -791,7 +795,7 @@ SET
 WHERE organization_id = $2
   AND id = $3
   AND state NOT IN ('completed', 'failed', 'cancelled')
-RETURNING id, organization_id, application_id, carrier_connection_id, trunk_id, trunk_endpoint_id, direction, state, media_state, from_uri, to_uri, sip_call_id, started_at, answered_at, ended_at, hangup_reason, created_at, updated_at
+RETURNING id, organization_id, voice_agent_id, carrier_connection_id, trunk_id, trunk_endpoint_id, direction, state, media_state, from_uri, to_uri, sip_call_id, started_at, answered_at, ended_at, hangup_reason, created_at, updated_at
 `
 
 type MarkCallFailedParams struct {
@@ -806,7 +810,7 @@ func (q *Queries) MarkCallFailed(ctx context.Context, arg MarkCallFailedParams) 
 	err := row.Scan(
 		&i.ID,
 		&i.OrganizationID,
-		&i.ApplicationID,
+		&i.VoiceAgentID,
 		&i.CarrierConnectionID,
 		&i.TrunkID,
 		&i.TrunkEndpointID,
@@ -835,7 +839,7 @@ WHERE organization_id = $1
   AND id = $2
   AND state IN ('answered', 'active')
   AND media_state = 'active'
-RETURNING id, organization_id, application_id, carrier_connection_id, trunk_id, trunk_endpoint_id, direction, state, media_state, from_uri, to_uri, sip_call_id, started_at, answered_at, ended_at, hangup_reason, created_at, updated_at
+RETURNING id, organization_id, voice_agent_id, carrier_connection_id, trunk_id, trunk_endpoint_id, direction, state, media_state, from_uri, to_uri, sip_call_id, started_at, answered_at, ended_at, hangup_reason, created_at, updated_at
 `
 
 type MarkCallHeldParams struct {
@@ -849,7 +853,7 @@ func (q *Queries) MarkCallHeld(ctx context.Context, arg MarkCallHeldParams) (Cal
 	err := row.Scan(
 		&i.ID,
 		&i.OrganizationID,
-		&i.ApplicationID,
+		&i.VoiceAgentID,
 		&i.CarrierConnectionID,
 		&i.TrunkID,
 		&i.TrunkEndpointID,
@@ -878,7 +882,7 @@ WHERE organization_id = $1
   AND id = $2
   AND state IN ('answered', 'active')
   AND media_state = 'held'
-RETURNING id, organization_id, application_id, carrier_connection_id, trunk_id, trunk_endpoint_id, direction, state, media_state, from_uri, to_uri, sip_call_id, started_at, answered_at, ended_at, hangup_reason, created_at, updated_at
+RETURNING id, organization_id, voice_agent_id, carrier_connection_id, trunk_id, trunk_endpoint_id, direction, state, media_state, from_uri, to_uri, sip_call_id, started_at, answered_at, ended_at, hangup_reason, created_at, updated_at
 `
 
 type MarkCallResumedParams struct {
@@ -892,7 +896,7 @@ func (q *Queries) MarkCallResumed(ctx context.Context, arg MarkCallResumedParams
 	err := row.Scan(
 		&i.ID,
 		&i.OrganizationID,
-		&i.ApplicationID,
+		&i.VoiceAgentID,
 		&i.CarrierConnectionID,
 		&i.TrunkID,
 		&i.TrunkEndpointID,
@@ -918,7 +922,7 @@ SET state = 'ringing', updated_at = NOW()
 WHERE organization_id = $1
   AND id = $2
   AND state = 'initiating'
-RETURNING id, organization_id, application_id, carrier_connection_id, trunk_id, trunk_endpoint_id, direction, state, media_state, from_uri, to_uri, sip_call_id, started_at, answered_at, ended_at, hangup_reason, created_at, updated_at
+RETURNING id, organization_id, voice_agent_id, carrier_connection_id, trunk_id, trunk_endpoint_id, direction, state, media_state, from_uri, to_uri, sip_call_id, started_at, answered_at, ended_at, hangup_reason, created_at, updated_at
 `
 
 type MarkCallRingingParams struct {
@@ -932,7 +936,7 @@ func (q *Queries) MarkCallRinging(ctx context.Context, arg MarkCallRingingParams
 	err := row.Scan(
 		&i.ID,
 		&i.OrganizationID,
-		&i.ApplicationID,
+		&i.VoiceAgentID,
 		&i.CarrierConnectionID,
 		&i.TrunkID,
 		&i.TrunkEndpointID,
@@ -961,7 +965,7 @@ SET
     updated_at = NOW()
 WHERE organization_id = $4
   AND id = $5
-RETURNING id, organization_id, application_id, carrier_connection_id, trunk_id, trunk_endpoint_id, direction, state, media_state, from_uri, to_uri, sip_call_id, started_at, answered_at, ended_at, hangup_reason, created_at, updated_at
+RETURNING id, organization_id, voice_agent_id, carrier_connection_id, trunk_id, trunk_endpoint_id, direction, state, media_state, from_uri, to_uri, sip_call_id, started_at, answered_at, ended_at, hangup_reason, created_at, updated_at
 `
 
 type SetCallRouteAttributionParams struct {
@@ -984,7 +988,7 @@ func (q *Queries) SetCallRouteAttribution(ctx context.Context, arg SetCallRouteA
 	err := row.Scan(
 		&i.ID,
 		&i.OrganizationID,
-		&i.ApplicationID,
+		&i.VoiceAgentID,
 		&i.CarrierConnectionID,
 		&i.TrunkID,
 		&i.TrunkEndpointID,
@@ -1039,7 +1043,7 @@ SET
     updated_at = NOW()
 WHERE organization_id = $2
   AND id = $3
-RETURNING id, organization_id, application_id, carrier_connection_id, trunk_id, trunk_endpoint_id, direction, state, media_state, from_uri, to_uri, sip_call_id, started_at, answered_at, ended_at, hangup_reason, created_at, updated_at
+RETURNING id, organization_id, voice_agent_id, carrier_connection_id, trunk_id, trunk_endpoint_id, direction, state, media_state, from_uri, to_uri, sip_call_id, started_at, answered_at, ended_at, hangup_reason, created_at, updated_at
 `
 
 type UpdateCallStateParams struct {
@@ -1054,7 +1058,7 @@ func (q *Queries) UpdateCallState(ctx context.Context, arg UpdateCallStateParams
 	err := row.Scan(
 		&i.ID,
 		&i.OrganizationID,
-		&i.ApplicationID,
+		&i.VoiceAgentID,
 		&i.CarrierConnectionID,
 		&i.TrunkID,
 		&i.TrunkEndpointID,

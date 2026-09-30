@@ -162,37 +162,44 @@ func (q *Queries) GetPhoneNumberByNumber(ctx context.Context, arg GetPhoneNumber
 	return i, err
 }
 
-const getVoiceBindingByNumber = `-- name: GetVoiceBindingByNumber :one
-SELECT vb.id AS binding_id, vb.voice_application_id, va.name AS application_name, va.ring_timeout_seconds,
-       va.caller_id AS application_caller_id, pn.id AS phone_number_id, pn.number, pn.organization_id
+const getVoiceAgentBindingByNumber = `-- name: GetVoiceAgentBindingByNumber :one
+SELECT
+    binding.id AS binding_id,
+    binding.voice_agent_id,
+    pn.id AS phone_number_id,
+    pn.number,
+    pn.organization_id
 FROM phone_numbers AS pn
-JOIN voice_bindings AS vb ON vb.phone_number_id = pn.id
-JOIN voice_applications AS va ON va.id = vb.voice_application_id
+JOIN voice_agent_bindings AS binding
+  ON binding.phone_number_id = pn.id
+ AND binding.organization_id = pn.organization_id
+JOIN voice_agents AS agent
+  ON agent.id = binding.voice_agent_id
+ AND agent.organization_id = binding.organization_id
 JOIN organizations AS o ON o.id = pn.organization_id
-WHERE pn.number = $1 AND pn.status = 'active' AND pn.voice_enabled = true
-  AND va.status = 'active' AND o.status = 'active' AND o.deleted_at IS NULL LIMIT 1
+WHERE pn.number = $1
+  AND pn.status = 'active'
+  AND pn.voice_enabled = true
+  AND agent.status = 'active'
+  AND o.status = 'active'
+  AND o.deleted_at IS NULL
+LIMIT 1
 `
 
-type GetVoiceBindingByNumberRow struct {
-	BindingID           uuid.UUID `db:"binding_id" json:"binding_id"`
-	VoiceApplicationID  uuid.UUID `db:"voice_application_id" json:"voice_application_id"`
-	ApplicationName     string    `db:"application_name" json:"application_name"`
-	RingTimeoutSeconds  int32     `db:"ring_timeout_seconds" json:"ring_timeout_seconds"`
-	ApplicationCallerID *string   `db:"application_caller_id" json:"application_caller_id"`
-	PhoneNumberID       uuid.UUID `db:"phone_number_id" json:"phone_number_id"`
-	Number              string    `db:"number" json:"number"`
-	OrganizationID      uuid.UUID `db:"organization_id" json:"organization_id"`
+type GetVoiceAgentBindingByNumberRow struct {
+	BindingID      uuid.UUID `db:"binding_id" json:"binding_id"`
+	VoiceAgentID   uuid.UUID `db:"voice_agent_id" json:"voice_agent_id"`
+	PhoneNumberID  uuid.UUID `db:"phone_number_id" json:"phone_number_id"`
+	Number         string    `db:"number" json:"number"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
 }
 
-func (q *Queries) GetVoiceBindingByNumber(ctx context.Context, number string) (GetVoiceBindingByNumberRow, error) {
-	row := q.db.QueryRow(ctx, getVoiceBindingByNumber, number)
-	var i GetVoiceBindingByNumberRow
+func (q *Queries) GetVoiceAgentBindingByNumber(ctx context.Context, number string) (GetVoiceAgentBindingByNumberRow, error) {
+	row := q.db.QueryRow(ctx, getVoiceAgentBindingByNumber, number)
+	var i GetVoiceAgentBindingByNumberRow
 	err := row.Scan(
 		&i.BindingID,
-		&i.VoiceApplicationID,
-		&i.ApplicationName,
-		&i.RingTimeoutSeconds,
-		&i.ApplicationCallerID,
+		&i.VoiceAgentID,
 		&i.PhoneNumberID,
 		&i.Number,
 		&i.OrganizationID,
