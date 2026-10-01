@@ -2,7 +2,6 @@ CREATE TABLE IF NOT EXISTS calls (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
     voice_agent_id UUID,
-    carrier_connection_id UUID,
     trunk_id UUID,
     trunk_endpoint_id UUID,
     direction TEXT NOT NULL,
@@ -23,10 +22,6 @@ CREATE TABLE IF NOT EXISTS calls (
         FOREIGN KEY (voice_agent_id, organization_id)
         REFERENCES voice_agents(id, organization_id)
         ON DELETE SET NULL,
-    CONSTRAINT fk_calls_carrier_connection_scope
-        FOREIGN KEY (carrier_connection_id, organization_id)
-        REFERENCES carrier_connections(id, organization_id)
-        ON DELETE RESTRICT,
     CONSTRAINT fk_calls_trunk_scope
         FOREIGN KEY (trunk_id, organization_id)
         REFERENCES trunks(id, organization_id)
@@ -59,10 +54,6 @@ CREATE INDEX IF NOT EXISTS idx_calls_organization_state
 CREATE INDEX IF NOT EXISTS idx_calls_voice_agent_created
     ON calls (voice_agent_id, created_at DESC)
     WHERE voice_agent_id IS NOT NULL;
-
-CREATE INDEX IF NOT EXISTS idx_calls_carrier_connection_id
-    ON calls (carrier_connection_id)
-    WHERE carrier_connection_id IS NOT NULL;
 
 CREATE INDEX IF NOT EXISTS idx_calls_trunk_id
     ON calls (trunk_id)
