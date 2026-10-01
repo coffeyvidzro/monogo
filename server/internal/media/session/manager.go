@@ -120,7 +120,7 @@ func (m *Manager) Start(ctx context.Context, cfg Config) error {
 			return fmt.Errorf("start media engine: %w", result.err)
 		}
 		stream = result.stream
-	case <-time.After(limits.ProviderStartTimeout):
+	case <-time.After(m.limits.ProviderStartTimeout):
 		m.mu.Unlock()
 		cancel()
 		m.metrics.failure(FailureProviderTimeout)
