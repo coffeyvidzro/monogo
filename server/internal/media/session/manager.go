@@ -213,9 +213,11 @@ func (c *ControlAttachment) Command(ctx context.Context, command Command) error 
 func (c *ControlAttachment) Close() {
 	c.once.Do(func() {
 		c.session.mu.Lock()
-		if c.session.controlOpen {
+		control := c.session.control
+		if c.session.controlOpen && control != nil {
 			c.session.controlOpen = false
 			c.session.control = nil
+			close(control)
 		}
 		c.session.mu.Unlock()
 	})
