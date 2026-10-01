@@ -17,86 +17,149 @@ func NewHandler(service *Service) *Handler { return &Handler{service: service} }
 
 func (h *Handler) CreateCredential(w http.ResponseWriter, r *http.Request) {
 	organizationID, err := organizationID(r)
-	if err != nil { httputil.Error(w, err); return }
+	if err != nil {
+		httputil.Error(w, err)
+		return
+	}
 	req, err := helper.DecodeJSON[CreateCredentialRequest](r)
-	if err != nil { httputil.Error(w, err); return }
+	if err != nil {
+		httputil.Error(w, err)
+		return
+	}
 	value, err := h.service.CreateCredential(r.Context(), organizationID, req)
-	if err != nil { httputil.Error(w, err); return }
+	if err != nil {
+		httputil.Error(w, err)
+		return
+	}
 	httputil.Created(w, credentialResponse(value))
 }
 
 func (h *Handler) ListCredentials(w http.ResponseWriter, r *http.Request) {
 	organizationID, err := organizationID(r)
-	if err != nil { httputil.Error(w, err); return }
+	if err != nil {
+		httputil.Error(w, err)
+		return
+	}
 	values, err := h.service.ListCredentials(r.Context(), organizationID)
-	if err != nil { httputil.Error(w, err); return }
+	if err != nil {
+		httputil.Error(w, err)
+		return
+	}
 	out := make([]CredentialResponse, 0, len(values))
-	for _, value := range values { out = append(out, credentialResponse(value)) }
+	for _, value := range values {
+		out = append(out, credentialResponse(value))
+	}
 	httputil.OK(w, map[string]any{"provider_credentials": out})
 }
 
 func (h *Handler) RotateCredential(w http.ResponseWriter, r *http.Request) {
 	organizationID, err := organizationID(r)
-	if err != nil { httputil.Error(w, err); return }
+	if err != nil {
+		httputil.Error(w, err)
+		return
+	}
 	id, err := uuid.Parse(chi.URLParam(r, "credential_id"))
-	if err != nil { httputil.Error(w, apperror.NewBadRequest("invalid credential_id")); return }
+	if err != nil {
+		httputil.Error(w, apperror.NewBadRequest("invalid credential_id"))
+		return
+	}
 	req, err := helper.DecodeJSON[RotateCredentialRequest](r)
-	if err != nil { httputil.Error(w, err); return }
+	if err != nil {
+		httputil.Error(w, err)
+		return
+	}
 	value, err := h.service.RotateCredential(r.Context(), organizationID, id, req)
-	if err != nil { httputil.Error(w, err); return }
+	if err != nil {
+		httputil.Error(w, err)
+		return
+	}
 	httputil.OK(w, credentialResponse(value))
 }
 
 func (h *Handler) DeleteCredential(w http.ResponseWriter, r *http.Request) {
 	organizationID, err := organizationID(r)
-	if err != nil { httputil.Error(w, err); return }
+	if err != nil {
+		httputil.Error(w, err)
+		return
+	}
 	id, err := uuid.Parse(chi.URLParam(r, "credential_id"))
-	if err != nil { httputil.Error(w, apperror.NewBadRequest("invalid credential_id")); return }
+	if err != nil {
+		httputil.Error(w, apperror.NewBadRequest("invalid credential_id"))
+		return
+	}
 	if err := h.service.DeleteCredential(r.Context(), organizationID, id); err != nil {
-		httputil.Error(w, err); return
+		httputil.Error(w, err)
+		return
 	}
 	w.WriteHeader(http.StatusNoContent)
 }
 
 func (h *Handler) UpsertBinding(w http.ResponseWriter, r *http.Request) {
 	organizationID, agentID, err := agentIDs(r)
-	if err != nil { httputil.Error(w, err); return }
+	if err != nil {
+		httputil.Error(w, err)
+		return
+	}
 	req, err := helper.DecodeJSON[UpsertBindingRequest](r)
-	if err != nil { httputil.Error(w, err); return }
+	if err != nil {
+		httputil.Error(w, err)
+		return
+	}
 	value, err := h.service.UpsertBinding(r.Context(), organizationID, agentID, chi.URLParam(r, "role"), req)
-	if err != nil { httputil.Error(w, err); return }
+	if err != nil {
+		httputil.Error(w, err)
+		return
+	}
 	httputil.OK(w, bindingResponse(value))
 }
 
 func (h *Handler) ListBindings(w http.ResponseWriter, r *http.Request) {
 	organizationID, agentID, err := agentIDs(r)
-	if err != nil { httputil.Error(w, err); return }
+	if err != nil {
+		httputil.Error(w, err)
+		return
+	}
 	values, err := h.service.ListBindings(r.Context(), organizationID, agentID)
-	if err != nil { httputil.Error(w, err); return }
+	if err != nil {
+		httputil.Error(w, err)
+		return
+	}
 	out := make([]BindingResponse, 0, len(values))
-	for _, value := range values { out = append(out, bindingResponse(value)) }
+	for _, value := range values {
+		out = append(out, bindingResponse(value))
+	}
 	httputil.OK(w, map[string]any{"providers": out})
 }
 
 func (h *Handler) DeleteBinding(w http.ResponseWriter, r *http.Request) {
 	organizationID, agentID, err := agentIDs(r)
-	if err != nil { httputil.Error(w, err); return }
+	if err != nil {
+		httputil.Error(w, err)
+		return
+	}
 	if err := h.service.DeleteBinding(r.Context(), organizationID, agentID, chi.URLParam(r, "role")); err != nil {
-		httputil.Error(w, err); return
+		httputil.Error(w, err)
+		return
 	}
 	w.WriteHeader(http.StatusNoContent)
 }
 
 func organizationID(r *http.Request) (uuid.UUID, error) {
 	id, ok := middleware.OrganizationIDFromContext(r.Context())
-	if !ok { return uuid.Nil, apperror.NewBadRequest("organization context required") }
+	if !ok {
+		return uuid.Nil, apperror.NewBadRequest("organization context required")
+	}
 	return id, nil
 }
 
 func agentIDs(r *http.Request) (uuid.UUID, uuid.UUID, error) {
 	organizationID, err := organizationID(r)
-	if err != nil { return uuid.Nil, uuid.Nil, err }
+	if err != nil {
+		return uuid.Nil, uuid.Nil, err
+	}
 	agentID, err := uuid.Parse(chi.URLParam(r, "voice_agent_id"))
-	if err != nil { return uuid.Nil, uuid.Nil, apperror.NewBadRequest("invalid voice_agent_id") }
+	if err != nil {
+		return uuid.Nil, uuid.Nil, apperror.NewBadRequest("invalid voice_agent_id")
+	}
 	return organizationID, agentID, nil
 }

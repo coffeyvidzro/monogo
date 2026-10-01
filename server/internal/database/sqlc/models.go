@@ -11,6 +11,17 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type AiProviderCredential struct {
+	ID               uuid.UUID          `db:"id" json:"id"`
+	OrganizationID   uuid.UUID          `db:"organization_id" json:"organization_id"`
+	Provider         string             `db:"provider" json:"provider"`
+	Name             string             `db:"name" json:"name"`
+	SecretCiphertext string             `db:"secret_ciphertext" json:"secret_ciphertext"`
+	CreatedAt        pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	RotatedAt        pgtype.Timestamptz `db:"rotated_at" json:"rotated_at"`
+	UpdatedAt        pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+}
+
 type AuditEvent struct {
 	ID             uuid.UUID          `db:"id" json:"id"`
 	OrganizationID uuid.UUID          `db:"organization_id" json:"organization_id"`
@@ -354,6 +365,18 @@ type VoiceAgentBinding struct {
 	VoiceAgentID   uuid.UUID          `db:"voice_agent_id" json:"voice_agent_id"`
 	PhoneNumberID  uuid.UUID          `db:"phone_number_id" json:"phone_number_id"`
 	CreatedAt      pgtype.Timestamptz `db:"created_at" json:"created_at"`
+}
+
+type VoiceAgentProviderBinding struct {
+	ID             uuid.UUID          `db:"id" json:"id"`
+	OrganizationID uuid.UUID          `db:"organization_id" json:"organization_id"`
+	VoiceAgentID   uuid.UUID          `db:"voice_agent_id" json:"voice_agent_id"`
+	Role           string             `db:"role" json:"role"`
+	Provider       string             `db:"provider" json:"provider"`
+	CredentialID   uuid.UUID          `db:"credential_id" json:"credential_id"`
+	Config         []byte             `db:"config" json:"config"`
+	CreatedAt      pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	UpdatedAt      pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 }
 
 type VoiceAgentSession struct {

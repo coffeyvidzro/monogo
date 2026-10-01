@@ -22,10 +22,10 @@ func (s *Service) ProviderRuntimes(
 	out := make([]session.ProviderRuntime, 0, len(values))
 	for _, value := range values {
 		out = append(out, session.ProviderRuntime{
-			Role: value.Role,
+			Role:     value.Role,
 			Provider: value.Provider,
-			APIKey: value.APIKey,
-			Config: append([]byte(nil), value.Config...),
+			APIKey:   value.APIKey,
+			Config:   append([]byte(nil), value.Config...),
 		})
 	}
 	return out, nil

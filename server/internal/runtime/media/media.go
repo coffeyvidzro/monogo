@@ -100,15 +100,15 @@ func mediaEngines(cfg Config) map[session.Engine]session.Starter {
 		session.EngineIntegrated: integrated.Engine{
 			Client: openai.NewClient(nil),
 			Config: openai.Config{
-				APIKey: cfg.OpenAIAPIKey,
+				APIKey:   cfg.OpenAIAPIKey,
 				Endpoint: cfg.OpenAIEndpoint,
 			},
 		},
 		session.EngineComposable: composable.Engine{
 			Deepgram: deepgram.Config{APIKey: cfg.DeepgramAPIKey},
-			Groq: groq.Config{APIKey: cfg.GroqAPIKey},
+			Groq:     groq.Config{APIKey: cfg.GroqAPIKey},
 			Cartesia: cartesia.Config{
-				APIKey: cfg.CartesiaAPIKey,
+				APIKey:  cfg.CartesiaAPIKey,
 				VoiceID: cfg.CartesiaVoiceID,
 			},
 		},

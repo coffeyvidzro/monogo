@@ -26,9 +26,9 @@ func NewService(
 		providerService = providerServices[0]
 	}
 	return &Service{
-		agents: agentService,
+		agents:        agentService,
 		conversations: conversationService,
-		tools: executor,
-		providers: providerService,
+		tools:         executor,
+		providers:     providerService,
 	}
 }

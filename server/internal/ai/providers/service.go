@@ -154,10 +154,10 @@ func (s *Service) Resolve(ctx context.Context, organizationID, agentID uuid.UUID
 			return nil, apperror.NewInternal("decrypt AI provider credential", decryptErr)
 		}
 		out = append(out, ResolvedBinding{
-			Role: row.Role,
+			Role:     row.Role,
 			Provider: row.Provider,
-			APIKey: secret,
-			Config: append(json.RawMessage(nil), row.Config...),
+			APIKey:   secret,
+			Config:   append(json.RawMessage(nil), row.Config...),
 		})
 	}
 	return out, nil

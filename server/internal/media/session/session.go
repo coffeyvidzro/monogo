@@ -112,19 +112,19 @@ func (f AudioFrame) Duration() time.Duration {
 
 // Config is the immutable configuration resolved before a media session starts.
 type Config struct {
-	ID             uuid.UUID        `json:"id"`
-	OrganizationID uuid.UUID        `json:"organization_id"`
-	CallID         uuid.UUID        `json:"call_id"`
-	ChannelID      uuid.UUID        `json:"channel_id"`
-	Engine         Engine           `json:"engine"`
-	InputFormat    AudioFormat      `json:"input_format"`
-	OutputFormat   AudioFormat      `json:"output_format"`
-	Language       string           `json:"language,omitempty"`
-	Instructions   string           `json:"instructions,omitempty"`
-	Voice          string           `json:"voice,omitempty"`
-	EngineConfig   json.RawMessage    `json:"engine_config,omitempty"`
-	Tools          []ToolDefinition   `json:"tools,omitempty"`
-	Providers      []ProviderRuntime  `json:"providers,omitempty"`
+	ID             uuid.UUID         `json:"id"`
+	OrganizationID uuid.UUID         `json:"organization_id"`
+	CallID         uuid.UUID         `json:"call_id"`
+	ChannelID      uuid.UUID         `json:"channel_id"`
+	Engine         Engine            `json:"engine"`
+	InputFormat    AudioFormat       `json:"input_format"`
+	OutputFormat   AudioFormat       `json:"output_format"`
+	Language       string            `json:"language,omitempty"`
+	Instructions   string            `json:"instructions,omitempty"`
+	Voice          string            `json:"voice,omitempty"`
+	EngineConfig   json.RawMessage   `json:"engine_config,omitempty"`
+	Tools          []ToolDefinition  `json:"tools,omitempty"`
+	Providers      []ProviderRuntime `json:"providers,omitempty"`
 }
 
 type ProviderRuntime struct {
