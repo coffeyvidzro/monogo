@@ -507,6 +507,48 @@ def verify_audio_roundtrip():
         f"audio_fork={json.dumps(fork, sort_keys=True)}"
     )
 
+def verify_durable_realtime_history():
+    def tool_execution():
+        row = psql(
+            "SELECT state || '|' || tool_call_id || '|' || "
+            "COALESCE(response_status::text, '') || '|' || "
+            "convert_from(response_body, 'UTF8') "
+            "FROM voice_agent_tool_executions "
+            f"WHERE session_id='{STATE['session_id']}' "
+            "ORDER BY created_at ASC LIMIT 1"
+        )
+        return row if row else False
+
+    execution = wait_for("durable Voice Agent tool execution", tool_execution)
+    state, tool_call_id, status, body = execution.split("|", 3)
+    if state != "succeeded" or tool_call_id != "tool-call-1":
+        raise AcceptanceError(f"unexpected tool execution: {execution}")
+    if status != "200" or json.loads(body) != {"ok": True}:
+        raise AcceptanceError(f"unexpected tool result: {execution}")
+
+    def turns():
+        raw = psql(
+            "SELECT sequence::text || '|' || role || '|' || content || '|' || "
+            "COALESCE(tool_name, '') || '|' || COALESCE(tool_call_id, '') "
+            "FROM voice_agent_turns "
+            f"WHERE session_id='{STATE['session_id']}' "
+            "ORDER BY sequence ASC"
+        )
+        rows = [line for line in raw.splitlines() if line]
+        return rows if len(rows) >= 3 else False
+
+    rows = wait_for("durable Voice Agent conversation turns", turns)
+    parsed = [row.split("|", 4) for row in rows]
+    if [item[0] for item in parsed[:3]] != ["1", "2", "3"]:
+        raise AcceptanceError(f"turn sequence is not monotonic: {rows}")
+    if parsed[0][1] != "user" or parsed[0][2] != "Please send digit five.":
+        raise AcceptanceError(f"unexpected user turn: {parsed[0]}")
+    if parsed[1][1] != "tool" or parsed[1][3] != "send_dtmf" or parsed[1][4] != "tool-call-1":
+        raise AcceptanceError(f"unexpected tool turn: {parsed[1]}")
+    if parsed[2][1] != "assistant" or parsed[2][2] != "I sent digit five.":
+        raise AcceptanceError(f"unexpected assistant turn: {parsed[2]}")
+
+
 def hangup_and_verify_completion():
     api("POST", f"/v1/calls/{STATE['call_id']}/hangup", expected={200})
 
