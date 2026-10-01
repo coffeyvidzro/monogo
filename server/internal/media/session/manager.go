@@ -29,11 +29,18 @@ type Manager struct {
 	sessions      map[uuid.UUID]*managedSession
 	capacity      int
 	attachTimeout time.Duration
+	limits        RuntimeLimits
+	metrics       *Metrics
 	draining      bool
 	changed       chan struct{}
 }
 
-func NewManager(capacity int, attachTimeout time.Duration, engines map[Engine]Starter) (*Manager, error) {
+func NewManager(
+	capacity int,
+	attachTimeout time.Duration,
+	engines map[Engine]Starter,
+	runtimeLimits ...RuntimeLimits,
+) (*Manager, error) {
 	if capacity <= 0 {
 		return nil, fmt.Errorf("media session capacity must be positive")
 	}
@@ -42,6 +49,13 @@ func NewManager(capacity int, attachTimeout time.Duration, engines map[Engine]St
 	}
 	if attachTimeout <= 0 {
 		return nil, fmt.Errorf("media attachment timeout must be positive")
+	}
+	limits := DefaultRuntimeLimits()
+	if len(runtimeLimits) > 0 {
+		limits = runtimeLimits[0]
+	}
+	if err := limits.validate(); err != nil {
+		return nil, err
 	}
 	copyEngines := make(map[Engine]Starter, len(engines))
 	for name, engine := range engines {
@@ -52,7 +66,8 @@ func NewManager(capacity int, attachTimeout time.Duration, engines map[Engine]St
 	}
 	return &Manager{
 		engines: copyEngines, sessions: make(map[uuid.UUID]*managedSession),
-		capacity: capacity, attachTimeout: attachTimeout, changed: make(chan struct{}, 1),
+		capacity: capacity, attachTimeout: attachTimeout, limits: limits,
+		metrics: newMetrics(), changed: make(chan struct{}, 1),
 	}, nil
 }
 
@@ -84,7 +99,7 @@ func (m *Manager) Start(ctx context.Context, cfg Config) error {
 	managedCtx, cancel := context.WithCancel(context.Background())
 	managed := &managedSession{
 		config: cfg, ctx: managedCtx, cancel: cancel, complete: make(chan struct{}),
-		controlDone: make(chan struct{}),
+		controlDone: make(chan struct{}), createdAt: time.Now(),
 	}
 	stream, err := starter.Start(managedCtx, cfg)
 	if err != nil {
@@ -94,8 +109,10 @@ func (m *Manager) Start(ctx context.Context, cfg Config) error {
 	}
 	managed.stream = stream
 	m.sessions[cfg.ID] = managed
+	m.metrics.sessionStarted()
 	managed.attachTimer = time.AfterFunc(m.attachTimeout, func() {
 		if managed.finishUnattached() {
+			m.metrics.failure(FailureAttachTimeout)
 			m.remove(cfg.ID, managed)
 		}
 	})
@@ -144,15 +161,18 @@ func (m *Manager) Attach(ctx context.Context, connection Connection) error {
 	}
 	managed.connection = connection
 	stream := managed.stream
+	createdAt := managed.createdAt
 	managed.mu.Unlock()
+	m.metrics.observeAttachLatency(time.Since(createdAt))
 
-	err := pump(ctx, managed.ctx, connection, stream, managed.publish)
+	err := pump(ctx, managed.ctx, connection, stream, managed.publish, m.limits, m.metrics)
 	managed.finish()
 	managed.markComplete()
 	m.remove(metadata.SessionID, managed)
 	if isNormalDisconnect(err) {
 		return nil
 	}
+	m.metrics.failure(classifyFailure(err))
 	return err
 }
 
@@ -294,6 +314,10 @@ func (m *Manager) Active() int {
 	return len(m.sessions)
 }
 
+func (m *Manager) Metrics() MetricsSnapshot {
+	return m.metrics.snapshot()
+}
+
 // Config returns the immutable configuration of a live session. It is used by
 // the control endpoint to make repeated create requests idempotent.
 func (m *Manager) Config(id uuid.UUID) (Config, bool) {
@@ -307,11 +331,17 @@ func (m *Manager) Config(id uuid.UUID) (Config, bool) {
 }
 
 func (m *Manager) remove(id uuid.UUID, managed *managedSession) {
+	removed := false
 	m.mu.Lock()
 	if current, exists := m.sessions[id]; exists && current == managed {
 		delete(m.sessions, id)
+		removed = true
 	}
 	m.mu.Unlock()
+	if removed {
+		m.metrics.sessionRemoved()
+		m.metrics.sessionCompleted()
+	}
 	select {
 	case m.changed <- struct{}{}:
 	default:
@@ -334,6 +364,7 @@ type managedSession struct {
 	attached     bool
 	attachTimer  *time.Timer
 	finished     bool
+	createdAt    time.Time
 	finishOnce   sync.Once
 	completeOnce sync.Once
 }
@@ -450,12 +481,36 @@ func pump(
 	connection Connection,
 	stream Stream,
 	publish func(Event) error,
+	limits RuntimeLimits,
+	metrics *Metrics,
 ) error {
 	ctx, cancel := context.WithCancel(parent)
 	defer cancel()
 	group, groupCtx := errgroup.WithContext(ctx)
+	inputQueue := newAudioQueue(limits.InputQueueDuration, ErrInputLatencyBudgetExceeded)
+	outputQueue := newAudioQueue(limits.OutputQueueDuration, ErrOutputLatencyBudgetExceeded)
 	var playbackActive atomic.Bool
 	var suppressPlayback atomic.Bool
+
+	var turnMu sync.Mutex
+	var turnStarted time.Time
+	markTurn := func(at time.Time) {
+		if at.IsZero() {
+			at = time.Now()
+		}
+		turnMu.Lock()
+		turnStarted = at
+		turnMu.Unlock()
+	}
+	observeFirstPlayback := func() {
+		turnMu.Lock()
+		started := turnStarted
+		turnStarted = time.Time{}
+		turnMu.Unlock()
+		if !started.IsZero() {
+			metrics.observeTurnLatency(time.Since(started))
+		}
+	}
 
 	group.Go(func() error {
 		for {
@@ -463,7 +518,31 @@ func pump(
 			if err != nil {
 				return err
 			}
-			if err := stream.SendAudio(groupCtx, frame); err != nil {
+			if err := frame.Validate(); err != nil {
+				return err
+			}
+			if frame.Duration() > limits.MaxFrameDuration {
+				return ErrFrameDurationExceeded
+			}
+			if err := inputQueue.Push(frame); err != nil {
+				return err
+			}
+		}
+	})
+	group.Go(func() error {
+		for {
+			frame, ok := inputQueue.Pop(groupCtx.Done())
+			if !ok {
+				return groupCtx.Err()
+			}
+			writeCtx, writeCancel := context.WithTimeout(groupCtx, limits.ProviderWriteTimeout)
+			err := stream.SendAudio(writeCtx, frame)
+			timedOut := errors.Is(writeCtx.Err(), context.DeadlineExceeded)
+			writeCancel()
+			if timedOut {
+				return ErrProviderWriteTimeout
+			}
+			if err != nil {
 				return err
 			}
 		}
@@ -475,11 +554,16 @@ func pump(
 				if !ok {
 					return io.EOF
 				}
+				if err := frame.Validate(); err != nil {
+					return err
+				}
+				if frame.Duration() > limits.MaxFrameDuration {
+					return ErrFrameDurationExceeded
+				}
 				if suppressPlayback.Load() {
 					continue
 				}
-				playbackActive.Store(true)
-				if err := connection.SendAudio(groupCtx, frame); err != nil {
+				if err := outputQueue.Push(frame); err != nil {
 					return err
 				}
 			case <-sessionCtx.Done():
@@ -487,6 +571,29 @@ func pump(
 			case <-groupCtx.Done():
 				return groupCtx.Err()
 			}
+		}
+	})
+	group.Go(func() error {
+		for {
+			frame, ok := outputQueue.Pop(groupCtx.Done())
+			if !ok {
+				return groupCtx.Err()
+			}
+			if suppressPlayback.Load() {
+				continue
+			}
+			playbackActive.Store(true)
+			writeCtx, writeCancel := context.WithTimeout(groupCtx, limits.PlaybackWriteTimeout)
+			err := connection.SendAudio(writeCtx, frame)
+			timedOut := errors.Is(writeCtx.Err(), context.DeadlineExceeded)
+			writeCancel()
+			if timedOut {
+				return ErrPlaybackWriteTimeout
+			}
+			if err != nil {
+				return err
+			}
+			observeFirstPlayback()
 		}
 	})
 	group.Go(func() error {
@@ -504,16 +611,19 @@ func pump(
 				switch event.Type {
 				case EventError:
 					if event.Failure != nil && event.Failure.Terminal {
-						return fmt.Errorf("terminal media provider failure: %s", event.Failure.Message)
+						return fmt.Errorf("%w: %s", ErrProviderFailure, event.Failure.Message)
 					}
 				case EventResponseStarted:
 					suppressPlayback.Store(false)
 					playbackActive.Store(true)
 				case EventResponseStopped:
 					playbackActive.Store(false)
+				case EventSpeechStopped:
+					markTurn(event.OccurredAt)
 				case EventSpeechStarted:
 					if playbackActive.Swap(false) {
 						suppressPlayback.Store(true)
+						outputQueue.Clear()
 						if err := stream.Interrupt(groupCtx); err != nil {
 							return err
 						}
@@ -530,6 +640,27 @@ func pump(
 		}
 	})
 	return group.Wait()
+}
+
+func classifyFailure(err error) FailureReason {
+	switch {
+	case errors.Is(err, ErrInputLatencyBudgetExceeded):
+		return FailureInputBackpressure
+	case errors.Is(err, ErrOutputLatencyBudgetExceeded):
+		return FailureOutputBackpressure
+	case errors.Is(err, ErrFrameDurationExceeded):
+		return FailureFrameTooLarge
+	case errors.Is(err, ErrProviderWriteTimeout):
+		return FailureProviderTimeout
+	case errors.Is(err, ErrPlaybackWriteTimeout):
+		return FailurePlaybackTimeout
+	case errors.Is(err, ErrProviderFailure):
+		return FailureProvider
+	case errors.Is(err, ErrControlBackpressure):
+		return FailureControlBackpressure
+	default:
+		return FailureTransport
+	}
 }
 
 func isNormalDisconnect(err error) bool {
