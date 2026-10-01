@@ -115,7 +115,7 @@ func (r *Runtime) attach(ctx context.Context, call sqlc.Call, channelID string) 
 	}
 	cfg.Providers = providerRuntimes
 
-	endpoints, err := r.media.CreateSession(ctx, cfg)
+	endpoints, err := r.createMediaSession(ctx, cfg)
 	if err != nil {
 		_ = r.failSession(ctx, call, time.Now().UTC())
 		return fmt.Errorf("create Voice Agent media session: %w", err)
