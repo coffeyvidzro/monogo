@@ -190,7 +190,7 @@ func testRoutes(count int) []routing.OutboundRoute {
 	routes := make([]routing.OutboundRoute, count)
 	for index := range routes {
 		routes[index] = routing.OutboundRoute{
-			CarrierConnectionID: uuid.New(),
+			TrunkID: uuid.New(),
 			TrunkID:             uuid.New(),
 			TrunkEndpointID:     uuid.New(),
 		}
