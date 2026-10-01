@@ -1,49 +1,62 @@
-# Voice Agent v1 lifecycle acceptance
+# Voice Agent v1 realtime release gate
 
-This suite is the release gate for the first Voice Agent control-plane and call-lifecycle path.
+This suite is the mandatory end-to-end release gate for the single-node Leamout Voice Agent Runtime.
 
-It runs the normal Leamout PostgreSQL, Redis, NATS, API, worker, media process,
-OpenSIPS, FreeSWITCH, and RTPengine. A synthetic SIP carrier terminates the call.
-A local TLS WebSocket fixture implements the minimum OpenAI Realtime protocol
-needed by the integrated engine, so CI never uses a live AI provider credential.
+It runs PostgreSQL, Redis, NATS, the API, worker, Media Runtime, OpenSIPS,
+FreeSWITCH, RTPengine, a synthetic SIP carrier, and a local TLS WebSocket
+fixture that implements the minimum OpenAI Realtime protocol needed by the
+integrated engine. CI never depends on a live AI provider credential.
 
-## Default release contract
+## Release contract
 
-Pull-request CI verifies:
+A passing run proves one complete autonomous voice call:
+
+```text
+synthetic carrier
+      ↓ audio
+OpenSIPS / FreeSWITCH
+      ↓ audio fork
+Media Runtime
+      ↓
+fake realtime provider
+      ↓ tool.call
+Agent Runtime
+      ↓
+durable Tool Executor
+      ↓ send_dtmf
+Agent Runtime
+      ↓ tool.result
+Media Runtime
+      ↓
+fake realtime provider
+      ↓ assistant transcript + audio
+FreeSWITCH
+      ↓
+synthetic carrier
+```
+
+The pull-request gate verifies:
 
 1. BYOC carrier, trunk, number, and Voice Application configuration.
 2. Voice Agent creation and binding through the public API.
-3. Webhook tool signing-secret creation, non-disclosure, and rotation.
-4. Built-in tool definition validation.
+3. Webhook signing-secret creation, non-disclosure, and rotation.
+4. Built-in `send_dtmf` tool creation and provider tool-definition delivery.
 5. An outbound call reaches answered state.
 6. Exactly one durable active Voice Agent session is created for the call.
 7. The FreeSWITCH channel is marked with that durable session id.
-8. The integrated provider receives the durable instructions snapshot.
+8. The realtime provider receives the immutable durable instructions snapshot.
 9. Updating the Voice Agent after answer does not mutate the active session snapshot.
-10. Call hangup completes the durable Voice Agent session.
+10. Carrier audio reaches Media Runtime and the realtime provider.
+11. The provider emits a normalized `tool.call`.
+12. Leamout executes the built-in tool through the durable tool executor.
+13. The provider receives `tool.result` on the same realtime session.
+14. Assistant transcript and audio return through Media Runtime and FreeSWITCH.
+15. Durable conversation history contains ordered user, tool, and assistant turns.
+16. Call hangup completes the durable Voice Agent session.
+17. Session summary fields persist turn count, interruption count, first-response latency, and average turn latency.
 
-## Known media-handshake gap
-
-The bidirectional FreeSWITCH -> media -> realtime-provider audio round-trip is
-implemented as a strict check but is not a pull-request merge gate yet.
-
-Current diagnostics show that FreeSWITCH reaches the media service, the signed
-token is accepted, and the WebSocket upgrade succeeds, but the first media
-protocol frame is rejected during the hello handshake. This remains a product
-runtime gap and is tracked separately from this lifecycle acceptance gate.
-
-Run the strict audio check explicitly with:
-
-```sh
-VOICE_AGENT_V1_REQUIRE_AUDIO=1 sh tests/voice-agent-v1/run.sh
-```
-
-The GitHub workflow also exposes a manual `require_audio` input.
-
-The suite does **not** claim live provider tool-call dispatch yet. PR #96 made
-tool execution durable and secure behind the orchestration boundary, but the
-media session manager does not yet dispatch provider `tool.call` events into
-that boundary.
+A failure in the audio, tool, or durable-history path fails the workflow. There
+is no optional reduced lifecycle-only mode.
 
 ## Run
 
