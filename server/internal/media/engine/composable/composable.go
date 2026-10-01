@@ -4,6 +4,7 @@ package composable
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"sync"
@@ -210,11 +211,32 @@ func (s *stream) generate(ctx context.Context, generation uint64, messages []gro
 	var text strings.Builder
 	var pending strings.Builder
 	var heldChunk string
+	toolCalls := make(map[int]*session.ToolCallEvent)
+	toolOrder := make([]int, 0, 1)
 	completionEvents := completion.Events()
 	for {
 		select {
 		case event, ok := <-completionEvents:
 			if !ok || event.Done {
+				for _, index := range toolOrder {
+					call := toolCalls[index]
+					if call == nil || call.ID == "" || call.Name == "" || !json.Valid(call.Arguments) {
+						s.emitCurrent(ctx, generation, session.Event{
+							Type: session.EventError,
+							Failure: &session.FailureEvent{
+								Source: "groq", Code: "invalid_tool_call",
+								Message: "Groq returned an incomplete tool call", Terminal: false,
+							},
+							OccurredAt: time.Now().UTC(),
+						})
+						continue
+					}
+					s.emitCurrent(ctx, generation, session.Event{
+						Type: session.EventToolCall,
+						ToolCall: call,
+						OccurredAt: time.Now().UTC(),
+					})
+				}
 				finalChunk := strings.TrimSpace(pending.String())
 				switch {
 				case heldChunk != "" && finalChunk != "":
@@ -282,17 +304,20 @@ func (s *stream) generate(ctx context.Context, generation uint64, messages []gro
 					heldChunk = chunk
 				}
 			}
-			if event.ToolName != "" {
-				s.emitCurrent(ctx, generation, session.Event{
-					Type: session.EventToolCall,
-					ToolCall: &session.ToolCallEvent{
-						ID: event.ToolCallID,
-						Name: event.ToolName,
-						Arguments: append([]byte(nil), event.ToolArguments...),
-					},
-					ProviderID: event.CompletionID,
-					OccurredAt: time.Now().UTC(),
-				})
+			if event.ToolCallID != "" || event.ToolName != "" || len(event.ToolArguments) != 0 {
+				call, exists := toolCalls[event.ToolIndex]
+				if !exists {
+					call = &session.ToolCallEvent{}
+					toolCalls[event.ToolIndex] = call
+					toolOrder = append(toolOrder, event.ToolIndex)
+				}
+				if event.ToolCallID != "" {
+					call.ID = event.ToolCallID
+				}
+				if event.ToolName != "" {
+					call.Name = event.ToolName
+				}
+				call.Arguments = append(call.Arguments, event.ToolArguments...)
 			}
 		case <-ctx.Done():
 			return
