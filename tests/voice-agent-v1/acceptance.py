@@ -221,6 +221,36 @@ def setup_voice_agent():
         expected={201},
     )[1]
     STATE["agent_id"] = agent["id"]
+
+    provider_credential = api(
+        "POST",
+        "/v1/ai-provider-credentials/",
+        {
+            "provider": "openai",
+            "name": "voice-agent-v1-openai",
+            "secret": "tenant-provider-test-token",
+        },
+        expected={201},
+    )[1]
+    STATE["provider_credential_id"] = provider_credential["id"]
+    if "secret" in provider_credential:
+        raise AcceptanceError("provider credential secret leaked from create API")
+
+    provider_binding = api(
+        "PUT",
+        f"/v1/voice-agents/{agent['id']}/providers/realtime",
+        {
+            "provider": "openai",
+            "credential_id": provider_credential["id"],
+            "config": {
+                "endpoint": "wss://voice-agent-v1-openai:8444/v1/realtime"
+            },
+        },
+        expected={200},
+    )[1]
+    if provider_binding["credential_id"] != provider_credential["id"]:
+        raise AcceptanceError("Voice Agent provider binding was not persisted")
+
     binding = api(
         "POST",
         f"/v1/voice-agents/{agent['id']}/bindings",
