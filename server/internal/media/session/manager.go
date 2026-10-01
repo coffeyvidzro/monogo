@@ -344,6 +344,18 @@ func (m *Manager) Metrics() MetricsSnapshot {
 	return m.metrics.snapshot()
 }
 
+func (m *Manager) SessionIDs() []uuid.UUID {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	ids := make([]uuid.UUID, 0, len(m.sessions))
+	for id := range m.sessions {
+		ids = append(ids, id)
+	}
+	return ids
+}
+
+
 // Config returns the immutable configuration of a live session. It is used by
 // the control endpoint to make repeated create requests idempotent.
 func (m *Manager) Config(id uuid.UUID) (Config, bool) {
