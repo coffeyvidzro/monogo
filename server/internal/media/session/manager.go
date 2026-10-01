@@ -400,14 +400,12 @@ func (s *managedSession) interrupt(ctx context.Context) error {
 
 func (s *managedSession) publish(event Event) error {
 	s.mu.Lock()
-	control := s.control
-	open := s.controlOpen
-	s.mu.Unlock()
-	if !open || control == nil {
+	defer s.mu.Unlock()
+	if !s.controlOpen || s.control == nil {
 		return nil
 	}
 	select {
-	case control <- event:
+	case s.control <- event:
 		return nil
 	default:
 		return ErrControlBackpressure
