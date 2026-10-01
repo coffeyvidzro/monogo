@@ -11,7 +11,7 @@ func (c *Client) ScanKeys(ctx context.Context, pattern string) ([]string, error)
 		return nil, err
 	}
 	if ctx == nil || pattern == "" {
-		return nil, fmt.Errorf("Redis scan context and pattern are required")
+		return nil, fmt.Errorf("redis scan context and pattern are required")
 	}
 
 	var (
