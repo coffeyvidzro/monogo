@@ -16,7 +16,7 @@ CREATE TABLE IF NOT EXISTS call_participants (
     CONSTRAINT fk_call_participants_subscriber_scope
         FOREIGN KEY (subscriber_id, organization_id)
         REFERENCES subscribers(id, organization_id)
-        ON DELETE SET NULL,
+        ON DELETE RESTRICT,
     CONSTRAINT chk_call_participants_role CHECK (role IN ('caller', 'callee', 'bridge', 'other')),
     CONSTRAINT chk_call_participants_direction CHECK (
         direction IS NULL OR direction IN ('inbound', 'outbound')

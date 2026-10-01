@@ -12,7 +12,7 @@ CREATE TABLE IF NOT EXISTS phone_numbers (
     CONSTRAINT fk_phone_numbers_carrier_connection_scope
         FOREIGN KEY (carrier_connection_id, organization_id)
         REFERENCES carrier_connections(id, organization_id)
-        ON DELETE SET NULL,
+        ON DELETE RESTRICT,
     CONSTRAINT chk_phone_numbers_number CHECK (number ~ '^\+[1-9][0-9]{6,14}$'),
     CONSTRAINT chk_phone_numbers_country_code CHECK (country_code ~ '^[A-Z]{2}$'),
     CONSTRAINT chk_phone_numbers_status CHECK (status IN ('active', 'disabled', 'porting', 'released'))

@@ -15,7 +15,7 @@ CREATE TABLE IF NOT EXISTS conference_participants (
     CONSTRAINT fk_conference_participants_call_scope
         FOREIGN KEY (call_participant_id, organization_id)
         REFERENCES call_participants(id, organization_id)
-        ON DELETE SET NULL,
+        ON DELETE CASCADE,
     CONSTRAINT chk_conference_participants_state CHECK (
         state IN ('joining', 'joined', 'left', 'failed')
     ),
