@@ -101,18 +101,30 @@ func (m *Manager) Start(ctx context.Context, cfg Config) error {
 		config: cfg, ctx: managedCtx, cancel: cancel, complete: make(chan struct{}),
 		controlDone: make(chan struct{}), createdAt: time.Now(),
 	}
-	startCtx, startCancel := context.WithTimeout(ctx, limits.ProviderStartTimeout)
-	stream, err := starter.Start(startCtx, cfg)
-	timedOut := errors.Is(startCtx.Err(), context.DeadlineExceeded)
-	startCancel()
-	if err != nil || timedOut {
+	type startResult struct {
+		stream Stream
+		err    error
+	}
+	started := make(chan startResult, 1)
+	go func() {
+		stream, startErr := starter.Start(managedCtx, cfg)
+		started <- startResult{stream: stream, err: startErr}
+	}()
+
+	var stream Stream
+	select {
+	case result := <-started:
+		if result.err != nil {
+			m.mu.Unlock()
+			cancel()
+			return fmt.Errorf("start media engine: %w", result.err)
+		}
+		stream = result.stream
+	case <-time.After(limits.ProviderStartTimeout):
 		m.mu.Unlock()
 		cancel()
-		if timedOut {
-			m.metrics.failure(FailureProviderTimeout)
-			return ErrProviderStartTimeout
-		}
-		return fmt.Errorf("start media engine: %w", err)
+		m.metrics.failure(FailureProviderTimeout)
+		return ErrProviderStartTimeout
 	}
 	managed.stream = stream
 	m.sessions[cfg.ID] = managed
