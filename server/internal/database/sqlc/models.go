@@ -73,7 +73,6 @@ type CallParticipant struct {
 	ID             uuid.UUID          `db:"id" json:"id"`
 	OrganizationID uuid.UUID          `db:"organization_id" json:"organization_id"`
 	CallID         uuid.UUID          `db:"call_id" json:"call_id"`
-	SubscriberID   *uuid.UUID         `db:"subscriber_id" json:"subscriber_id"`
 	Role           string             `db:"role" json:"role"`
 	Address        *string            `db:"address" json:"address"`
 	Direction      *string            `db:"direction" json:"direction"`
@@ -290,30 +289,6 @@ type Session struct {
 	CreatedAt  pgtype.Timestamptz `db:"created_at" json:"created_at"`
 }
 
-type SipDomain struct {
-	ID             uuid.UUID          `db:"id" json:"id"`
-	OrganizationID uuid.UUID          `db:"organization_id" json:"organization_id"`
-	Domain         string             `db:"domain" json:"domain"`
-	Status         string             `db:"status" json:"status"`
-	CreatedAt      pgtype.Timestamptz `db:"created_at" json:"created_at"`
-	UpdatedAt      pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
-}
-
-type Subscriber struct {
-	ID             uuid.UUID          `db:"id" json:"id"`
-	OrganizationID uuid.UUID          `db:"organization_id" json:"organization_id"`
-	SipDomainID    uuid.UUID          `db:"sip_domain_id" json:"sip_domain_id"`
-	Username       string             `db:"username" json:"username"`
-	Domain         string             `db:"domain" json:"domain"`
-	Ha1Md5         *string            `db:"ha1_md5" json:"ha1_md5"`
-	Ha1Sha256      *string            `db:"ha1_sha256" json:"ha1_sha256"`
-	Ha1Sha512256   *string            `db:"ha1_sha512_256" json:"ha1_sha512_256"`
-	DisplayName    *string            `db:"display_name" json:"display_name"`
-	Status         string             `db:"status" json:"status"`
-	CreatedAt      pgtype.Timestamptz `db:"created_at" json:"created_at"`
-	UpdatedAt      pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
-}
-
 type Trunk struct {
 	ID                  uuid.UUID          `db:"id" json:"id"`
 	OrganizationID      *uuid.UUID         `db:"organization_id" json:"organization_id"`
@@ -377,9 +352,7 @@ type VoiceAgentBinding struct {
 	ID             uuid.UUID          `db:"id" json:"id"`
 	OrganizationID uuid.UUID          `db:"organization_id" json:"organization_id"`
 	VoiceAgentID   uuid.UUID          `db:"voice_agent_id" json:"voice_agent_id"`
-	PhoneNumberID  *uuid.UUID         `db:"phone_number_id" json:"phone_number_id"`
-	SipDomainID    *uuid.UUID         `db:"sip_domain_id" json:"sip_domain_id"`
-	SubscriberID   *uuid.UUID         `db:"subscriber_id" json:"subscriber_id"`
+	PhoneNumberID  uuid.UUID          `db:"phone_number_id" json:"phone_number_id"`
 	CreatedAt      pgtype.Timestamptz `db:"created_at" json:"created_at"`
 }
 

@@ -15,50 +15,36 @@ const createVoiceAgentBinding = `-- name: CreateVoiceAgentBinding :one
 INSERT INTO voice_agent_bindings (
     organization_id,
     voice_agent_id,
-    phone_number_id,
-    sip_domain_id,
-    subscriber_id
+    phone_number_id
 )
 SELECT
     $1,
     agent.id,
-    $2::UUID,
-    $3::UUID,
-    $4::UUID
+    $2::UUID
 FROM voice_agents AS agent
 JOIN organizations AS o ON o.id = agent.organization_id
-WHERE agent.id = $5
+WHERE agent.id = $3
   AND agent.organization_id = $1
   AND agent.status = 'active'
   AND o.status = 'active'
   AND o.deleted_at IS NULL
-RETURNING id, organization_id, voice_agent_id, phone_number_id, sip_domain_id, subscriber_id, created_at
+RETURNING id, organization_id, voice_agent_id, phone_number_id, created_at
 `
 
 type CreateVoiceAgentBindingParams struct {
-	OrganizationID uuid.UUID  `db:"organization_id" json:"organization_id"`
-	PhoneNumberID  *uuid.UUID `db:"phone_number_id" json:"phone_number_id"`
-	SipDomainID    *uuid.UUID `db:"sip_domain_id" json:"sip_domain_id"`
-	SubscriberID   *uuid.UUID `db:"subscriber_id" json:"subscriber_id"`
-	VoiceAgentID   uuid.UUID  `db:"voice_agent_id" json:"voice_agent_id"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	PhoneNumberID  uuid.UUID `db:"phone_number_id" json:"phone_number_id"`
+	VoiceAgentID   uuid.UUID `db:"voice_agent_id" json:"voice_agent_id"`
 }
 
 func (q *Queries) CreateVoiceAgentBinding(ctx context.Context, arg CreateVoiceAgentBindingParams) (VoiceAgentBinding, error) {
-	row := q.db.QueryRow(ctx, createVoiceAgentBinding,
-		arg.OrganizationID,
-		arg.PhoneNumberID,
-		arg.SipDomainID,
-		arg.SubscriberID,
-		arg.VoiceAgentID,
-	)
+	row := q.db.QueryRow(ctx, createVoiceAgentBinding, arg.OrganizationID, arg.PhoneNumberID, arg.VoiceAgentID)
 	var i VoiceAgentBinding
 	err := row.Scan(
 		&i.ID,
 		&i.OrganizationID,
 		&i.VoiceAgentID,
 		&i.PhoneNumberID,
-		&i.SipDomainID,
-		&i.SubscriberID,
 		&i.CreatedAt,
 	)
 	return i, err
@@ -83,7 +69,7 @@ func (q *Queries) DeleteVoiceAgentBinding(ctx context.Context, arg DeleteVoiceAg
 }
 
 const getVoiceAgentBindingByID = `-- name: GetVoiceAgentBindingByID :one
-SELECT binding.id, binding.organization_id, binding.voice_agent_id, binding.phone_number_id, binding.sip_domain_id, binding.subscriber_id, binding.created_at
+SELECT binding.id, binding.organization_id, binding.voice_agent_id, binding.phone_number_id, binding.created_at
 FROM voice_agent_bindings AS binding
 JOIN voice_agents AS agent
   ON agent.id = binding.voice_agent_id
@@ -110,15 +96,13 @@ func (q *Queries) GetVoiceAgentBindingByID(ctx context.Context, arg GetVoiceAgen
 		&i.OrganizationID,
 		&i.VoiceAgentID,
 		&i.PhoneNumberID,
-		&i.SipDomainID,
-		&i.SubscriberID,
 		&i.CreatedAt,
 	)
 	return i, err
 }
 
 const listVoiceAgentBindingsByAgentID = `-- name: ListVoiceAgentBindingsByAgentID :many
-SELECT binding.id, binding.organization_id, binding.voice_agent_id, binding.phone_number_id, binding.sip_domain_id, binding.subscriber_id, binding.created_at
+SELECT binding.id, binding.organization_id, binding.voice_agent_id, binding.phone_number_id, binding.created_at
 FROM voice_agent_bindings AS binding
 JOIN voice_agents AS agent
   ON agent.id = binding.voice_agent_id
@@ -148,8 +132,6 @@ func (q *Queries) ListVoiceAgentBindingsByAgentID(ctx context.Context, arg ListV
 			&i.OrganizationID,
 			&i.VoiceAgentID,
 			&i.PhoneNumberID,
-			&i.SipDomainID,
-			&i.SubscriberID,
 			&i.CreatedAt,
 		); err != nil {
 			return nil, err

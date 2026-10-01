@@ -17,11 +17,11 @@ type CreateBindingRequest struct {
 }
 
 type BindingResponse struct {
-	ID             uuid.UUID  `json:"id"`
-	OrganizationID uuid.UUID  `json:"organization_id"`
-	VoiceAgentID   uuid.UUID  `json:"voice_agent_id"`
+	ID             uuid.UUID `json:"id"`
+	OrganizationID uuid.UUID `json:"organization_id"`
+	VoiceAgentID   uuid.UUID `json:"voice_agent_id"`
 	PhoneNumberID  uuid.UUID `json:"phone_number_id"`
-	CreatedAt      time.Time  `json:"created_at"`
+	CreatedAt      time.Time `json:"created_at"`
 }
 
 func (r *Repository) CreateBinding(ctx context.Context, organizationID, agentID uuid.UUID, req CreateBindingRequest) (sqlc.VoiceAgentBinding, error) {

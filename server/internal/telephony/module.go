@@ -29,13 +29,13 @@ type Dependencies struct {
 }
 
 type Module struct {
-	Calls       CallsModule
-	Carriers    CarriersModule
-	Numbers     NumbersModule
-	WebRTC      WebRTCModule
-	Recordings  RecordingsModule
-	Routing     RoutingModule
-	Trunks      TrunksModule
+	Calls      CallsModule
+	Carriers   CarriersModule
+	Numbers    NumbersModule
+	WebRTC     WebRTCModule
+	Recordings RecordingsModule
+	Routing    RoutingModule
+	Trunks     TrunksModule
 }
 
 type CallsModule struct {
@@ -72,8 +72,6 @@ type RoutingModule struct {
 	Service    *routing.Service
 }
 
-
-
 type TrunksModule struct {
 	Repository *trunks.Repository
 	Service    *trunks.Service
@@ -99,8 +97,6 @@ func New(deps Dependencies) (*Module, error) {
 
 	recordingsRepository := recordings.NewRepository(deps.DB)
 	recordingsService := recordings.NewService(recordingsRepository, deps.RecordingStorage)
-
-
 
 	trunksRepository := trunks.NewRepository(deps.Queries)
 	trunksService := trunks.NewService(trunksRepository, deps.DB)

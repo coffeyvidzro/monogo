@@ -41,8 +41,6 @@ func RegisterRoutes(
 		organizationAccess("recordings"),
 	)
 
-
-
 	trunks.RegisterRoutes(
 		router,
 		module.Trunks.Handler,

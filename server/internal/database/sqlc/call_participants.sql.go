@@ -16,7 +16,6 @@ const createCallParticipant = `-- name: CreateCallParticipant :one
 INSERT INTO call_participants (
     organization_id,
     call_id,
-    subscriber_id,
     role,
     address,
     direction,
@@ -28,17 +27,15 @@ INSERT INTO call_participants (
     $3,
     $4,
     $5,
-    $6,
-    COALESCE($7, 'joining'),
-    $8
+    COALESCE($6, 'joining'),
+    $7
 )
-RETURNING id, organization_id, call_id, subscriber_id, role, address, direction, state, joined_at, left_at, created_at, updated_at
+RETURNING id, organization_id, call_id, role, address, direction, state, joined_at, left_at, created_at, updated_at
 `
 
 type CreateCallParticipantParams struct {
 	OrganizationID uuid.UUID          `db:"organization_id" json:"organization_id"`
 	CallID         uuid.UUID          `db:"call_id" json:"call_id"`
-	SubscriberID   *uuid.UUID         `db:"subscriber_id" json:"subscriber_id"`
 	Role           string             `db:"role" json:"role"`
 	Address        *string            `db:"address" json:"address"`
 	Direction      *string            `db:"direction" json:"direction"`
@@ -50,7 +47,6 @@ func (q *Queries) CreateCallParticipant(ctx context.Context, arg CreateCallParti
 	row := q.db.QueryRow(ctx, createCallParticipant,
 		arg.OrganizationID,
 		arg.CallID,
-		arg.SubscriberID,
 		arg.Role,
 		arg.Address,
 		arg.Direction,
@@ -62,7 +58,6 @@ func (q *Queries) CreateCallParticipant(ctx context.Context, arg CreateCallParti
 		&i.ID,
 		&i.OrganizationID,
 		&i.CallID,
-		&i.SubscriberID,
 		&i.Role,
 		&i.Address,
 		&i.Direction,
@@ -76,7 +71,7 @@ func (q *Queries) CreateCallParticipant(ctx context.Context, arg CreateCallParti
 }
 
 const getCallParticipant = `-- name: GetCallParticipant :one
-SELECT id, organization_id, call_id, subscriber_id, role, address, direction, state, joined_at, left_at, created_at, updated_at
+SELECT id, organization_id, call_id, role, address, direction, state, joined_at, left_at, created_at, updated_at
 FROM call_participants
 WHERE organization_id = $1
   AND id = $2
@@ -95,7 +90,6 @@ func (q *Queries) GetCallParticipant(ctx context.Context, arg GetCallParticipant
 		&i.ID,
 		&i.OrganizationID,
 		&i.CallID,
-		&i.SubscriberID,
 		&i.Role,
 		&i.Address,
 		&i.Direction,
@@ -109,7 +103,7 @@ func (q *Queries) GetCallParticipant(ctx context.Context, arg GetCallParticipant
 }
 
 const listCallParticipants = `-- name: ListCallParticipants :many
-SELECT id, organization_id, call_id, subscriber_id, role, address, direction, state, joined_at, left_at, created_at, updated_at
+SELECT id, organization_id, call_id, role, address, direction, state, joined_at, left_at, created_at, updated_at
 FROM call_participants
 WHERE organization_id = $1
   AND call_id = $2
@@ -134,7 +128,6 @@ func (q *Queries) ListCallParticipants(ctx context.Context, arg ListCallParticip
 			&i.ID,
 			&i.OrganizationID,
 			&i.CallID,
-			&i.SubscriberID,
 			&i.Role,
 			&i.Address,
 			&i.Direction,
@@ -169,7 +162,7 @@ SET
     updated_at = NOW()
 WHERE organization_id = $2
   AND id = $3
-RETURNING id, organization_id, call_id, subscriber_id, role, address, direction, state, joined_at, left_at, created_at, updated_at
+RETURNING id, organization_id, call_id, role, address, direction, state, joined_at, left_at, created_at, updated_at
 `
 
 type UpdateCallParticipantStateParams struct {
@@ -185,7 +178,6 @@ func (q *Queries) UpdateCallParticipantState(ctx context.Context, arg UpdateCall
 		&i.ID,
 		&i.OrganizationID,
 		&i.CallID,
-		&i.SubscriberID,
 		&i.Role,
 		&i.Address,
 		&i.Direction,
