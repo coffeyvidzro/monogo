@@ -101,16 +101,24 @@ func (m *Manager) Start(ctx context.Context, cfg Config) error {
 		config: cfg, ctx: managedCtx, cancel: cancel, complete: make(chan struct{}),
 		controlDone: make(chan struct{}), createdAt: time.Now(),
 	}
-	stream, err := starter.Start(managedCtx, cfg)
-	if err != nil {
+	startCtx, startCancel := context.WithTimeout(ctx, limits.ProviderStartTimeout)
+	stream, err := starter.Start(startCtx, cfg)
+	timedOut := errors.Is(startCtx.Err(), context.DeadlineExceeded)
+	startCancel()
+	if err != nil || timedOut {
 		m.mu.Unlock()
 		cancel()
+		if timedOut {
+			m.metrics.failure(FailureProviderTimeout)
+			return ErrProviderWriteTimeout
+		}
 		return fmt.Errorf("start media engine: %w", err)
 	}
 	managed.stream = stream
 	m.sessions[cfg.ID] = managed
 	m.metrics.sessionStarted()
 	managed.attachTimer = time.AfterFunc(m.attachTimeout, func() {
+		_ = managed.publish(terminalFailureEvent(FailureAttachTimeout, "media session attachment timed out"))
 		if managed.finishUnattached() {
 			m.metrics.failure(FailureAttachTimeout)
 			m.remove(cfg.ID, managed)
@@ -166,13 +174,19 @@ func (m *Manager) Attach(ctx context.Context, connection Connection) error {
 	m.metrics.observeAttachLatency(time.Since(createdAt))
 
 	err := pump(ctx, managed.ctx, connection, stream, managed.publish, m.limits, m.metrics)
+	if !isNormalDisconnect(err) {
+		reason := classifyFailure(err)
+		m.metrics.failure(reason)
+		if !errors.Is(err, ErrProviderFailure) {
+			_ = managed.publish(terminalFailureEvent(reason, err.Error()))
+		}
+	}
 	managed.finish()
 	managed.markComplete()
 	m.remove(metadata.SessionID, managed)
 	if isNormalDisconnect(err) {
 		return nil
 	}
-	m.metrics.failure(classifyFailure(err))
 	return err
 }
 
@@ -277,7 +291,7 @@ func (m *Manager) Drain(ctx context.Context) error {
 	}
 	m.mu.Unlock()
 	for _, managed := range snapshot {
-		managed.finish()
+		go managed.finish()
 	}
 	for id, managed := range snapshot {
 		select {
@@ -660,6 +674,19 @@ func classifyFailure(err error) FailureReason {
 		return FailureControlBackpressure
 	default:
 		return FailureTransport
+	}
+}
+
+func terminalFailureEvent(reason FailureReason, message string) Event {
+	return Event{
+		Type: EventError,
+		Failure: &FailureEvent{
+			Source: "media",
+			Code: string(reason),
+			Message: message,
+			Terminal: true,
+		},
+		OccurredAt: time.Now().UTC(),
 	}
 }
 
