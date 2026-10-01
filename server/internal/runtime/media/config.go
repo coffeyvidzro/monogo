@@ -2,6 +2,7 @@ package media
 
 import (
 	"fmt"
+	"os"
 	"net/url"
 	"strings"
 	"time"
@@ -10,6 +11,9 @@ import (
 )
 
 type Config struct {
+	RedisURL         string        `env:"REDIS_URL"`
+	NodeID           string        `env:"MEDIA_NODE_ID"`
+	ControlURL       string        `env:"MEDIA_CONTROL_URL"`
 	ListenAddress    string        `env:"MEDIA_LISTEN_ADDRESS" envDefault:":8090"`
 	PublicWebSocket  string        `env:"MEDIA_PUBLIC_WS_URL" envDefault:"ws://media:8090/v1/audio-forks"`
 	TokenSecret      string        `env:"MEDIA_TOKEN_SECRET,required"`
@@ -33,8 +37,23 @@ func loadConfig() (Config, error) {
 	if err != nil {
 		return Config{}, fmt.Errorf("parse media environment: %w", err)
 	}
+	cfg.RedisURL = strings.TrimSpace(cfg.RedisURL)
+	cfg.NodeID = strings.TrimSpace(cfg.NodeID)
+	cfg.ControlURL = strings.TrimRight(strings.TrimSpace(cfg.ControlURL), "/")
 	cfg.ListenAddress = strings.TrimSpace(cfg.ListenAddress)
 	cfg.PublicWebSocket = strings.TrimRight(strings.TrimSpace(cfg.PublicWebSocket), "/")
+	if cfg.NodeID == "" {
+		cfg.NodeID, _ = os.Hostname()
+	}
+	if cfg.ControlURL == "" {
+		if publicURL, parseErr := url.Parse(cfg.PublicWebSocket); parseErr == nil && publicURL.Host != "" {
+			scheme := "http"
+			if publicURL.Scheme == "wss" {
+				scheme = "https"
+			}
+			cfg.ControlURL = scheme + "://" + publicURL.Host
+		}
+	}
 	cfg.TokenSecret = strings.TrimSpace(cfg.TokenSecret)
 	cfg.ControlToken = strings.TrimSpace(cfg.ControlToken)
 	cfg.OpenAIAPIKey = strings.TrimSpace(cfg.OpenAIAPIKey)
@@ -56,6 +75,15 @@ func (c Config) Validate() error {
 	parsed, err := url.Parse(c.PublicWebSocket)
 	if err != nil || (parsed.Scheme != "ws" && parsed.Scheme != "wss") || parsed.Host == "" {
 		return fmt.Errorf("media public WebSocket URL must be an absolute ws or wss URL")
+	}
+	if c.RedisURL != "" {
+		control, controlErr := url.Parse(c.ControlURL)
+		if controlErr != nil || (control.Scheme != "http" && control.Scheme != "https") || control.Host == "" {
+			return fmt.Errorf("media control URL must be an absolute http or https URL")
+		}
+		if strings.TrimSpace(c.NodeID) == "" {
+			return fmt.Errorf("media node id is required when Redis registration is enabled")
+		}
 	}
 	if len(c.TokenSecret) < 32 {
 		return fmt.Errorf("media token secret must contain at least 32 bytes")
