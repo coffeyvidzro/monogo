@@ -70,6 +70,14 @@ func RunWithConfig(ctx context.Context, cfg Config) error {
 		}
 		serverErr <- err
 	}()
+
+	registration, err := startNodeRegistration(ctx, cfg, manager, logger)
+	if err != nil {
+		_ = server.Close()
+		return fmt.Errorf("register media node: %w", err)
+	}
+	defer registration.close(context.Background())
+
 	logger.Info(ctx, "media runtime started", "address", listener.Addr().String())
 
 	var result error
@@ -83,6 +91,7 @@ func RunWithConfig(ctx context.Context, cfg Config) error {
 
 	handler.draining.Store(true)
 	drainCtx, cancel := context.WithTimeout(context.Background(), cfg.DrainTimeout)
+	registration.beginDrain(drainCtx, cfg, manager)
 	defer cancel()
 	if err := manager.Drain(drainCtx); err != nil && result == nil {
 		result = fmt.Errorf("drain media sessions: %w", err)

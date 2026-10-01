@@ -202,14 +202,24 @@ func (r *Runtime) stopMediaSession(ctx context.Context, id uuid.UUID) error {
 	}
 	r.mu.Unlock()
 
+	node, placed := r.mediaNode(ctx, id)
 	if control != nil {
 		err := control.Send(ctx, session.Command{Type: session.CommandStop})
 		closeErr := control.Close()
 		if err == nil {
+			r.releaseMediaNode(context.Background(), id)
 			return closeErr
 		}
 	}
-	return r.media.StopSession(ctx, id)
+
+	var err error
+	if placed {
+		err = r.media.StopSessionAt(ctx, node.ControlURL, id)
+	} else {
+		err = r.media.StopSession(ctx, id)
+	}
+	r.releaseMediaNode(context.Background(), id)
+	return err
 }
 
 func (r *Runtime) executeRealtimeTool(

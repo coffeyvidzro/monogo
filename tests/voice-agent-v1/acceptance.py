@@ -56,6 +56,10 @@ def psql(sql):
     )
 
 
+def redis_cli(*args):
+    return compose("exec", "-T", "redis", "redis-cli", "--raw", *args)
+
+
 def fs_cli(service, command):
     return compose(
         "exec", "-T", service,
@@ -391,6 +395,28 @@ def wait_voice_agent_session():
         )
 
 
+def verify_media_placement():
+    owner_key = f"runtime:media:session:{STATE['session_id']}"
+
+    def owner():
+        value = redis_cli("GET", owner_key).strip()
+        return value if value else False
+
+    node_id = wait_for("Redis media session ownership", owner)
+    STATE["media_node_id"] = node_id
+
+    raw = redis_cli("GET", f"runtime:media:node:{node_id}")
+    if not raw:
+        raise AcceptanceError("media node registry record is missing")
+    node = json.loads(raw)
+    if node.get("draining") is True:
+        raise AcceptanceError("Voice Agent session was placed on a draining media node")
+    if int(node.get("capacity") or 0) < 1:
+        raise AcceptanceError(f"invalid media node capacity: {node}")
+    if not str(node.get("control_url") or "").startswith("http"):
+        raise AcceptanceError(f"invalid media node control URL: {node}")
+
+
 def verify_provider_session():
     def probe():
         state = fake_openai_state()
@@ -652,6 +678,13 @@ def hangup_and_verify_completion():
             f"avg_turn_latency_ms = {avg_latency!r}, want non-negative"
         )
 
+    owner_key = f"runtime:media:session:{STATE['session_id']}"
+
+    def ownership_released():
+        return redis_cli("GET", owner_key).strip() == ""
+
+    wait_for("media session ownership release", ownership_released)
+
 
 def main():
     setup_carrier()
@@ -664,18 +697,20 @@ def main():
     print("PASS 04 outbound call reached answered state")
     wait_voice_agent_session()
     print("PASS 05 one durable Voice Agent session attached to FreeSWITCH")
+    verify_media_placement()
+    print("PASS 06 Redis placement assigned session ownership to a healthy media node")
     verify_provider_session()
-    print("PASS 06 tenant-scoped provider credential reached realtime provider")
+    print("PASS 07 tenant-scoped provider credential reached realtime provider")
     verify_provider_credential_isolation()
-    print("PASS 07 provider secret remained encrypted and outside durable snapshots")
+    print("PASS 08 provider secret remained encrypted and outside durable snapshots")
     verify_snapshot_immutability()
-    print("PASS 08 active call retained immutable durable agent snapshot")
+    print("PASS 09 active call retained immutable durable agent snapshot")
     verify_audio_roundtrip()
-    print("PASS 09 audio and realtime tool-result round trip completed")
+    print("PASS 10 audio and realtime tool-result round trip completed")
     verify_durable_realtime_history()
-    print("PASS 10 user, tool, and assistant turns persisted durably")
+    print("PASS 11 user, tool, and assistant turns persisted durably")
     hangup_and_verify_completion()
-    print("PASS 11 session completion persisted conversation summary metrics")
+    print("PASS 12 session completion persisted conversation summary metrics")
     print("Voice Agent v1 realtime release gate passed")
 
 

@@ -44,11 +44,25 @@ func newMediaClient(cfg Config) (*mediaClient, error) {
 }
 
 func (c *mediaClient) CreateSession(ctx context.Context, cfg session.Config) (mediaSessionEndpoints, error) {
+	return c.CreateSessionAt(ctx, c.baseURL, cfg)
+}
+
+func (c *mediaClient) CreateSessionAt(
+	ctx context.Context,
+	baseURL string,
+	cfg session.Config,
+) (mediaSessionEndpoints, error) {
+	baseURL = strings.TrimRight(strings.TrimSpace(baseURL), "/")
+	parsedBase, err := url.Parse(baseURL)
+	if err != nil || (parsedBase.Scheme != "http" && parsedBase.Scheme != "https") || parsedBase.Host == "" {
+		return mediaSessionEndpoints{}, fmt.Errorf("invalid media control URL")
+	}
+
 	payload, err := json.Marshal(cfg)
 	if err != nil {
 		return mediaSessionEndpoints{}, fmt.Errorf("marshal media session: %w", err)
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/internal/v1/sessions", bytes.NewReader(payload))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, baseURL+"/internal/v1/sessions", bytes.NewReader(payload))
 	if err != nil {
 		return mediaSessionEndpoints{}, fmt.Errorf("create media session request: %w", err)
 	}
@@ -83,10 +97,19 @@ func (c *mediaClient) CreateSession(ctx context.Context, cfg session.Config) (me
 }
 
 func (c *mediaClient) StopSession(ctx context.Context, id uuid.UUID) error {
+	return c.StopSessionAt(ctx, c.baseURL, id)
+}
+
+func (c *mediaClient) StopSessionAt(
+	ctx context.Context,
+	baseURL string,
+	id uuid.UUID,
+) error {
 	if id == uuid.Nil {
 		return fmt.Errorf("media session id is required")
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, c.baseURL+"/internal/v1/sessions/"+id.String(), nil)
+	baseURL = strings.TrimRight(strings.TrimSpace(baseURL), "/")
+	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, baseURL+"/internal/v1/sessions/"+id.String(), nil)
 	if err != nil {
 		return fmt.Errorf("create media stop request: %w", err)
 	}
