@@ -678,6 +678,13 @@ def hangup_and_verify_completion():
             f"avg_turn_latency_ms = {avg_latency!r}, want non-negative"
         )
 
+    owner_key = f"runtime:media:session:{STATE['session_id']}"
+
+    def ownership_released():
+        return redis_cli("GET", owner_key).strip() == ""
+
+    wait_for("media session ownership release", ownership_released)
+
 
 def main():
     setup_carrier()
