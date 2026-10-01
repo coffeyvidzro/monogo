@@ -9,8 +9,6 @@ import (
 	"github.com/coffeyvidzro/monogo/internal/telephony/carriers"
 	"github.com/coffeyvidzro/monogo/internal/telephony/numbers"
 	"github.com/coffeyvidzro/monogo/internal/telephony/recordings"
-	"github.com/coffeyvidzro/monogo/internal/telephony/sip_domains"
-	"github.com/coffeyvidzro/monogo/internal/telephony/subscribers"
 	"github.com/coffeyvidzro/monogo/internal/telephony/trunks"
 	"github.com/coffeyvidzro/monogo/internal/telephony/webrtc"
 )
@@ -43,17 +41,7 @@ func RegisterRoutes(
 		organizationAccess("recordings"),
 	)
 
-	subscribers.RegisterRoutes(
-		router,
-		module.Subscribers.Handler,
-		organizationAccess("subscribers"),
-	)
 
-	sip_domains.RegisterRoutes(
-		router,
-		module.SIPDomains.Handler,
-		organizationAccess("sip-domains"),
-	)
 
 	trunks.RegisterRoutes(
 		router,
