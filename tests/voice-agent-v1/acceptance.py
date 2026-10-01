@@ -571,6 +571,29 @@ def hangup_and_verify_completion():
             f"Voice Agent session state = {session_state}, want completed"
         )
 
+    summary = psql(
+        "SELECT turn_count::text || '|' || interruption_count::text || '|' || "
+        "COALESCE(first_response_latency_ms::text, '') || '|' || "
+        "COALESCE(avg_turn_latency_ms::text, '') "
+        "FROM voice_agent_sessions "
+        f"WHERE id='{STATE['session_id']}'"
+    )
+    turn_count, interruption_count, first_latency, avg_latency = summary.split("|", 3)
+    if turn_count != "1":
+        raise AcceptanceError(f"turn_count = {turn_count}, want 1")
+    if interruption_count != "0":
+        raise AcceptanceError(
+            f"interruption_count = {interruption_count}, want 0"
+        )
+    if first_latency == "" or int(first_latency) < 0:
+        raise AcceptanceError(
+            f"first_response_latency_ms = {first_latency!r}, want non-negative"
+        )
+    if avg_latency == "" or int(avg_latency) < 0:
+        raise AcceptanceError(
+            f"avg_turn_latency_ms = {avg_latency!r}, want non-negative"
+        )
+
 
 def main():
     setup_carrier()
@@ -588,10 +611,12 @@ def main():
     verify_snapshot_immutability()
     print("PASS 07 active call retained immutable durable agent snapshot")
     verify_audio_roundtrip()
-    print("PASS 08 bidirectional Voice Agent audio completed through media plane")
+    print("PASS 08 audio and realtime tool-result round trip completed")
+    verify_durable_realtime_history()
+    print("PASS 09 user, tool, and assistant turns persisted durably")
     hangup_and_verify_completion()
-    print("PASS 09 call hangup completed the durable Voice Agent session")
-    print("Voice Agent v1 lifecycle acceptance passed")
+    print("PASS 10 session completion persisted conversation summary metrics")
+    print("Voice Agent v1 realtime release gate passed")
 
 
 if __name__ == "__main__":
