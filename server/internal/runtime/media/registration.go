@@ -112,6 +112,12 @@ func (r *nodeRegistration) beginDrain(
 	if r == nil || r.registry == nil {
 		return
 	}
+	r.cancel()
+	select {
+	case <-r.done:
+	case <-ctx.Done():
+		return
+	}
 	_ = r.registry.Heartbeat(ctx, medianodes.Node{
 		ID:         cfg.NodeID,
 		ControlURL: cfg.ControlURL,
