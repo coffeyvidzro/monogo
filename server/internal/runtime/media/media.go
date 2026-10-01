@@ -44,6 +44,12 @@ func RunWithConfig(ctx context.Context, cfg Config) error {
 	if err != nil {
 		return fmt.Errorf("initialize media session manager: %w", err)
 	}
+	registration, err := startNodeRegistration(ctx, cfg, manager, logger)
+	if err != nil {
+		return fmt.Errorf("register media node: %w", err)
+	}
+	defer registration.close(context.Background())
+
 	tokens, err := transport.NewTokenService(cfg.TokenSecret)
 	if err != nil {
 		return fmt.Errorf("initialize media tokens: %w", err)
@@ -83,6 +89,7 @@ func RunWithConfig(ctx context.Context, cfg Config) error {
 
 	handler.draining.Store(true)
 	drainCtx, cancel := context.WithTimeout(context.Background(), cfg.DrainTimeout)
+	registration.beginDrain(drainCtx, cfg, manager)
 	defer cancel()
 	if err := manager.Drain(drainCtx); err != nil && result == nil {
 		result = fmt.Errorf("drain media sessions: %w", err)
