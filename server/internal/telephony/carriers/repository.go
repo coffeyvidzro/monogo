@@ -100,14 +100,14 @@ func (r *Repository) SetInboundDigest(ctx context.Context, org, id uuid.UUID, us
 func (r *Repository) SetInboundIP(ctx context.Context, org, id uuid.UUID) error {
 	return r.queries.SetCarrierConnectionInboundIPAuth(ctx, sqlc.SetCarrierConnectionInboundIPAuthParams{
 		ID:             id,
-		OrganizationID: &org,
+		OrganizationID: org,
 	})
 }
 
 func (r *Repository) SetInboundNone(ctx context.Context, org, id uuid.UUID) error {
 	return r.queries.SetCarrierConnectionInboundNoAuth(ctx, sqlc.SetCarrierConnectionInboundNoAuthParams{
 		ID:             id,
-		OrganizationID: &org,
+		OrganizationID: org,
 	})
 }
 
@@ -145,5 +145,5 @@ func (r *Repository) ListTrunks(ctx context.Context, org, id uuid.UUID) ([]sqlc.
 }
 
 func (r *Repository) ListTrunkEndpoints(ctx context.Context, org, trunkID uuid.UUID) ([]sqlc.TrunkEndpoint, error) {
-	return r.queries.ListTrunkEndpoints(ctx, sqlc.ListTrunkEndpointsParams{TrunkID: trunkID, OrganizationID: org})
+	return r.queries.ListTrunkEndpoints(ctx, sqlc.ListTrunkEndpointsParams{TrunkID: trunkID, OrganizationID: &org})
 }
