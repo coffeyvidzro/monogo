@@ -411,6 +411,34 @@ def verify_provider_session():
         )
 
 
+def verify_provider_credential_isolation():
+    listed = api(
+        "GET",
+        "/v1/ai-provider-credentials/",
+        expected={200},
+    )[1]["provider_credentials"]
+    current = next(
+        item for item in listed
+        if item["id"] == STATE["provider_credential_id"]
+    )
+    if "secret" in current:
+        raise AcceptanceError("provider credential secret leaked from list API")
+
+    ciphertext = psql(
+        "SELECT secret_ciphertext FROM ai_provider_credentials "
+        f"WHERE id='{STATE['provider_credential_id']}'"
+    )
+    if not ciphertext or ciphertext == "tenant-provider-test-token":
+        raise AcceptanceError("provider credential was not encrypted at rest")
+
+    engine_snapshot = psql(
+        "SELECT engine_config_snapshot::text FROM voice_agent_sessions "
+        f"WHERE id='{STATE['session_id']}'"
+    )
+    if "tenant-provider-test-token" in engine_snapshot:
+        raise AcceptanceError("provider credential leaked into engine snapshot")
+
+
 def verify_snapshot_immutability():
     api(
         "PATCH",
@@ -637,15 +665,17 @@ def main():
     wait_voice_agent_session()
     print("PASS 05 one durable Voice Agent session attached to FreeSWITCH")
     verify_provider_session()
-    print("PASS 06 realtime provider received integrated session configuration")
+    print("PASS 06 tenant-scoped provider credential reached realtime provider")
+    verify_provider_credential_isolation()
+    print("PASS 07 provider secret remained encrypted and outside durable snapshots")
     verify_snapshot_immutability()
-    print("PASS 07 active call retained immutable durable agent snapshot")
+    print("PASS 08 active call retained immutable durable agent snapshot")
     verify_audio_roundtrip()
-    print("PASS 08 audio and realtime tool-result round trip completed")
+    print("PASS 09 audio and realtime tool-result round trip completed")
     verify_durable_realtime_history()
-    print("PASS 09 user, tool, and assistant turns persisted durably")
+    print("PASS 10 user, tool, and assistant turns persisted durably")
     hangup_and_verify_completion()
-    print("PASS 10 session completion persisted conversation summary metrics")
+    print("PASS 11 session completion persisted conversation summary metrics")
     print("Voice Agent v1 realtime release gate passed")
 
 
