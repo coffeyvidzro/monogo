@@ -172,6 +172,20 @@ func (c Config) Validate() error {
 			return fmt.Errorf("engine config must be a JSON object")
 		}
 	}
+	names := make(map[string]struct{}, len(c.Tools))
+	for _, tool := range c.Tools {
+		if tool.ID == uuid.Nil || tool.Name == "" {
+			return fmt.Errorf("media tool id and name are required")
+		}
+		if _, exists := names[tool.Name]; exists {
+			return fmt.Errorf("duplicate media tool name %q", tool.Name)
+		}
+		names[tool.Name] = struct{}{}
+		var parameters map[string]json.RawMessage
+		if err := json.Unmarshal(tool.Parameters, &parameters); err != nil || parameters == nil {
+			return fmt.Errorf("media tool %q parameters must be a JSON object", tool.Name)
+		}
+	}
 	return nil
 }
 
