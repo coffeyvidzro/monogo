@@ -107,7 +107,7 @@ func (s *Service) UpsertBinding(ctx context.Context, organizationID, agentID uui
 		return Binding{}, apperror.NewBadRequest("credential_id is required")
 	}
 	if len(req.Config) == 0 {
-		req.Config = json.RawMessage(\`{}\`)
+		req.Config = json.RawMessage(`{}`)
 	}
 	var object map[string]json.RawMessage
 	if json.Unmarshal(req.Config, &object) != nil || object == nil {
