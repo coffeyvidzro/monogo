@@ -1,7 +1,7 @@
 CREATE TABLE IF NOT EXISTS trunks (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     organization_id UUID,
-    carrier_connection_id UUID REFERENCES carrier_connections(id) ON DELETE RESTRICT,
+    carrier_connection_id UUID,
     name TEXT NOT NULL,
     direction TEXT NOT NULL DEFAULT 'bidirectional',
     status TEXT NOT NULL DEFAULT 'active',
@@ -10,6 +10,10 @@ CREATE TABLE IF NOT EXISTS trunks (
     CONSTRAINT uq_trunks_org_name UNIQUE (organization_id, name),
     CONSTRAINT uq_trunks_id_org UNIQUE (id, organization_id),
     CONSTRAINT chk_trunks_owner CHECK (organization_id IS NOT NULL AND carrier_connection_id IS NOT NULL),
+    CONSTRAINT fk_trunks_carrier_connection_scope
+        FOREIGN KEY (carrier_connection_id, organization_id)
+        REFERENCES carrier_connections(id, organization_id)
+        ON DELETE RESTRICT,
     CONSTRAINT chk_trunks_name CHECK (length(btrim(name)) > 0),
     CONSTRAINT chk_trunks_direction CHECK (direction IN ('inbound', 'outbound', 'bidirectional')),
     CONSTRAINT chk_trunks_status CHECK (status IN ('active', 'disabled'))
@@ -20,7 +24,7 @@ CREATE INDEX IF NOT EXISTS idx_trunks_connection_id ON trunks (carrier_connectio
 CREATE TABLE IF NOT EXISTS trunk_endpoints (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     organization_id UUID,
-    trunk_id UUID NOT NULL REFERENCES trunks(id) ON DELETE CASCADE,
+    trunk_id UUID NOT NULL,
     host TEXT NOT NULL,
     port INTEGER NOT NULL DEFAULT 5060,
     transport TEXT NOT NULL DEFAULT 'udp',
@@ -40,6 +44,10 @@ CREATE TABLE IF NOT EXISTS trunk_endpoints (
     CONSTRAINT uq_trunk_endpoints_target UNIQUE (trunk_id, host, port, transport, direction),
     CONSTRAINT uq_trunk_endpoints_id_org UNIQUE (id, organization_id),
     CONSTRAINT chk_trunk_endpoints_owner CHECK (organization_id IS NOT NULL),
+    CONSTRAINT fk_trunk_endpoints_trunk_scope
+        FOREIGN KEY (trunk_id, organization_id)
+        REFERENCES trunks(id, organization_id)
+        ON DELETE CASCADE,
     CONSTRAINT chk_trunk_endpoints_host CHECK (length(btrim(host)) > 0 AND host !~ '\s'),
     CONSTRAINT chk_trunk_endpoints_port CHECK (port BETWEEN 1 AND 65535),
     CONSTRAINT chk_trunk_endpoints_transport CHECK (transport IN ('udp', 'tcp', 'tls')),

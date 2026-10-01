@@ -1,5 +1,5 @@
 CREATE TABLE IF NOT EXISTS voice_agent_tool_secrets (
-    tool_id UUID PRIMARY KEY REFERENCES voice_agent_tools(id) ON DELETE CASCADE,
+    tool_id UUID PRIMARY KEY,
     organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
     voice_agent_id UUID NOT NULL,
     secret_ciphertext TEXT NOT NULL,
@@ -7,9 +7,9 @@ CREATE TABLE IF NOT EXISTS voice_agent_tool_secrets (
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     rotated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
 
-    CONSTRAINT fk_voice_agent_tool_secrets_agent_scope
-        FOREIGN KEY (voice_agent_id, organization_id)
-        REFERENCES voice_agents(id, organization_id)
+    CONSTRAINT fk_voice_agent_tool_secrets_tool_scope
+        FOREIGN KEY (tool_id, organization_id, voice_agent_id)
+        REFERENCES voice_agent_tools(id, organization_id, voice_agent_id)
         ON DELETE CASCADE,
 
     CONSTRAINT chk_voice_agent_tool_secrets_ciphertext
@@ -22,10 +22,10 @@ CREATE INDEX IF NOT EXISTS idx_voice_agent_tool_secrets_scope
 CREATE TABLE IF NOT EXISTS voice_agent_tool_executions (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-    session_id UUID NOT NULL REFERENCES voice_agent_sessions(id) ON DELETE CASCADE,
+    session_id UUID NOT NULL,
     voice_agent_id UUID NOT NULL,
-    tool_id UUID NOT NULL REFERENCES voice_agent_tools(id) ON DELETE CASCADE,
-    call_id UUID NOT NULL REFERENCES calls(id) ON DELETE CASCADE,
+    tool_id UUID NOT NULL,
+    call_id UUID NOT NULL,
 
     tool_call_id TEXT NOT NULL,
     state TEXT NOT NULL DEFAULT 'processing',
@@ -41,9 +41,21 @@ CREATE TABLE IF NOT EXISTS voice_agent_tool_executions (
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
 
+    CONSTRAINT fk_voice_agent_tool_executions_session_scope
+        FOREIGN KEY (session_id, organization_id)
+        REFERENCES voice_agent_sessions(id, organization_id)
+        ON DELETE CASCADE,
     CONSTRAINT fk_voice_agent_tool_executions_agent_scope
         FOREIGN KEY (voice_agent_id, organization_id)
         REFERENCES voice_agents(id, organization_id)
+        ON DELETE CASCADE,
+    CONSTRAINT fk_voice_agent_tool_executions_tool_scope
+        FOREIGN KEY (tool_id, organization_id, voice_agent_id)
+        REFERENCES voice_agent_tools(id, organization_id, voice_agent_id)
+        ON DELETE CASCADE,
+    CONSTRAINT fk_voice_agent_tool_executions_call_scope
+        FOREIGN KEY (call_id, organization_id)
+        REFERENCES calls(id, organization_id)
         ON DELETE CASCADE,
 
     CONSTRAINT chk_voice_agent_tool_executions_call_id

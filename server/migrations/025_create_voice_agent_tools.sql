@@ -15,6 +15,7 @@ CREATE TABLE IF NOT EXISTS voice_agent_tools (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
 
     -- Constraints & Scoping
+    CONSTRAINT uq_voice_agent_tools_id_scope UNIQUE (id, organization_id, voice_agent_id),
     CONSTRAINT uq_voice_agent_tools_agent_name UNIQUE (voice_agent_id, name),
     
     CONSTRAINT fk_voice_agent_tools_agent_scope

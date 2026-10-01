@@ -1,7 +1,7 @@
 CREATE TABLE IF NOT EXISTS subscribers (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-    sip_domain_id UUID NOT NULL REFERENCES sip_domains(id) ON DELETE CASCADE,
+    sip_domain_id UUID NOT NULL,
 
     username VARCHAR(64) NOT NULL,
     domain CITEXT NOT NULL,
@@ -14,7 +14,11 @@ CREATE TABLE IF NOT EXISTS subscribers (
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
 
-    UNIQUE (id, organization_id),
+    CONSTRAINT uq_subscribers_id_organization UNIQUE (id, organization_id),
+    CONSTRAINT fk_subscribers_sip_domain_scope
+        FOREIGN KEY (sip_domain_id, organization_id)
+        REFERENCES sip_domains(id, organization_id)
+        ON DELETE CASCADE,
     UNIQUE (sip_domain_id, username),
     UNIQUE (domain, username)
 );
