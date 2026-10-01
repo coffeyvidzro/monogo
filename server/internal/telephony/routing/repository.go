@@ -34,7 +34,7 @@ func (r *Repository) GetInboundContext(
 	if err != nil {
 		return inboundContext{}, err
 	}
-	if binding.VoiceVoiceAgentID != req.VoiceAgentID ||
+	if binding.VoiceAgentID != req.VoiceAgentID ||
 		binding.PhoneNumberID == nil ||
 		*binding.PhoneNumberID != req.PhoneNumberID {
 		return inboundContext{}, pgx.ErrNoRows
@@ -76,7 +76,7 @@ func (r *Repository) ResolveBYOCOutbound(
 
 	connection, err := r.queries.GetCarrierConnectionByID(ctx, sqlc.GetCarrierConnectionByIDParams{
 		ID:             *trunk.CarrierConnectionID,
-		OrganizationID: &organizationID,
+		OrganizationID: organizationID,
 	})
 	if err != nil {
 		return nil, err
