@@ -128,6 +128,7 @@ func (r *Runtime) registerControl(
 	if r.states[sessionID] == nil {
 		r.states[sessionID] = newConversationState()
 	}
+	r.callSessions[call.ID] = sessionID
 	r.mu.Unlock()
 
 	go r.observeControl(call, sessionID, control)
