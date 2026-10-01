@@ -206,6 +206,7 @@ func (emptyLifecycleRows) Scan(...interface{}) error                    { return
 func (emptyLifecycleRows) Values() ([]interface{}, error)               { return nil, nil }
 func (emptyLifecycleRows) RawValues() [][]byte                          { return nil }
 func (emptyLifecycleRows) Conn() *pgx.Conn                              { return nil }
+func (emptyLifecycleRows) TypeMap() *pgtype.Map                         { return pgtype.NewMap() }
 
 func (db *lifecycleDB) QueryRow(_ context.Context, query string, args ...interface{}) pgx.Row {
 	db.mu.Lock()
