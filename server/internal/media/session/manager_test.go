@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"io"
-	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -301,7 +300,7 @@ func TestManagerReturnsTerminalProviderFailure(t *testing.T) {
 	}
 	select {
 	case err := <-done:
-		if err == nil || !strings.Contains(err.Error(), "terminal media provider failure") {
+		if !errors.Is(err, session.ErrProviderFailure) {
 			t.Fatalf("Attach() error = %v", err)
 		}
 	case <-time.After(time.Second):
