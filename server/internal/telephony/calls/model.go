@@ -64,7 +64,7 @@ type InboundAdmissionRequest struct {
 	VoiceAgentID        uuid.UUID
 	PhoneNumberID       uuid.UUID
 	VoiceAgentBindingID uuid.UUID
-	CarrierConnectionID uuid.UUID
+	TrunkID uuid.UUID
 	FromURI             string
 	ToURI               string
 	OccurredAt          time.Time
@@ -102,7 +102,7 @@ type DTMFActionRequest struct {
 
 type ActiveAdmissionCall struct {
 	ID                  uuid.UUID
-	CarrierConnectionID uuid.UUID
+	TrunkID uuid.UUID
 }
 
 type ListRequest struct {
@@ -112,7 +112,6 @@ type ListRequest struct {
 }
 
 type RouteAttribution struct {
-	CarrierConnectionID *uuid.UUID
 	TrunkID             *uuid.UUID
 	TrunkEndpointID     *uuid.UUID
 }
@@ -121,7 +120,7 @@ type CallResponse struct {
 	ID                  uuid.UUID  `json:"id"`
 	OrganizationID      uuid.UUID  `json:"organization_id"`
 	VoiceAgentID        *uuid.UUID `json:"voice_agent_id,omitempty"`
-	CarrierConnectionID *uuid.UUID `json:"carrier_connection_id,omitempty"`
+	TrunkID *uuid.UUID `json:"carrier_connection_id,omitempty"`
 	TrunkID             *uuid.UUID `json:"trunk_id,omitempty"`
 	TrunkEndpointID     *uuid.UUID `json:"trunk_endpoint_id,omitempty"`
 	Direction           string     `json:"direction"`
@@ -143,7 +142,7 @@ func callResponse(call sqlc.Call) CallResponse {
 		ID:                  call.ID,
 		OrganizationID:      call.OrganizationID,
 		VoiceAgentID:        call.VoiceAgentID,
-		CarrierConnectionID: call.CarrierConnectionID,
+		TrunkID: call.TrunkID,
 		TrunkID:             call.TrunkID,
 		TrunkEndpointID:     call.TrunkEndpointID,
 		Direction:           call.Direction,

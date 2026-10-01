@@ -112,12 +112,12 @@ func (r *Repository) ListActiveForAdmissionReconciliation(
 
 	items := make([]ActiveAdmissionCall, 0, len(rows))
 	for _, row := range rows {
-		if row.CarrierConnectionID == nil {
+		if row.TrunkID == nil {
 			continue
 		}
 		items = append(items, ActiveAdmissionCall{
 			ID:                  row.ID,
-			CarrierConnectionID: *row.CarrierConnectionID,
+			TrunkID: *row.TrunkID,
 		})
 	}
 	return items, nil
@@ -142,7 +142,7 @@ func (r *Repository) SetRouteAttribution(
 	route RouteAttribution,
 ) (sqlc.Call, error) {
 	return r.queries.SetCallRouteAttribution(ctx, sqlc.SetCallRouteAttributionParams{
-		CarrierConnectionID: route.CarrierConnectionID,
+		TrunkID: route.TrunkID,
 		TrunkID:             route.TrunkID,
 		TrunkEndpointID:     route.TrunkEndpointID,
 		OrganizationID:      organizationID,
