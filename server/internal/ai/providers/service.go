@@ -139,14 +139,24 @@ func (s *Service) DeleteBinding(ctx context.Context, organizationID, agentID uui
 	return dbError(s.repo.DeleteBinding(ctx, organizationID, agentID, role), "delete Voice Agent provider binding")
 }
 
-func (s *Service) Resolve(ctx context.Context, organizationID, agentID uuid.UUID) ([]ResolvedBinding, error) {
-	if s.cipher == nil {
-		return nil, apperror.NewServiceUnavailable("AI provider credential encryption is unavailable", nil)
-	}
+func (s *Service) Resolve(
+	ctx context.Context,
+	organizationID, agentID uuid.UUID,
+) ([]ResolvedBinding, error) {
 	rows, err := s.repo.ResolveBindings(ctx, organizationID, agentID)
 	if err != nil {
 		return nil, apperror.NewInternal("resolve Voice Agent provider bindings", err)
 	}
+	if len(rows) == 0 {
+		return nil, nil
+	}
+	if s.cipher == nil {
+		return nil, apperror.NewServiceUnavailable(
+			"AI provider credential encryption is unavailable",
+			nil,
+		)
+	}
+
 	out := make([]ResolvedBinding, 0, len(rows))
 	for _, row := range rows {
 		secret, decryptErr := s.cipher.DecryptForScope(credentialScope(organizationID, row.CredentialID), row.SecretCiphertext)
