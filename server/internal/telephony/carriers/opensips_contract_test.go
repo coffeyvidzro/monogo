@@ -7,7 +7,7 @@ import (
 )
 
 func TestOpenSIPSBYOCAuthenticationContracts(t *testing.T) {
-	migration := readContractFile(t, "../../../migrations/026_create_carrier_digest_credentials.sql")
+	migration := readContractFile(t, "../../../migrations/014_create_carrier_digest_credentials.sql")
 	config := readContractFile(t, "../../../../containers/opensips/opensips.cfg")
 
 	assertContains(t, migration, "CREATE VIEW opensips_outbound_carrier_credentials")
