@@ -155,11 +155,6 @@ func New(deps Dependencies) (*Module, error) {
 			Repository: routingRepository,
 			Service:    routingService,
 		},
-		Voice: VoiceModule{
-			Repository: voiceRepository,
-			Service:    voiceService,
-			Handler:    voice.NewHandler(voiceService),
-		},
 		Recordings: RecordingsModule{
 			Repository: recordingsRepository,
 			Service:    recordingsService,
