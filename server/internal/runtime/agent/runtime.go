@@ -18,8 +18,9 @@ type Runtime struct {
 	logger       *logging.Logger
 
 	mu       sync.Mutex
-	controls map[uuid.UUID]*mediaControl
-	states   map[uuid.UUID]*conversationState
+	controls     map[uuid.UUID]*mediaControl
+	states       map[uuid.UUID]*conversationState
+	callSessions map[uuid.UUID]uuid.UUID
 }
 
 func New(
@@ -49,5 +50,6 @@ func New(
 		logger:       logger,
 		controls:     make(map[uuid.UUID]*mediaControl),
 		states:       make(map[uuid.UUID]*conversationState),
+		callSessions: make(map[uuid.UUID]uuid.UUID),
 	}, nil
 }
