@@ -65,13 +65,6 @@ func (s *conversationState) observe(event session.Event) {
 		}
 	case session.EventResponseStopped:
 		s.responseActive = false
-		if !s.speechStoppedAt.IsZero() {
-			latency := at.Sub(s.speechStoppedAt)
-			if latency >= 0 {
-				s.totalTurnLatency += latency
-				s.turnLatencyCount++
-			}
-		}
 	}
 }
 
@@ -130,6 +123,13 @@ func (s *conversationState) assistantTurn(event session.Event) (conversations.Cr
 	sequence := s.nextSequence
 	s.nextSequence++
 	s.turnCount++
+	if !s.speechStoppedAt.IsZero() && !event.OccurredAt.IsZero() {
+		latency := event.OccurredAt.Sub(s.speechStoppedAt)
+		if latency >= 0 {
+			s.totalTurnLatency += latency
+			s.turnLatencyCount++
+		}
+	}
 
 	var providerID *string
 	if event.ProviderID != "" {
@@ -206,8 +206,9 @@ func durationMilliseconds(value time.Duration) int32 {
 		return 0
 	}
 	ms := value.Milliseconds()
-	if ms > int64(^uint32(0)>>1) {
-		return int32(^uint32(0) >> 1)
+	const maxInt32 = int64(1<<31 - 1)
+	if ms > maxInt32 {
+		return int32(maxInt32)
 	}
 	return int32(ms)
 }
