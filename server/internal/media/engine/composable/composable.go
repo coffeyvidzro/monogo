@@ -77,6 +77,7 @@ func (e Engine) Start(ctx context.Context, cfg session.Config) (session.Stream, 
 		generator: generator, synthesizer: synthesizer, groq: groqConfig,
 		cartesia: cartesiaConfig, config: cfg,
 		audio: make(chan session.AudioFrame), events: make(chan session.Event, 32), done: make(chan struct{}),
+		pendingToolCalls: make(map[string]string),
 	}
 	if instructions := strings.TrimSpace(cfg.Instructions); instructions != "" {
 		s.messages = append(s.messages, groq.Message{Role: "system", Content: instructions})
@@ -101,8 +102,9 @@ type stream struct {
 	messages       []groq.Message
 	generation     uint64
 	responseCancel context.CancelFunc
-	responseActive bool
-	responses      sync.WaitGroup
+	responseActive   bool
+	pendingToolCalls map[string]string
+	responses        sync.WaitGroup
 	closeOnce      sync.Once
 	done           chan struct{}
 }
@@ -113,6 +115,43 @@ func (s *stream) SendAudio(ctx context.Context, frame session.AudioFrame) error 
 
 func (s *stream) Interrupt(context.Context) error {
 	s.cancelResponse()
+	return nil
+}
+
+func (s *stream) SubmitToolResult(ctx context.Context, result session.ToolResult) error {
+	if ctx == nil {
+		return fmt.Errorf("tool result context is required")
+	}
+	s.mu.Lock()
+	name, exists := s.pendingToolCalls[result.ToolCallID]
+	if !exists {
+		s.mu.Unlock()
+		return fmt.Errorf("unknown pending tool call %q", result.ToolCallID)
+	}
+	if result.Name != "" && result.Name != name {
+		s.mu.Unlock()
+		return fmt.Errorf("tool result name does not match pending call")
+	}
+	delete(s.pendingToolCalls, result.ToolCallID)
+	s.messages = append(s.messages, groq.Message{
+		Role: "tool",
+		Content: result.Content,
+		ToolCallID: result.ToolCallID,
+	})
+	if len(s.pendingToolCalls) != 0 {
+		s.mu.Unlock()
+		return nil
+	}
+	s.generation++
+	generation := s.generation
+	responseCtx, cancel := context.WithCancel(s.ctx)
+	s.responseCancel = cancel
+	s.responseActive = true
+	messages := append([]groq.Message(nil), s.messages...)
+	s.responses.Add(1)
+	s.mu.Unlock()
+	s.emit(session.Event{Type: session.EventResponseStarted, OccurredAt: time.Now().UTC()})
+	go s.generate(responseCtx, generation, messages)
 	return nil
 }
 
@@ -230,6 +269,7 @@ func (s *stream) generate(ctx context.Context, generation uint64, messages []gro
 		select {
 		case event, ok := <-completionEvents:
 			if !ok || event.Done {
+				completeCalls := make([]*session.ToolCallEvent, 0, len(toolOrder))
 				for _, index := range toolOrder {
 					call := toolCalls[index]
 					if call == nil || call.ID == "" || call.Name == "" || !json.Valid(call.Arguments) {
@@ -243,11 +283,16 @@ func (s *stream) generate(ctx context.Context, generation uint64, messages []gro
 						})
 						continue
 					}
+					completeCalls = append(completeCalls, call)
 					s.emitCurrent(ctx, generation, session.Event{
 						Type:       session.EventToolCall,
 						ToolCall:   call,
 						OccurredAt: time.Now().UTC(),
 					})
+				}
+				if len(completeCalls) > 0 {
+					s.awaitToolResults(generation, completeCalls)
+					return
 				}
 				finalChunk := strings.TrimSpace(pending.String())
 				switch {
@@ -353,6 +398,31 @@ func (s *stream) generate(ctx context.Context, generation uint64, messages []gro
 			}
 		}
 	}
+}
+
+func (s *stream) awaitToolResults(generation uint64, calls []*session.ToolCallEvent) {
+	s.mu.Lock()
+	if generation != s.generation || !s.responseActive {
+		s.mu.Unlock()
+		return
+	}
+	s.responseActive = false
+	s.responseCancel = nil
+	message := groq.Message{Role: "assistant"}
+	for _, call := range calls {
+		message.ToolCalls = append(message.ToolCalls, groq.MessageToolCall{
+			ID: call.ID,
+			Type: "function",
+			Function: groq.MessageFunctionCall{
+				Name: call.Name,
+				Arguments: string(call.Arguments),
+			},
+		})
+		s.pendingToolCalls[call.ID] = call.Name
+	}
+	s.messages = append(s.messages, message)
+	s.mu.Unlock()
+	s.emit(session.Event{Type: session.EventResponseStopped, OccurredAt: time.Now().UTC()})
 }
 
 func (s *stream) cancelResponse() {
