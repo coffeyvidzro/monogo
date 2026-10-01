@@ -69,9 +69,9 @@ func writeTelecom(w http.ResponseWriter, values map[string]string, metricType st
 	}
 }
 
-func prometheusLabels(labels [4]string) string {
-	names := [4]string{"carrier_connection_id", "trunk_id", "endpoint_id", "result"}
-	items := make([]string, 0, 4)
+func prometheusLabels(labels [3]string) string {
+	names := [3]string{"trunk_id", "endpoint_id", "result"}
+	items := make([]string, 0, 3)
 	for index, value := range labels {
 		if value != "" {
 			items = append(items, names[index]+`="`+strings.ReplaceAll(value, `"`, `\"`)+`"`)
