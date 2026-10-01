@@ -4,6 +4,7 @@ import (
 	"github.com/coffeyvidzro/monogo/internal/ai/agents"
 	"github.com/coffeyvidzro/monogo/internal/ai/conversations"
 	"github.com/coffeyvidzro/monogo/internal/ai/orchestration"
+	"github.com/coffeyvidzro/monogo/internal/ai/providers"
 	"github.com/coffeyvidzro/monogo/internal/ai/tools"
 	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
 	"github.com/coffeyvidzro/monogo/internal/security/encryption"
@@ -18,6 +19,7 @@ type Dependencies struct {
 type Module struct {
 	Agents        AgentsModule
 	Tools         ToolsModule
+	Providers     ProvidersModule
 	Conversations ConversationsModule
 	Orchestration *orchestration.Service
 }
@@ -33,6 +35,12 @@ type ToolsModule struct {
 	Service    *tools.Service
 	Handler    *tools.Handler
 	Executor   *tools.Executor
+}
+
+type ProvidersModule struct {
+	Repository *providers.Repository
+	Service    *providers.Service
+	Handler    *providers.Handler
 }
 
 type ConversationsModule struct {
@@ -53,10 +61,18 @@ func New(queries *sqlc.Queries, dependencies ...Dependencies) *Module {
 	toolsService := tools.NewService(toolsRepository, deps.CredentialCipher)
 	toolsExecutor := tools.NewExecutor(toolsService, deps.Calls)
 
+	providersRepository := providers.NewRepository(queries)
+	providersService := providers.NewService(providersRepository, deps.CredentialCipher)
+
 	conversationsRepository := conversations.NewRepository(queries)
 	conversationsService := conversations.NewService(conversationsRepository)
 
-	orchestrator := orchestration.NewService(agentsService, conversationsService, toolsExecutor)
+	orchestrator := orchestration.NewService(
+		agentsService,
+		conversationsService,
+		toolsExecutor,
+		providersService,
+	)
 
 	return &Module{
 		Agents: AgentsModule{
@@ -69,6 +85,11 @@ func New(queries *sqlc.Queries, dependencies ...Dependencies) *Module {
 			Service:    toolsService,
 			Handler:    tools.NewHandler(toolsService),
 			Executor:   toolsExecutor,
+		},
+		Providers: ProvidersModule{
+			Repository: providersRepository,
+			Service:    providersService,
+			Handler:    providers.NewHandler(providersService),
 		},
 		Conversations: ConversationsModule{
 			Repository: conversationsRepository,
