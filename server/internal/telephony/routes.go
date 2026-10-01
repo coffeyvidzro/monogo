@@ -7,7 +7,6 @@ import (
 
 	"github.com/coffeyvidzro/monogo/internal/telephony/calls"
 	"github.com/coffeyvidzro/monogo/internal/telephony/carriers"
-	"github.com/coffeyvidzro/monogo/internal/telephony/conferences"
 	"github.com/coffeyvidzro/monogo/internal/telephony/numbers"
 	"github.com/coffeyvidzro/monogo/internal/telephony/recordings"
 	"github.com/coffeyvidzro/monogo/internal/telephony/sip_domains"
@@ -62,11 +61,6 @@ func RegisterRoutes(
 		organizationAccess("trunks"),
 	)
 
-	conferences.RegisterRoutes(
-		router,
-		module.Conferences.Handler,
-		organizationAccess("conferences"),
-	)
 
 	webrtc.RegisterRoutes(
 		router,
