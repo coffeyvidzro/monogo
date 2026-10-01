@@ -293,5 +293,5 @@ LEFT JOIN recordings AS r
   ON r.call_id = c.id
  AND r.organization_id = c.organization_id
 WHERE c.id = sqlc.arg(id)
-GROUP BY c.id, o.name, agent.name, t.name, t.name
+GROUP BY c.id, o.name, agent.name, t.name
 LIMIT 1;

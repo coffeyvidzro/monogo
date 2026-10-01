@@ -64,7 +64,7 @@ type InboundAdmissionRequest struct {
 	VoiceAgentID        uuid.UUID
 	PhoneNumberID       uuid.UUID
 	VoiceAgentBindingID uuid.UUID
-	TrunkID uuid.UUID
+	TrunkID             uuid.UUID
 	FromURI             string
 	ToURI               string
 	OccurredAt          time.Time
@@ -101,7 +101,7 @@ type DTMFActionRequest struct {
 }
 
 type ActiveAdmissionCall struct {
-	ID                  uuid.UUID
+	ID      uuid.UUID
 	TrunkID uuid.UUID
 }
 
@@ -112,50 +112,48 @@ type ListRequest struct {
 }
 
 type RouteAttribution struct {
-	TrunkID             *uuid.UUID
-	TrunkEndpointID     *uuid.UUID
+	TrunkID         *uuid.UUID
+	TrunkEndpointID *uuid.UUID
 }
 
 type CallResponse struct {
-	ID                  uuid.UUID  `json:"id"`
-	OrganizationID      uuid.UUID  `json:"organization_id"`
-	VoiceAgentID        *uuid.UUID `json:"voice_agent_id,omitempty"`
-	TrunkID *uuid.UUID `json:"carrier_connection_id,omitempty"`
-	TrunkID             *uuid.UUID `json:"trunk_id,omitempty"`
-	TrunkEndpointID     *uuid.UUID `json:"trunk_endpoint_id,omitempty"`
-	Direction           string     `json:"direction"`
-	State               string     `json:"state"`
-	MediaState          string     `json:"media_state"`
-	FromURI             string     `json:"from_uri"`
-	ToURI               string     `json:"to_uri"`
-	SIPCallID           *string    `json:"sip_call_id,omitempty"`
-	StartedAt           *time.Time `json:"started_at,omitempty"`
-	AnsweredAt          *time.Time `json:"answered_at,omitempty"`
-	EndedAt             *time.Time `json:"ended_at,omitempty"`
-	HangupReason        *string    `json:"hangup_reason,omitempty"`
-	CreatedAt           time.Time  `json:"created_at"`
-	UpdatedAt           time.Time  `json:"updated_at"`
+	ID              uuid.UUID  `json:"id"`
+	OrganizationID  uuid.UUID  `json:"organization_id"`
+	VoiceAgentID    *uuid.UUID `json:"voice_agent_id,omitempty"`
+	TrunkID         *uuid.UUID `json:"trunk_id,omitempty"`
+	TrunkEndpointID *uuid.UUID `json:"trunk_endpoint_id,omitempty"`
+	Direction       string     `json:"direction"`
+	State           string     `json:"state"`
+	MediaState      string     `json:"media_state"`
+	FromURI         string     `json:"from_uri"`
+	ToURI           string     `json:"to_uri"`
+	SIPCallID       *string    `json:"sip_call_id,omitempty"`
+	StartedAt       *time.Time `json:"started_at,omitempty"`
+	AnsweredAt      *time.Time `json:"answered_at,omitempty"`
+	EndedAt         *time.Time `json:"ended_at,omitempty"`
+	HangupReason    *string    `json:"hangup_reason,omitempty"`
+	CreatedAt       time.Time  `json:"created_at"`
+	UpdatedAt       time.Time  `json:"updated_at"`
 }
 
 func callResponse(call sqlc.Call) CallResponse {
 	return CallResponse{
-		ID:                  call.ID,
-		OrganizationID:      call.OrganizationID,
-		VoiceAgentID:        call.VoiceAgentID,
-		TrunkID: call.TrunkID,
-		TrunkID:             call.TrunkID,
-		TrunkEndpointID:     call.TrunkEndpointID,
-		Direction:           call.Direction,
-		State:               call.State,
-		MediaState:          call.MediaState,
-		FromURI:             call.FromUri,
-		ToURI:               call.ToUri,
-		SIPCallID:           call.SipCallID,
-		StartedAt:           pgconv.TimestamptzToTimePtr(call.StartedAt),
-		AnsweredAt:          pgconv.TimestamptzToTimePtr(call.AnsweredAt),
-		EndedAt:             pgconv.TimestamptzToTimePtr(call.EndedAt),
-		HangupReason:        call.HangupReason,
-		CreatedAt:           pgconv.TimestamptzToTime(call.CreatedAt),
-		UpdatedAt:           pgconv.TimestamptzToTime(call.UpdatedAt),
+		ID:              call.ID,
+		OrganizationID:  call.OrganizationID,
+		VoiceAgentID:    call.VoiceAgentID,
+		TrunkID:         call.TrunkID,
+		TrunkEndpointID: call.TrunkEndpointID,
+		Direction:       call.Direction,
+		State:           call.State,
+		MediaState:      call.MediaState,
+		FromURI:         call.FromUri,
+		ToURI:           call.ToUri,
+		SIPCallID:       call.SipCallID,
+		StartedAt:       pgconv.TimestamptzToTimePtr(call.StartedAt),
+		AnsweredAt:      pgconv.TimestamptzToTimePtr(call.AnsweredAt),
+		EndedAt:         pgconv.TimestamptzToTimePtr(call.EndedAt),
+		HangupReason:    call.HangupReason,
+		CreatedAt:       pgconv.TimestamptzToTime(call.CreatedAt),
+		UpdatedAt:       pgconv.TimestamptzToTime(call.UpdatedAt),
 	}
 }

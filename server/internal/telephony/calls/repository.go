@@ -116,7 +116,7 @@ func (r *Repository) ListActiveForAdmissionReconciliation(
 			continue
 		}
 		items = append(items, ActiveAdmissionCall{
-			ID:                  row.ID,
+			ID:      row.ID,
 			TrunkID: *row.TrunkID,
 		})
 	}
@@ -141,13 +141,15 @@ func (r *Repository) SetRouteAttribution(
 	organizationID, id uuid.UUID,
 	route RouteAttribution,
 ) (sqlc.Call, error) {
-	return r.queries.SetCallRouteAttribution(ctx, sqlc.SetCallRouteAttributionParams{
-		TrunkID: route.TrunkID,
-		TrunkID:             route.TrunkID,
-		TrunkEndpointID:     route.TrunkEndpointID,
-		OrganizationID:      organizationID,
-		ID:                  id,
-	})
+	return r.queries.SetCallRouteAttribution(
+		ctx,
+		sqlc.SetCallRouteAttributionParams{
+			TrunkID:         route.TrunkID,
+			TrunkEndpointID: route.TrunkEndpointID,
+			OrganizationID:  organizationID,
+			ID:              id,
+		},
+	)
 }
 
 func (r *Repository) MarkRinging(ctx context.Context, organizationID, id uuid.UUID) (sqlc.Call, error) {
