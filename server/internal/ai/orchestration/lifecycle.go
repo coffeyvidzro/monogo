@@ -94,6 +94,46 @@ func (s *Service) CompleteCall(
 	return completed, true, nil
 }
 
+func (s *Service) CreateTurn(
+	ctx context.Context,
+	organizationID, sessionID uuid.UUID,
+	req conversations.CreateTurnRequest,
+) (sqlc.VoiceAgentTurn, error) {
+	return s.conversations.CreateTurn(ctx, conversations.Identity{
+		OrganizationID: organizationID,
+		SessionID:      sessionID,
+	}, req)
+}
+
+func (s *Service) CompleteCallWithSummary(
+	ctx context.Context,
+	organizationID, callID uuid.UUID,
+	state string,
+	endedAt time.Time,
+	summary conversations.CompleteRequest,
+) (sqlc.VoiceAgentSession, bool, error) {
+	active, err := s.conversations.GetActiveByCall(ctx, organizationID, callID)
+	if err != nil {
+		if appErrorCode(err, "NOT_FOUND") {
+			return sqlc.VoiceAgentSession{}, false, nil
+		}
+		return sqlc.VoiceAgentSession{}, false, err
+	}
+	if endedAt.IsZero() {
+		endedAt = time.Now().UTC()
+	}
+	summary.State = state
+	summary.EndedAt = endedAt
+	completed, err := s.conversations.Complete(ctx, organizationID, active.ID, summary)
+	if err != nil {
+		if appErrorCode(err, "NOT_FOUND") {
+			return sqlc.VoiceAgentSession{}, false, nil
+		}
+		return sqlc.VoiceAgentSession{}, false, err
+	}
+	return completed, true, nil
+}
+
 func appErrorCode(err error, code string) bool {
 	var appErr *apperror.AppError
 	return errors.As(err, &appErr) && appErr.Code == code

@@ -17,8 +17,10 @@ type Runtime struct {
 	freeSwitch   *freeswitch.Client
 	logger       *logging.Logger
 
-	mu       sync.Mutex
-	controls map[uuid.UUID]*mediaControl
+	mu           sync.Mutex
+	controls     map[uuid.UUID]*mediaControl
+	states       map[uuid.UUID]*conversationState
+	callSessions map[uuid.UUID]uuid.UUID
 }
 
 func New(
@@ -47,5 +49,7 @@ func New(
 		freeSwitch:   freeSwitch,
 		logger:       logger,
 		controls:     make(map[uuid.UUID]*mediaControl),
+		states:       make(map[uuid.UUID]*conversationState),
+		callSessions: make(map[uuid.UUID]uuid.UUID),
 	}, nil
 }

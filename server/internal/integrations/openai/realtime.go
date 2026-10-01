@@ -272,6 +272,15 @@ func (s *realtimeStream) handle(event ServerEvent) {
 			ProviderID: providerID,
 			OccurredAt: now,
 		})
+	case "response.output_audio_transcript.delta", "response.audio_transcript.delta":
+		if event.Delta != "" {
+			s.emitEvent(session.Event{
+				Type:       session.EventResponseDelta,
+				Response:   &session.ResponseEvent{Text: event.Delta},
+				ProviderID: providerID,
+				OccurredAt: now,
+			})
+		}
 	case "response.created":
 		s.emitEvent(session.Event{Type: session.EventResponseStarted, ProviderID: providerID, OccurredAt: now})
 	case "response.done":

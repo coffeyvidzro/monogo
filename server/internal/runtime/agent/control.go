@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/coder/websocket"
+	"github.com/coffeyvidzro/monogo/internal/ai/conversations"
 	"github.com/coffeyvidzro/monogo/internal/ai/tools"
 	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
 	"github.com/coffeyvidzro/monogo/internal/media/session"
@@ -124,6 +125,10 @@ func (r *Runtime) registerControl(
 		return fmt.Errorf("media control already registered for session %s", sessionID)
 	}
 	r.controls[sessionID] = control
+	if r.states[sessionID] == nil {
+		r.states[sessionID] = newConversationState()
+	}
+	r.callSessions[call.ID] = sessionID
 	r.mu.Unlock()
 
 	go r.observeControl(call, sessionID, control)
@@ -141,6 +146,12 @@ func (r *Runtime) observeControl(call sqlc.Call, sessionID uuid.UUID, control *m
 	}()
 
 	for event := range control.Events() {
+		r.mu.Lock()
+		state := r.states[sessionID]
+		r.mu.Unlock()
+		if state != nil {
+			state.observe(event)
+		}
 		if r.logger != nil {
 			r.logger.Info(
 				context.Background(),
@@ -151,9 +162,24 @@ func (r *Runtime) observeControl(call sqlc.Call, sessionID uuid.UUID, control *m
 				"provider_id", event.ProviderID,
 			)
 		}
-		if event.Type == session.EventToolCall && event.ToolCall != nil {
-			go r.executeRealtimeTool(call, sessionID, control, *event.ToolCall)
-			continue
+		switch event.Type {
+		case session.EventTranscriptFinal:
+			if state != nil {
+				if turn, ok := state.userTurn(event); ok {
+					r.persistTurn(call.OrganizationID, sessionID, turn)
+				}
+			}
+		case session.EventResponseStopped:
+			if state != nil {
+				if turn, ok := state.assistantTurn(event); ok {
+					r.persistTurn(call.OrganizationID, sessionID, turn)
+				}
+			}
+		case session.EventToolCall:
+			if event.ToolCall != nil {
+				go r.executeRealtimeTool(call, sessionID, control, *event.ToolCall)
+				continue
+			}
 		}
 		if event.Type == session.EventError &&
 			event.Failure != nil &&
@@ -232,6 +258,17 @@ func (r *Runtime) executeRealtimeTool(
 		result.Content = "{}"
 	}
 
+	r.mu.Lock()
+	state := r.states[sessionID]
+	r.mu.Unlock()
+	if state != nil {
+		r.persistTurn(
+			call.OrganizationID,
+			sessionID,
+			state.toolTurn(result.Name, result.ToolCallID, result.Content, result.IsError),
+		)
+	}
+
 	if sendErr := control.Send(ctx, session.Command{
 		Type:       session.CommandToolResult,
 		ToolResult: &result,
@@ -244,6 +281,24 @@ func (r *Runtime) executeRealtimeTool(
 			"tool_call_id", toolCall.ID,
 			"tool_name", toolCall.Name,
 			"error", sendErr,
+		)
+	}
+}
+
+func (r *Runtime) persistTurn(
+	organizationID, sessionID uuid.UUID,
+	req conversations.CreateTurnRequest,
+) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if _, err := r.orchestrator.CreateTurn(ctx, organizationID, sessionID, req); err != nil && r.logger != nil {
+		r.logger.Error(
+			context.Background(),
+			"persist Voice Agent turn",
+			"voice_agent_session_id", sessionID,
+			"sequence", req.Sequence,
+			"role", req.Role,
+			"error", err,
 		)
 	}
 }

@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/coffeyvidzro/monogo/internal/ai/conversations"
 	"github.com/coffeyvidzro/monogo/internal/ai/orchestration"
 	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
 	"github.com/coffeyvidzro/monogo/internal/integrations/freeswitch"
@@ -170,12 +171,19 @@ func (r *Runtime) finish(
 	state string,
 	endedAt time.Time,
 ) error {
-	record, completed, err := r.orchestrator.CompleteCall(
+	summary, sessionID := r.conversationSummary(call.ID)
+	record, completed, err := r.orchestrator.CompleteCallWithSummary(
 		ctx,
 		call.OrganizationID,
 		call.ID,
 		state,
 		endedAt,
+		conversations.CompleteRequest{
+			TurnCount:              summary.TurnCount,
+			InterruptionCount:      summary.InterruptionCount,
+			FirstResponseLatencyMS: summary.FirstResponseLatencyMS,
+			AverageTurnLatencyMS:   summary.AverageTurnLatencyMS,
+		},
 	)
 	if err != nil {
 		return fmt.Errorf("complete durable Voice Agent session: %w", err)
@@ -183,6 +191,7 @@ func (r *Runtime) finish(
 	if !completed {
 		return nil
 	}
+	r.releaseConversation(call.ID, sessionID)
 	if err := r.stopMediaSession(ctx, record.ID); err != nil {
 		return fmt.Errorf("stop Voice Agent media session: %w", err)
 	}
@@ -190,14 +199,42 @@ func (r *Runtime) finish(
 }
 
 func (r *Runtime) failSession(ctx context.Context, call sqlc.Call, endedAt time.Time) error {
-	_, _, err := r.orchestrator.CompleteCall(
+	summary, sessionID := r.conversationSummary(call.ID)
+	_, _, err := r.orchestrator.CompleteCallWithSummary(
 		ctx,
 		call.OrganizationID,
 		call.ID,
 		"failed",
 		endedAt,
+		conversations.CompleteRequest{
+			TurnCount:              summary.TurnCount,
+			InterruptionCount:      summary.InterruptionCount,
+			FirstResponseLatencyMS: summary.FirstResponseLatencyMS,
+			AverageTurnLatencyMS:   summary.AverageTurnLatencyMS,
+		},
 	)
+	if err == nil {
+		r.releaseConversation(call.ID, sessionID)
+	}
 	return err
+}
+
+func (r *Runtime) conversationSummary(callID uuid.UUID) (conversationSummary, uuid.UUID) {
+	r.mu.Lock()
+	sessionID := r.callSessions[callID]
+	state := r.states[sessionID]
+	r.mu.Unlock()
+	if state == nil {
+		return conversationSummary{}, sessionID
+	}
+	return state.summary(), sessionID
+}
+
+func (r *Runtime) releaseConversation(callID, sessionID uuid.UUID) {
+	r.mu.Lock()
+	delete(r.callSessions, callID)
+	delete(r.states, sessionID)
+	r.mu.Unlock()
 }
 
 func redactWebSocketURL(raw string) string {
