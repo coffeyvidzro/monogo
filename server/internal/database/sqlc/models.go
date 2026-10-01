@@ -60,24 +60,23 @@ type AuthTransaction struct {
 }
 
 type Call struct {
-	ID                  uuid.UUID          `db:"id" json:"id"`
-	OrganizationID      uuid.UUID          `db:"organization_id" json:"organization_id"`
-	VoiceAgentID        *uuid.UUID         `db:"voice_agent_id" json:"voice_agent_id"`
-	CarrierConnectionID *uuid.UUID         `db:"carrier_connection_id" json:"carrier_connection_id"`
-	TrunkID             *uuid.UUID         `db:"trunk_id" json:"trunk_id"`
-	TrunkEndpointID     *uuid.UUID         `db:"trunk_endpoint_id" json:"trunk_endpoint_id"`
-	Direction           string             `db:"direction" json:"direction"`
-	State               string             `db:"state" json:"state"`
-	MediaState          string             `db:"media_state" json:"media_state"`
-	FromUri             string             `db:"from_uri" json:"from_uri"`
-	ToUri               string             `db:"to_uri" json:"to_uri"`
-	SipCallID           *string            `db:"sip_call_id" json:"sip_call_id"`
-	StartedAt           pgtype.Timestamptz `db:"started_at" json:"started_at"`
-	AnsweredAt          pgtype.Timestamptz `db:"answered_at" json:"answered_at"`
-	EndedAt             pgtype.Timestamptz `db:"ended_at" json:"ended_at"`
-	HangupReason        *string            `db:"hangup_reason" json:"hangup_reason"`
-	CreatedAt           pgtype.Timestamptz `db:"created_at" json:"created_at"`
-	UpdatedAt           pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+	ID              uuid.UUID          `db:"id" json:"id"`
+	OrganizationID  uuid.UUID          `db:"organization_id" json:"organization_id"`
+	VoiceAgentID    *uuid.UUID         `db:"voice_agent_id" json:"voice_agent_id"`
+	TrunkID         *uuid.UUID         `db:"trunk_id" json:"trunk_id"`
+	TrunkEndpointID *uuid.UUID         `db:"trunk_endpoint_id" json:"trunk_endpoint_id"`
+	Direction       string             `db:"direction" json:"direction"`
+	State           string             `db:"state" json:"state"`
+	MediaState      string             `db:"media_state" json:"media_state"`
+	FromUri         string             `db:"from_uri" json:"from_uri"`
+	ToUri           string             `db:"to_uri" json:"to_uri"`
+	SipCallID       *string            `db:"sip_call_id" json:"sip_call_id"`
+	StartedAt       pgtype.Timestamptz `db:"started_at" json:"started_at"`
+	AnsweredAt      pgtype.Timestamptz `db:"answered_at" json:"answered_at"`
+	EndedAt         pgtype.Timestamptz `db:"ended_at" json:"ended_at"`
+	HangupReason    *string            `db:"hangup_reason" json:"hangup_reason"`
+	CreatedAt       pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	UpdatedAt       pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 }
 
 type CallParticipant struct {
@@ -92,46 +91,6 @@ type CallParticipant struct {
 	LeftAt         pgtype.Timestamptz `db:"left_at" json:"left_at"`
 	CreatedAt      pgtype.Timestamptz `db:"created_at" json:"created_at"`
 	UpdatedAt      pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
-}
-
-type CarrierConnection struct {
-	ID                      uuid.UUID          `db:"id" json:"id"`
-	OrganizationID          uuid.UUID          `db:"organization_id" json:"organization_id"`
-	Name                    string             `db:"name" json:"name"`
-	Status                  string             `db:"status" json:"status"`
-	OutboundAuthMethod      string             `db:"outbound_auth_method" json:"outbound_auth_method"`
-	AuthUsername            *string            `db:"auth_username" json:"auth_username"`
-	AuthSecretCiphertext    *string            `db:"auth_secret_ciphertext" json:"auth_secret_ciphertext"`
-	InboundEnabled          bool               `db:"inbound_enabled" json:"inbound_enabled"`
-	InboundAuthMethod       string             `db:"inbound_auth_method" json:"inbound_auth_method"`
-	InboundUsername         *string            `db:"inbound_username" json:"inbound_username"`
-	InboundSecretCiphertext *string            `db:"inbound_secret_ciphertext" json:"inbound_secret_ciphertext"`
-	MaxCps                  int32              `db:"max_cps" json:"max_cps"`
-	MaxConcurrentCalls      int32              `db:"max_concurrent_calls" json:"max_concurrent_calls"`
-	Codecs                  []string           `db:"codecs" json:"codecs"`
-	SupportsVideo           bool               `db:"supports_video" json:"supports_video"`
-	SupportsFax             bool               `db:"supports_fax" json:"supports_fax"`
-	CreatedAt               pgtype.Timestamptz `db:"created_at" json:"created_at"`
-	UpdatedAt               pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
-}
-
-type CarrierConnectionSourceIp struct {
-	ID                  uuid.UUID          `db:"id" json:"id"`
-	OrganizationID      uuid.UUID          `db:"organization_id" json:"organization_id"`
-	CarrierConnectionID uuid.UUID          `db:"carrier_connection_id" json:"carrier_connection_id"`
-	Cidr                netip.Prefix       `db:"cidr" json:"cidr"`
-	CreatedAt           pgtype.Timestamptz `db:"created_at" json:"created_at"`
-}
-
-type CarrierDigestCredential struct {
-	CarrierConnectionID uuid.UUID          `db:"carrier_connection_id" json:"carrier_connection_id"`
-	OrganizationID      uuid.UUID          `db:"organization_id" json:"organization_id"`
-	Direction           string             `db:"direction" json:"direction"`
-	Username            string             `db:"username" json:"username"`
-	Realm               string             `db:"realm" json:"realm"`
-	Ha1Md5              string             `db:"ha1_md5" json:"ha1_md5"`
-	CreatedAt           pgtype.Timestamptz `db:"created_at" json:"created_at"`
-	UpdatedAt           pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 }
 
 type Idempotency struct {
@@ -152,29 +111,20 @@ type Idempotency struct {
 	UpdatedAt           pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 }
 
-type OpensipsCarrierDigestCredential struct {
-	CarrierConnectionID uuid.UUID   `db:"carrier_connection_id" json:"carrier_connection_id"`
-	OrganizationID      uuid.UUID   `db:"organization_id" json:"organization_id"`
-	Direction           string      `db:"direction" json:"direction"`
-	Username            string      `db:"username" json:"username"`
-	Realm               string      `db:"realm" json:"realm"`
-	Password            interface{} `db:"password" json:"password"`
+type OpensipsInboundTrunkCredential struct {
+	TrunkID        uuid.UUID `db:"trunk_id" json:"trunk_id"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	Username       string    `db:"username" json:"username"`
+	Domain         string    `db:"domain" json:"domain"`
+	Ha1Md5         string    `db:"ha1_md5" json:"ha1_md5"`
 }
 
-type OpensipsInboundCarrierCredential struct {
-	CarrierConnectionID uuid.UUID `db:"carrier_connection_id" json:"carrier_connection_id"`
-	OrganizationID      uuid.UUID `db:"organization_id" json:"organization_id"`
-	Username            string    `db:"username" json:"username"`
-	Domain              string    `db:"domain" json:"domain"`
-	Ha1Md5              string    `db:"ha1_md5" json:"ha1_md5"`
-}
-
-type OpensipsOutboundCarrierCredential struct {
-	CarrierConnectionID uuid.UUID   `db:"carrier_connection_id" json:"carrier_connection_id"`
-	OrganizationID      uuid.UUID   `db:"organization_id" json:"organization_id"`
-	Username            string      `db:"username" json:"username"`
-	Realm               string      `db:"realm" json:"realm"`
-	Password            interface{} `db:"password" json:"password"`
+type OpensipsOutboundTrunkCredential struct {
+	TrunkID        uuid.UUID   `db:"trunk_id" json:"trunk_id"`
+	OrganizationID uuid.UUID   `db:"organization_id" json:"organization_id"`
+	Username       string      `db:"username" json:"username"`
+	Realm          string      `db:"realm" json:"realm"`
+	Password       interface{} `db:"password" json:"password"`
 }
 
 type Organization struct {
@@ -246,15 +196,15 @@ type OutboxEvent struct {
 }
 
 type PhoneNumber struct {
-	ID                  uuid.UUID          `db:"id" json:"id"`
-	OrganizationID      uuid.UUID          `db:"organization_id" json:"organization_id"`
-	Number              string             `db:"number" json:"number"`
-	CountryCode         string             `db:"country_code" json:"country_code"`
-	CarrierConnectionID *uuid.UUID         `db:"carrier_connection_id" json:"carrier_connection_id"`
-	VoiceEnabled        bool               `db:"voice_enabled" json:"voice_enabled"`
-	Status              string             `db:"status" json:"status"`
-	CreatedAt           pgtype.Timestamptz `db:"created_at" json:"created_at"`
-	UpdatedAt           pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+	ID             uuid.UUID          `db:"id" json:"id"`
+	OrganizationID uuid.UUID          `db:"organization_id" json:"organization_id"`
+	Number         string             `db:"number" json:"number"`
+	CountryCode    string             `db:"country_code" json:"country_code"`
+	TrunkID        *uuid.UUID         `db:"trunk_id" json:"trunk_id"`
+	VoiceEnabled   bool               `db:"voice_enabled" json:"voice_enabled"`
+	Status         string             `db:"status" json:"status"`
+	CreatedAt      pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	UpdatedAt      pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 }
 
 type ProcessedEvent struct {
@@ -301,19 +251,43 @@ type Session struct {
 }
 
 type Trunk struct {
-	ID                  uuid.UUID          `db:"id" json:"id"`
-	OrganizationID      *uuid.UUID         `db:"organization_id" json:"organization_id"`
-	CarrierConnectionID *uuid.UUID         `db:"carrier_connection_id" json:"carrier_connection_id"`
-	Name                string             `db:"name" json:"name"`
-	Direction           string             `db:"direction" json:"direction"`
-	Status              string             `db:"status" json:"status"`
-	CreatedAt           pgtype.Timestamptz `db:"created_at" json:"created_at"`
-	UpdatedAt           pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+	ID                      uuid.UUID          `db:"id" json:"id"`
+	OrganizationID          uuid.UUID          `db:"organization_id" json:"organization_id"`
+	Name                    string             `db:"name" json:"name"`
+	Direction               string             `db:"direction" json:"direction"`
+	Status                  string             `db:"status" json:"status"`
+	OutboundAuthMethod      string             `db:"outbound_auth_method" json:"outbound_auth_method"`
+	AuthUsername            *string            `db:"auth_username" json:"auth_username"`
+	AuthRealm               *string            `db:"auth_realm" json:"auth_realm"`
+	AuthSecretCiphertext    *string            `db:"auth_secret_ciphertext" json:"auth_secret_ciphertext"`
+	InboundEnabled          bool               `db:"inbound_enabled" json:"inbound_enabled"`
+	InboundAuthMethod       string             `db:"inbound_auth_method" json:"inbound_auth_method"`
+	InboundUsername         *string            `db:"inbound_username" json:"inbound_username"`
+	InboundRealm            *string            `db:"inbound_realm" json:"inbound_realm"`
+	InboundSecretCiphertext *string            `db:"inbound_secret_ciphertext" json:"inbound_secret_ciphertext"`
+	MaxCps                  int32              `db:"max_cps" json:"max_cps"`
+	MaxConcurrentCalls      int32              `db:"max_concurrent_calls" json:"max_concurrent_calls"`
+	Codecs                  []string           `db:"codecs" json:"codecs"`
+	SupportsVideo           bool               `db:"supports_video" json:"supports_video"`
+	SupportsFax             bool               `db:"supports_fax" json:"supports_fax"`
+	CreatedAt               pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	UpdatedAt               pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+}
+
+type TrunkDigestCredential struct {
+	TrunkID        uuid.UUID          `db:"trunk_id" json:"trunk_id"`
+	OrganizationID uuid.UUID          `db:"organization_id" json:"organization_id"`
+	Direction      string             `db:"direction" json:"direction"`
+	Username       string             `db:"username" json:"username"`
+	Realm          string             `db:"realm" json:"realm"`
+	Ha1Md5         string             `db:"ha1_md5" json:"ha1_md5"`
+	CreatedAt      pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	UpdatedAt      pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 }
 
 type TrunkEndpoint struct {
 	ID                  uuid.UUID          `db:"id" json:"id"`
-	OrganizationID      *uuid.UUID         `db:"organization_id" json:"organization_id"`
+	OrganizationID      uuid.UUID          `db:"organization_id" json:"organization_id"`
 	TrunkID             uuid.UUID          `db:"trunk_id" json:"trunk_id"`
 	Host                string             `db:"host" json:"host"`
 	Port                int32              `db:"port" json:"port"`
@@ -331,6 +305,14 @@ type TrunkEndpoint struct {
 	CooldownUntil       pgtype.Timestamptz `db:"cooldown_until" json:"cooldown_until"`
 	CreatedAt           pgtype.Timestamptz `db:"created_at" json:"created_at"`
 	UpdatedAt           pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+}
+
+type TrunkSourceIp struct {
+	ID             uuid.UUID          `db:"id" json:"id"`
+	OrganizationID uuid.UUID          `db:"organization_id" json:"organization_id"`
+	TrunkID        uuid.UUID          `db:"trunk_id" json:"trunk_id"`
+	Cidr           netip.Prefix       `db:"cidr" json:"cidr"`
+	CreatedAt      pgtype.Timestamptz `db:"created_at" json:"created_at"`
 }
 
 type User struct {

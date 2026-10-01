@@ -43,12 +43,12 @@ func TestEgressVariablesCarryLeamoutIdentity(t *testing.T) {
 	trunkID := uuid.New()
 
 	variables, err := egressVariables(OriginateRequest{
-		CallID:              callID,
-		TrunkID: trunkID,
-		Privacy:             true,
-		DTMFMode:            "rfc2833",
-		MediaEncryption:     "sdes_srtp",
-		MaxDurationSeconds:  60,
+		CallID:             callID,
+		TrunkID:            trunkID,
+		Privacy:            true,
+		DTMFMode:           "rfc2833",
+		MediaEncryption:    "sdes_srtp",
+		MaxDurationSeconds: 60,
 	}, "sip:carrier.example.com:5061;transport=tls")
 	if err != nil {
 		t.Fatal(err)
@@ -74,9 +74,9 @@ func TestEgressVariablesCarryLeamoutIdentity(t *testing.T) {
 func TestEgressVariablesRejectNegativeMaximumDuration(t *testing.T) {
 	_, err := egressVariables(
 		OriginateRequest{
-			CallID:              uuid.New(),
-			TrunkID: uuid.New(),
-			MaxDurationSeconds:  -1,
+			CallID:             uuid.New(),
+			TrunkID:            uuid.New(),
+			MaxDurationSeconds: -1,
 		},
 		"sip:carrier.example.com:5061;transport=tls",
 	)

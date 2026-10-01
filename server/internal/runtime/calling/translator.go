@@ -47,7 +47,7 @@ type InboundEvent struct {
 	VoiceAgentID        uuid.UUID
 	PhoneNumberID       uuid.UUID
 	VoiceAgentBindingID uuid.UUID
-	TrunkID uuid.UUID
+	TrunkID             uuid.UUID
 	FromURI             string
 	ToURI               string
 	OccurredAt          time.Time
@@ -75,7 +75,7 @@ func TranslateInboundFreeSWITCHEvent(event freeswitch.Event) (InboundEvent, erro
 
 	headers := map[string]string{
 		"organization_id":        event.Header("variable_sip_h_X-Leamout-Organization-ID"),
-		"trunk_id":  event.Header("variable_sip_h_X-Leamout-Trunk-ID"),
+		"trunk_id":               event.Header("variable_sip_h_X-Leamout-Trunk-ID"),
 		"phone_number_id":        event.Header("variable_sip_h_X-Leamout-Phone-Number-ID"),
 		"voice_agent_binding_id": event.Header("variable_sip_h_X-Leamout-Voice-Agent-Binding-ID"),
 		"voice_agent_id":         event.Header("variable_sip_h_X-Leamout-Voice-Agent-ID"),
@@ -148,7 +148,7 @@ func TranslateInboundFreeSWITCHEvent(event freeswitch.Event) (InboundEvent, erro
 		VoiceAgentID:        voiceAgentID,
 		PhoneNumberID:       phoneNumberID,
 		VoiceAgentBindingID: voiceBindingID,
-		TrunkID: trunkID,
+		TrunkID:             trunkID,
 		FromURI:             strings.TrimSpace(fromURI),
 		ToURI:               strings.TrimSpace(toURI),
 		OccurredAt:          occurredAt,

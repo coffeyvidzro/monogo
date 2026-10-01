@@ -29,7 +29,7 @@ func (c *Consumer) HandleInbound(
 		VoiceAgentID:        event.VoiceAgentID,
 		PhoneNumberID:       event.PhoneNumberID,
 		VoiceAgentBindingID: event.VoiceAgentBindingID,
-		TrunkID: event.TrunkID,
+		TrunkID:             event.TrunkID,
 		FromURI:             event.FromURI,
 		ToURI:               event.ToURI,
 		OccurredAt:          event.OccurredAt,

@@ -120,7 +120,7 @@ func TestTranslateInboundFreeSWITCHEvent(t *testing.T) {
 			"Unique-ID":            "fs-inbound-1",
 			"variable_sip_call_id": "sip-call-123",
 			"variable_sip_h_X-Leamout-Organization-ID":        organizationID.String(),
-			"variable_sip_h_X-Leamout-Trunk-ID":  trunkID.String(),
+			"variable_sip_h_X-Leamout-Trunk-ID":               trunkID.String(),
 			"variable_sip_h_X-Leamout-Phone-Number-ID":        phoneNumberID.String(),
 			"variable_sip_h_X-Leamout-Voice-Agent-Binding-ID": bindingID.String(),
 			"variable_sip_h_X-Leamout-Voice-Agent-ID":         voiceAgentID.String(),

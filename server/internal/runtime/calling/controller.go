@@ -14,28 +14,28 @@ import (
 )
 
 const (
-	openSIPSEgressHost         = "opensips"
-	openSIPSEgressPort         = 5060
-	leamoutCallIDVar           = "leamout_call_id"
-	routeURIHeaderVar          = "sip_h_X-Leamout-Route-URI"
-	trunkHeaderVar = "sip_h_X-Leamout-Trunk-ID"
-	privacyHeaderVar           = "sip_h_X-Leamout-Privacy"
-	dtmfTypeVar                = "dtmf_type"
-	mediaEncryptionHeaderVar   = "sip_h_X-Leamout-Media-Encryption"
+	openSIPSEgressHost       = "opensips"
+	openSIPSEgressPort       = 5060
+	leamoutCallIDVar         = "leamout_call_id"
+	routeURIHeaderVar        = "sip_h_X-Leamout-Route-URI"
+	trunkHeaderVar           = "sip_h_X-Leamout-Trunk-ID"
+	privacyHeaderVar         = "sip_h_X-Leamout-Privacy"
+	dtmfTypeVar              = "dtmf_type"
+	mediaEncryptionHeaderVar = "sip_h_X-Leamout-Media-Encryption"
 )
 
 type OriginateRequest struct {
-	CallID              uuid.UUID
-	Destination         string
-	CallerID            string
-	TrunkID uuid.UUID
-	Host                string
-	Port                uint16
-	Transport           string
-	Privacy             bool
-	DTMFMode            string
-	MediaEncryption     string
-	MaxDurationSeconds  int32
+	CallID             uuid.UUID
+	Destination        string
+	CallerID           string
+	TrunkID            uuid.UUID
+	Host               string
+	Port               uint16
+	Transport          string
+	Privacy            bool
+	DTMFMode           string
+	MediaEncryption    string
+	MaxDurationSeconds int32
 }
 
 type OriginateResult struct {
@@ -126,9 +126,9 @@ func egressVariables(req OriginateRequest, routeURI string) (map[string]string, 
 	}
 
 	variables := map[string]string{
-		leamoutCallIDVar:           req.CallID.String(),
-		routeURIHeaderVar:          routeURI,
-		trunkHeaderVar: req.TrunkID.String(),
+		leamoutCallIDVar:  req.CallID.String(),
+		routeURIHeaderVar: routeURI,
+		trunkHeaderVar:    req.TrunkID.String(),
 	}
 
 	if req.MaxDurationSeconds > 0 {

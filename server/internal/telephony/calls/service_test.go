@@ -33,19 +33,19 @@ func TestValidateExistingInbound(t *testing.T) {
 	trunkID := uuid.New()
 
 	req := InboundAdmissionRequest{
-		OrganizationID:      organizationID,
-		VoiceAgentID:        voiceAgentID,
-		TrunkID: trunkID,
-		ToURI:               "+14155550100",
+		OrganizationID: organizationID,
+		VoiceAgentID:   voiceAgentID,
+		TrunkID:        trunkID,
+		ToURI:          "+14155550100",
 	}
 
 	call := sqlc.Call{
-		OrganizationID:      organizationID,
-		VoiceAgentID:        &voiceAgentID,
-		TrunkID: &trunkID,
-		Direction:           string(DirectionInbound),
-		State:               string(StateRinging),
-		ToUri:               req.ToURI,
+		OrganizationID: organizationID,
+		VoiceAgentID:   &voiceAgentID,
+		TrunkID:        &trunkID,
+		Direction:      string(DirectionInbound),
+		State:          string(StateRinging),
+		ToUri:          req.ToURI,
 	}
 
 	if err := validateExistingInbound(call, req); err != nil {
@@ -65,19 +65,19 @@ func TestValidateExistingInboundRejectsCarrierMismatch(t *testing.T) {
 	otherCarrierID := uuid.New()
 
 	req := InboundAdmissionRequest{
-		OrganizationID:      organizationID,
-		VoiceAgentID:        voiceAgentID,
-		TrunkID: trunkID,
-		ToURI:               "+14155550100",
+		OrganizationID: organizationID,
+		VoiceAgentID:   voiceAgentID,
+		TrunkID:        trunkID,
+		ToURI:          "+14155550100",
 	}
 
 	call := sqlc.Call{
-		OrganizationID:      organizationID,
-		VoiceAgentID:        &voiceAgentID,
-		TrunkID: &otherCarrierID,
-		Direction:           string(DirectionInbound),
-		State:               string(StateRinging),
-		ToUri:               req.ToURI,
+		OrganizationID: organizationID,
+		VoiceAgentID:   &voiceAgentID,
+		TrunkID:        &otherCarrierID,
+		Direction:      string(DirectionInbound),
+		State:          string(StateRinging),
+		ToUri:          req.ToURI,
 	}
 
 	if err := validateExistingInbound(call, req); err == nil {

@@ -47,7 +47,7 @@ func (s *Service) ResolveInbound(
 		VoiceAgentID:        req.VoiceAgentID,
 		PhoneNumberID:       req.PhoneNumberID,
 		VoiceAgentBindingID: req.VoiceAgentBindingID,
-		TrunkID: req.TrunkID,
+		TrunkID:             req.TrunkID,
 		CalledNumber:        req.CalledNumber,
 		Limits:              inbound.Limits,
 	}, nil
