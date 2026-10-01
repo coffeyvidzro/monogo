@@ -24,7 +24,6 @@ func RegisterRoutes(
 		r.Put("/{trunk_id}/outbound-auth", handler.SetOutboundAuth)
 		r.Delete("/{trunk_id}/outbound-auth", handler.ClearOutboundAuth)
 		r.Put("/{trunk_id}/inbound-auth", handler.SetInboundAuth)
-		r.Delete("/{trunk_id}/inbound-auth", handler.ClearInboundAuth)
 
 		r.Post("/{trunk_id}/source-ips", handler.CreateSourceIP)
 		r.Get("/{trunk_id}/source-ips", handler.ListSourceIPs)
