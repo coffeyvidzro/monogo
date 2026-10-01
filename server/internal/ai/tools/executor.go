@@ -73,6 +73,13 @@ func NewExecutor(service *Service, callServices ...*calls.Service) *Executor {
 	}
 }
 
+func (e *Executor) List(
+	ctx context.Context,
+	organizationID, voiceAgentID uuid.UUID,
+) ([]sqlc.VoiceAgentTool, error) {
+	return e.service.List(ctx, organizationID, voiceAgentID)
+}
+
 func (e *Executor) ResolveByName(
 	ctx context.Context,
 	organizationID, voiceAgentID uuid.UUID,
