@@ -268,17 +268,22 @@ def setup_voice_agent():
     if rotated == first_secret or len(rotated) < 32:
         raise AcceptanceError("webhook signing secret rotation did not produce a new secret")
 
-    api(
+    builtin = api(
         "POST",
         f"/v1/voice-agents/{agent['id']}/tools/",
         {
             "type": "builtin",
-            "name": "hangup_call",
-            "description": "Hang up the current call.",
-            "parameters": {"type": "object", "properties": {}},
+            "name": "send_dtmf",
+            "description": "Send DTMF digits on the current call.",
+            "parameters": {
+                "type": "object",
+                "properties": {"digits": {"type": "string"}},
+                "required": ["digits"],
+            },
         },
         expected={201},
-    )
+    )[1]
+    STATE["tool_id"] = builtin["id"]
 
 
 def originate_call():
