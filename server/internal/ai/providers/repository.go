@@ -52,7 +52,7 @@ func (r *Repository) DeleteCredential(ctx context.Context, organizationID, id uu
 
 func (r *Repository) UpsertBinding(ctx context.Context, organizationID, agentID uuid.UUID, role string, req UpsertBindingRequest) (Binding, error) {
 	config := req.Config
-	if len(config) == 0 { config = json.RawMessage(\`{}\`) }
+	if len(config) == 0 { config = json.RawMessage(`{}`) }
 	row, err := r.queries.UpsertVoiceAgentProviderBinding(ctx, sqlc.UpsertVoiceAgentProviderBindingParams{
 		OrganizationID: organizationID, VoiceAgentID: agentID, Role: role, Provider: req.Provider,
 		CredentialID: req.CredentialID, Config: config,
