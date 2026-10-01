@@ -72,6 +72,31 @@ Component roles:
 
 Coturn is not a required hop for normal SIP trunk traffic.
 
+#### SIP trunk model
+
+Leamout models the technical SIP connection rather than the commercial carrier
+relationship. A trunk is the tenant-owned connectivity root and contains its
+authentication policy, source CIDRs, codecs, admission limits, and one or more
+gateway endpoints.
+
+```text
+SIP Trunk
+   |
+   +-- authentication / source CIDRs
+   +-- codecs / CPS / concurrency
+   |
+   +-- gateway endpoint 1
+   +-- gateway endpoint 2
+   +-- ...
+```
+
+The peer on the other side may be a carrier, enterprise SBC, PBX, or another
+SIP platform. Provider identity is not a separate runtime domain object.
+
+Phone numbers known to Leamout are routing identities attached directly to an
+inbound-capable trunk. Calls are attributed to the selected trunk and, for
+outbound calls, the selected gateway endpoint.
+
 ### 2. Agent Runtime
 
 The Agent Runtime owns the realtime execution of an autonomous voice session.
