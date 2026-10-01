@@ -281,6 +281,39 @@ Use Redis for state that must cross process or node boundaries:
 - short-lived coordination;
 - locks only where a distributed lock is actually necessary.
 
+Media Runtime nodes register themselves in Redis with short-lived heartbeats.
+Each registration advertises the node's internal control URL, audio-fork URL,
+capacity, active-session count, and drain state.
+
+Agent Runtime placement follows this sequence:
+
+```text
+Voice Agent session
+      ↓
+read healthy media nodes
+      ↓
+exclude draining/full nodes
+      ↓
+choose most free capacity
+      ↓
+atomic Redis capacity lease
+      ↓
+session_id → media_node_id ownership
+      ↓
+POST session to selected node
+```
+
+The capacity lease and session ownership both expire. A healthy Media Runtime
+refreshes ownership for every locally active session during its heartbeat.
+This prevents crashed processes from holding capacity indefinitely.
+
+Before graceful drain, a Media Runtime stops its normal heartbeat and advertises
+`draining=true`. New sessions are no longer placed there while existing
+sessions are closed. Node registration is removed when shutdown completes.
+
+Redis stores coordination only. Audio frames, provider streams, transcripts,
+and other live media payloads never pass through Redis.
+
 ### PostgreSQL
 
 Use PostgreSQL for durable product state:
