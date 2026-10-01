@@ -20,6 +20,7 @@ import (
 	"github.com/coffeyvidzro/monogo/internal/platform/webhooks"
 	"github.com/coffeyvidzro/monogo/internal/runtime/agent"
 	"github.com/coffeyvidzro/monogo/internal/runtime/calling"
+	"github.com/coffeyvidzro/monogo/internal/runtime/medianodes"
 	"github.com/coffeyvidzro/monogo/internal/security/encryption"
 	"github.com/coffeyvidzro/monogo/internal/telephony/calls"
 	"github.com/coffeyvidzro/monogo/internal/telephony/recordings"
@@ -119,10 +120,12 @@ func newModules(ctx context.Context, cfg config.Config, logger *logging.Logger) 
 		CredentialCipher: credentialCipher,
 		Calls:            callsService,
 	})
-	agentRuntime, err := agent.New(
+	mediaNodes := medianodes.NewRegistry(redisClient)
+	agentRuntime, err := agent.NewWithMediaNodes(
 		aiModule.Orchestration,
 		freeSwitch,
 		agent.DefaultConfig(cfg.MediaControlURL, cfg.MediaControlToken),
+		mediaNodes,
 		logger,
 	)
 	if err != nil {
