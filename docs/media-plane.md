@@ -158,8 +158,30 @@ may currently send:
 - `response.interrupt` to cancel the active model response and clear buffered playback;
 - `session.stop` to stop the live media session.
 
-Tool-result submission is intentionally not part of this PR. The next layer will
-reuse this same channel rather than introducing another realtime transport.
+Realtime tool execution reuses this same channel:
+
+```text
+model
+  ↓ tool.call
+Media Runtime
+  ↓ normalized event
+Agent Runtime
+  ↓ durable tool executor
+Agent Runtime
+  ↓ tool.result
+Media Runtime
+  ↓ provider-native tool output
+model resumes
+```
+
+Enabled Voice Agent tool definitions are attached to the immutable media session
+configuration and translated at the provider boundary. Agent Runtime owns tool
+resolution, authorization, durable execution state, webhook signing, built-in
+call controls, timeouts, and idempotency. Media Runtime never executes customer
+tools directly.
+
+Execution failures are returned to the model as error tool results so the live
+conversation can recover without automatically terminating the media session.
 
 The control path remains in-memory and node-local. It does not publish live
 session control traffic through NATS or PostgreSQL.
@@ -185,9 +207,9 @@ is not in the audio hot path.
 
 The current layer does not yet implement:
 
-- execution of Voice Agent tools;
-- tool-result submission back into a live provider stream;
-- distributed media-node placement or ownership.
+- distributed media-node placement or ownership;
+- media latency protection and production observability beyond the current
+  session lifecycle metrics.
 
 Those features build on this session contract rather than changing the audio
 transport or provider boundaries.
