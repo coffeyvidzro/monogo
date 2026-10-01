@@ -52,6 +52,9 @@ func TestComposableRunsFluxTurnThroughGroqAndCartesia(t *testing.T) {
 		select {
 		case event := <-stream.Events():
 			if event.Type == session.EventResponseDelta {
+				if event.Response == nil || event.Response.Text == "" {
+					t.Fatalf("response delta payload = %+v", event.Response)
+				}
 				foundResponseDelta = true
 			}
 		case <-time.After(time.Second):
