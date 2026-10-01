@@ -186,6 +186,61 @@ conversation can recover without automatically terminating the media session.
 The control path remains in-memory and node-local. It does not publish live
 session control traffic through NATS or PostgreSQL.
 
+
+## Latency protection
+
+The session manager protects conversational latency with bounded PCM queues.
+It does not allow provider or playback stalls to create unbounded buffered
+audio.
+
+The default runtime limits are:
+
+- maximum single PCM frame duration: 200 ms;
+- inbound/provider queue budget: 400 ms of audio;
+- outbound/playback queue budget: 800 ms of audio;
+- provider session startup timeout: 10 seconds;
+- provider audio-write timeout: 2 seconds;
+- FreeSWITCH playback-write timeout: 2 seconds.
+
+These are runtime invariants rather than separate environment variables. Queue
+capacity is measured in represented audio duration, not frame count, so changing
+frame cadence does not change the latency budget.
+
+When barge-in occurs, both FreeSWITCH playback and the Media Runtime output
+queue are cleared before the active model response is interrupted.
+
+Exceeding a latency budget fails the media session rather than allowing stale
+audio to accumulate.
+
+## Failure reasons and observability
+
+Terminal Media Runtime failures are normalized and sent to Agent Runtime before
+session teardown whenever the control channel is still available.
+
+Stable failure reasons include:
+
+- `attach_timeout`;
+- `input_backpressure`;
+- `output_backpressure`;
+- `frame_too_large`;
+- `provider_timeout`;
+- `playback_timeout`;
+- `provider_failure`;
+- `control_backpressure`;
+- `transport_failure`.
+
+The Media Runtime exposes `GET /metrics` with process-local runtime metrics:
+
+- active, started, and completed media sessions;
+- attachment latency count and accumulated seconds;
+- turn latency count and accumulated seconds;
+- terminal failure counts by reason.
+
+Turn latency is measured from the normalized end-of-user-speech event to the
+first playback frame sent toward FreeSWITCH. This captures the effective
+realtime STT/LLM/TTS path for both composable and integrated engines without
+putting PostgreSQL in the hot path.
+
 ## Runtime lifecycle
 
 The session manager owns active sessions in process memory. It enforces:
@@ -195,7 +250,10 @@ The session manager owns active sessions in process memory. It enforces:
 - identity matching across organization, call, channel, and session;
 - concurrent-session capacity;
 - attachment timeout cleanup;
-- graceful drain;
+- bounded input/output latency queues;
+- frame-duration enforcement;
+- provider and playback write timeouts;
+- concurrent graceful drain;
 - idempotent session creation by immutable-config equality;
 - terminal provider failure propagation.
 
@@ -207,9 +265,7 @@ is not in the audio hot path.
 
 The current layer does not yet implement:
 
-- distributed media-node placement or ownership;
-- media latency protection and production observability beyond the current
-  session lifecycle metrics.
+- distributed media-node placement or ownership.
 
 Those features build on this session contract rather than changing the audio
 transport or provider boundaries.

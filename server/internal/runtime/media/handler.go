@@ -41,6 +41,8 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		writeText(w, http.StatusOK, "ready\n")
+	case r.Method == http.MethodGet && r.URL.Path == "/metrics":
+		h.metrics(w)
 	case r.URL.Path == "/v1/audio-forks":
 		h.websocket.ServeHTTP(w, r)
 	case r.Method == http.MethodPost && r.URL.Path == "/internal/v1/sessions":
@@ -60,6 +62,43 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 type createSessionResponse struct {
 	WebSocketURL        string `json:"websocket_url"`
 	ControlWebSocketURL string `json:"control_websocket_url"`
+}
+
+func (h *handler) metrics(w http.ResponseWriter) {
+	snapshot := h.manager.Metrics()
+	w.Header().Set("Content-Type", "text/plain; version=0.0.4")
+	_, _ = fmt.Fprintf(
+		w,
+		"# TYPE leamout_media_sessions_active gauge\n"+
+			"leamout_media_sessions_active %d\n"+
+			"# TYPE leamout_media_sessions_started_total counter\n"+
+			"leamout_media_sessions_started_total %d\n"+
+			"# TYPE leamout_media_sessions_completed_total counter\n"+
+			"leamout_media_sessions_completed_total %d\n"+
+			"# TYPE leamout_media_attach_latency_seconds counter\n"+
+			"leamout_media_attach_latency_seconds %f\n"+
+			"# TYPE leamout_media_attach_latency_count counter\n"+
+			"leamout_media_attach_latency_count %d\n"+
+			"# TYPE leamout_media_turn_latency_seconds counter\n"+
+			"leamout_media_turn_latency_seconds %f\n"+
+			"# TYPE leamout_media_turn_latency_count counter\n"+
+			"leamout_media_turn_latency_count %d\n",
+		snapshot.ActiveSessions,
+		snapshot.StartedSessions,
+		snapshot.CompletedSessions,
+		time.Duration(snapshot.AttachLatencyTotalNS).Seconds(),
+		snapshot.AttachLatencyCount,
+		time.Duration(snapshot.TurnLatencyTotalNS).Seconds(),
+		snapshot.TurnLatencyCount,
+	)
+	for _, reason := range snapshot.FailureReasons() {
+		_, _ = fmt.Fprintf(
+			w,
+			"leamout_media_failures_total{reason=%q} %d\n",
+			reason,
+			snapshot.Failures[reason],
+		)
+	}
 }
 
 func (h *handler) createSession(w http.ResponseWriter, r *http.Request) {

@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"io"
-	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -120,6 +119,7 @@ type fakeStream struct {
 	interruptOnce sync.Once
 	closeOnce     sync.Once
 	toolResults   chan session.ToolResult
+	sendAudio     func(context.Context, session.AudioFrame) error
 }
 
 func newFakeStream() *fakeStream {
@@ -131,7 +131,12 @@ func newFakeStream() *fakeStream {
 	}
 }
 
-func (s *fakeStream) SendAudio(context.Context, session.AudioFrame) error { return nil }
+func (s *fakeStream) SendAudio(ctx context.Context, frame session.AudioFrame) error {
+	if s.sendAudio != nil {
+		return s.sendAudio(ctx, frame)
+	}
+	return nil
+}
 func (s *fakeStream) Interrupt(context.Context) error {
 	s.interruptOnce.Do(func() { close(s.interrupted) })
 	return nil
@@ -221,13 +226,15 @@ func validConfig() session.Config {
 }
 
 type fakeConnection struct {
-	metadata  session.ConnectionMetadata
-	incoming  chan session.AudioFrame
-	outgoing  chan session.AudioFrame
-	cleared   chan struct{}
-	closed    chan struct{}
-	once      sync.Once
-	clearOnce sync.Once
+	metadata       session.ConnectionMetadata
+	incoming       chan session.AudioFrame
+	outgoing       chan session.AudioFrame
+	cleared        chan struct{}
+	closed         chan struct{}
+	receiveStarted chan struct{}
+	once           sync.Once
+	clearOnce      sync.Once
+	receiveOnce    sync.Once
 }
 
 func newFakeConnection(cfg session.Config) *fakeConnection {
@@ -238,11 +245,13 @@ func newFakeConnection(cfg session.Config) *fakeConnection {
 		},
 		incoming: make(chan session.AudioFrame, 1), outgoing: make(chan session.AudioFrame, 1),
 		cleared: make(chan struct{}), closed: make(chan struct{}),
+		receiveStarted: make(chan struct{}),
 	}
 }
 
 func (c *fakeConnection) Metadata() session.ConnectionMetadata { return c.metadata }
 func (c *fakeConnection) ReceiveAudio(ctx context.Context) (session.AudioFrame, error) {
+	c.receiveOnce.Do(func() { close(c.receiveStarted) })
 	select {
 	case frame, ok := <-c.incoming:
 		if !ok {
@@ -295,7 +304,7 @@ func TestManagerReturnsTerminalProviderFailure(t *testing.T) {
 	}
 	select {
 	case err := <-done:
-		if err == nil || !strings.Contains(err.Error(), "terminal media provider failure") {
+		if !errors.Is(err, session.ErrProviderFailure) {
 			t.Fatalf("Attach() error = %v", err)
 		}
 	case <-time.After(time.Second):
@@ -339,5 +348,186 @@ func TestControlAttachmentForwardsToolResult(t *testing.T) {
 		}
 	case <-time.After(time.Second):
 		t.Fatal("timed out waiting for tool result")
+	}
+}
+
+func TestManagerRejectsOversizedFrameAndRecordsFailure(t *testing.T) {
+	cfg := validConfig()
+	stream := newFakeStream()
+	limits := session.DefaultRuntimeLimits()
+	limits.MaxFrameDuration = 20 * time.Millisecond
+	manager, err := session.NewManager(1, time.Minute, map[session.Engine]session.Starter{
+		session.EngineEcho: fakeStarter{stream: stream},
+	}, limits)
+	if err != nil {
+		t.Fatalf("NewManager() error = %v", err)
+	}
+	if err := manager.Start(context.Background(), cfg); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	connection := newFakeConnection(cfg)
+	done := make(chan error, 1)
+	go func() { done <- manager.Attach(context.Background(), connection) }()
+
+	connection.incoming <- session.AudioFrame{
+		Data:   make([]byte, 1600),
+		Format: cfg.InputFormat,
+	}
+
+	select {
+	case err := <-done:
+		if !errors.Is(err, session.ErrFrameDurationExceeded) {
+			t.Fatalf("Attach() error = %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("Attach() did not reject oversized frame")
+	}
+
+	snapshot := manager.Metrics()
+	if snapshot.Failures[session.FailureFrameTooLarge] != 1 {
+		t.Fatalf("frame-too-large failures = %d", snapshot.Failures[session.FailureFrameTooLarge])
+	}
+}
+
+func TestManagerProviderWriteTimeout(t *testing.T) {
+	cfg := validConfig()
+	stream := newFakeStream()
+	stream.sendAudio = func(ctx context.Context, _ session.AudioFrame) error {
+		<-ctx.Done()
+		return ctx.Err()
+	}
+	limits := session.DefaultRuntimeLimits()
+	limits.ProviderWriteTimeout = 20 * time.Millisecond
+	manager, err := session.NewManager(1, time.Minute, map[session.Engine]session.Starter{
+		session.EngineEcho: fakeStarter{stream: stream},
+	}, limits)
+	if err != nil {
+		t.Fatalf("NewManager() error = %v", err)
+	}
+	if err := manager.Start(context.Background(), cfg); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	connection := newFakeConnection(cfg)
+	done := make(chan error, 1)
+	go func() { done <- manager.Attach(context.Background(), connection) }()
+	connection.incoming <- session.AudioFrame{
+		Data:   make([]byte, 640),
+		Format: cfg.InputFormat,
+	}
+
+	select {
+	case err := <-done:
+		if !errors.Is(err, session.ErrProviderWriteTimeout) {
+			t.Fatalf("Attach() error = %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("Attach() did not time out provider write")
+	}
+
+	snapshot := manager.Metrics()
+	if snapshot.Failures[session.FailureProviderTimeout] != 1 {
+		t.Fatalf("provider timeout failures = %d", snapshot.Failures[session.FailureProviderTimeout])
+	}
+}
+
+func TestManagerInputLatencyBudgetIsBounded(t *testing.T) {
+	cfg := validConfig()
+	stream := newFakeStream()
+	stream.sendAudio = func(ctx context.Context, _ session.AudioFrame) error {
+		<-ctx.Done()
+		return ctx.Err()
+	}
+	limits := session.DefaultRuntimeLimits()
+	limits.InputQueueDuration = 40 * time.Millisecond
+	limits.ProviderWriteTimeout = time.Second
+	manager, err := session.NewManager(1, time.Minute, map[session.Engine]session.Starter{
+		session.EngineEcho: fakeStarter{stream: stream},
+	}, limits)
+	if err != nil {
+		t.Fatalf("NewManager() error = %v", err)
+	}
+	if err := manager.Start(context.Background(), cfg); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	connection := newFakeConnection(cfg)
+	done := make(chan error, 1)
+	go func() { done <- manager.Attach(context.Background(), connection) }()
+
+	frame := session.AudioFrame{Data: make([]byte, 640), Format: cfg.InputFormat}
+	go func() {
+		for i := 0; i < 10; i++ {
+			connection.incoming <- frame
+		}
+	}()
+
+	select {
+	case err := <-done:
+		if !errors.Is(err, session.ErrInputLatencyBudgetExceeded) {
+			t.Fatalf("Attach() error = %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("Attach() did not enforce input latency budget")
+	}
+}
+
+func TestManagerDrainClosesMultipleAttachedSessionsAndRejectsNewWork(t *testing.T) {
+	manager, err := session.NewManager(3, time.Minute, map[session.Engine]session.Starter{
+		session.EngineEcho: echo.Engine{},
+	})
+	if err != nil {
+		t.Fatalf("NewManager() error = %v", err)
+	}
+
+	connections := make([]*fakeConnection, 0, 3)
+	done := make([]chan error, 0, 3)
+	for i := 0; i < 3; i++ {
+		cfg := validConfig()
+		if err := manager.Start(context.Background(), cfg); err != nil {
+			t.Fatalf("Start(%d) error = %v", i, err)
+		}
+		connection := newFakeConnection(cfg)
+		connections = append(connections, connection)
+		result := make(chan error, 1)
+		done = append(done, result)
+		go func() { result <- manager.Attach(context.Background(), connection) }()
+	}
+
+	for i, connection := range connections {
+		select {
+		case <-connection.receiveStarted:
+		case <-time.After(time.Second):
+			t.Fatalf("connection %d did not attach", i)
+		}
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	if err := manager.Drain(ctx); err != nil {
+		t.Fatalf("Drain() error = %v", err)
+	}
+	if manager.Active() != 0 {
+		t.Fatalf("active sessions = %d", manager.Active())
+	}
+	if manager.Ready() {
+		t.Fatal("manager remained ready after drain")
+	}
+	if err := manager.Start(context.Background(), validConfig()); !errors.Is(err, session.ErrManagerDraining) {
+		t.Fatalf("Start() after drain error = %v", err)
+	}
+
+	for i, connection := range connections {
+		select {
+		case <-connection.closed:
+		case <-time.After(time.Second):
+			t.Fatalf("connection %d was not closed", i)
+		}
+		select {
+		case err := <-done[i]:
+			if err != nil {
+				t.Fatalf("Attach(%d) error = %v", i, err)
+			}
+		case <-time.After(time.Second):
+			t.Fatalf("Attach(%d) did not return after drain", i)
+		}
 	}
 }
