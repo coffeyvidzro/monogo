@@ -21,21 +21,14 @@ SELECT
 FROM calls AS c
 JOIN organizations AS o
   ON o.id = c.organization_id
-JOIN voice_applications AS app
-  ON app.id = c.application_id
- AND app.organization_id = c.organization_id
-JOIN voice_agent_bindings AS binding
-  ON binding.voice_application_id = app.id
- AND binding.organization_id = app.organization_id
 JOIN voice_agents AS agent
-  ON agent.id = binding.voice_agent_id
- AND agent.organization_id = binding.organization_id
+  ON agent.id = c.voice_agent_id
+ AND agent.organization_id = c.organization_id
 WHERE c.id = sqlc.arg(call_id)
   AND c.organization_id = sqlc.arg(organization_id)
   AND agent.id = sqlc.arg(voice_agent_id)
   AND c.state IN ('answered', 'active')
   AND c.ended_at IS NULL
-  AND app.status = 'active'
   AND agent.status = 'active'
   AND o.status = 'active'
   AND o.deleted_at IS NULL

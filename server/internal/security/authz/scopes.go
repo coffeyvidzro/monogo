@@ -10,37 +10,31 @@ const (
 	// Credential lifecycle writes intentionally have no token scope. Creating,
 	// updating, and revoking organization tokens requires an owner/admin session
 	// so a compromised token cannot mint a more privileged replacement.
-	ScopeCredentialsRead        Scope = "credentials:read"
-	ScopeLicensingRead          Scope = "licensing:read"
-	ScopeLicensingWrite         Scope = "licensing:write"
-	ScopeVoiceApplicationsRead  Scope = "voice-applications:read"
-	ScopeVoiceApplicationsWrite Scope = "voice-applications:write"
-	ScopeVoiceAgentsRead        Scope = "voice-agents:read"
-	ScopeVoiceAgentsWrite       Scope = "voice-agents:write"
-	ScopeCallsRead              Scope = "calls:read"
-	ScopeCallsWrite             Scope = "calls:write"
-	ScopeMessagesRead           Scope = "messages:read"
-	ScopeMessagesWrite          Scope = "messages:write"
-	ScopeRecordingsRead         Scope = "recordings:read"
-	ScopeRecordingsWrite        Scope = "recordings:write"
-	ScopeSubscribersRead        Scope = "subscribers:read"
-	ScopeSubscribersWrite       Scope = "subscribers:write"
-	ScopeNumbersRead            Scope = "numbers:read"
-	ScopeNumbersWrite           Scope = "numbers:write"
-	ScopeSIPDomainsRead         Scope = "sip-domains:read"
-	ScopeSIPDomainsWrite        Scope = "sip-domains:write"
-	ScopeTrunksRead             Scope = "trunks:read"
-	ScopeTrunksWrite            Scope = "trunks:write"
-	ScopeCarriersRead           Scope = "carriers:read"
-	ScopeCarriersWrite          Scope = "carriers:write"
-	ScopeWebhooksRead           Scope = "webhooks:read"
-	ScopeWebhooksWrite          Scope = "webhooks:write"
-	ScopeAuditRead              Scope = "audit:read"
-	ScopeAuditWrite             Scope = "audit:write"
-	ScopeConferencesRead        Scope = "conferences:read"
-	ScopeConferencesWrite       Scope = "conferences:write"
-	ScopeRealtimeRead           Scope = "realtime:read"
-	ScopeRealtimeWrite          Scope = "realtime:write"
+	ScopeCredentialsRead  Scope = "credentials:read"
+	ScopeVoiceAgentsRead  Scope = "voice-agents:read"
+	ScopeVoiceAgentsWrite Scope = "voice-agents:write"
+	ScopeCallsRead        Scope = "calls:read"
+	ScopeCallsWrite       Scope = "calls:write"
+	ScopeRecordingsRead   Scope = "recordings:read"
+	ScopeRecordingsWrite  Scope = "recordings:write"
+	ScopeSubscribersRead  Scope = "subscribers:read"
+	ScopeSubscribersWrite Scope = "subscribers:write"
+	ScopeNumbersRead      Scope = "numbers:read"
+	ScopeNumbersWrite     Scope = "numbers:write"
+	ScopeSIPDomainsRead   Scope = "sip-domains:read"
+	ScopeSIPDomainsWrite  Scope = "sip-domains:write"
+	ScopeTrunksRead       Scope = "trunks:read"
+	ScopeTrunksWrite      Scope = "trunks:write"
+	ScopeCarriersRead     Scope = "carriers:read"
+	ScopeCarriersWrite    Scope = "carriers:write"
+	ScopeWebhooksRead     Scope = "webhooks:read"
+	ScopeWebhooksWrite    Scope = "webhooks:write"
+	ScopeAuditRead        Scope = "audit:read"
+	ScopeAuditWrite       Scope = "audit:write"
+	ScopeConferencesRead  Scope = "conferences:read"
+	ScopeConferencesWrite Scope = "conferences:write"
+	ScopeWebRTCRead       Scope = "webrtc:read"
+	ScopeWebRTCWrite      Scope = "webrtc:write"
 )
 
 func (s Scope) IsValid() bool {
@@ -49,11 +43,8 @@ func (s Scope) IsValid() bool {
 		ScopeMembersRead,
 		ScopeMembersWrite,
 		ScopeCredentialsRead,
-		ScopeLicensingRead, ScopeLicensingWrite,
-		ScopeVoiceApplicationsRead, ScopeVoiceApplicationsWrite,
 		ScopeVoiceAgentsRead, ScopeVoiceAgentsWrite,
 		ScopeCallsRead, ScopeCallsWrite,
-		ScopeMessagesRead, ScopeMessagesWrite,
 		ScopeRecordingsRead, ScopeRecordingsWrite,
 		ScopeSubscribersRead, ScopeSubscribersWrite,
 		ScopeNumbersRead, ScopeNumbersWrite,
@@ -63,7 +54,7 @@ func (s Scope) IsValid() bool {
 		ScopeWebhooksRead, ScopeWebhooksWrite,
 		ScopeAuditRead, ScopeAuditWrite,
 		ScopeConferencesRead, ScopeConferencesWrite,
-		ScopeRealtimeRead, ScopeRealtimeWrite:
+		ScopeWebRTCRead, ScopeWebRTCWrite:
 		return true
 	default:
 		return false

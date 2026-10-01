@@ -51,10 +51,3 @@ func (r *Repository) Update(ctx context.Context, organizationID, id uuid.UUID, r
 func (r *Repository) Disable(ctx context.Context, organizationID, id uuid.UUID) error {
 	return r.queries.DisableVoiceAgent(ctx, sqlc.DisableVoiceAgentParams{ID: id, OrganizationID: organizationID})
 }
-
-func (r *Repository) ResolveByApplication(ctx context.Context, organizationID, applicationID uuid.UUID) (sqlc.VoiceAgent, error) {
-	return r.queries.GetVoiceAgentByApplicationID(ctx, sqlc.GetVoiceAgentByApplicationIDParams{
-		OrganizationID:     organizationID,
-		VoiceApplicationID: applicationID,
-	})
-}

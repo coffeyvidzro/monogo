@@ -112,17 +112,17 @@ func subscribeFreeSWITCH(
 							"error", resolveErr,
 						)
 					} else if call.ID == callEvent.CallID {
-						if voiceErr := modules.voiceAI.HandleLifecycle(
+						if agentErr := modules.agentRuntime.HandleLifecycle(
 							eventCtx,
 							call,
 							callEvent,
-						); voiceErr != nil {
+						); agentErr != nil {
 							logger.Error(
 								eventCtx,
 								"handle Voice Agent lifecycle",
 								"call_id", callEvent.CallID,
 								"event", event.Name,
-								"error", voiceErr,
+								"error", agentErr,
 							)
 							if callEvent.Type == calling.LifecycleAnswered {
 								if hangupErr := modules.freeSwitch.Hangup(

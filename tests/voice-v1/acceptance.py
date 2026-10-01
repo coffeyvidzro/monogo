@@ -279,7 +279,6 @@ def configure_provider():
         "POST",
         "/v1/carrier-connections/",
         {
-            "provider_id": provider_id,
             "name": "voice-v1-carrier",
             "inbound_enabled": True,
             "codecs": ["PCMU", "PCMA"],

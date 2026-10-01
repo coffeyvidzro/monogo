@@ -1,7 +1,7 @@
 -- name: CreateCall :one
 INSERT INTO calls (
     organization_id,
-    application_id,
+    voice_agent_id,
     direction,
     state,
     from_uri,
@@ -9,7 +9,7 @@ INSERT INTO calls (
     sip_call_id
 ) VALUES (
     sqlc.arg(organization_id),
-    sqlc.narg(application_id),
+    sqlc.narg(voice_agent_id),
     sqlc.arg(direction),
     COALESCE(sqlc.narg(state), 'initiating'),
     sqlc.arg(from_uri),
@@ -42,7 +42,6 @@ LIMIT 1;
 SELECT
     c.organization_id,
     c.carrier_connection_id,
-    c.routing_decision_id,
     c.direction,
     c.state,
     c.media_state,
@@ -50,33 +49,6 @@ SELECT
 FROM calls AS c
 WHERE c.id = sqlc.arg(id)
 LIMIT 1;
-
--- name: GetCarrierDailyUsageSeconds :one
-WITH bounds AS (
-    SELECT
-        date_trunc('day', NOW() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC' AS day_start,
-        (date_trunc('day', NOW() AT TIME ZONE 'UTC') + INTERVAL '1 day') AT TIME ZONE 'UTC' AS day_end
-)
-SELECT COALESCE(
-    SUM(
-        GREATEST(
-            EXTRACT(
-                EPOCH FROM (
-                    LEAST(COALESCE(c.ended_at, NOW()), b.day_end)
-                    - GREATEST(c.answered_at, b.day_start)
-                )
-            ),
-            0
-        )
-    ),
-    0
-)::BIGINT AS usage_seconds
-FROM calls AS c
-CROSS JOIN bounds AS b
-WHERE c.carrier_connection_id = sqlc.arg(carrier_connection_id)
-  AND c.answered_at IS NOT NULL
-  AND c.answered_at < b.day_end
-  AND COALESCE(c.ended_at, NOW()) > b.day_start;
 
 -- name: ListCalls :many
 SELECT *
@@ -110,15 +82,16 @@ ORDER BY created_at ASC;
 -- name: GetInboundCallContext :one
 SELECT
     cc.max_cps,
-    cc.max_concurrent_calls,
-    cc.max_daily_minutes
+    cc.max_concurrent_calls
 FROM phone_numbers AS pn
 JOIN carrier_connections AS cc
   ON cc.id = pn.carrier_connection_id
-JOIN voice_bindings AS vb
-  ON vb.phone_number_id = pn.id
-JOIN voice_applications AS va
-  ON va.id = vb.voice_application_id
+JOIN voice_agent_bindings AS binding
+  ON binding.phone_number_id = pn.id
+ AND binding.organization_id = pn.organization_id
+JOIN voice_agents AS agent
+  ON agent.id = binding.voice_agent_id
+ AND agent.organization_id = binding.organization_id
 JOIN organizations AS o
   ON o.id = pn.organization_id
 WHERE pn.id = sqlc.arg(phone_number_id)
@@ -130,9 +103,9 @@ WHERE pn.id = sqlc.arg(phone_number_id)
   AND cc.status = 'active'
   AND cc.inbound_enabled = true
   AND cc.organization_id = pn.organization_id
-  AND va.id = sqlc.arg(application_id)
-  AND va.organization_id = pn.organization_id
-  AND va.status = 'active'
+  AND binding.id = sqlc.arg(voice_agent_binding_id)
+  AND agent.id = sqlc.arg(voice_agent_id)
+  AND agent.status = 'active'
   AND o.status = 'active'
   AND o.deleted_at IS NULL
 LIMIT 1;
@@ -143,7 +116,6 @@ SET
     carrier_connection_id = sqlc.arg(carrier_connection_id),
     trunk_id = sqlc.arg(trunk_id),
     trunk_endpoint_id = sqlc.arg(trunk_endpoint_id),
-    routing_decision_id = sqlc.narg(routing_decision_id),
     updated_at = NOW()
 WHERE organization_id = sqlc.arg(organization_id)
   AND id = sqlc.arg(id)
@@ -292,12 +264,10 @@ SELECT
     c.from_uri,
     c.to_uri,
     COALESCE(c.sip_call_id, '—')::TEXT AS sip_call_id,
-    COALESCE(c.application_id::TEXT, '—')::TEXT AS application_id,
-    COALESCE(va.name, '—')::TEXT AS application_name,
+    COALESCE(c.voice_agent_id::TEXT, '—')::TEXT AS voice_agent_id,
+    COALESCE(agent.name, '—')::TEXT AS voice_agent_name,
     COALESCE(c.carrier_connection_id::TEXT, '—')::TEXT AS carrier_connection_id,
     COALESCE(cc.name, '—')::TEXT AS carrier_connection_name,
-    COALESCE(cp.id::TEXT, '—')::TEXT AS provider_id,
-    COALESCE(cp.name, '—')::TEXT AS provider_name,
     COALESCE(c.trunk_id::TEXT, '—')::TEXT AS trunk_id,
     COALESCE(t.name, '—')::TEXT AS trunk_name,
     COALESCE(c.trunk_endpoint_id::TEXT, '—')::TEXT AS trunk_endpoint_id,
@@ -320,13 +290,12 @@ SELECT
     to_char(c.updated_at AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI:SS')::TEXT AS updated_at
 FROM calls AS c
 JOIN organizations AS o ON o.id = c.organization_id
-LEFT JOIN voice_applications AS va ON va.id = c.application_id
+LEFT JOIN voice_agents AS agent ON agent.id = c.voice_agent_id
 LEFT JOIN carrier_connections AS cc ON cc.id = c.carrier_connection_id
-LEFT JOIN carrier_providers AS cp ON cp.id = cc.provider_id
 LEFT JOIN trunks AS t ON t.id = c.trunk_id
 LEFT JOIN recordings AS r
   ON r.call_id = c.id
  AND r.organization_id = c.organization_id
 WHERE c.id = sqlc.arg(id)
-GROUP BY c.id, o.name, va.name, cc.name, cp.id, cp.name, t.name
+GROUP BY c.id, o.name, agent.name, cc.name, t.name
 LIMIT 1;

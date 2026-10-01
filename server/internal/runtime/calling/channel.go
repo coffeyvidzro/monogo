@@ -8,7 +8,7 @@ import (
 	"time"
 
 	redisintegration "github.com/coffeyvidzro/monogo/internal/integrations/redis"
-	"github.com/coffeyvidzro/monogo/internal/telecom/routing"
+	"github.com/coffeyvidzro/monogo/internal/telephony/routing"
 	"github.com/google/uuid"
 	redisv9 "github.com/redis/go-redis/v9"
 )

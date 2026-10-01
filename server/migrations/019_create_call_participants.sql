@@ -2,7 +2,7 @@ CREATE TABLE IF NOT EXISTS call_participants (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
     call_id UUID NOT NULL REFERENCES calls(id) ON DELETE CASCADE,
-    subscriber_id UUID REFERENCES subscribers(id) ON DELETE SET NULL,
+    subscriber_id UUID,
     role TEXT NOT NULL,
     address TEXT,
     direction TEXT,
@@ -12,6 +12,11 @@ CREATE TABLE IF NOT EXISTS call_participants (
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
 
+    CONSTRAINT uq_call_participants_id_organization UNIQUE (id, organization_id),
+    CONSTRAINT fk_call_participants_subscriber_scope
+        FOREIGN KEY (subscriber_id, organization_id)
+        REFERENCES subscribers(id, organization_id)
+        ON DELETE RESTRICT,
     CONSTRAINT chk_call_participants_role CHECK (role IN ('caller', 'callee', 'bridge', 'other')),
     CONSTRAINT chk_call_participants_direction CHECK (
         direction IS NULL OR direction IN ('inbound', 'outbound')

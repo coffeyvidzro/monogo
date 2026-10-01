@@ -2,7 +2,6 @@
 INSERT INTO carrier_connections (
     id,
     organization_id,
-    provider_id,
     name,
     status,
     outbound_auth_method,
@@ -14,7 +13,6 @@ INSERT INTO carrier_connections (
     inbound_secret_ciphertext,
     max_cps,
     max_concurrent_calls,
-    max_daily_minutes,
     codecs,
     supports_video,
     supports_fax
@@ -22,7 +20,6 @@ INSERT INTO carrier_connections (
 SELECT
     sqlc.arg(id) AS id,
     sqlc.arg(organization_id) AS organization_id,
-    sqlc.arg(provider_id) AS provider_id,
     sqlc.arg(name) AS name,
     COALESCE(sqlc.narg(status), 'active') AS status,
     COALESCE(sqlc.narg(outbound_auth_method), 'none') AS outbound_auth_method,
@@ -34,16 +31,13 @@ SELECT
     sqlc.narg(inbound_secret_ciphertext) AS inbound_secret_ciphertext,
     COALESCE(sqlc.narg(max_cps), 10) AS max_cps,
     COALESCE(sqlc.narg(max_concurrent_calls), 100) AS max_concurrent_calls,
-    sqlc.narg(max_daily_minutes) AS max_daily_minutes,
     COALESCE(sqlc.narg(codecs), ARRAY['PCMU','PCMA']::TEXT[]) AS codecs,
     COALESCE(sqlc.narg(supports_video), false) AS supports_video,
     COALESCE(sqlc.narg(supports_fax), false) AS supports_fax
 FROM organizations AS o
-JOIN carrier_providers AS cp ON cp.id = sqlc.arg(provider_id)
 WHERE o.id = sqlc.arg(organization_id)
   AND o.status = 'active'
   AND o.deleted_at IS NULL
-  AND cp.status = 'active'
 RETURNING *;
 
 -- name: InsertCarrierDigestCredential :exec
@@ -65,7 +59,6 @@ WHERE cc.id = sqlc.arg(carrier_connection_id)
 SELECT
     cc.id,
     cc.organization_id,
-    cc.provider_id,
     cc.name,
     cc.status,
     cc.outbound_auth_method,
@@ -79,7 +72,6 @@ SELECT
     cc.inbound_secret_ciphertext IS NOT NULL AS has_inbound_credentials,
     cc.max_cps,
     cc.max_concurrent_calls,
-    cc.max_daily_minutes,
     cc.codecs,
     cc.supports_video,
     cc.supports_fax,
@@ -100,7 +92,6 @@ LIMIT 1;
 SELECT
     cc.id,
     cc.organization_id,
-    cc.provider_id,
     cc.name,
     cc.status,
     cc.outbound_auth_method,
@@ -114,7 +105,6 @@ SELECT
     cc.inbound_secret_ciphertext IS NOT NULL AS has_inbound_credentials,
     cc.max_cps,
     cc.max_concurrent_calls,
-    cc.max_daily_minutes,
     cc.codecs,
     cc.supports_video,
     cc.supports_fax,
@@ -134,7 +124,6 @@ ORDER BY cc.created_at DESC;
 SELECT
     id,
     organization_id,
-    provider_id,
     name,
     status,
     outbound_auth_method,
@@ -146,7 +135,6 @@ SELECT
     inbound_secret_ciphertext IS NOT NULL AS has_inbound_credentials,
     max_cps,
     max_concurrent_calls,
-    max_daily_minutes,
     codecs,
     supports_video,
     supports_fax,
@@ -179,7 +167,6 @@ SET
     inbound_enabled = COALESCE(sqlc.narg(inbound_enabled), inbound_enabled),
     max_cps = COALESCE(sqlc.narg(max_cps), max_cps),
     max_concurrent_calls = COALESCE(sqlc.narg(max_concurrent_calls), max_concurrent_calls),
-    max_daily_minutes = COALESCE(sqlc.narg(max_daily_minutes), max_daily_minutes),
     codecs = COALESCE(sqlc.narg(codecs), codecs),
     supports_video = COALESCE(sqlc.narg(supports_video), supports_video),
     supports_fax = COALESCE(sqlc.narg(supports_fax), supports_fax),
@@ -353,21 +340,18 @@ SELECT
     CAST(COALESCE(cc.organization_id::TEXT, '—') AS TEXT) AS organization_id,
     COALESCE(o.name, '—') AS organization_name,
     cc.name,
-    cp.name AS provider_name,
     cc.status,
     cc.inbound_enabled,
     cc.max_cps,
     cc.max_concurrent_calls,
     COUNT(t.id)::BIGINT AS trunk_count
 FROM carrier_connections AS cc
-JOIN carrier_providers AS cp ON cp.id = cc.provider_id
 LEFT JOIN organizations AS o ON o.id = cc.organization_id
 LEFT JOIN trunks AS t ON t.carrier_connection_id = cc.id
 GROUP BY
     cc.id,
     o.name,
     cc.name,
-    cp.name,
     cc.status,
     cc.inbound_enabled,
     cc.max_cps,
@@ -381,8 +365,6 @@ SELECT
     cc.id::TEXT AS id,
     CAST(COALESCE(cc.organization_id::TEXT, '—') AS TEXT) AS organization_id,
     COALESCE(o.name, '—') AS organization_name,
-    cc.provider_id::TEXT AS provider_id,
-    cp.name AS provider_name,
     cc.name,
     cc.status,
     cc.outbound_auth_method,
@@ -390,7 +372,6 @@ SELECT
     cc.inbound_auth_method,
     cc.max_cps,
     cc.max_concurrent_calls,
-    CAST(COALESCE(cc.max_daily_minutes::TEXT, '—') AS TEXT) AS max_daily_minutes,
     array_to_string(cc.codecs, ', ') AS codecs,
     cc.supports_video,
     cc.supports_fax,
@@ -399,12 +380,11 @@ SELECT
     to_char(cc.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI') AS created_at,
     to_char(cc.updated_at AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI') AS updated_at
 FROM carrier_connections AS cc
-JOIN carrier_providers AS cp ON cp.id = cc.provider_id
 LEFT JOIN organizations AS o ON o.id = cc.organization_id
 LEFT JOIN trunks AS t ON t.carrier_connection_id = cc.id
 LEFT JOIN carrier_connection_source_ips AS src ON src.carrier_connection_id = cc.id
 WHERE cc.id = sqlc.arg(id)
-GROUP BY cc.id, o.name, cp.name
+GROUP BY cc.id, o.name
 LIMIT 1;
 
 -- name: ListBackofficeCarrierConnectionSourceIPs :many

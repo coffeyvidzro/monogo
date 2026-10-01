@@ -31,8 +31,8 @@ WHERE d.carrier_connection_id = updated.id
 `
 
 type ClearCarrierConnectionOutboundAuthParams struct {
-	ID             uuid.UUID  `db:"id" json:"id"`
-	OrganizationID *uuid.UUID `db:"organization_id" json:"organization_id"`
+	ID             uuid.UUID `db:"id" json:"id"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
 }
 
 func (q *Queries) ClearCarrierConnectionOutboundAuth(ctx context.Context, arg ClearCarrierConnectionOutboundAuthParams) error {
@@ -44,7 +44,6 @@ const createCarrierConnection = `-- name: CreateCarrierConnection :one
 INSERT INTO carrier_connections (
     id,
     organization_id,
-    provider_id,
     name,
     status,
     outbound_auth_method,
@@ -56,7 +55,6 @@ INSERT INTO carrier_connections (
     inbound_secret_ciphertext,
     max_cps,
     max_concurrent_calls,
-    max_daily_minutes,
     codecs,
     supports_video,
     supports_fax
@@ -64,57 +62,50 @@ INSERT INTO carrier_connections (
 SELECT
     $1 AS id,
     $2 AS organization_id,
-    $3 AS provider_id,
-    $4 AS name,
-    COALESCE($5, 'active') AS status,
-    COALESCE($6, 'none') AS outbound_auth_method,
-    $7 AS auth_username,
-    $8 AS auth_secret_ciphertext,
-    COALESCE($9, false) AS inbound_enabled,
-    COALESCE($10, 'ip') AS inbound_auth_method,
-    $11 AS inbound_username,
-    $12 AS inbound_secret_ciphertext,
-    COALESCE($13, 10) AS max_cps,
-    COALESCE($14, 100) AS max_concurrent_calls,
-    $15 AS max_daily_minutes,
-    COALESCE($16, ARRAY['PCMU','PCMA']::TEXT[]) AS codecs,
-    COALESCE($17, false) AS supports_video,
-    COALESCE($18, false) AS supports_fax
+    $3 AS name,
+    COALESCE($4, 'active') AS status,
+    COALESCE($5, 'none') AS outbound_auth_method,
+    $6 AS auth_username,
+    $7 AS auth_secret_ciphertext,
+    COALESCE($8, false) AS inbound_enabled,
+    COALESCE($9, 'ip') AS inbound_auth_method,
+    $10 AS inbound_username,
+    $11 AS inbound_secret_ciphertext,
+    COALESCE($12, 10) AS max_cps,
+    COALESCE($13, 100) AS max_concurrent_calls,
+    COALESCE($14, ARRAY['PCMU','PCMA']::TEXT[]) AS codecs,
+    COALESCE($15, false) AS supports_video,
+    COALESCE($16, false) AS supports_fax
 FROM organizations AS o
-JOIN carrier_providers AS cp ON cp.id = $3
 WHERE o.id = $2
   AND o.status = 'active'
   AND o.deleted_at IS NULL
-  AND cp.status = 'active'
-RETURNING id, organization_id, provider_id, name, status, outbound_auth_method, auth_username, auth_secret_ciphertext, inbound_enabled, inbound_auth_method, inbound_username, inbound_secret_ciphertext, max_cps, max_concurrent_calls, max_daily_minutes, codecs, supports_video, supports_fax, created_at, updated_at
+RETURNING id, organization_id, name, status, outbound_auth_method, auth_username, auth_secret_ciphertext, inbound_enabled, inbound_auth_method, inbound_username, inbound_secret_ciphertext, max_cps, max_concurrent_calls, codecs, supports_video, supports_fax, created_at, updated_at
 `
 
 type CreateCarrierConnectionParams struct {
-	ID                      uuid.UUID  `db:"id" json:"id"`
-	OrganizationID          *uuid.UUID `db:"organization_id" json:"organization_id"`
-	ProviderID              uuid.UUID  `db:"provider_id" json:"provider_id"`
-	Name                    string     `db:"name" json:"name"`
-	Status                  *string    `db:"status" json:"status"`
-	OutboundAuthMethod      *string    `db:"outbound_auth_method" json:"outbound_auth_method"`
-	AuthUsername            *string    `db:"auth_username" json:"auth_username"`
-	AuthSecretCiphertext    *string    `db:"auth_secret_ciphertext" json:"auth_secret_ciphertext"`
-	InboundEnabled          *bool      `db:"inbound_enabled" json:"inbound_enabled"`
-	InboundAuthMethod       *string    `db:"inbound_auth_method" json:"inbound_auth_method"`
-	InboundUsername         *string    `db:"inbound_username" json:"inbound_username"`
-	InboundSecretCiphertext *string    `db:"inbound_secret_ciphertext" json:"inbound_secret_ciphertext"`
-	MaxCps                  *int32     `db:"max_cps" json:"max_cps"`
-	MaxConcurrentCalls      *int32     `db:"max_concurrent_calls" json:"max_concurrent_calls"`
-	MaxDailyMinutes         *int64     `db:"max_daily_minutes" json:"max_daily_minutes"`
-	Codecs                  []string   `db:"codecs" json:"codecs"`
-	SupportsVideo           *bool      `db:"supports_video" json:"supports_video"`
-	SupportsFax             *bool      `db:"supports_fax" json:"supports_fax"`
+	ID                      uuid.UUID `db:"id" json:"id"`
+	OrganizationID          uuid.UUID `db:"organization_id" json:"organization_id"`
+	Name                    string    `db:"name" json:"name"`
+	Status                  *string   `db:"status" json:"status"`
+	OutboundAuthMethod      *string   `db:"outbound_auth_method" json:"outbound_auth_method"`
+	AuthUsername            *string   `db:"auth_username" json:"auth_username"`
+	AuthSecretCiphertext    *string   `db:"auth_secret_ciphertext" json:"auth_secret_ciphertext"`
+	InboundEnabled          *bool     `db:"inbound_enabled" json:"inbound_enabled"`
+	InboundAuthMethod       *string   `db:"inbound_auth_method" json:"inbound_auth_method"`
+	InboundUsername         *string   `db:"inbound_username" json:"inbound_username"`
+	InboundSecretCiphertext *string   `db:"inbound_secret_ciphertext" json:"inbound_secret_ciphertext"`
+	MaxCps                  *int32    `db:"max_cps" json:"max_cps"`
+	MaxConcurrentCalls      *int32    `db:"max_concurrent_calls" json:"max_concurrent_calls"`
+	Codecs                  []string  `db:"codecs" json:"codecs"`
+	SupportsVideo           *bool     `db:"supports_video" json:"supports_video"`
+	SupportsFax             *bool     `db:"supports_fax" json:"supports_fax"`
 }
 
 func (q *Queries) CreateCarrierConnection(ctx context.Context, arg CreateCarrierConnectionParams) (CarrierConnection, error) {
 	row := q.db.QueryRow(ctx, createCarrierConnection,
 		arg.ID,
 		arg.OrganizationID,
-		arg.ProviderID,
 		arg.Name,
 		arg.Status,
 		arg.OutboundAuthMethod,
@@ -126,7 +117,6 @@ func (q *Queries) CreateCarrierConnection(ctx context.Context, arg CreateCarrier
 		arg.InboundSecretCiphertext,
 		arg.MaxCps,
 		arg.MaxConcurrentCalls,
-		arg.MaxDailyMinutes,
 		arg.Codecs,
 		arg.SupportsVideo,
 		arg.SupportsFax,
@@ -135,7 +125,6 @@ func (q *Queries) CreateCarrierConnection(ctx context.Context, arg CreateCarrier
 	err := row.Scan(
 		&i.ID,
 		&i.OrganizationID,
-		&i.ProviderID,
 		&i.Name,
 		&i.Status,
 		&i.OutboundAuthMethod,
@@ -147,7 +136,6 @@ func (q *Queries) CreateCarrierConnection(ctx context.Context, arg CreateCarrier
 		&i.InboundSecretCiphertext,
 		&i.MaxCps,
 		&i.MaxConcurrentCalls,
-		&i.MaxDailyMinutes,
 		&i.Codecs,
 		&i.SupportsVideo,
 		&i.SupportsFax,
@@ -224,8 +212,8 @@ WHERE id = $1
 `
 
 type DisableCarrierConnectionParams struct {
-	ID             uuid.UUID  `db:"id" json:"id"`
-	OrganizationID *uuid.UUID `db:"organization_id" json:"organization_id"`
+	ID             uuid.UUID `db:"id" json:"id"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
 }
 
 func (q *Queries) DisableCarrierConnection(ctx context.Context, arg DisableCarrierConnectionParams) error {
@@ -244,8 +232,8 @@ WHERE id = $1
 `
 
 type EnableCarrierConnectionParams struct {
-	ID             uuid.UUID  `db:"id" json:"id"`
-	OrganizationID *uuid.UUID `db:"organization_id" json:"organization_id"`
+	ID             uuid.UUID `db:"id" json:"id"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
 }
 
 func (q *Queries) EnableCarrierConnection(ctx context.Context, arg EnableCarrierConnectionParams) error {
@@ -258,8 +246,6 @@ SELECT
     cc.id::TEXT AS id,
     CAST(COALESCE(cc.organization_id::TEXT, '—') AS TEXT) AS organization_id,
     COALESCE(o.name, '—') AS organization_name,
-    cc.provider_id::TEXT AS provider_id,
-    cp.name AS provider_name,
     cc.name,
     cc.status,
     cc.outbound_auth_method,
@@ -267,7 +253,6 @@ SELECT
     cc.inbound_auth_method,
     cc.max_cps,
     cc.max_concurrent_calls,
-    CAST(COALESCE(cc.max_daily_minutes::TEXT, '—') AS TEXT) AS max_daily_minutes,
     array_to_string(cc.codecs, ', ') AS codecs,
     cc.supports_video,
     cc.supports_fax,
@@ -276,12 +261,11 @@ SELECT
     to_char(cc.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI') AS created_at,
     to_char(cc.updated_at AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI') AS updated_at
 FROM carrier_connections AS cc
-JOIN carrier_providers AS cp ON cp.id = cc.provider_id
 LEFT JOIN organizations AS o ON o.id = cc.organization_id
 LEFT JOIN trunks AS t ON t.carrier_connection_id = cc.id
 LEFT JOIN carrier_connection_source_ips AS src ON src.carrier_connection_id = cc.id
 WHERE cc.id = $1
-GROUP BY cc.id, o.name, cp.name
+GROUP BY cc.id, o.name
 LIMIT 1
 `
 
@@ -289,8 +273,6 @@ type GetBackofficeCarrierConnectionRow struct {
 	ID                 string `db:"id" json:"id"`
 	OrganizationID     string `db:"organization_id" json:"organization_id"`
 	OrganizationName   string `db:"organization_name" json:"organization_name"`
-	ProviderID         string `db:"provider_id" json:"provider_id"`
-	ProviderName       string `db:"provider_name" json:"provider_name"`
 	Name               string `db:"name" json:"name"`
 	Status             string `db:"status" json:"status"`
 	OutboundAuthMethod string `db:"outbound_auth_method" json:"outbound_auth_method"`
@@ -298,7 +280,6 @@ type GetBackofficeCarrierConnectionRow struct {
 	InboundAuthMethod  string `db:"inbound_auth_method" json:"inbound_auth_method"`
 	MaxCps             int32  `db:"max_cps" json:"max_cps"`
 	MaxConcurrentCalls int32  `db:"max_concurrent_calls" json:"max_concurrent_calls"`
-	MaxDailyMinutes    string `db:"max_daily_minutes" json:"max_daily_minutes"`
 	Codecs             string `db:"codecs" json:"codecs"`
 	SupportsVideo      bool   `db:"supports_video" json:"supports_video"`
 	SupportsFax        bool   `db:"supports_fax" json:"supports_fax"`
@@ -315,8 +296,6 @@ func (q *Queries) GetBackofficeCarrierConnection(ctx context.Context, id uuid.UU
 		&i.ID,
 		&i.OrganizationID,
 		&i.OrganizationName,
-		&i.ProviderID,
-		&i.ProviderName,
 		&i.Name,
 		&i.Status,
 		&i.OutboundAuthMethod,
@@ -324,7 +303,6 @@ func (q *Queries) GetBackofficeCarrierConnection(ctx context.Context, id uuid.UU
 		&i.InboundAuthMethod,
 		&i.MaxCps,
 		&i.MaxConcurrentCalls,
-		&i.MaxDailyMinutes,
 		&i.Codecs,
 		&i.SupportsVideo,
 		&i.SupportsFax,
@@ -340,7 +318,6 @@ const getCarrierConnectionByID = `-- name: GetCarrierConnectionByID :one
 SELECT
     cc.id,
     cc.organization_id,
-    cc.provider_id,
     cc.name,
     cc.status,
     cc.outbound_auth_method,
@@ -354,7 +331,6 @@ SELECT
     cc.inbound_secret_ciphertext IS NOT NULL AS has_inbound_credentials,
     cc.max_cps,
     cc.max_concurrent_calls,
-    cc.max_daily_minutes,
     cc.codecs,
     cc.supports_video,
     cc.supports_fax,
@@ -373,14 +349,13 @@ LIMIT 1
 `
 
 type GetCarrierConnectionByIDParams struct {
-	ID             uuid.UUID  `db:"id" json:"id"`
-	OrganizationID *uuid.UUID `db:"organization_id" json:"organization_id"`
+	ID             uuid.UUID `db:"id" json:"id"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
 }
 
 type GetCarrierConnectionByIDRow struct {
 	ID                     uuid.UUID          `db:"id" json:"id"`
-	OrganizationID         *uuid.UUID         `db:"organization_id" json:"organization_id"`
-	ProviderID             uuid.UUID          `db:"provider_id" json:"provider_id"`
+	OrganizationID         uuid.UUID          `db:"organization_id" json:"organization_id"`
 	Name                   string             `db:"name" json:"name"`
 	Status                 string             `db:"status" json:"status"`
 	OutboundAuthMethod     string             `db:"outbound_auth_method" json:"outbound_auth_method"`
@@ -394,7 +369,6 @@ type GetCarrierConnectionByIDRow struct {
 	HasInboundCredentials  interface{}        `db:"has_inbound_credentials" json:"has_inbound_credentials"`
 	MaxCps                 int32              `db:"max_cps" json:"max_cps"`
 	MaxConcurrentCalls     int32              `db:"max_concurrent_calls" json:"max_concurrent_calls"`
-	MaxDailyMinutes        *int64             `db:"max_daily_minutes" json:"max_daily_minutes"`
 	Codecs                 []string           `db:"codecs" json:"codecs"`
 	SupportsVideo          bool               `db:"supports_video" json:"supports_video"`
 	SupportsFax            bool               `db:"supports_fax" json:"supports_fax"`
@@ -408,7 +382,6 @@ func (q *Queries) GetCarrierConnectionByID(ctx context.Context, arg GetCarrierCo
 	err := row.Scan(
 		&i.ID,
 		&i.OrganizationID,
-		&i.ProviderID,
 		&i.Name,
 		&i.Status,
 		&i.OutboundAuthMethod,
@@ -422,7 +395,6 @@ func (q *Queries) GetCarrierConnectionByID(ctx context.Context, arg GetCarrierCo
 		&i.HasInboundCredentials,
 		&i.MaxCps,
 		&i.MaxConcurrentCalls,
-		&i.MaxDailyMinutes,
 		&i.Codecs,
 		&i.SupportsVideo,
 		&i.SupportsFax,
@@ -448,8 +420,8 @@ LIMIT 1
 `
 
 type GetCarrierConnectionCredentialsParams struct {
-	ID             uuid.UUID  `db:"id" json:"id"`
-	OrganizationID *uuid.UUID `db:"organization_id" json:"organization_id"`
+	ID             uuid.UUID `db:"id" json:"id"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
 }
 
 type GetCarrierConnectionCredentialsRow struct {
@@ -492,12 +464,12 @@ WHERE cc.id = $5
 `
 
 type InsertCarrierDigestCredentialParams struct {
-	Direction           string     `db:"direction" json:"direction"`
-	Username            string     `db:"username" json:"username"`
-	Realm               string     `db:"realm" json:"realm"`
-	Ha1Md5              string     `db:"ha1_md5" json:"ha1_md5"`
-	CarrierConnectionID uuid.UUID  `db:"carrier_connection_id" json:"carrier_connection_id"`
-	OrganizationID      *uuid.UUID `db:"organization_id" json:"organization_id"`
+	Direction           string    `db:"direction" json:"direction"`
+	Username            string    `db:"username" json:"username"`
+	Realm               string    `db:"realm" json:"realm"`
+	Ha1Md5              string    `db:"ha1_md5" json:"ha1_md5"`
+	CarrierConnectionID uuid.UUID `db:"carrier_connection_id" json:"carrier_connection_id"`
+	OrganizationID      uuid.UUID `db:"organization_id" json:"organization_id"`
 }
 
 func (q *Queries) InsertCarrierDigestCredential(ctx context.Context, arg InsertCarrierDigestCredentialParams) error {
@@ -516,7 +488,6 @@ const listActiveCarrierConnectionsByOrganizationID = `-- name: ListActiveCarrier
 SELECT
     id,
     organization_id,
-    provider_id,
     name,
     status,
     outbound_auth_method,
@@ -528,7 +499,6 @@ SELECT
     inbound_secret_ciphertext IS NOT NULL AS has_inbound_credentials,
     max_cps,
     max_concurrent_calls,
-    max_daily_minutes,
     codecs,
     supports_video,
     supports_fax,
@@ -542,8 +512,7 @@ ORDER BY created_at DESC
 
 type ListActiveCarrierConnectionsByOrganizationIDRow struct {
 	ID                     uuid.UUID          `db:"id" json:"id"`
-	OrganizationID         *uuid.UUID         `db:"organization_id" json:"organization_id"`
-	ProviderID             uuid.UUID          `db:"provider_id" json:"provider_id"`
+	OrganizationID         uuid.UUID          `db:"organization_id" json:"organization_id"`
 	Name                   string             `db:"name" json:"name"`
 	Status                 string             `db:"status" json:"status"`
 	OutboundAuthMethod     string             `db:"outbound_auth_method" json:"outbound_auth_method"`
@@ -555,7 +524,6 @@ type ListActiveCarrierConnectionsByOrganizationIDRow struct {
 	HasInboundCredentials  interface{}        `db:"has_inbound_credentials" json:"has_inbound_credentials"`
 	MaxCps                 int32              `db:"max_cps" json:"max_cps"`
 	MaxConcurrentCalls     int32              `db:"max_concurrent_calls" json:"max_concurrent_calls"`
-	MaxDailyMinutes        *int64             `db:"max_daily_minutes" json:"max_daily_minutes"`
 	Codecs                 []string           `db:"codecs" json:"codecs"`
 	SupportsVideo          bool               `db:"supports_video" json:"supports_video"`
 	SupportsFax            bool               `db:"supports_fax" json:"supports_fax"`
@@ -563,7 +531,7 @@ type ListActiveCarrierConnectionsByOrganizationIDRow struct {
 	UpdatedAt              pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 }
 
-func (q *Queries) ListActiveCarrierConnectionsByOrganizationID(ctx context.Context, organizationID *uuid.UUID) ([]ListActiveCarrierConnectionsByOrganizationIDRow, error) {
+func (q *Queries) ListActiveCarrierConnectionsByOrganizationID(ctx context.Context, organizationID uuid.UUID) ([]ListActiveCarrierConnectionsByOrganizationIDRow, error) {
 	rows, err := q.db.Query(ctx, listActiveCarrierConnectionsByOrganizationID, organizationID)
 	if err != nil {
 		return nil, err
@@ -575,7 +543,6 @@ func (q *Queries) ListActiveCarrierConnectionsByOrganizationID(ctx context.Conte
 		if err := rows.Scan(
 			&i.ID,
 			&i.OrganizationID,
-			&i.ProviderID,
 			&i.Name,
 			&i.Status,
 			&i.OutboundAuthMethod,
@@ -587,7 +554,6 @@ func (q *Queries) ListActiveCarrierConnectionsByOrganizationID(ctx context.Conte
 			&i.HasInboundCredentials,
 			&i.MaxCps,
 			&i.MaxConcurrentCalls,
-			&i.MaxDailyMinutes,
 			&i.Codecs,
 			&i.SupportsVideo,
 			&i.SupportsFax,
@@ -644,21 +610,18 @@ SELECT
     CAST(COALESCE(cc.organization_id::TEXT, '—') AS TEXT) AS organization_id,
     COALESCE(o.name, '—') AS organization_name,
     cc.name,
-    cp.name AS provider_name,
     cc.status,
     cc.inbound_enabled,
     cc.max_cps,
     cc.max_concurrent_calls,
     COUNT(t.id)::BIGINT AS trunk_count
 FROM carrier_connections AS cc
-JOIN carrier_providers AS cp ON cp.id = cc.provider_id
 LEFT JOIN organizations AS o ON o.id = cc.organization_id
 LEFT JOIN trunks AS t ON t.carrier_connection_id = cc.id
 GROUP BY
     cc.id,
     o.name,
     cc.name,
-    cp.name,
     cc.status,
     cc.inbound_enabled,
     cc.max_cps,
@@ -673,7 +636,6 @@ type ListBackofficeCarrierConnectionsRow struct {
 	OrganizationID     string `db:"organization_id" json:"organization_id"`
 	OrganizationName   string `db:"organization_name" json:"organization_name"`
 	Name               string `db:"name" json:"name"`
-	ProviderName       string `db:"provider_name" json:"provider_name"`
 	Status             string `db:"status" json:"status"`
 	InboundEnabled     bool   `db:"inbound_enabled" json:"inbound_enabled"`
 	MaxCps             int32  `db:"max_cps" json:"max_cps"`
@@ -695,7 +657,6 @@ func (q *Queries) ListBackofficeCarrierConnections(ctx context.Context) ([]ListB
 			&i.OrganizationID,
 			&i.OrganizationName,
 			&i.Name,
-			&i.ProviderName,
 			&i.Status,
 			&i.InboundEnabled,
 			&i.MaxCps,
@@ -758,7 +719,6 @@ const listCarrierConnectionsByOrganizationID = `-- name: ListCarrierConnectionsB
 SELECT
     cc.id,
     cc.organization_id,
-    cc.provider_id,
     cc.name,
     cc.status,
     cc.outbound_auth_method,
@@ -772,7 +732,6 @@ SELECT
     cc.inbound_secret_ciphertext IS NOT NULL AS has_inbound_credentials,
     cc.max_cps,
     cc.max_concurrent_calls,
-    cc.max_daily_minutes,
     cc.codecs,
     cc.supports_video,
     cc.supports_fax,
@@ -791,8 +750,7 @@ ORDER BY cc.created_at DESC
 
 type ListCarrierConnectionsByOrganizationIDRow struct {
 	ID                     uuid.UUID          `db:"id" json:"id"`
-	OrganizationID         *uuid.UUID         `db:"organization_id" json:"organization_id"`
-	ProviderID             uuid.UUID          `db:"provider_id" json:"provider_id"`
+	OrganizationID         uuid.UUID          `db:"organization_id" json:"organization_id"`
 	Name                   string             `db:"name" json:"name"`
 	Status                 string             `db:"status" json:"status"`
 	OutboundAuthMethod     string             `db:"outbound_auth_method" json:"outbound_auth_method"`
@@ -806,7 +764,6 @@ type ListCarrierConnectionsByOrganizationIDRow struct {
 	HasInboundCredentials  interface{}        `db:"has_inbound_credentials" json:"has_inbound_credentials"`
 	MaxCps                 int32              `db:"max_cps" json:"max_cps"`
 	MaxConcurrentCalls     int32              `db:"max_concurrent_calls" json:"max_concurrent_calls"`
-	MaxDailyMinutes        *int64             `db:"max_daily_minutes" json:"max_daily_minutes"`
 	Codecs                 []string           `db:"codecs" json:"codecs"`
 	SupportsVideo          bool               `db:"supports_video" json:"supports_video"`
 	SupportsFax            bool               `db:"supports_fax" json:"supports_fax"`
@@ -814,7 +771,7 @@ type ListCarrierConnectionsByOrganizationIDRow struct {
 	UpdatedAt              pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 }
 
-func (q *Queries) ListCarrierConnectionsByOrganizationID(ctx context.Context, organizationID *uuid.UUID) ([]ListCarrierConnectionsByOrganizationIDRow, error) {
+func (q *Queries) ListCarrierConnectionsByOrganizationID(ctx context.Context, organizationID uuid.UUID) ([]ListCarrierConnectionsByOrganizationIDRow, error) {
 	rows, err := q.db.Query(ctx, listCarrierConnectionsByOrganizationID, organizationID)
 	if err != nil {
 		return nil, err
@@ -826,7 +783,6 @@ func (q *Queries) ListCarrierConnectionsByOrganizationID(ctx context.Context, or
 		if err := rows.Scan(
 			&i.ID,
 			&i.OrganizationID,
-			&i.ProviderID,
 			&i.Name,
 			&i.Status,
 			&i.OutboundAuthMethod,
@@ -840,7 +796,6 @@ func (q *Queries) ListCarrierConnectionsByOrganizationID(ctx context.Context, or
 			&i.HasInboundCredentials,
 			&i.MaxCps,
 			&i.MaxConcurrentCalls,
-			&i.MaxDailyMinutes,
 			&i.Codecs,
 			&i.SupportsVideo,
 			&i.SupportsFax,
@@ -858,7 +813,7 @@ func (q *Queries) ListCarrierConnectionsByOrganizationID(ctx context.Context, or
 }
 
 const resolveCarrierConnectionBySourceIP = `-- name: ResolveCarrierConnectionBySourceIP :one
-SELECT cc.id, cc.organization_id, cc.provider_id, cc.name, cc.status, cc.outbound_auth_method, cc.auth_username, cc.auth_secret_ciphertext, cc.inbound_enabled, cc.inbound_auth_method, cc.inbound_username, cc.inbound_secret_ciphertext, cc.max_cps, cc.max_concurrent_calls, cc.max_daily_minutes, cc.codecs, cc.supports_video, cc.supports_fax, cc.created_at, cc.updated_at
+SELECT cc.id, cc.organization_id, cc.name, cc.status, cc.outbound_auth_method, cc.auth_username, cc.auth_secret_ciphertext, cc.inbound_enabled, cc.inbound_auth_method, cc.inbound_username, cc.inbound_secret_ciphertext, cc.max_cps, cc.max_concurrent_calls, cc.codecs, cc.supports_video, cc.supports_fax, cc.created_at, cc.updated_at
 FROM carrier_connection_source_ips AS src
 JOIN carrier_connections AS cc
   ON cc.id = src.carrier_connection_id
@@ -877,7 +832,6 @@ func (q *Queries) ResolveCarrierConnectionBySourceIP(ctx context.Context, source
 	err := row.Scan(
 		&i.ID,
 		&i.OrganizationID,
-		&i.ProviderID,
 		&i.Name,
 		&i.Status,
 		&i.OutboundAuthMethod,
@@ -889,7 +843,6 @@ func (q *Queries) ResolveCarrierConnectionBySourceIP(ctx context.Context, source
 		&i.InboundSecretCiphertext,
 		&i.MaxCps,
 		&i.MaxConcurrentCalls,
-		&i.MaxDailyMinutes,
 		&i.Codecs,
 		&i.SupportsVideo,
 		&i.SupportsFax,
@@ -924,12 +877,12 @@ DO UPDATE SET username = EXCLUDED.username,
 `
 
 type SetCarrierConnectionInboundDigestAuthParams struct {
-	InboundUsername         *string    `db:"inbound_username" json:"inbound_username"`
-	InboundRealm            *string    `db:"inbound_realm" json:"inbound_realm"`
-	InboundHa1Md5           *string    `db:"inbound_ha1_md5" json:"inbound_ha1_md5"`
-	InboundSecretCiphertext *string    `db:"inbound_secret_ciphertext" json:"inbound_secret_ciphertext"`
-	ID                      uuid.UUID  `db:"id" json:"id"`
-	OrganizationID          *uuid.UUID `db:"organization_id" json:"organization_id"`
+	InboundUsername         *string   `db:"inbound_username" json:"inbound_username"`
+	InboundRealm            *string   `db:"inbound_realm" json:"inbound_realm"`
+	InboundHa1Md5           *string   `db:"inbound_ha1_md5" json:"inbound_ha1_md5"`
+	InboundSecretCiphertext *string   `db:"inbound_secret_ciphertext" json:"inbound_secret_ciphertext"`
+	ID                      uuid.UUID `db:"id" json:"id"`
+	OrganizationID          uuid.UUID `db:"organization_id" json:"organization_id"`
 }
 
 func (q *Queries) SetCarrierConnectionInboundDigestAuth(ctx context.Context, arg SetCarrierConnectionInboundDigestAuthParams) error {
@@ -962,8 +915,8 @@ WHERE d.carrier_connection_id = updated.id
 `
 
 type SetCarrierConnectionInboundIPAuthParams struct {
-	ID             uuid.UUID  `db:"id" json:"id"`
-	OrganizationID *uuid.UUID `db:"organization_id" json:"organization_id"`
+	ID             uuid.UUID `db:"id" json:"id"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
 }
 
 func (q *Queries) SetCarrierConnectionInboundIPAuth(ctx context.Context, arg SetCarrierConnectionInboundIPAuthParams) error {
@@ -989,8 +942,8 @@ WHERE d.carrier_connection_id = updated.id
 `
 
 type SetCarrierConnectionInboundNoAuthParams struct {
-	ID             uuid.UUID  `db:"id" json:"id"`
-	OrganizationID *uuid.UUID `db:"organization_id" json:"organization_id"`
+	ID             uuid.UUID `db:"id" json:"id"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
 }
 
 func (q *Queries) SetCarrierConnectionInboundNoAuth(ctx context.Context, arg SetCarrierConnectionInboundNoAuthParams) error {
@@ -1023,12 +976,12 @@ DO UPDATE SET username = EXCLUDED.username,
 `
 
 type SetCarrierConnectionOutboundDigestAuthParams struct {
-	AuthUsername         *string    `db:"auth_username" json:"auth_username"`
-	AuthRealm            *string    `db:"auth_realm" json:"auth_realm"`
-	AuthHa1Md5           *string    `db:"auth_ha1_md5" json:"auth_ha1_md5"`
-	AuthSecretCiphertext *string    `db:"auth_secret_ciphertext" json:"auth_secret_ciphertext"`
-	ID                   uuid.UUID  `db:"id" json:"id"`
-	OrganizationID       *uuid.UUID `db:"organization_id" json:"organization_id"`
+	AuthUsername         *string   `db:"auth_username" json:"auth_username"`
+	AuthRealm            *string   `db:"auth_realm" json:"auth_realm"`
+	AuthHa1Md5           *string   `db:"auth_ha1_md5" json:"auth_ha1_md5"`
+	AuthSecretCiphertext *string   `db:"auth_secret_ciphertext" json:"auth_secret_ciphertext"`
+	ID                   uuid.UUID `db:"id" json:"id"`
+	OrganizationID       uuid.UUID `db:"organization_id" json:"organization_id"`
 }
 
 func (q *Queries) SetCarrierConnectionOutboundDigestAuth(ctx context.Context, arg SetCarrierConnectionOutboundDigestAuthParams) error {
@@ -1051,28 +1004,26 @@ SET
     inbound_enabled = COALESCE($3, inbound_enabled),
     max_cps = COALESCE($4, max_cps),
     max_concurrent_calls = COALESCE($5, max_concurrent_calls),
-    max_daily_minutes = COALESCE($6, max_daily_minutes),
-    codecs = COALESCE($7, codecs),
-    supports_video = COALESCE($8, supports_video),
-    supports_fax = COALESCE($9, supports_fax),
+    codecs = COALESCE($6, codecs),
+    supports_video = COALESCE($7, supports_video),
+    supports_fax = COALESCE($8, supports_fax),
     updated_at = NOW()
-WHERE id = $10
-  AND organization_id = $11
-RETURNING id, organization_id, provider_id, name, status, outbound_auth_method, auth_username, auth_secret_ciphertext, inbound_enabled, inbound_auth_method, inbound_username, inbound_secret_ciphertext, max_cps, max_concurrent_calls, max_daily_minutes, codecs, supports_video, supports_fax, created_at, updated_at
+WHERE id = $9
+  AND organization_id = $10
+RETURNING id, organization_id, name, status, outbound_auth_method, auth_username, auth_secret_ciphertext, inbound_enabled, inbound_auth_method, inbound_username, inbound_secret_ciphertext, max_cps, max_concurrent_calls, codecs, supports_video, supports_fax, created_at, updated_at
 `
 
 type UpdateCarrierConnectionParams struct {
-	Name               *string    `db:"name" json:"name"`
-	Status             *string    `db:"status" json:"status"`
-	InboundEnabled     *bool      `db:"inbound_enabled" json:"inbound_enabled"`
-	MaxCps             *int32     `db:"max_cps" json:"max_cps"`
-	MaxConcurrentCalls *int32     `db:"max_concurrent_calls" json:"max_concurrent_calls"`
-	MaxDailyMinutes    *int64     `db:"max_daily_minutes" json:"max_daily_minutes"`
-	Codecs             []string   `db:"codecs" json:"codecs"`
-	SupportsVideo      *bool      `db:"supports_video" json:"supports_video"`
-	SupportsFax        *bool      `db:"supports_fax" json:"supports_fax"`
-	ID                 uuid.UUID  `db:"id" json:"id"`
-	OrganizationID     *uuid.UUID `db:"organization_id" json:"organization_id"`
+	Name               *string   `db:"name" json:"name"`
+	Status             *string   `db:"status" json:"status"`
+	InboundEnabled     *bool     `db:"inbound_enabled" json:"inbound_enabled"`
+	MaxCps             *int32    `db:"max_cps" json:"max_cps"`
+	MaxConcurrentCalls *int32    `db:"max_concurrent_calls" json:"max_concurrent_calls"`
+	Codecs             []string  `db:"codecs" json:"codecs"`
+	SupportsVideo      *bool     `db:"supports_video" json:"supports_video"`
+	SupportsFax        *bool     `db:"supports_fax" json:"supports_fax"`
+	ID                 uuid.UUID `db:"id" json:"id"`
+	OrganizationID     uuid.UUID `db:"organization_id" json:"organization_id"`
 }
 
 func (q *Queries) UpdateCarrierConnection(ctx context.Context, arg UpdateCarrierConnectionParams) (CarrierConnection, error) {
@@ -1082,7 +1033,6 @@ func (q *Queries) UpdateCarrierConnection(ctx context.Context, arg UpdateCarrier
 		arg.InboundEnabled,
 		arg.MaxCps,
 		arg.MaxConcurrentCalls,
-		arg.MaxDailyMinutes,
 		arg.Codecs,
 		arg.SupportsVideo,
 		arg.SupportsFax,
@@ -1093,7 +1043,6 @@ func (q *Queries) UpdateCarrierConnection(ctx context.Context, arg UpdateCarrier
 	err := row.Scan(
 		&i.ID,
 		&i.OrganizationID,
-		&i.ProviderID,
 		&i.Name,
 		&i.Status,
 		&i.OutboundAuthMethod,
@@ -1105,7 +1054,6 @@ func (q *Queries) UpdateCarrierConnection(ctx context.Context, arg UpdateCarrier
 		&i.InboundSecretCiphertext,
 		&i.MaxCps,
 		&i.MaxConcurrentCalls,
-		&i.MaxDailyMinutes,
 		&i.Codecs,
 		&i.SupportsVideo,
 		&i.SupportsFax,

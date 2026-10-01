@@ -130,17 +130,10 @@ def fake_openai_state():
 
 
 def setup_carrier():
-    provider_id = psql(
-        "SELECT id::text FROM carrier_providers "
-        "WHERE slug='generic-sip' AND status='active'"
-    )
-    if not provider_id:
-        raise AcceptanceError("generic SIP provider fixture is unavailable")
 
     connection = api(
         "POST", "/v1/carrier-connections/",
         {
-            "provider_id": provider_id,
             "name": "voice-agent-v1-carrier",
             "inbound_enabled": True,
             "codecs": ["PCMU", "PCMA"],

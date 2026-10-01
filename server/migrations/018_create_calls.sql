@@ -1,17 +1,16 @@
 CREATE TABLE IF NOT EXISTS calls (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-    application_id UUID REFERENCES voice_applications(id) ON DELETE SET NULL,
-    carrier_connection_id UUID REFERENCES carrier_connections(id) ON DELETE RESTRICT,
-    trunk_id UUID REFERENCES trunks(id) ON DELETE RESTRICT,
-    trunk_endpoint_id UUID REFERENCES trunk_endpoints(id) ON DELETE RESTRICT,
+    voice_agent_id UUID,
+    carrier_connection_id UUID,
+    trunk_id UUID,
+    trunk_endpoint_id UUID,
     direction TEXT NOT NULL,
     state TEXT NOT NULL DEFAULT 'initiating',
     media_state TEXT NOT NULL DEFAULT 'active',
     from_uri TEXT NOT NULL,
     to_uri TEXT NOT NULL,
     sip_call_id TEXT,
-    provider_id UUID,
     started_at TIMESTAMPTZ,
     answered_at TIMESTAMPTZ,
     ended_at TIMESTAMPTZ,
@@ -20,6 +19,22 @@ CREATE TABLE IF NOT EXISTS calls (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
 
     CONSTRAINT uq_calls_id_organization UNIQUE (id, organization_id),
+    CONSTRAINT fk_calls_voice_agent_scope
+        FOREIGN KEY (voice_agent_id, organization_id)
+        REFERENCES voice_agents(id, organization_id)
+        ON DELETE SET NULL,
+    CONSTRAINT fk_calls_carrier_connection_scope
+        FOREIGN KEY (carrier_connection_id, organization_id)
+        REFERENCES carrier_connections(id, organization_id)
+        ON DELETE RESTRICT,
+    CONSTRAINT fk_calls_trunk_scope
+        FOREIGN KEY (trunk_id, organization_id)
+        REFERENCES trunks(id, organization_id)
+        ON DELETE RESTRICT,
+    CONSTRAINT fk_calls_trunk_endpoint_scope
+        FOREIGN KEY (trunk_endpoint_id, organization_id)
+        REFERENCES trunk_endpoints(id, organization_id)
+        ON DELETE RESTRICT,
     CONSTRAINT chk_calls_direction CHECK (direction IN ('inbound', 'outbound')),
     CONSTRAINT chk_calls_state CHECK (
         state IN ('initiating', 'ringing', 'answered', 'active', 'completed', 'failed', 'cancelled')
@@ -41,8 +56,9 @@ CREATE INDEX IF NOT EXISTS idx_calls_organization_created
 CREATE INDEX IF NOT EXISTS idx_calls_organization_state
     ON calls (organization_id, state, created_at DESC);
 
-CREATE INDEX IF NOT EXISTS idx_calls_application_created
-    ON calls (application_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_calls_voice_agent_created
+    ON calls (voice_agent_id, created_at DESC)
+    WHERE voice_agent_id IS NOT NULL;
 
 CREATE INDEX IF NOT EXISTS idx_calls_carrier_connection_id
     ON calls (carrier_connection_id)

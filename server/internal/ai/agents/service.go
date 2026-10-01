@@ -65,17 +65,6 @@ func (s *Service) Disable(ctx context.Context, organizationID, id uuid.UUID) err
 	return writeError(s.repo.Disable(ctx, organizationID, id), "disable voice agent")
 }
 
-func (s *Service) ResolveByApplication(ctx context.Context, organizationID, applicationID uuid.UUID) (sqlc.VoiceAgent, error) {
-	if organizationID == uuid.Nil {
-		return sqlc.VoiceAgent{}, apperror.NewBadRequest("organization_id is required")
-	}
-	if applicationID == uuid.Nil {
-		return sqlc.VoiceAgent{}, apperror.NewBadRequest("voice application id is required")
-	}
-	agent, err := s.repo.ResolveByApplication(ctx, organizationID, applicationID)
-	return agent, readError(err, "voice agent not found")
-}
-
 func readError(err error, message string) error {
 	if err == nil {
 		return nil

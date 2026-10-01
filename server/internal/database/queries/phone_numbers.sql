@@ -48,15 +48,28 @@ RETURNING pn.*;
 UPDATE phone_numbers SET status = 'released', carrier_connection_id = NULL, voice_enabled = false, updated_at = NOW()
 WHERE id = sqlc.arg(id) AND organization_id = sqlc.arg(organization_id) AND status IN ('active', 'disabled') RETURNING *;
 
--- name: GetVoiceBindingByNumber :one
-SELECT vb.id AS binding_id, vb.voice_application_id, va.name AS application_name, va.ring_timeout_seconds,
-       va.caller_id AS application_caller_id, pn.id AS phone_number_id, pn.number, pn.organization_id
+-- name: GetVoiceAgentBindingByNumber :one
+SELECT
+    binding.id AS binding_id,
+    binding.voice_agent_id,
+    pn.id AS phone_number_id,
+    pn.number,
+    pn.organization_id
 FROM phone_numbers AS pn
-JOIN voice_bindings AS vb ON vb.phone_number_id = pn.id
-JOIN voice_applications AS va ON va.id = vb.voice_application_id
+JOIN voice_agent_bindings AS binding
+  ON binding.phone_number_id = pn.id
+ AND binding.organization_id = pn.organization_id
+JOIN voice_agents AS agent
+  ON agent.id = binding.voice_agent_id
+ AND agent.organization_id = binding.organization_id
 JOIN organizations AS o ON o.id = pn.organization_id
-WHERE pn.number = sqlc.arg(number) AND pn.status = 'active' AND pn.voice_enabled = true
-  AND va.status = 'active' AND o.status = 'active' AND o.deleted_at IS NULL LIMIT 1;
+WHERE pn.number = sqlc.arg(number)
+  AND pn.status = 'active'
+  AND pn.voice_enabled = true
+  AND agent.status = 'active'
+  AND o.status = 'active'
+  AND o.deleted_at IS NULL
+LIMIT 1;
 
 -- name: ListBackofficePhoneNumbers :many
 SELECT pn.id::TEXT AS id, pn.organization_id::TEXT AS organization_id, o.name AS organization_name,

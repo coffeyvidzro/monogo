@@ -128,7 +128,7 @@ SELECT s.id::TEXT AS id, s.organization_id::TEXT AS organization_id, o.name AS o
        to_char(s.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI') AS created_at,
        to_char(s.updated_at AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI') AS updated_at
 FROM subscribers s JOIN organizations o ON o.id=s.organization_id
-LEFT JOIN voice_bindings vb ON vb.subscriber_id=s.id WHERE s.id=$1
+LEFT JOIN voice_agent_bindings vb ON vb.subscriber_id=s.id WHERE s.id=$1
 GROUP BY s.id,o.name LIMIT 1
 `
 

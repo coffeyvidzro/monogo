@@ -2,7 +2,7 @@ CREATE TABLE IF NOT EXISTS conference_participants (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
     conference_id UUID NOT NULL REFERENCES conferences(id) ON DELETE CASCADE,
-    call_participant_id UUID REFERENCES call_participants(id) ON DELETE SET NULL,
+    call_participant_id UUID,
     state TEXT NOT NULL DEFAULT 'joined',
     muted BOOLEAN NOT NULL DEFAULT false,
     deaf BOOLEAN NOT NULL DEFAULT false,
@@ -12,6 +12,10 @@ CREATE TABLE IF NOT EXISTS conference_participants (
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
 
+    CONSTRAINT fk_conference_participants_call_scope
+        FOREIGN KEY (call_participant_id, organization_id)
+        REFERENCES call_participants(id, organization_id)
+        ON DELETE CASCADE,
     CONSTRAINT chk_conference_participants_state CHECK (
         state IN ('joining', 'joined', 'left', 'failed')
     ),

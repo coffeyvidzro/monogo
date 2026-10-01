@@ -70,7 +70,7 @@ func RunWithConfig(ctx context.Context, cfg Config) error {
 		}
 		serverErr <- err
 	}()
-	logger.Info(ctx, "media worker started", "address", listener.Addr().String())
+	logger.Info(ctx, "media runtime started", "address", listener.Addr().String())
 
 	var result error
 	select {
@@ -90,7 +90,7 @@ func RunWithConfig(ctx context.Context, cfg Config) error {
 	if err := server.Shutdown(drainCtx); err != nil && result == nil {
 		result = fmt.Errorf("shutdown media HTTP server: %w", err)
 	}
-	logger.Info(context.Background(), "media worker stopped")
+	logger.Info(context.Background(), "media runtime stopped")
 	return result
 }
 

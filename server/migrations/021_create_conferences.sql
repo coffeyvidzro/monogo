@@ -1,7 +1,6 @@
 CREATE TABLE IF NOT EXISTS conferences (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-    application_id UUID REFERENCES voice_applications(id) ON DELETE SET NULL,
     name VARCHAR(255) NOT NULL,
     state TEXT NOT NULL DEFAULT 'active',
     started_at TIMESTAMPTZ,
@@ -19,9 +18,6 @@ CREATE TABLE IF NOT EXISTS conferences (
 
 CREATE INDEX IF NOT EXISTS idx_conferences_organization_created
     ON conferences (organization_id, created_at DESC);
-
-CREATE INDEX IF NOT EXISTS idx_conferences_application_created
-    ON conferences (application_id, created_at DESC);
 
 CREATE INDEX IF NOT EXISTS idx_conferences_organization_state
     ON conferences (organization_id, state, created_at DESC);
