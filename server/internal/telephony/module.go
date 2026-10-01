@@ -12,8 +12,6 @@ import (
 	"github.com/coffeyvidzro/monogo/internal/telephony/numbers"
 	"github.com/coffeyvidzro/monogo/internal/telephony/recordings"
 	"github.com/coffeyvidzro/monogo/internal/telephony/routing"
-	"github.com/coffeyvidzro/monogo/internal/telephony/sip_domains"
-	"github.com/coffeyvidzro/monogo/internal/telephony/subscribers"
 	"github.com/coffeyvidzro/monogo/internal/telephony/trunks"
 	"github.com/coffeyvidzro/monogo/internal/telephony/webrtc"
 )
@@ -31,15 +29,13 @@ type Dependencies struct {
 }
 
 type Module struct {
-	Calls       CallsModule
-	Carriers    CarriersModule
-	Numbers     NumbersModule
-	WebRTC      WebRTCModule
-	Recordings  RecordingsModule
-	Routing     RoutingModule
-	SIPDomains  SIPDomainsModule
-	Subscribers SubscribersModule
-	Trunks      TrunksModule
+	Calls      CallsModule
+	Carriers   CarriersModule
+	Numbers    NumbersModule
+	WebRTC     WebRTCModule
+	Recordings RecordingsModule
+	Routing    RoutingModule
+	Trunks     TrunksModule
 }
 
 type CallsModule struct {
@@ -76,18 +72,6 @@ type RoutingModule struct {
 	Service    *routing.Service
 }
 
-type SIPDomainsModule struct {
-	Repository *sip_domains.Repository
-	Service    *sip_domains.Service
-	Handler    *sip_domains.Handler
-}
-
-type SubscribersModule struct {
-	Repository *subscribers.Repository
-	Service    *subscribers.Service
-	Handler    *subscribers.Handler
-}
-
 type TrunksModule struct {
 	Repository *trunks.Repository
 	Service    *trunks.Service
@@ -114,12 +98,6 @@ func New(deps Dependencies) (*Module, error) {
 	recordingsRepository := recordings.NewRepository(deps.DB)
 	recordingsService := recordings.NewService(recordingsRepository, deps.RecordingStorage)
 
-	subscribersRepository := subscribers.NewRepository(deps.Queries)
-	subscribersService := subscribers.NewService(subscribersRepository)
-
-	sipDomainsRepository := sip_domains.NewRepository(deps.Queries)
-	sipDomainsService := sip_domains.NewService(sipDomainsRepository)
-
 	trunksRepository := trunks.NewRepository(deps.Queries)
 	trunksService := trunks.NewService(trunksRepository, deps.DB)
 	carriersRepository := carriers.NewRepository(deps.Queries)
@@ -144,16 +122,6 @@ func New(deps Dependencies) (*Module, error) {
 			Repository: recordingsRepository,
 			Service:    recordingsService,
 			Handler:    recordings.NewHandler(recordingsService),
-		},
-		Subscribers: SubscribersModule{
-			Repository: subscribersRepository,
-			Service:    subscribersService,
-			Handler:    subscribers.NewHandler(subscribersService),
-		},
-		SIPDomains: SIPDomainsModule{
-			Repository: sipDomainsRepository,
-			Service:    sipDomainsService,
-			Handler:    sip_domains.NewHandler(sipDomainsService),
 		},
 		Carriers: CarriersModule{
 			Repository: carriersRepository,

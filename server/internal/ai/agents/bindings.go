@@ -14,26 +14,20 @@ import (
 
 type CreateBindingRequest struct {
 	PhoneNumberID *uuid.UUID `json:"phone_number_id,omitempty"`
-	SIPDomainID   *uuid.UUID `json:"sip_domain_id,omitempty"`
-	SubscriberID  *uuid.UUID `json:"subscriber_id,omitempty"`
 }
 
 type BindingResponse struct {
-	ID             uuid.UUID  `json:"id"`
-	OrganizationID uuid.UUID  `json:"organization_id"`
-	VoiceAgentID   uuid.UUID  `json:"voice_agent_id"`
-	PhoneNumberID  *uuid.UUID `json:"phone_number_id,omitempty"`
-	SIPDomainID    *uuid.UUID `json:"sip_domain_id,omitempty"`
-	SubscriberID   *uuid.UUID `json:"subscriber_id,omitempty"`
-	CreatedAt      time.Time  `json:"created_at"`
+	ID             uuid.UUID `json:"id"`
+	OrganizationID uuid.UUID `json:"organization_id"`
+	VoiceAgentID   uuid.UUID `json:"voice_agent_id"`
+	PhoneNumberID  uuid.UUID `json:"phone_number_id"`
+	CreatedAt      time.Time `json:"created_at"`
 }
 
 func (r *Repository) CreateBinding(ctx context.Context, organizationID, agentID uuid.UUID, req CreateBindingRequest) (sqlc.VoiceAgentBinding, error) {
 	return r.queries.CreateVoiceAgentBinding(ctx, sqlc.CreateVoiceAgentBindingParams{
 		OrganizationID: organizationID,
-		PhoneNumberID:  req.PhoneNumberID,
-		SipDomainID:    req.SIPDomainID,
-		SubscriberID:   req.SubscriberID,
+		PhoneNumberID:  *req.PhoneNumberID,
 		VoiceAgentID:   agentID,
 	})
 }
@@ -60,10 +54,10 @@ func (s *Service) CreateBinding(ctx context.Context, organizationID, agentID uui
 	}
 	binding, err := s.repo.CreateBinding(ctx, organizationID, agentID, req)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return sqlc.VoiceAgentBinding{}, apperror.NewNotFound("voice agent or telephony target not found")
+		return sqlc.VoiceAgentBinding{}, apperror.NewNotFound("voice agent or phone number not found")
 	}
 	if conflict(err) {
-		return sqlc.VoiceAgentBinding{}, apperror.NewConflict("telephony target already has a voice agent")
+		return sqlc.VoiceAgentBinding{}, apperror.NewConflict("phone number already has a voice agent")
 	}
 	if err != nil {
 		return sqlc.VoiceAgentBinding{}, apperror.NewInternal("create voice agent binding", err)
@@ -96,18 +90,8 @@ func (s *Service) DeleteBinding(ctx context.Context, organizationID, agentID, id
 }
 
 func validateBindingTarget(req CreateBindingRequest) error {
-	count := 0
-	for _, id := range []*uuid.UUID{req.PhoneNumberID, req.SIPDomainID, req.SubscriberID} {
-		if id == nil {
-			continue
-		}
-		if *id == uuid.Nil {
-			return apperror.NewBadRequest("binding target id is invalid")
-		}
-		count++
-	}
-	if count != 1 {
-		return apperror.NewBadRequest("exactly one telephony binding target is required")
+	if req.PhoneNumberID == nil || *req.PhoneNumberID == uuid.Nil {
+		return apperror.NewBadRequest("phone_number_id is required")
 	}
 	return nil
 }
@@ -118,8 +102,6 @@ func bindingResponse(binding sqlc.VoiceAgentBinding) BindingResponse {
 		OrganizationID: binding.OrganizationID,
 		VoiceAgentID:   binding.VoiceAgentID,
 		PhoneNumberID:  binding.PhoneNumberID,
-		SIPDomainID:    binding.SipDomainID,
-		SubscriberID:   binding.SubscriberID,
 		CreatedAt:      pgconv.TimestamptzToTime(binding.CreatedAt),
 	}
 }

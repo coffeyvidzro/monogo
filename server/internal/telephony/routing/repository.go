@@ -35,8 +35,7 @@ func (r *Repository) GetInboundContext(
 		return inboundContext{}, err
 	}
 	if binding.VoiceAgentID != req.VoiceAgentID ||
-		binding.PhoneNumberID == nil ||
-		*binding.PhoneNumberID != req.PhoneNumberID {
+		binding.PhoneNumberID != req.PhoneNumberID {
 		return inboundContext{}, pgx.ErrNoRows
 	}
 
@@ -46,6 +45,7 @@ func (r *Repository) GetInboundContext(
 		OrganizationID:      req.OrganizationID,
 		CalledNumber:        req.CalledNumber,
 		CarrierConnectionID: &carrierConnectionID,
+		VoiceAgentBindingID: req.VoiceAgentBindingID,
 		VoiceAgentID:        req.VoiceAgentID,
 	})
 	if err != nil {

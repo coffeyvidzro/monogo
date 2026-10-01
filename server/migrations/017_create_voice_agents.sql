@@ -29,9 +29,7 @@ CREATE TABLE IF NOT EXISTS voice_agent_bindings (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
     voice_agent_id UUID NOT NULL,
-    phone_number_id UUID,
-    sip_domain_id UUID,
-    subscriber_id UUID,
+    phone_number_id UUID NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
 
     CONSTRAINT fk_voice_agent_bindings_agent_scope
@@ -41,33 +39,13 @@ CREATE TABLE IF NOT EXISTS voice_agent_bindings (
     CONSTRAINT fk_voice_agent_bindings_phone_number_scope
         FOREIGN KEY (phone_number_id, organization_id)
         REFERENCES phone_numbers(id, organization_id)
-        ON DELETE CASCADE,
-    CONSTRAINT fk_voice_agent_bindings_sip_domain_scope
-        FOREIGN KEY (sip_domain_id, organization_id)
-        REFERENCES sip_domains(id, organization_id)
-        ON DELETE CASCADE,
-    CONSTRAINT fk_voice_agent_bindings_subscriber_scope
-        FOREIGN KEY (subscriber_id, organization_id)
-        REFERENCES subscribers(id, organization_id)
-        ON DELETE CASCADE,
-    CONSTRAINT chk_voice_agent_bindings_single_target CHECK (
-        (phone_number_id IS NOT NULL)::int
-        + (sip_domain_id IS NOT NULL)::int
-        + (subscriber_id IS NOT NULL)::int = 1
-    )
+        ON DELETE CASCADE
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS uq_voice_agent_bindings_phone_number
     ON voice_agent_bindings (phone_number_id)
     WHERE phone_number_id IS NOT NULL;
 
-CREATE UNIQUE INDEX IF NOT EXISTS uq_voice_agent_bindings_sip_domain
-    ON voice_agent_bindings (sip_domain_id)
-    WHERE sip_domain_id IS NOT NULL;
-
-CREATE UNIQUE INDEX IF NOT EXISTS uq_voice_agent_bindings_subscriber
-    ON voice_agent_bindings (subscriber_id)
-    WHERE subscriber_id IS NOT NULL;
 
 CREATE INDEX IF NOT EXISTS idx_voice_agent_bindings_agent
     ON voice_agent_bindings (organization_id, voice_agent_id, created_at DESC);

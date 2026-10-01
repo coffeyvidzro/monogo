@@ -16,92 +16,75 @@ const requiredPort = (name: string): number => {
 const unwrap = (payload: any): any =>
     payload?.success === true && "data" in payload ? payload.data : payload;
 
-test("browser call uses a forced TURN relay through RTPengine", async ({
-    page,
-    request,
-}) => {
+test("browser gathers a forced TURN relay candidate", async ({ page, request }) => {
     const apiURL = required("LEAMOUT_API_URL");
     const token = required("LEAMOUT_API_TOKEN");
-    const domainName = process.env.LEAMOUT_SIP_DOMAIN ?? "webrtc-v1.local";
-    const username = process.env.LEAMOUT_SIP_USERNAME ?? "browser";
-    const password =
-        process.env.LEAMOUT_SIP_PASSWORD ?? "webrtc-v1-browser-secret";
     const turnRelayMinPort = requiredPort("WEBRTC_V1_TURN_MIN_PORT");
     const turnRelayMaxPort = requiredPort("WEBRTC_V1_TURN_MAX_PORT");
-    if (turnRelayMinPort > turnRelayMaxPort)
-        throw new Error(
-            "WEBRTC_V1_TURN_MIN_PORT must be <= WEBRTC_V1_TURN_MAX_PORT",
-        );
 
-    const headers = { Authorization: `Bearer ${token}` };
-
-    const domainResponse = await request.post(`${apiURL}/v1/sip-domains/`, {
-        headers,
-        data: { domain: domainName },
+    const response = await request.post(`${apiURL}/v1/webrtc/ice-credentials`, {
+        headers: { Authorization: `Bearer ${token}` },
     });
-    expect(domainResponse.ok(), await domainResponse.text()).toBeTruthy();
-    const domain = unwrap(await domainResponse.json());
+    expect(response.ok(), await response.text()).toBeTruthy();
 
-    const subscriberResponse = await request.post(`${apiURL}/v1/subscribers/`, {
-        headers,
-        data: {
-            sip_domain_id: domain.id,
-            username,
-            password,
-            display_name: "WebRTC v1 acceptance",
-        },
-    });
-    expect(
-        subscriberResponse.ok(),
-        await subscriberResponse.text(),
-    ).toBeTruthy();
-    const subscriber = unwrap(await subscriberResponse.json());
+    const credentials = unwrap(await response.json());
+    expect(credentials.ice_servers?.length).toBeGreaterThan(0);
 
-    try {
-        const iceResponse = await request.post(
-            `${apiURL}/v1/webrtc/ice-credentials`,
-            { headers },
-        );
-        expect(iceResponse.ok(), await iceResponse.text()).toBeTruthy();
-        const credentials = unwrap(await iceResponse.json());
-        expect(credentials.ice_servers?.length).toBeGreaterThan(0);
+    const result = await page.evaluate(
+        async ({ iceServers, minPort, maxPort }) => {
+            const pc = new RTCPeerConnection({
+                iceServers,
+                iceTransportPolicy: "relay",
+            });
 
-        await page.goto("/");
-        await page.evaluate(
-            async ({ credentials, environment }) => {
-                await window.runLeamoutWebRTCAcceptance({
-                    websocketUrl: environment.websocketUrl,
-                    sipUri: environment.sipUri,
-                    authorizationUsername: environment.username,
-                    authorizationPassword: environment.password,
-                    destinationUri: environment.destinationUri,
-                    iceServers: credentials.ice_servers,
-                    turnRelayMinPort: environment.turnRelayMinPort,
-                    turnRelayMaxPort: environment.turnRelayMaxPort,
+            try {
+                pc.createDataChannel("probe");
+                const candidates: Array<{ type: string; port: number | null }> = [];
+                pc.onicecandidate = (event) => {
+                    if (!event.candidate) return;
+                    const parsed = event.candidate.candidate.split(/\s+/);
+                    const typ = parsed.indexOf("typ");
+                    candidates.push({
+                        type: typ >= 0 ? parsed[typ + 1] : "unknown",
+                        port: Number(parsed[5]) || null,
+                    });
+                };
+
+                await pc.setLocalDescription(await pc.createOffer());
+                await new Promise<void>((resolve, reject) => {
+                    const timer = setTimeout(
+                        () => reject(new Error("ICE gathering timed out")),
+                        15_000,
+                    );
+                    const check = () => {
+                        if (pc.iceGatheringState === "complete") {
+                            clearTimeout(timer);
+                            resolve();
+                        }
+                    };
+                    pc.addEventListener("icegatheringstatechange", check);
+                    check();
                 });
-            },
-            {
-                credentials,
-                environment: {
-                    websocketUrl:
-                        process.env.LEAMOUT_WSS_URL ?? "wss://127.0.0.1:5062",
-                    sipUri: `sip:${username}@${domainName}`,
-                    username,
-                    password,
-                    destinationUri:
-                        process.env.LEAMOUT_DESTINATION_URI ??
-                        `sip:9196@${domainName}`,
-                    turnRelayMinPort,
-                    turnRelayMaxPort,
-                },
-            },
-        );
-    } finally {
-        await request
-            .delete(`${apiURL}/v1/subscribers/${subscriber.id}`, { headers })
-            .catch(() => undefined);
-        await request
-            .delete(`${apiURL}/v1/sip-domains/${domain.id}`, { headers })
-            .catch(() => undefined);
-    }
+
+                const relay = candidates.find(
+                    (candidate) =>
+                        candidate.type === "relay" &&
+                        candidate.port !== null &&
+                        candidate.port >= minPort &&
+                        candidate.port <= maxPort,
+                );
+
+                return { candidates, relay };
+            } finally {
+                pc.close();
+            }
+        },
+        {
+            iceServers: credentials.ice_servers,
+            minPort: turnRelayMinPort,
+            maxPort: turnRelayMaxPort,
+        },
+    );
+
+    expect(result.relay, JSON.stringify(result.candidates)).toBeTruthy();
 });

@@ -2,16 +2,12 @@
 INSERT INTO voice_agent_bindings (
     organization_id,
     voice_agent_id,
-    phone_number_id,
-    sip_domain_id,
-    subscriber_id
+    phone_number_id
 )
 SELECT
     sqlc.arg(organization_id),
     agent.id,
-    sqlc.narg(phone_number_id)::UUID,
-    sqlc.narg(sip_domain_id)::UUID,
-    sqlc.narg(subscriber_id)::UUID
+    sqlc.arg(phone_number_id)::UUID
 FROM voice_agents AS agent
 JOIN organizations AS o ON o.id = agent.organization_id
 WHERE agent.id = sqlc.arg(voice_agent_id)
