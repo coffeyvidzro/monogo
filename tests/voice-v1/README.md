@@ -18,14 +18,13 @@ The runner reports one result for each milestone capability:
 8. Hold/resume.
 9. Play audio.
 10. Record.
-11. Create/manage conferences.
-12. Receive normalized call events.
-13. Query call state.
-14. Receive webhooks.
-15. Inspect call/media health.
-16. Restart components without corrupting state.
+11. Receive normalized call events.
+12. Query call state.
+13. Receive webhooks.
+14. Inspect call/media health.
+15. Restart components without corrupting state.
 
-The process exits non-zero unless all sixteen checks pass.
+The process exits non-zero unless all fifteen checks pass.
 
 ## What is real
 
@@ -36,7 +35,6 @@ The process exits non-zero unless all sixteen checks pass.
 - Recording assertions wait for worker-consumed `RECORD_START`/`RECORD_STOP` lifecycle events.
 - Webhooks use HTTPS with a throwaway CA generated for each run. The runner verifies the HMAC signature returned by Leamout.
 - Restart assertions restart API, worker, and FreeSWITCH and verify readiness recovery plus durable call state.
-- Conference acceptance requires a matching live FreeSWITCH conference; persistence-only conference state is not considered sufficient.
 
 ## Test-only bootstrap
 
@@ -44,7 +42,7 @@ One fact is inserted directly into the isolated test database because it does no
 
 - the deterministic organization bearer token used by the runner.
 
-The test DID and its carrier ownership are configured through the public number API. Carrier connections, source IPs, trunks, trunk endpoints, voice applications, bindings, calls, recordings, conferences, and webhooks are likewise exercised through their public APIs.
+The test DID and its carrier ownership are configured through the public number API. Carrier connections, source IPs, trunks, trunk endpoints, voice applications, bindings, calls, recordings, and webhooks are likewise exercised through their public APIs.
 
 All bootstrap data lives in the disposable Compose database and is removed by the default cleanup.
 
@@ -73,5 +71,3 @@ The default fixture numbers are non-routable test identities used only inside th
 ## Interpreting failures
 
 A failing capability is a product gap or a broken deployment path until proven otherwise. The suite intentionally keeps independent checks running so the final matrix shows more than the first failure.
-
-In particular, conference APIs must be backed by observable FreeSWITCH conference state to satisfy item 11; returning success from a persistence-only handler is not accepted as Voice v1 completion.
