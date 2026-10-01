@@ -193,7 +193,8 @@ func (db *lifecycleDB) Exec(context.Context, string, ...interface{}) (pgconn.Com
 }
 
 func (db *lifecycleDB) Query(_ context.Context, query string, _ ...interface{}) (pgx.Rows, error) {
-	if strings.Contains(query, "-- name: ListVoiceAgentToolsByAgentID") {
+	if strings.Contains(query, "-- name: ListVoiceAgentToolsByAgentID") ||
+		strings.Contains(query, "-- name: ResolveVoiceAgentProviderBindings") {
 		return emptyLifecycleRows{}, nil
 	}
 	return nil, errors.New("unexpected lifecycle test Query")

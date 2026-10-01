@@ -95,6 +95,25 @@ func (r *Runtime) attach(ctx context.Context, call sqlc.Call, channelID string) 
 		return fmt.Errorf("resolve Voice Agent tools: %w", err)
 	}
 	cfg.Tools = toolDefinitions
+	if err := r.orchestrator.ValidateProviderTopology(
+		ctx,
+		call.OrganizationID,
+		*call.VoiceAgentID,
+		session.Engine(record.Engine),
+	); err != nil {
+		_ = r.failSession(ctx, call, time.Now().UTC())
+		return fmt.Errorf("validate Voice Agent provider topology: %w", err)
+	}
+	providerRuntimes, err := r.orchestrator.ProviderRuntimes(
+		ctx,
+		call.OrganizationID,
+		*call.VoiceAgentID,
+	)
+	if err != nil {
+		_ = r.failSession(ctx, call, time.Now().UTC())
+		return fmt.Errorf("resolve Voice Agent providers: %w", err)
+	}
+	cfg.Providers = providerRuntimes
 
 	endpoints, err := r.media.CreateSession(ctx, cfg)
 	if err != nil {

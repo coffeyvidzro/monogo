@@ -45,22 +45,108 @@ func (e Engine) Start(ctx context.Context, cfg session.Config) (session.Stream, 
 		synthesizer = cartesia.NewClient(nil)
 	}
 	deepgramConfig := e.Deepgram
+	if runtime, ok := cfg.Provider("stt"); ok {
+		if runtime.Provider != "deepgram" {
+			return nil, fmt.Errorf("unsupported composable STT provider %q", runtime.Provider)
+		}
+		deepgramConfig.APIKey = runtime.APIKey
+		if len(runtime.Config) != 0 {
+			var options struct {
+				Endpoint string `json:"endpoint"`
+				Model    string `json:"model"`
+			}
+			if err := json.Unmarshal(runtime.Config, &options); err != nil {
+				return nil, fmt.Errorf("decode Deepgram provider config: %w", err)
+			}
+			if value := strings.TrimSpace(options.Endpoint); value != "" {
+				deepgramConfig.Endpoint = value
+			}
+			if value := strings.TrimSpace(options.Model); value != "" {
+				deepgramConfig.Model = value
+			}
+		}
+	}
 	if language := strings.TrimSpace(cfg.Language); language != "" {
 		deepgramConfig.LanguageHints = append(append([]string(nil), deepgramConfig.LanguageHints...), language)
 	}
-	deepgramStream, err := transcriber.Start(ctx, deepgramConfig, cfg.InputFormat)
-	if err != nil {
-		return nil, fmt.Errorf("start transcription: %w", err)
-	}
-	streamCtx, cancel := context.WithCancel(ctx)
+
 	cartesiaConfig := e.Cartesia
+	if runtime, ok := cfg.Provider("tts"); ok {
+		if runtime.Provider != "cartesia" {
+			return nil, fmt.Errorf("unsupported composable TTS provider %q", runtime.Provider)
+		}
+		cartesiaConfig.APIKey = runtime.APIKey
+		if len(runtime.Config) != 0 {
+			var options struct {
+				Endpoint   string `json:"endpoint"`
+				APIVersion string `json:"api_version"`
+				Model      string `json:"model"`
+				VoiceID    string `json:"voice_id"`
+				Language   string `json:"language"`
+			}
+			if err := json.Unmarshal(runtime.Config, &options); err != nil {
+				return nil, fmt.Errorf("decode Cartesia provider config: %w", err)
+			}
+			if value := strings.TrimSpace(options.Endpoint); value != "" {
+				cartesiaConfig.Endpoint = value
+			}
+			if value := strings.TrimSpace(options.APIVersion); value != "" {
+				cartesiaConfig.APIVersion = value
+			}
+			if value := strings.TrimSpace(options.Model); value != "" {
+				cartesiaConfig.Model = value
+			}
+			if value := strings.TrimSpace(options.VoiceID); value != "" {
+				cartesiaConfig.VoiceID = value
+			}
+			if value := strings.TrimSpace(options.Language); value != "" {
+				cartesiaConfig.Language = value
+			}
+		}
+	}
 	if voice := strings.TrimSpace(cfg.Voice); voice != "" {
 		cartesiaConfig.VoiceID = voice
 	}
 	if language := strings.TrimSpace(cfg.Language); language != "" {
 		cartesiaConfig.Language = language
 	}
+
 	groqConfig := e.Groq
+	if runtime, ok := cfg.Provider("llm"); ok {
+		if runtime.Provider != "groq" {
+			return nil, fmt.Errorf("unsupported composable LLM provider %q", runtime.Provider)
+		}
+		groqConfig.APIKey = runtime.APIKey
+		if len(runtime.Config) != 0 {
+			var options struct {
+				Endpoint            string   `json:"endpoint"`
+				Model               string   `json:"model"`
+				Temperature         *float64 `json:"temperature"`
+				MaxCompletionTokens int      `json:"max_completion_tokens"`
+			}
+			if err := json.Unmarshal(runtime.Config, &options); err != nil {
+				return nil, fmt.Errorf("decode Groq provider config: %w", err)
+			}
+			if value := strings.TrimSpace(options.Endpoint); value != "" {
+				groqConfig.Endpoint = value
+			}
+			if value := strings.TrimSpace(options.Model); value != "" {
+				groqConfig.Model = value
+			}
+			if options.Temperature != nil {
+				groqConfig.Temperature = options.Temperature
+			}
+			if options.MaxCompletionTokens > 0 {
+				groqConfig.MaxCompletionTokens = options.MaxCompletionTokens
+			}
+		}
+	}
+
+	deepgramStream, err := transcriber.Start(ctx, deepgramConfig, cfg.InputFormat)
+	if err != nil {
+		return nil, fmt.Errorf("start transcription: %w", err)
+	}
+	streamCtx, cancel := context.WithCancel(ctx)
 	groqConfig.Tools = make([]groq.Tool, 0, len(cfg.Tools))
 	for _, tool := range cfg.Tools {
 		groqConfig.Tools = append(groqConfig.Tools, groq.Tool{

@@ -1,4 +1,4 @@
-h1:3UV8tQphZAml2mOWrBCEODfI3O84zpZS7J5OWTkno/c=
+h1:zR2ulx/8Raon4sOHq3C6V9j/r7jvV6nzjCZa+8/BmHE=
 001_extensions.sql h1:V12FA/dbb8clPffRf/1QJRpbB/S0eECkElwvfOVRda4=
 002_create_users.sql h1:w8z6z5sqnmtExCGa63iYl2ssG9rgXX8m3VPqvb1z4jo=
 003_create_authentication.sql h1:6R8fm0zInr9A/OW74oYTBLpPYHRf3dpVjw13qyjdd7E=
@@ -23,3 +23,4 @@ h1:3UV8tQphZAml2mOWrBCEODfI3O84zpZS7J5OWTkno/c=
 026_create_voice_agent_sessions.sql h1:pVI9r++ctcIgvqCTwRbMPqhpni6h84bZ7jUUFF2XsCY=
 027_create_voice_agent_turns.sql h1:2Y7wtfMZIJh2l3M5S+y7Pu3buNSwmcUl7r7EtKyVDYI=
 028_create_voice_agent_tool_execution.sql h1:4xsM3p+wL1zcWPpI1TlPAvKeyUyqoHgo1FJzYFmG3zA=
+029_create_ai_provider_credentials.sql h1:dhG5O/KlN+xhayU31I/1cRpFkZMrvNCEP3ZLkLhxx7Q=

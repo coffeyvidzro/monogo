@@ -116,6 +116,9 @@ class Handler(BaseHTTPRequestHandler):
         if self.headers.get("Upgrade", "").lower() != "websocket":
             self.send_error(400)
             return
+        if self.headers.get("Authorization") != "Bearer tenant-provider-test-token":
+            self.send_error(401)
+            return
 
         key = self.headers.get("Sec-WebSocket-Key")
         if not key:

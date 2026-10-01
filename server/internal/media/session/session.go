@@ -112,18 +112,26 @@ func (f AudioFrame) Duration() time.Duration {
 
 // Config is the immutable configuration resolved before a media session starts.
 type Config struct {
-	ID             uuid.UUID        `json:"id"`
-	OrganizationID uuid.UUID        `json:"organization_id"`
-	CallID         uuid.UUID        `json:"call_id"`
-	ChannelID      uuid.UUID        `json:"channel_id"`
-	Engine         Engine           `json:"engine"`
-	InputFormat    AudioFormat      `json:"input_format"`
-	OutputFormat   AudioFormat      `json:"output_format"`
-	Language       string           `json:"language,omitempty"`
-	Instructions   string           `json:"instructions,omitempty"`
-	Voice          string           `json:"voice,omitempty"`
-	EngineConfig   json.RawMessage  `json:"engine_config,omitempty"`
-	Tools          []ToolDefinition `json:"tools,omitempty"`
+	ID             uuid.UUID         `json:"id"`
+	OrganizationID uuid.UUID         `json:"organization_id"`
+	CallID         uuid.UUID         `json:"call_id"`
+	ChannelID      uuid.UUID         `json:"channel_id"`
+	Engine         Engine            `json:"engine"`
+	InputFormat    AudioFormat       `json:"input_format"`
+	OutputFormat   AudioFormat       `json:"output_format"`
+	Language       string            `json:"language,omitempty"`
+	Instructions   string            `json:"instructions,omitempty"`
+	Voice          string            `json:"voice,omitempty"`
+	EngineConfig   json.RawMessage   `json:"engine_config,omitempty"`
+	Tools          []ToolDefinition  `json:"tools,omitempty"`
+	Providers      []ProviderRuntime `json:"providers,omitempty"`
+}
+
+type ProviderRuntime struct {
+	Role     string          `json:"role"`
+	Provider string          `json:"provider"`
+	APIKey   string          `json:"api_key"`
+	Config   json.RawMessage `json:"config,omitempty"`
 }
 
 type ToolDefinition struct {
@@ -181,6 +189,22 @@ func (c Config) Validate() error {
 			return fmt.Errorf("engine config must be a JSON object")
 		}
 	}
+	roles := make(map[string]struct{}, len(c.Providers))
+	for _, provider := range c.Providers {
+		if provider.Role == "" || provider.Provider == "" || provider.APIKey == "" {
+			return fmt.Errorf("media provider role, provider, and api_key are required")
+		}
+		if _, exists := roles[provider.Role]; exists {
+			return fmt.Errorf("duplicate media provider role %q", provider.Role)
+		}
+		roles[provider.Role] = struct{}{}
+		if len(provider.Config) != 0 {
+			var object map[string]json.RawMessage
+			if err := json.Unmarshal(provider.Config, &object); err != nil || object == nil {
+				return fmt.Errorf("media provider %q config must be a JSON object", provider.Role)
+			}
+		}
+	}
 	names := make(map[string]struct{}, len(c.Tools))
 	for _, tool := range c.Tools {
 		if tool.ID == uuid.Nil || tool.Name == "" {
@@ -211,7 +235,8 @@ func (c Config) Equal(other Config) bool {
 		c.Instructions == other.Instructions &&
 		c.Voice == other.Voice &&
 		bytes.Equal(c.EngineConfig, other.EngineConfig) &&
-		toolDefinitionsEqual(c.Tools, other.Tools)
+		toolDefinitionsEqual(c.Tools, other.Tools) &&
+		providerRuntimesEqual(c.Providers, other.Providers)
 }
 
 // EventType identifies normalized output from any realtime engine.
@@ -335,4 +360,28 @@ func toolDefinitionsEqual(left, right []ToolDefinition) bool {
 		}
 	}
 	return true
+}
+
+func providerRuntimesEqual(left, right []ProviderRuntime) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for i := range left {
+		if left[i].Role != right[i].Role ||
+			left[i].Provider != right[i].Provider ||
+			left[i].APIKey != right[i].APIKey ||
+			!bytes.Equal(left[i].Config, right[i].Config) {
+			return false
+		}
+	}
+	return true
+}
+
+func (c Config) Provider(role string) (ProviderRuntime, bool) {
+	for _, provider := range c.Providers {
+		if provider.Role == role {
+			return provider, true
+		}
+	}
+	return ProviderRuntime{}, false
 }
