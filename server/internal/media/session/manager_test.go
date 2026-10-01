@@ -367,7 +367,7 @@ func TestManagerRejectsOversizedFrameAndRecordsFailure(t *testing.T) {
 	go func() { done <- manager.Attach(context.Background(), connection) }()
 
 	connection.incoming <- session.AudioFrame{
-		Data: make([]byte, 1600),
+		Data:   make([]byte, 1600),
 		Format: cfg.InputFormat,
 	}
 
@@ -408,7 +408,7 @@ func TestManagerProviderWriteTimeout(t *testing.T) {
 	done := make(chan error, 1)
 	go func() { done <- manager.Attach(context.Background(), connection) }()
 	connection.incoming <- session.AudioFrame{
-		Data: make([]byte, 640),
+		Data:   make([]byte, 640),
 		Format: cfg.InputFormat,
 	}
 

@@ -693,9 +693,9 @@ func terminalFailureEvent(reason FailureReason, message string) Event {
 	return Event{
 		Type: EventError,
 		Failure: &FailureEvent{
-			Source: "media",
-			Code: string(reason),
-			Message: message,
+			Source:   "media",
+			Code:     string(reason),
+			Message:  message,
 			Terminal: true,
 		},
 		OccurredAt: time.Now().UTC(),

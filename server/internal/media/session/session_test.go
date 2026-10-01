@@ -105,7 +105,7 @@ func TestConfigEqualIncludesEngineConfig(t *testing.T) {
 
 func TestAudioFrameDuration(t *testing.T) {
 	frame := AudioFrame{
-		Data: make([]byte, 640),
+		Data:   make([]byte, 640),
 		Format: AudioFormat{SampleRateHz: 16000, Channels: 1},
 	}
 	if got := frame.Duration(); got != 20*time.Millisecond {

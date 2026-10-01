@@ -64,7 +64,6 @@ type createSessionResponse struct {
 	ControlWebSocketURL string `json:"control_websocket_url"`
 }
 
-
 func (h *handler) metrics(w http.ResponseWriter) {
 	snapshot := h.manager.Metrics()
 	w.Header().Set("Content-Type", "text/plain; version=0.0.4")
