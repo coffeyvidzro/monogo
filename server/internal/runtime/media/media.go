@@ -95,26 +95,22 @@ func RunWithConfig(ctx context.Context, cfg Config) error {
 }
 
 func mediaEngines(cfg Config) map[session.Engine]session.Starter {
-	engines := map[session.Engine]session.Starter{
+	return map[session.Engine]session.Starter{
 		session.EngineEcho: echo.Engine{},
-	}
-	if cfg.OpenAIAPIKey != "" {
-		engines[session.EngineIntegrated] = integrated.Engine{
+		session.EngineIntegrated: integrated.Engine{
 			Client: openai.NewClient(nil),
 			Config: openai.Config{
-				APIKey:   cfg.OpenAIAPIKey,
+				APIKey: cfg.OpenAIAPIKey,
 				Endpoint: cfg.OpenAIEndpoint,
 			},
-		}
-	}
-	if cfg.DeepgramAPIKey != "" && cfg.GroqAPIKey != "" && cfg.CartesiaAPIKey != "" && cfg.CartesiaVoiceID != "" {
-		engines[session.EngineComposable] = composable.Engine{
+		},
+		session.EngineComposable: composable.Engine{
 			Deepgram: deepgram.Config{APIKey: cfg.DeepgramAPIKey},
-			Groq:     groq.Config{APIKey: cfg.GroqAPIKey},
+			Groq: groq.Config{APIKey: cfg.GroqAPIKey},
 			Cartesia: cartesia.Config{
-				APIKey: cfg.CartesiaAPIKey, VoiceID: cfg.CartesiaVoiceID,
+				APIKey: cfg.CartesiaAPIKey,
+				VoiceID: cfg.CartesiaVoiceID,
 			},
-		}
+		},
 	}
-	return engines
 }
