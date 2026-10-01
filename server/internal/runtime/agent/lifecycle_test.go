@@ -103,6 +103,10 @@ func TestLifecycleAudioForkFailureCleansUpAttachment(t *testing.T) {
 	if got := media.createCount(); got != 1 {
 		t.Fatalf("media session creates = %d, want 1", got)
 	}
+	deadline := time.Now().Add(time.Second)
+	for media.stopCount() != 1 && time.Now().Before(deadline) {
+		time.Sleep(time.Millisecond)
+	}
 	if got := media.stopCount(); got != 1 {
 		t.Fatalf("media session stops = %d, want 1", got)
 	}
