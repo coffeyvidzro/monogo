@@ -7,7 +7,7 @@ Monogo is the core runtime implementation behind Leamout.
 Leamout sits between customer-owned telephony infrastructure and realtime AI
 systems. It owns the runtime required to establish, control, process, and
 observe autonomous voice calls while customers keep their carrier relationships,
-phone numbers, trunks, PBXs, and carrier billing.
+phone numbers, SIP trunks, PBXs, and carrier billing.
 
 Leamout is not a general-purpose CPaaS, telecom reseller, or managed carrier.
 
@@ -78,14 +78,17 @@ capacity, or managed carrier services.
 
 ## BYOC only
 
-Carrier connectivity is organization-owned.
+SIP connectivity is organization-owned.
 
-A customer connects an existing SIP carrier, trunk, PBX, SBC, or supported
-WebRTC endpoint and continues using the carrier account and phone numbers they
-already control.
+A customer connects an existing SIP carrier, PBX, SBC, or supported WebRTC
+endpoint through a Leamout SIP trunk and continues using the external accounts
+and phone numbers they already control.
 
 ```text
 Customer carrier / PBX / SBC
+             |
+             v
+       Leamout SIP trunk
              |
              v
           OpenSIPS
@@ -102,8 +105,9 @@ Customer carrier / PBX / SBC
     Leamout Agent Runtime
 ```
 
-Carrier providers are connectivity metadata and configuration targets, not
-Leamout commerce integrations.
+A SIP trunk is Leamout's technical connectivity primitive. The peer on the
+other side may be a carrier, PBX, SBC, or another SIP platform; provider
+identity is not a separate runtime domain object.
 
 ## Agent runtime
 
@@ -172,10 +176,9 @@ The telephony layer remains a first-class part of the product.
 - **FreeSWITCH**: B2BUA, call application, and media-control runtime.
 - **RTPengine**: RTP anchoring and media boundary.
 - **Coturn**: STUN/TURN services when WebRTC connectivity requires them.
-- **Carrier connections**: customer-owned SIP authentication and source-IP
-  configuration.
-- **Trunks and routing**: organization-owned call paths and endpoint health.
-- **Phone numbers**: customer-owned voice bindings.
+- **SIP trunks**: organization-owned authentication, source CIDRs, codecs,
+  admission limits, and gateway endpoints.
+- **Phone numbers**: customer-owned voice bindings attached directly to trunks.
 - **Calls and recordings**: programmable voice primitives used by
   the Agent Runtime.
 
@@ -185,7 +188,7 @@ The control plane owns durable configuration and management:
 
 - organizations and identities;
 - agents and agent configuration;
-- telephony connections and routing;
+- SIP trunks and routing policy;
 - model and tool credentials;
 - API and authorization;
 - runtime registration and deployment configuration;
