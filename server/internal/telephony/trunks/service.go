@@ -284,11 +284,6 @@ func (s *Service) Validate(
 					"inbound IP authentication requires at least one source CIDR",
 				)
 			}
-		case "none":
-			result.Warnings = append(
-				result.Warnings,
-				"inbound traffic is enabled without authentication",
-			)
 		default:
 			result.Errors = append(
 				result.Errors,
@@ -470,11 +465,8 @@ func (s *Service) SetInboundAuth(
 		return err
 	}
 
-	switch req.Method {
-	case "ip":
+	if req.Method == "ip" {
 		return s.repo.SetInboundIP(ctx, organizationID, id)
-	case "none":
-		return s.repo.SetInboundNone(ctx, organizationID, id)
 	}
 
 	if s.cipher == nil {
@@ -517,7 +509,7 @@ func (s *Service) ClearInboundAuth(
 	if _, err := s.Get(ctx, organizationID, id); err != nil {
 		return err
 	}
-	return s.repo.SetInboundNone(ctx, organizationID, id)
+	return s.repo.SetInboundIP(ctx, organizationID, id)
 }
 
 func (s *Service) CreateSourceIP(
