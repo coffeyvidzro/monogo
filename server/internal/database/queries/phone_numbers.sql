@@ -7,11 +7,11 @@ INSERT INTO phone_numbers (
     voice_enabled
 )
 SELECT
-    sqlc.arg(organization_id),
-    sqlc.arg(number),
-    sqlc.arg(country_code),
-    sqlc.narg(trunk_id),
-    COALESCE(sqlc.narg(voice_enabled), true)
+    sqlc.arg(organization_id) AS organization_id,
+    sqlc.arg(number) AS number,
+    sqlc.arg(country_code) AS country_code,
+    sqlc.narg(trunk_id) AS trunk_id,
+    COALESCE(sqlc.narg(voice_enabled), true) AS voice_enabled
 FROM organizations AS o
 LEFT JOIN trunks AS t
   ON t.id = sqlc.narg(trunk_id)::UUID

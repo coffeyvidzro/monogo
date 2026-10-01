@@ -21,25 +21,25 @@ INSERT INTO trunks (
     supports_fax
 )
 SELECT
-    sqlc.arg(id),
-    sqlc.arg(organization_id),
-    sqlc.arg(name),
-    COALESCE(sqlc.narg(direction), 'bidirectional'),
-    COALESCE(sqlc.narg(status), 'active'),
-    COALESCE(sqlc.narg(outbound_auth_method), 'none'),
-    sqlc.narg(auth_username),
-    sqlc.narg(auth_realm),
-    sqlc.narg(auth_secret_ciphertext),
-    COALESCE(sqlc.narg(inbound_enabled), false),
-    COALESCE(sqlc.narg(inbound_auth_method), 'ip'),
-    sqlc.narg(inbound_username),
-    sqlc.narg(inbound_realm),
-    sqlc.narg(inbound_secret_ciphertext),
-    COALESCE(sqlc.narg(max_cps), 10),
-    COALESCE(sqlc.narg(max_concurrent_calls), 100),
-    COALESCE(sqlc.narg(codecs), ARRAY['PCMU','PCMA']::TEXT[]),
-    COALESCE(sqlc.narg(supports_video), false),
-    COALESCE(sqlc.narg(supports_fax), false)
+    sqlc.arg(id) AS id,
+    sqlc.arg(organization_id) AS organization_id,
+    sqlc.arg(name) AS name,
+    COALESCE(sqlc.narg(direction), 'bidirectional') AS direction,
+    COALESCE(sqlc.narg(status), 'active') AS status,
+    COALESCE(sqlc.narg(outbound_auth_method), 'none') AS outbound_auth_method,
+    sqlc.narg(auth_username) AS auth_username,
+    sqlc.narg(auth_realm) AS auth_realm,
+    sqlc.narg(auth_secret_ciphertext) AS auth_secret_ciphertext,
+    COALESCE(sqlc.narg(inbound_enabled), false) AS inbound_enabled,
+    COALESCE(sqlc.narg(inbound_auth_method), 'ip') AS inbound_auth_method,
+    sqlc.narg(inbound_username) AS inbound_username,
+    sqlc.narg(inbound_realm) AS inbound_realm,
+    sqlc.narg(inbound_secret_ciphertext) AS inbound_secret_ciphertext,
+    COALESCE(sqlc.narg(max_cps), 10) AS max_cps,
+    COALESCE(sqlc.narg(max_concurrent_calls), 100) AS max_concurrent_calls,
+    COALESCE(sqlc.narg(codecs), ARRAY['PCMU','PCMA']::TEXT[]) AS codecs,
+    COALESCE(sqlc.narg(supports_video), false) AS supports_video,
+    COALESCE(sqlc.narg(supports_fax), false) AS supports_fax
 FROM organizations AS o
 WHERE o.id = sqlc.arg(organization_id)
   AND o.status = 'active'
@@ -107,15 +107,15 @@ RETURNING *;
 
 -- name: SetTrunkOutboundDigestAuth :exec
 WITH updated AS (
-    UPDATE trunks
+    UPDATE trunks AS t
     SET outbound_auth_method = 'digest',
         auth_username = sqlc.narg(auth_username),
         auth_realm = sqlc.narg(auth_realm),
         auth_secret_ciphertext = sqlc.narg(auth_secret_ciphertext),
         updated_at = NOW()
-    WHERE id = sqlc.arg(id)
-      AND organization_id = sqlc.arg(organization_id)
-    RETURNING id, organization_id
+    WHERE t.id = sqlc.arg(id)
+      AND t.organization_id = sqlc.arg(organization_id)
+    RETURNING t.id, t.organization_id
 )
 INSERT INTO trunk_digest_credentials (
     trunk_id,
@@ -142,15 +142,15 @@ DO UPDATE SET
 
 -- name: ClearTrunkOutboundAuth :exec
 WITH updated AS (
-    UPDATE trunks
+    UPDATE trunks AS t
     SET outbound_auth_method = 'none',
         auth_username = NULL,
         auth_realm = NULL,
         auth_secret_ciphertext = NULL,
         updated_at = NOW()
-    WHERE id = sqlc.arg(id)
-      AND organization_id = sqlc.arg(organization_id)
-    RETURNING id
+    WHERE t.id = sqlc.arg(id)
+      AND t.organization_id = sqlc.arg(organization_id)
+    RETURNING t.id
 )
 DELETE FROM trunk_digest_credentials AS d
 USING updated
@@ -159,15 +159,15 @@ WHERE d.trunk_id = updated.id
 
 -- name: SetTrunkInboundDigestAuth :exec
 WITH updated AS (
-    UPDATE trunks
+    UPDATE trunks AS t
     SET inbound_auth_method = 'digest',
         inbound_username = sqlc.narg(inbound_username),
         inbound_realm = sqlc.narg(inbound_realm),
         inbound_secret_ciphertext = sqlc.narg(inbound_secret_ciphertext),
         updated_at = NOW()
-    WHERE id = sqlc.arg(id)
-      AND organization_id = sqlc.arg(organization_id)
-    RETURNING id, organization_id
+    WHERE t.id = sqlc.arg(id)
+      AND t.organization_id = sqlc.arg(organization_id)
+    RETURNING t.id, t.organization_id
 )
 INSERT INTO trunk_digest_credentials (
     trunk_id,
@@ -194,15 +194,15 @@ DO UPDATE SET
 
 -- name: SetTrunkInboundIPAuth :exec
 WITH updated AS (
-    UPDATE trunks
+    UPDATE trunks AS t
     SET inbound_auth_method = 'ip',
         inbound_username = NULL,
         inbound_realm = NULL,
         inbound_secret_ciphertext = NULL,
         updated_at = NOW()
-    WHERE id = sqlc.arg(id)
-      AND organization_id = sqlc.arg(organization_id)
-    RETURNING id
+    WHERE t.id = sqlc.arg(id)
+      AND t.organization_id = sqlc.arg(organization_id)
+    RETURNING t.id
 )
 DELETE FROM trunk_digest_credentials AS d
 USING updated
@@ -211,15 +211,15 @@ WHERE d.trunk_id = updated.id
 
 -- name: SetTrunkInboundNoAuth :exec
 WITH updated AS (
-    UPDATE trunks
+    UPDATE trunks AS t
     SET inbound_auth_method = 'none',
         inbound_username = NULL,
         inbound_realm = NULL,
         inbound_secret_ciphertext = NULL,
         updated_at = NOW()
-    WHERE id = sqlc.arg(id)
-      AND organization_id = sqlc.arg(organization_id)
-    RETURNING id
+    WHERE t.id = sqlc.arg(id)
+      AND t.organization_id = sqlc.arg(organization_id)
+    RETURNING t.id
 )
 DELETE FROM trunk_digest_credentials AS d
 USING updated
@@ -233,9 +233,9 @@ INSERT INTO trunk_source_ips (
     cidr
 )
 SELECT
-    t.organization_id,
-    t.id,
-    sqlc.arg(cidr)
+    t.organization_id AS organization_id,
+    t.id AS trunk_id,
+    sqlc.arg(cidr) AS cidr
 FROM trunks AS t
 WHERE t.id = sqlc.arg(trunk_id)
   AND t.organization_id = sqlc.arg(organization_id)
@@ -267,15 +267,15 @@ INSERT INTO trunk_endpoints (
     enabled
 )
 SELECT
-    t.organization_id,
-    t.id,
-    sqlc.arg(host),
-    COALESCE(sqlc.narg(port), 5060),
-    COALESCE(sqlc.narg(transport), 'udp'),
-    COALESCE(sqlc.narg(direction), 'bidirectional'),
-    COALESCE(sqlc.narg(priority), 10),
-    COALESCE(sqlc.narg(weight), 100),
-    COALESCE(sqlc.narg(enabled), true)
+    t.organization_id AS organization_id,
+    t.id AS trunk_id,
+    sqlc.arg(host) AS host,
+    COALESCE(sqlc.narg(port), 5060) AS port,
+    COALESCE(sqlc.narg(transport), 'udp') AS transport,
+    COALESCE(sqlc.narg(direction), 'bidirectional') AS direction,
+    COALESCE(sqlc.narg(priority), 10) AS priority,
+    COALESCE(sqlc.narg(weight), 100) AS weight,
+    COALESCE(sqlc.narg(enabled), true) AS enabled
 FROM trunks AS t
 WHERE t.id = sqlc.arg(trunk_id)
   AND t.organization_id = sqlc.arg(organization_id)
