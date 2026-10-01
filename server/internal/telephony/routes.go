@@ -61,7 +61,6 @@ func RegisterRoutes(
 		organizationAccess("trunks"),
 	)
 
-
 	webrtc.RegisterRoutes(
 		router,
 		module.WebRTC.Handler,

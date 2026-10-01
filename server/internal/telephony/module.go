@@ -19,15 +19,15 @@ import (
 )
 
 type Dependencies struct {
-	DB                   *pgxpool.Pool
-	Queries              *sqlc.Queries
-	CallsController      *calling.Controller
-	CallsChannelStore    *calling.ChannelStore
-	CallsAdmission       *calling.AdmissionLimiter
-	CredentialCipher     *encryption.Cipher
-	WebRTCService        *webrtc.Service
-	RecordingStorage     recordings.Storage
-	Metrics              *metrics.Registry
+	DB                *pgxpool.Pool
+	Queries           *sqlc.Queries
+	CallsController   *calling.Controller
+	CallsChannelStore *calling.ChannelStore
+	CallsAdmission    *calling.AdmissionLimiter
+	CredentialCipher  *encryption.Cipher
+	WebRTCService     *webrtc.Service
+	RecordingStorage  recordings.Storage
+	Metrics           *metrics.Registry
 }
 
 type Module struct {
@@ -53,7 +53,6 @@ type CarriersModule struct {
 	Service    *carriers.Service
 	Handler    *carriers.Handler
 }
-
 
 type NumbersModule struct {
 	Repository *numbers.Repository
@@ -114,7 +113,6 @@ func New(deps Dependencies) (*Module, error) {
 
 	recordingsRepository := recordings.NewRepository(deps.DB)
 	recordingsService := recordings.NewService(recordingsRepository, deps.RecordingStorage)
-
 
 	subscribersRepository := subscribers.NewRepository(deps.Queries)
 	subscribersService := subscribers.NewService(subscribersRepository)
