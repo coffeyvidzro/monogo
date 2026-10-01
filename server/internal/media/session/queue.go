@@ -10,6 +10,7 @@ var (
 	ErrInputLatencyBudgetExceeded  = errors.New("media input latency budget exceeded")
 	ErrOutputLatencyBudgetExceeded = errors.New("media output latency budget exceeded")
 	ErrFrameDurationExceeded       = errors.New("media frame duration exceeded")
+	ErrProviderStartTimeout        = errors.New("media provider start timeout")
 	ErrProviderWriteTimeout        = errors.New("media provider write timeout")
 	ErrPlaybackWriteTimeout        = errors.New("media playback write timeout")
 	ErrProviderFailure             = errors.New("media provider failure")
