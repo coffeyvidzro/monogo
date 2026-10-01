@@ -1187,34 +1187,6 @@ func (q *Queries) SetTrunkInboundIPAuth(ctx context.Context, arg SetTrunkInbound
 	return err
 }
 
-const setTrunkInboundNoAuth = `-- name: SetTrunkInboundNoAuth :exec
-WITH updated AS (
-    UPDATE trunks AS t
-    SET inbound_auth_method = 'none',
-        inbound_username = NULL,
-        inbound_realm = NULL,
-        inbound_secret_ciphertext = NULL,
-        updated_at = NOW()
-    WHERE t.id = $1
-      AND t.organization_id = $2
-    RETURNING t.id
-)
-DELETE FROM trunk_digest_credentials AS d
-USING updated
-WHERE d.trunk_id = updated.id
-  AND d.direction = 'inbound'
-`
-
-type SetTrunkInboundNoAuthParams struct {
-	ID             uuid.UUID `db:"id" json:"id"`
-	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
-}
-
-func (q *Queries) SetTrunkInboundNoAuth(ctx context.Context, arg SetTrunkInboundNoAuthParams) error {
-	_, err := q.db.Exec(ctx, setTrunkInboundNoAuth, arg.ID, arg.OrganizationID)
-	return err
-}
-
 const setTrunkOutboundDigestAuth = `-- name: SetTrunkOutboundDigestAuth :exec
 WITH updated AS (
     UPDATE trunks AS t
