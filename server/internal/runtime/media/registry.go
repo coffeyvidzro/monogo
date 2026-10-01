@@ -2,6 +2,7 @@ package media
 
 import (
 	"context"
+	"sync/atomic"
 	"time"
 
 	redisintegration "github.com/coffeyvidzro/monogo/internal/integrations/redis"
@@ -18,6 +19,7 @@ type nodeRegistration struct {
 	cancel   context.CancelFunc
 	done     chan struct{}
 	nodeID   string
+	draining atomic.Bool
 }
 
 func startNodeRegistration(
@@ -48,7 +50,8 @@ func startNodeRegistration(
 		nodeID:   cfg.NodeID,
 	}
 
-	heartbeat := func(draining bool) {
+	heartbeat := func() {
+		draining := registration.draining.Load()
 		err := registry.Heartbeat(registrationCtx, medianodes.Node{
 			ID:         cfg.NodeID,
 			ControlURL: cfg.ControlURL,
@@ -70,7 +73,7 @@ func startNodeRegistration(
 		}
 	}
 
-	heartbeat(false)
+	heartbeat()
 	go func() {
 		defer close(registration.done)
 		ticker := time.NewTicker(mediaNodeHeartbeatInterval)
@@ -80,7 +83,7 @@ func startNodeRegistration(
 			case <-registrationCtx.Done():
 				return
 			case <-ticker.C:
-				heartbeat(false)
+				heartbeat()
 			}
 		}
 	}()
@@ -96,6 +99,7 @@ func (r *nodeRegistration) beginDrain(
 	if r == nil {
 		return
 	}
+	r.draining.Store(true)
 	_ = r.registry.Heartbeat(ctx, medianodes.Node{
 		ID:         cfg.NodeID,
 		ControlURL: cfg.ControlURL,
