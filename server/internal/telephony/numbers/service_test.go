@@ -1,11 +1,9 @@
 package numbers
 
 import (
-	"encoding/json"
 	"errors"
 	"testing"
 
-	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
 	"github.com/coffeyvidzro/monogo/pkg/apperror"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
