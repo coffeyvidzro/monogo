@@ -15,6 +15,9 @@ STATE = {
     "session_updates": 0,
     "audio_appends": 0,
     "responses": 0,
+    "tool_calls": 0,
+    "tool_results": 0,
+    "last_tool_result": None,
     "last_session": None,
 }
 LOCK = threading.Lock()
@@ -128,7 +131,8 @@ class Handler(BaseHTTPRequestHandler):
         with LOCK:
             STATE["connections"] += 1
 
-        sent_response = False
+        sent_tool_call = False
+        sent_final_response = False
         while True:
             try:
                 opcode, payload = read_frame(self.rfile)
@@ -155,47 +159,128 @@ class Handler(BaseHTTPRequestHandler):
                     STATE["last_session"] = event.get("session")
                 continue
 
-            if event.get("type") != "input_audio_buffer.append":
-                continue
+            event_type = event.get("type")
+            if event_type == "input_audio_buffer.append":
+                with LOCK:
+                    STATE["audio_appends"] += 1
 
-            with LOCK:
-                STATE["audio_appends"] += 1
-
-            if sent_response:
-                continue
-            sent_response = True
-            write_json(
-                self.wfile,
-                {
-                    "type": "response.created",
-                    "event_id": "evt-response-start",
-                    "response_id": "resp-1",
-                },
-            )
-            write_json(
-                self.wfile,
-                {
-                    "type": "response.audio.delta",
-                    "event_id": "evt-audio",
-                    "response_id": "resp-1",
-                    "delta": AUDIO,
-                },
-            )
-            write_json(
-                self.wfile,
-                {
-                    "type": "response.done",
-                    "event_id": "evt-response-done",
-                    "response_id": "resp-1",
-                    "response": {
-                        "id": "resp-1",
-                        "status": "completed",
-                        "usage": {},
+                if sent_tool_call:
+                    continue
+                sent_tool_call = True
+                write_json(
+                    self.wfile,
+                    {
+                        "type": "input_audio_buffer.speech_started",
+                        "event_id": "evt-speech-start",
                     },
-                },
-            )
-            with LOCK:
-                STATE["responses"] += 1
+                )
+                write_json(
+                    self.wfile,
+                    {
+                        "type": "input_audio_buffer.speech_stopped",
+                        "event_id": "evt-speech-stop",
+                    },
+                )
+                write_json(
+                    self.wfile,
+                    {
+                        "type": "conversation.item.input_audio_transcription.completed",
+                        "event_id": "evt-user-transcript",
+                        "transcript": "Please send digit five.",
+                    },
+                )
+                write_json(
+                    self.wfile,
+                    {
+                        "type": "response.created",
+                        "event_id": "evt-tool-response-start",
+                        "response_id": "resp-tool",
+                    },
+                )
+                write_json(
+                    self.wfile,
+                    {
+                        "type": "response.function_call_arguments.done",
+                        "event_id": "evt-tool-call",
+                        "response_id": "resp-tool",
+                        "call_id": "tool-call-1",
+                        "name": "send_dtmf",
+                        "arguments": json.dumps({"digits": "5"}),
+                    },
+                )
+                write_json(
+                    self.wfile,
+                    {
+                        "type": "response.done",
+                        "event_id": "evt-tool-response-done",
+                        "response_id": "resp-tool",
+                        "response": {
+                            "id": "resp-tool",
+                            "status": "completed",
+                            "usage": {},
+                        },
+                    },
+                )
+                with LOCK:
+                    STATE["tool_calls"] += 1
+                    STATE["responses"] += 1
+                continue
+
+            if event_type == "conversation.item.create":
+                item = event.get("item") or {}
+                if item.get("type") != "function_call_output":
+                    continue
+                with LOCK:
+                    STATE["tool_results"] += 1
+                    STATE["last_tool_result"] = item
+                continue
+
+            if event_type == "response.create":
+                if sent_final_response:
+                    continue
+                sent_final_response = True
+                write_json(
+                    self.wfile,
+                    {
+                        "type": "response.created",
+                        "event_id": "evt-final-response-start",
+                        "response_id": "resp-final",
+                    },
+                )
+                write_json(
+                    self.wfile,
+                    {
+                        "type": "response.output_audio_transcript.delta",
+                        "event_id": "evt-assistant-transcript",
+                        "response_id": "resp-final",
+                        "delta": "I sent digit five.",
+                    },
+                )
+                write_json(
+                    self.wfile,
+                    {
+                        "type": "response.audio.delta",
+                        "event_id": "evt-audio",
+                        "response_id": "resp-final",
+                        "delta": AUDIO,
+                    },
+                )
+                write_json(
+                    self.wfile,
+                    {
+                        "type": "response.done",
+                        "event_id": "evt-final-response-done",
+                        "response_id": "resp-final",
+                        "response": {
+                            "id": "resp-final",
+                            "status": "completed",
+                            "usage": {},
+                        },
+                    },
+                )
+                with LOCK:
+                    STATE["responses"] += 1
+                continue
 
 
 def main():
