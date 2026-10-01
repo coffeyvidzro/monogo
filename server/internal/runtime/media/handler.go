@@ -1,6 +1,7 @@
 package media
 
 import (
+	"context"
 	"crypto/subtle"
 	"encoding/json"
 	"errors"
