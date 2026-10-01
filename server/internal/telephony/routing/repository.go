@@ -19,7 +19,10 @@ type inboundContext struct {
 	Limits Limits
 }
 
-func NewRepository(queries *sqlc.Queries, db *pgxpool.Pool) *Repository {
+func NewRepository(
+	queries *sqlc.Queries,
+	db *pgxpool.Pool,
+) *Repository {
 	return &Repository{queries: queries, db: db}
 }
 
@@ -27,10 +30,13 @@ func (r *Repository) GetInboundContext(
 	ctx context.Context,
 	req InboundRequest,
 ) (inboundContext, error) {
-	binding, err := r.queries.GetVoiceAgentBindingByID(ctx, sqlc.GetVoiceAgentBindingByIDParams{
-		ID:             req.VoiceAgentBindingID,
-		OrganizationID: req.OrganizationID,
-	})
+	binding, err := r.queries.GetVoiceAgentBindingByID(
+		ctx,
+		sqlc.GetVoiceAgentBindingByIDParams{
+			ID:             req.VoiceAgentBindingID,
+			OrganizationID: req.OrganizationID,
+		},
+	)
 	if err != nil {
 		return inboundContext{}, err
 	}
@@ -39,18 +45,21 @@ func (r *Repository) GetInboundContext(
 		return inboundContext{}, pgx.ErrNoRows
 	}
 
-	carrierConnectionID := req.CarrierConnectionID
-	row, err := r.queries.GetInboundCallContext(ctx, sqlc.GetInboundCallContextParams{
-		PhoneNumberID:       req.PhoneNumberID,
-		OrganizationID:      req.OrganizationID,
-		CalledNumber:        req.CalledNumber,
-		CarrierConnectionID: &carrierConnectionID,
-		VoiceAgentBindingID: req.VoiceAgentBindingID,
-		VoiceAgentID:        req.VoiceAgentID,
-	})
+	row, err := r.queries.GetInboundCallContext(
+		ctx,
+		sqlc.GetInboundCallContextParams{
+			PhoneNumberID:       req.PhoneNumberID,
+			OrganizationID:      req.OrganizationID,
+			CalledNumber:        req.CalledNumber,
+			TrunkID:             &req.TrunkID,
+			VoiceAgentBindingID: req.VoiceAgentBindingID,
+			VoiceAgentID:        req.VoiceAgentID,
+		},
+	)
 	if err != nil {
 		return inboundContext{}, err
 	}
+
 	return inboundContext{
 		Limits: Limits{
 			MaxCPS:             row.MaxCps,
@@ -63,30 +72,27 @@ func (r *Repository) ResolveBYOCOutbound(
 	ctx context.Context,
 	organizationID, trunkID uuid.UUID,
 ) ([]OutboundRoute, error) {
-	trunk, err := r.queries.GetTrunkByID(ctx, sqlc.GetTrunkByIDParams{
-		ID:             trunkID,
-		OrganizationID: &organizationID,
-	})
+	trunk, err := r.queries.GetTrunkByID(
+		ctx,
+		sqlc.GetTrunkByIDParams{
+			ID:             trunkID,
+			OrganizationID: organizationID,
+		},
+	)
 	if err != nil {
 		return nil, err
 	}
-	if trunk.CarrierConnectionID == nil {
+	if trunk.Status != "active" ||
+		(trunk.Direction != "outbound" &&
+			trunk.Direction != "bidirectional") {
 		return nil, pgx.ErrNoRows
-	}
-
-	connection, err := r.queries.GetCarrierConnectionByID(ctx, sqlc.GetCarrierConnectionByIDParams{
-		ID:             *trunk.CarrierConnectionID,
-		OrganizationID: organizationID,
-	})
-	if err != nil {
-		return nil, err
 	}
 
 	endpoints, err := r.queries.ListActiveOutboundTrunkEndpoints(
 		ctx,
 		sqlc.ListActiveOutboundTrunkEndpointsParams{
 			TrunkID:        trunkID,
-			OrganizationID: &organizationID,
+			OrganizationID: organizationID,
 		},
 	)
 	if err != nil {
@@ -99,21 +105,24 @@ func (r *Repository) ResolveBYOCOutbound(
 			continue
 		}
 		if endpoint.Port < 1 || endpoint.Port > 65535 {
-			return nil, fmt.Errorf("invalid trunk endpoint port: %d", endpoint.Port)
+			return nil, fmt.Errorf(
+				"invalid trunk endpoint port: %d",
+				endpoint.Port,
+			)
 		}
 		routes = append(routes, OutboundRoute{
-			CarrierConnectionID: *trunk.CarrierConnectionID,
-			TrunkID:             trunk.ID,
-			TrunkEndpointID:     endpoint.ID,
-			Host:                endpoint.Host,
-			Port:                uint16(endpoint.Port),
-			Transport:           endpoint.Transport,
+			TrunkID:         trunk.ID,
+			TrunkEndpointID: endpoint.ID,
+			Host:            endpoint.Host,
+			Port:            uint16(endpoint.Port),
+			Transport:       endpoint.Transport,
 			Limits: Limits{
-				MaxCPS:             connection.MaxCps,
-				MaxConcurrentCalls: connection.MaxConcurrentCalls,
+				MaxCPS:             trunk.MaxCps,
+				MaxConcurrentCalls: trunk.MaxConcurrentCalls,
 			},
 		})
 	}
+
 	if len(routes) == 0 {
 		return nil, pgx.ErrNoRows
 	}

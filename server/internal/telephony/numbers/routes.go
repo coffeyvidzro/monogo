@@ -18,7 +18,7 @@ func RegisterRoutes(
 		r.Get("/", handler.List)
 		r.Get("/{number_id}", handler.Get)
 		r.Patch("/{number_id}", handler.Update)
-		r.Patch("/{number_id}/carrier-connection", handler.SetCarrierConnection)
+		r.Patch("/{number_id}/trunk", handler.SetTrunk)
 		r.Delete("/{number_id}", handler.Delete)
 	})
 }

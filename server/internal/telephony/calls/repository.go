@@ -112,12 +112,12 @@ func (r *Repository) ListActiveForAdmissionReconciliation(
 
 	items := make([]ActiveAdmissionCall, 0, len(rows))
 	for _, row := range rows {
-		if row.CarrierConnectionID == nil {
+		if row.TrunkID == nil {
 			continue
 		}
 		items = append(items, ActiveAdmissionCall{
-			ID:                  row.ID,
-			CarrierConnectionID: *row.CarrierConnectionID,
+			ID:      row.ID,
+			TrunkID: *row.TrunkID,
 		})
 	}
 	return items, nil
@@ -141,13 +141,15 @@ func (r *Repository) SetRouteAttribution(
 	organizationID, id uuid.UUID,
 	route RouteAttribution,
 ) (sqlc.Call, error) {
-	return r.queries.SetCallRouteAttribution(ctx, sqlc.SetCallRouteAttributionParams{
-		CarrierConnectionID: route.CarrierConnectionID,
-		TrunkID:             route.TrunkID,
-		TrunkEndpointID:     route.TrunkEndpointID,
-		OrganizationID:      organizationID,
-		ID:                  id,
-	})
+	return r.queries.SetCallRouteAttribution(
+		ctx,
+		sqlc.SetCallRouteAttributionParams{
+			TrunkID:         route.TrunkID,
+			TrunkEndpointID: route.TrunkEndpointID,
+			OrganizationID:  organizationID,
+			ID:              id,
+		},
+	)
 }
 
 func (r *Repository) MarkRinging(ctx context.Context, organizationID, id uuid.UUID) (sqlc.Call, error) {

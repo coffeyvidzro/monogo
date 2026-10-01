@@ -7,50 +7,154 @@ package sqlc
 
 import (
 	"context"
+	"net/netip"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const clearTrunkOutboundAuth = `-- name: ClearTrunkOutboundAuth :exec
+WITH updated AS (
+    UPDATE trunks AS t
+    SET outbound_auth_method = 'none',
+        auth_username = NULL,
+        auth_realm = NULL,
+        auth_secret_ciphertext = NULL,
+        updated_at = NOW()
+    WHERE t.id = $1
+      AND t.organization_id = $2
+    RETURNING t.id
+)
+DELETE FROM trunk_digest_credentials AS d
+USING updated
+WHERE d.trunk_id = updated.id
+  AND d.direction = 'outbound'
+`
+
+type ClearTrunkOutboundAuthParams struct {
+	ID             uuid.UUID `db:"id" json:"id"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+}
+
+func (q *Queries) ClearTrunkOutboundAuth(ctx context.Context, arg ClearTrunkOutboundAuthParams) error {
+	_, err := q.db.Exec(ctx, clearTrunkOutboundAuth, arg.ID, arg.OrganizationID)
+	return err
+}
+
 const createTrunk = `-- name: CreateTrunk :one
-INSERT INTO trunks (organization_id, carrier_connection_id, name, direction, status)
+INSERT INTO trunks (
+    id,
+    organization_id,
+    name,
+    direction,
+    status,
+    outbound_auth_method,
+    auth_username,
+    auth_realm,
+    auth_secret_ciphertext,
+    inbound_enabled,
+    inbound_auth_method,
+    inbound_username,
+    inbound_realm,
+    inbound_secret_ciphertext,
+    max_cps,
+    max_concurrent_calls,
+    codecs,
+    supports_video,
+    supports_fax
+)
 SELECT
-    cc.organization_id AS organization_id,
-    cc.id AS carrier_connection_id,
-    $1 AS name,
-    COALESCE($2, 'bidirectional') AS direction,
-    COALESCE($3, 'active') AS status
-FROM carrier_connections AS cc
-WHERE cc.id = $4
-  AND cc.organization_id = $5
-  AND cc.status = 'active'
-RETURNING id, organization_id, carrier_connection_id, name, direction, status, created_at, updated_at
+    $1 AS id,
+    $2 AS organization_id,
+    $3 AS name,
+    COALESCE($4, 'bidirectional') AS direction,
+    COALESCE($5, 'active') AS status,
+    COALESCE($6, 'none') AS outbound_auth_method,
+    $7 AS auth_username,
+    $8 AS auth_realm,
+    $9 AS auth_secret_ciphertext,
+    COALESCE($10, false) AS inbound_enabled,
+    COALESCE($11, 'ip') AS inbound_auth_method,
+    $12 AS inbound_username,
+    $13 AS inbound_realm,
+    $14 AS inbound_secret_ciphertext,
+    COALESCE($15, 10) AS max_cps,
+    COALESCE($16, 100) AS max_concurrent_calls,
+    COALESCE($17, ARRAY['PCMU','PCMA']::TEXT[]) AS codecs,
+    COALESCE($18, false) AS supports_video,
+    COALESCE($19, false) AS supports_fax
+FROM organizations AS o
+WHERE o.id = $2
+  AND o.status = 'active'
+  AND o.deleted_at IS NULL
+RETURNING id, organization_id, name, direction, status, outbound_auth_method, auth_username, auth_realm, auth_secret_ciphertext, inbound_enabled, inbound_auth_method, inbound_username, inbound_realm, inbound_secret_ciphertext, max_cps, max_concurrent_calls, codecs, supports_video, supports_fax, created_at, updated_at
 `
 
 type CreateTrunkParams struct {
-	Name                string    `db:"name" json:"name"`
-	Direction           *string   `db:"direction" json:"direction"`
-	Status              *string   `db:"status" json:"status"`
-	CarrierConnectionID uuid.UUID `db:"carrier_connection_id" json:"carrier_connection_id"`
-	OrganizationID      uuid.UUID `db:"organization_id" json:"organization_id"`
+	ID                      uuid.UUID `db:"id" json:"id"`
+	OrganizationID          uuid.UUID `db:"organization_id" json:"organization_id"`
+	Name                    string    `db:"name" json:"name"`
+	Direction               *string   `db:"direction" json:"direction"`
+	Status                  *string   `db:"status" json:"status"`
+	OutboundAuthMethod      *string   `db:"outbound_auth_method" json:"outbound_auth_method"`
+	AuthUsername            *string   `db:"auth_username" json:"auth_username"`
+	AuthRealm               *string   `db:"auth_realm" json:"auth_realm"`
+	AuthSecretCiphertext    *string   `db:"auth_secret_ciphertext" json:"auth_secret_ciphertext"`
+	InboundEnabled          *bool     `db:"inbound_enabled" json:"inbound_enabled"`
+	InboundAuthMethod       *string   `db:"inbound_auth_method" json:"inbound_auth_method"`
+	InboundUsername         *string   `db:"inbound_username" json:"inbound_username"`
+	InboundRealm            *string   `db:"inbound_realm" json:"inbound_realm"`
+	InboundSecretCiphertext *string   `db:"inbound_secret_ciphertext" json:"inbound_secret_ciphertext"`
+	MaxCps                  *int32    `db:"max_cps" json:"max_cps"`
+	MaxConcurrentCalls      *int32    `db:"max_concurrent_calls" json:"max_concurrent_calls"`
+	Codecs                  []string  `db:"codecs" json:"codecs"`
+	SupportsVideo           *bool     `db:"supports_video" json:"supports_video"`
+	SupportsFax             *bool     `db:"supports_fax" json:"supports_fax"`
 }
 
 func (q *Queries) CreateTrunk(ctx context.Context, arg CreateTrunkParams) (Trunk, error) {
 	row := q.db.QueryRow(ctx, createTrunk,
+		arg.ID,
+		arg.OrganizationID,
 		arg.Name,
 		arg.Direction,
 		arg.Status,
-		arg.CarrierConnectionID,
-		arg.OrganizationID,
+		arg.OutboundAuthMethod,
+		arg.AuthUsername,
+		arg.AuthRealm,
+		arg.AuthSecretCiphertext,
+		arg.InboundEnabled,
+		arg.InboundAuthMethod,
+		arg.InboundUsername,
+		arg.InboundRealm,
+		arg.InboundSecretCiphertext,
+		arg.MaxCps,
+		arg.MaxConcurrentCalls,
+		arg.Codecs,
+		arg.SupportsVideo,
+		arg.SupportsFax,
 	)
 	var i Trunk
 	err := row.Scan(
 		&i.ID,
 		&i.OrganizationID,
-		&i.CarrierConnectionID,
 		&i.Name,
 		&i.Direction,
 		&i.Status,
+		&i.OutboundAuthMethod,
+		&i.AuthUsername,
+		&i.AuthRealm,
+		&i.AuthSecretCiphertext,
+		&i.InboundEnabled,
+		&i.InboundAuthMethod,
+		&i.InboundUsername,
+		&i.InboundRealm,
+		&i.InboundSecretCiphertext,
+		&i.MaxCps,
+		&i.MaxConcurrentCalls,
+		&i.Codecs,
+		&i.SupportsVideo,
+		&i.SupportsFax,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -80,23 +184,21 @@ SELECT
     COALESCE($6, 100) AS weight,
     COALESCE($7, true) AS enabled
 FROM trunks AS t
-JOIN carrier_connections AS cc ON cc.id = t.carrier_connection_id
 WHERE t.id = $8
   AND t.organization_id = $9
-  AND cc.organization_id = t.organization_id
 RETURNING id, organization_id, trunk_id, host, port, transport, direction, priority, weight, enabled, health_status, consecutive_failures, last_checked_at, last_response_code, last_latency_ms, last_error, cooldown_until, created_at, updated_at
 `
 
 type CreateTrunkEndpointParams struct {
-	Host           string     `db:"host" json:"host"`
-	Port           *int32     `db:"port" json:"port"`
-	Transport      *string    `db:"transport" json:"transport"`
-	Direction      *string    `db:"direction" json:"direction"`
-	Priority       *int32     `db:"priority" json:"priority"`
-	Weight         *int32     `db:"weight" json:"weight"`
-	Enabled        *bool      `db:"enabled" json:"enabled"`
-	TrunkID        uuid.UUID  `db:"trunk_id" json:"trunk_id"`
-	OrganizationID *uuid.UUID `db:"organization_id" json:"organization_id"`
+	Host           string    `db:"host" json:"host"`
+	Port           *int32    `db:"port" json:"port"`
+	Transport      *string   `db:"transport" json:"transport"`
+	Direction      *string   `db:"direction" json:"direction"`
+	Priority       *int32    `db:"priority" json:"priority"`
+	Weight         *int32    `db:"weight" json:"weight"`
+	Enabled        *bool     `db:"enabled" json:"enabled"`
+	TrunkID        uuid.UUID `db:"trunk_id" json:"trunk_id"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
 }
 
 func (q *Queries) CreateTrunkEndpoint(ctx context.Context, arg CreateTrunkEndpointParams) (TrunkEndpoint, error) {
@@ -136,23 +238,56 @@ func (q *Queries) CreateTrunkEndpoint(ctx context.Context, arg CreateTrunkEndpoi
 	return i, err
 }
 
+const createTrunkSourceIP = `-- name: CreateTrunkSourceIP :one
+INSERT INTO trunk_source_ips (
+    organization_id,
+    trunk_id,
+    cidr
+)
+SELECT
+    t.organization_id AS organization_id,
+    t.id AS trunk_id,
+    $1 AS cidr
+FROM trunks AS t
+WHERE t.id = $2
+  AND t.organization_id = $3
+RETURNING id, organization_id, trunk_id, cidr, created_at
+`
+
+type CreateTrunkSourceIPParams struct {
+	Cidr           netip.Prefix `db:"cidr" json:"cidr"`
+	TrunkID        uuid.UUID    `db:"trunk_id" json:"trunk_id"`
+	OrganizationID uuid.UUID    `db:"organization_id" json:"organization_id"`
+}
+
+func (q *Queries) CreateTrunkSourceIP(ctx context.Context, arg CreateTrunkSourceIPParams) (TrunkSourceIp, error) {
+	row := q.db.QueryRow(ctx, createTrunkSourceIP, arg.Cidr, arg.TrunkID, arg.OrganizationID)
+	var i TrunkSourceIp
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.TrunkID,
+		&i.Cidr,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const deleteTrunkEndpoint = `-- name: DeleteTrunkEndpoint :one
 DELETE FROM trunk_endpoints AS te
-USING trunks AS t, carrier_connections AS cc
+USING trunks AS t
 WHERE te.id = $1
   AND te.trunk_id = $2
   AND te.organization_id = $3
   AND t.id = te.trunk_id
   AND t.organization_id = te.organization_id
-  AND cc.id = t.carrier_connection_id
-  AND cc.organization_id = te.organization_id
 RETURNING te.id, te.organization_id, te.trunk_id, te.host, te.port, te.transport, te.direction, te.priority, te.weight, te.enabled, te.health_status, te.consecutive_failures, te.last_checked_at, te.last_response_code, te.last_latency_ms, te.last_error, te.cooldown_until, te.created_at, te.updated_at
 `
 
 type DeleteTrunkEndpointParams struct {
-	ID             uuid.UUID  `db:"id" json:"id"`
-	TrunkID        uuid.UUID  `db:"trunk_id" json:"trunk_id"`
-	OrganizationID *uuid.UUID `db:"organization_id" json:"organization_id"`
+	ID             uuid.UUID `db:"id" json:"id"`
+	TrunkID        uuid.UUID `db:"trunk_id" json:"trunk_id"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
 }
 
 func (q *Queries) DeleteTrunkEndpoint(ctx context.Context, arg DeleteTrunkEndpointParams) (TrunkEndpoint, error) {
@@ -182,20 +317,37 @@ func (q *Queries) DeleteTrunkEndpoint(ctx context.Context, arg DeleteTrunkEndpoi
 	return i, err
 }
 
+const deleteTrunkSourceIP = `-- name: DeleteTrunkSourceIP :exec
+DELETE FROM trunk_source_ips
+WHERE id = $1
+  AND trunk_id = $2
+  AND organization_id = $3
+`
+
+type DeleteTrunkSourceIPParams struct {
+	ID             uuid.UUID `db:"id" json:"id"`
+	TrunkID        uuid.UUID `db:"trunk_id" json:"trunk_id"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+}
+
+func (q *Queries) DeleteTrunkSourceIP(ctx context.Context, arg DeleteTrunkSourceIPParams) error {
+	_, err := q.db.Exec(ctx, deleteTrunkSourceIP, arg.ID, arg.TrunkID, arg.OrganizationID)
+	return err
+}
+
 const disableTrunk = `-- name: DisableTrunk :one
-UPDATE trunks AS t
-SET
-    status = 'disabled',
+UPDATE trunks
+SET status = 'disabled',
     updated_at = NOW()
-WHERE t.id = $1
-  AND t.organization_id = $2
-  AND t.status = 'active'
-RETURNING t.id, t.organization_id, t.carrier_connection_id, t.name, t.direction, t.status, t.created_at, t.updated_at
+WHERE id = $1
+  AND organization_id = $2
+  AND status = 'active'
+RETURNING id, organization_id, name, direction, status, outbound_auth_method, auth_username, auth_realm, auth_secret_ciphertext, inbound_enabled, inbound_auth_method, inbound_username, inbound_realm, inbound_secret_ciphertext, max_cps, max_concurrent_calls, codecs, supports_video, supports_fax, created_at, updated_at
 `
 
 type DisableTrunkParams struct {
-	ID             uuid.UUID  `db:"id" json:"id"`
-	OrganizationID *uuid.UUID `db:"organization_id" json:"organization_id"`
+	ID             uuid.UUID `db:"id" json:"id"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
 }
 
 func (q *Queries) DisableTrunk(ctx context.Context, arg DisableTrunkParams) (Trunk, error) {
@@ -204,72 +356,70 @@ func (q *Queries) DisableTrunk(ctx context.Context, arg DisableTrunkParams) (Tru
 	err := row.Scan(
 		&i.ID,
 		&i.OrganizationID,
-		&i.CarrierConnectionID,
 		&i.Name,
 		&i.Direction,
 		&i.Status,
+		&i.OutboundAuthMethod,
+		&i.AuthUsername,
+		&i.AuthRealm,
+		&i.AuthSecretCiphertext,
+		&i.InboundEnabled,
+		&i.InboundAuthMethod,
+		&i.InboundUsername,
+		&i.InboundRealm,
+		&i.InboundSecretCiphertext,
+		&i.MaxCps,
+		&i.MaxConcurrentCalls,
+		&i.Codecs,
+		&i.SupportsVideo,
+		&i.SupportsFax,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
 	return i, err
 }
 
-const enableTrunk = `-- name: EnableTrunk :exec
-UPDATE trunks AS t
-SET
-    status = 'active',
-    updated_at = NOW()
-WHERE t.id = $1
-  AND t.organization_id = $2
-  AND t.status = 'disabled'
-`
-
-type EnableTrunkParams struct {
-	ID             uuid.UUID  `db:"id" json:"id"`
-	OrganizationID *uuid.UUID `db:"organization_id" json:"organization_id"`
-}
-
-func (q *Queries) EnableTrunk(ctx context.Context, arg EnableTrunkParams) error {
-	_, err := q.db.Exec(ctx, enableTrunk, arg.ID, arg.OrganizationID)
-	return err
-}
-
 const getBackofficeTrunk = `-- name: GetBackofficeTrunk :one
 SELECT
     t.id::TEXT AS id,
-    CAST(COALESCE(t.organization_id::TEXT, '—') AS TEXT) AS organization_id,
-    COALESCE(o.name, '—') AS organization_name,
+    t.organization_id::TEXT AS organization_id,
+    o.name AS organization_name,
     t.name,
     t.direction,
     t.status,
-    CAST(COALESCE(t.carrier_connection_id::TEXT, '—') AS TEXT) AS carrier_connection_id,
-    COALESCE(cc.name, '—') AS carrier_connection_name,
+    t.outbound_auth_method,
+    t.inbound_enabled,
+    t.inbound_auth_method,
+    t.max_cps,
+    t.max_concurrent_calls,
     COUNT(te.id)::BIGINT AS endpoint_count,
     COUNT(te.id) FILTER (WHERE te.enabled)::BIGINT AS enabled_endpoint_count,
     to_char(t.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI') AS created_at,
     to_char(t.updated_at AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI') AS updated_at
 FROM trunks AS t
-LEFT JOIN organizations AS o ON o.id = t.organization_id
-LEFT JOIN carrier_connections AS cc ON cc.id = t.carrier_connection_id
+JOIN organizations AS o ON o.id = t.organization_id
 LEFT JOIN trunk_endpoints AS te ON te.trunk_id = t.id
 WHERE t.id = $1
-GROUP BY t.id, o.name, cc.name
+GROUP BY t.id, o.name
 LIMIT 1
 `
 
 type GetBackofficeTrunkRow struct {
-	ID                    string `db:"id" json:"id"`
-	OrganizationID        string `db:"organization_id" json:"organization_id"`
-	OrganizationName      string `db:"organization_name" json:"organization_name"`
-	Name                  string `db:"name" json:"name"`
-	Direction             string `db:"direction" json:"direction"`
-	Status                string `db:"status" json:"status"`
-	CarrierConnectionID   string `db:"carrier_connection_id" json:"carrier_connection_id"`
-	CarrierConnectionName string `db:"carrier_connection_name" json:"carrier_connection_name"`
-	EndpointCount         int64  `db:"endpoint_count" json:"endpoint_count"`
-	EnabledEndpointCount  int64  `db:"enabled_endpoint_count" json:"enabled_endpoint_count"`
-	CreatedAt             string `db:"created_at" json:"created_at"`
-	UpdatedAt             string `db:"updated_at" json:"updated_at"`
+	ID                   string `db:"id" json:"id"`
+	OrganizationID       string `db:"organization_id" json:"organization_id"`
+	OrganizationName     string `db:"organization_name" json:"organization_name"`
+	Name                 string `db:"name" json:"name"`
+	Direction            string `db:"direction" json:"direction"`
+	Status               string `db:"status" json:"status"`
+	OutboundAuthMethod   string `db:"outbound_auth_method" json:"outbound_auth_method"`
+	InboundEnabled       bool   `db:"inbound_enabled" json:"inbound_enabled"`
+	InboundAuthMethod    string `db:"inbound_auth_method" json:"inbound_auth_method"`
+	MaxCps               int32  `db:"max_cps" json:"max_cps"`
+	MaxConcurrentCalls   int32  `db:"max_concurrent_calls" json:"max_concurrent_calls"`
+	EndpointCount        int64  `db:"endpoint_count" json:"endpoint_count"`
+	EnabledEndpointCount int64  `db:"enabled_endpoint_count" json:"enabled_endpoint_count"`
+	CreatedAt            string `db:"created_at" json:"created_at"`
+	UpdatedAt            string `db:"updated_at" json:"updated_at"`
 }
 
 func (q *Queries) GetBackofficeTrunk(ctx context.Context, id uuid.UUID) (GetBackofficeTrunkRow, error) {
@@ -282,8 +432,11 @@ func (q *Queries) GetBackofficeTrunk(ctx context.Context, id uuid.UUID) (GetBack
 		&i.Name,
 		&i.Direction,
 		&i.Status,
-		&i.CarrierConnectionID,
-		&i.CarrierConnectionName,
+		&i.OutboundAuthMethod,
+		&i.InboundEnabled,
+		&i.InboundAuthMethod,
+		&i.MaxCps,
+		&i.MaxConcurrentCalls,
 		&i.EndpointCount,
 		&i.EnabledEndpointCount,
 		&i.CreatedAt,
@@ -293,16 +446,16 @@ func (q *Queries) GetBackofficeTrunk(ctx context.Context, id uuid.UUID) (GetBack
 }
 
 const getTrunkByID = `-- name: GetTrunkByID :one
-SELECT t.id, t.organization_id, t.carrier_connection_id, t.name, t.direction, t.status, t.created_at, t.updated_at
-FROM trunks AS t
-WHERE t.id = $1
-  AND t.organization_id = $2
+SELECT id, organization_id, name, direction, status, outbound_auth_method, auth_username, auth_realm, auth_secret_ciphertext, inbound_enabled, inbound_auth_method, inbound_username, inbound_realm, inbound_secret_ciphertext, max_cps, max_concurrent_calls, codecs, supports_video, supports_fax, created_at, updated_at
+FROM trunks
+WHERE id = $1
+  AND organization_id = $2
 LIMIT 1
 `
 
 type GetTrunkByIDParams struct {
-	ID             uuid.UUID  `db:"id" json:"id"`
-	OrganizationID *uuid.UUID `db:"organization_id" json:"organization_id"`
+	ID             uuid.UUID `db:"id" json:"id"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
 }
 
 func (q *Queries) GetTrunkByID(ctx context.Context, arg GetTrunkByIDParams) (Trunk, error) {
@@ -311,10 +464,23 @@ func (q *Queries) GetTrunkByID(ctx context.Context, arg GetTrunkByIDParams) (Tru
 	err := row.Scan(
 		&i.ID,
 		&i.OrganizationID,
-		&i.CarrierConnectionID,
 		&i.Name,
 		&i.Direction,
 		&i.Status,
+		&i.OutboundAuthMethod,
+		&i.AuthUsername,
+		&i.AuthRealm,
+		&i.AuthSecretCiphertext,
+		&i.InboundEnabled,
+		&i.InboundAuthMethod,
+		&i.InboundUsername,
+		&i.InboundRealm,
+		&i.InboundSecretCiphertext,
+		&i.MaxCps,
+		&i.MaxConcurrentCalls,
+		&i.Codecs,
+		&i.SupportsVideo,
+		&i.SupportsFax,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -324,20 +490,19 @@ func (q *Queries) GetTrunkByID(ctx context.Context, arg GetTrunkByIDParams) (Tru
 const getTrunkEndpointByID = `-- name: GetTrunkEndpointByID :one
 SELECT te.id, te.organization_id, te.trunk_id, te.host, te.port, te.transport, te.direction, te.priority, te.weight, te.enabled, te.health_status, te.consecutive_failures, te.last_checked_at, te.last_response_code, te.last_latency_ms, te.last_error, te.cooldown_until, te.created_at, te.updated_at
 FROM trunk_endpoints AS te
-JOIN trunks AS t ON t.id = te.trunk_id
-JOIN carrier_connections AS cc ON cc.id = t.carrier_connection_id
+JOIN trunks AS t
+  ON t.id = te.trunk_id
+ AND t.organization_id = te.organization_id
 WHERE te.id = $1
   AND te.trunk_id = $2
   AND te.organization_id = $3
-  AND t.organization_id = te.organization_id
-  AND cc.organization_id = te.organization_id
 LIMIT 1
 `
 
 type GetTrunkEndpointByIDParams struct {
-	ID             uuid.UUID  `db:"id" json:"id"`
-	TrunkID        uuid.UUID  `db:"trunk_id" json:"trunk_id"`
-	OrganizationID *uuid.UUID `db:"organization_id" json:"organization_id"`
+	ID             uuid.UUID `db:"id" json:"id"`
+	TrunkID        uuid.UUID `db:"trunk_id" json:"trunk_id"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
 }
 
 func (q *Queries) GetTrunkEndpointByID(ctx context.Context, arg GetTrunkEndpointByIDParams) (TrunkEndpoint, error) {
@@ -367,26 +532,66 @@ func (q *Queries) GetTrunkEndpointByID(ctx context.Context, arg GetTrunkEndpoint
 	return i, err
 }
 
+const insertTrunkDigestCredential = `-- name: InsertTrunkDigestCredential :exec
+INSERT INTO trunk_digest_credentials (
+    trunk_id,
+    organization_id,
+    direction,
+    username,
+    realm,
+    ha1_md5
+)
+SELECT
+    t.id,
+    t.organization_id,
+    $1::TEXT,
+    $2::TEXT,
+    $3::TEXT,
+    $4::TEXT
+FROM trunks AS t
+WHERE t.id = $5
+  AND t.organization_id = $6
+`
+
+type InsertTrunkDigestCredentialParams struct {
+	Direction      string    `db:"direction" json:"direction"`
+	Username       string    `db:"username" json:"username"`
+	Realm          string    `db:"realm" json:"realm"`
+	Ha1Md5         string    `db:"ha1_md5" json:"ha1_md5"`
+	TrunkID        uuid.UUID `db:"trunk_id" json:"trunk_id"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+}
+
+func (q *Queries) InsertTrunkDigestCredential(ctx context.Context, arg InsertTrunkDigestCredentialParams) error {
+	_, err := q.db.Exec(ctx, insertTrunkDigestCredential,
+		arg.Direction,
+		arg.Username,
+		arg.Realm,
+		arg.Ha1Md5,
+		arg.TrunkID,
+		arg.OrganizationID,
+	)
+	return err
+}
+
 const listActiveOutboundTrunkEndpoints = `-- name: ListActiveOutboundTrunkEndpoints :many
 SELECT te.id, te.organization_id, te.trunk_id, te.host, te.port, te.transport, te.direction, te.priority, te.weight, te.enabled, te.health_status, te.consecutive_failures, te.last_checked_at, te.last_response_code, te.last_latency_ms, te.last_error, te.cooldown_until, te.created_at, te.updated_at
 FROM trunk_endpoints AS te
-JOIN trunks AS t ON t.id = te.trunk_id
-JOIN carrier_connections AS cc ON cc.id = t.carrier_connection_id
+JOIN trunks AS t
+  ON t.id = te.trunk_id
+ AND t.organization_id = te.organization_id
 WHERE t.id = $1
   AND t.organization_id = $2
   AND t.status = 'active'
   AND t.direction IN ('outbound', 'bidirectional')
-  AND cc.organization_id = t.organization_id
-  AND cc.status = 'active'
-  AND te.organization_id = t.organization_id
   AND te.enabled = true
   AND te.direction IN ('outbound', 'bidirectional')
 ORDER BY te.priority ASC, te.weight DESC, te.created_at ASC
 `
 
 type ListActiveOutboundTrunkEndpointsParams struct {
-	TrunkID        uuid.UUID  `db:"trunk_id" json:"trunk_id"`
-	OrganizationID *uuid.UUID `db:"organization_id" json:"organization_id"`
+	TrunkID        uuid.UUID `db:"trunk_id" json:"trunk_id"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
 }
 
 func (q *Queries) ListActiveOutboundTrunkEndpoints(ctx context.Context, arg ListActiveOutboundTrunkEndpointsParams) ([]TrunkEndpoint, error) {
@@ -444,7 +649,12 @@ SELECT
     CAST(COALESCE(te.last_response_code::TEXT, '—') AS TEXT) AS last_response_code,
     CAST(COALESCE(te.last_latency_ms::TEXT, '—') AS TEXT) AS last_latency_ms,
     COALESCE(te.last_error, '—') AS last_error,
-    CAST(COALESCE(to_char(te.last_checked_at AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI'), '—') AS TEXT) AS last_checked_at
+    CAST(
+        COALESCE(
+            to_char(te.last_checked_at AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI'),
+            '—'
+        ) AS TEXT
+    ) AS last_checked_at
 FROM trunk_endpoints AS te
 WHERE te.trunk_id = $1
 ORDER BY te.priority, te.host, te.port
@@ -505,15 +715,14 @@ func (q *Queries) ListBackofficeTrunkEndpoints(ctx context.Context, trunkID uuid
 const listBackofficeTrunks = `-- name: ListBackofficeTrunks :many
 SELECT
     t.id::TEXT AS id,
-    CAST(COALESCE(t.organization_id::TEXT, '—') AS TEXT) AS organization_id,
-    COALESCE(o.name, '—') AS organization_name,
+    t.organization_id::TEXT AS organization_id,
+    o.name AS organization_name,
     t.name,
     t.direction,
     t.status,
     COUNT(te.id)::BIGINT AS endpoint_count
 FROM trunks AS t
-LEFT JOIN organizations AS o ON o.id = t.organization_id
-LEFT JOIN carrier_connections AS cc ON cc.id = t.carrier_connection_id
+JOIN organizations AS o ON o.id = t.organization_id
 LEFT JOIN trunk_endpoints AS te ON te.trunk_id = t.id
 GROUP BY
     t.id,
@@ -567,18 +776,17 @@ func (q *Queries) ListBackofficeTrunks(ctx context.Context) ([]ListBackofficeTru
 const listTrunkEndpoints = `-- name: ListTrunkEndpoints :many
 SELECT te.id, te.organization_id, te.trunk_id, te.host, te.port, te.transport, te.direction, te.priority, te.weight, te.enabled, te.health_status, te.consecutive_failures, te.last_checked_at, te.last_response_code, te.last_latency_ms, te.last_error, te.cooldown_until, te.created_at, te.updated_at
 FROM trunk_endpoints AS te
-JOIN trunks AS t ON t.id = te.trunk_id
-JOIN carrier_connections AS cc ON cc.id = t.carrier_connection_id
+JOIN trunks AS t
+  ON t.id = te.trunk_id
+ AND t.organization_id = te.organization_id
 WHERE te.trunk_id = $1
   AND te.organization_id = $2
-  AND t.organization_id = te.organization_id
-  AND cc.organization_id = te.organization_id
 ORDER BY te.priority ASC, te.weight DESC, te.created_at ASC
 `
 
 type ListTrunkEndpointsParams struct {
-	TrunkID        uuid.UUID  `db:"trunk_id" json:"trunk_id"`
-	OrganizationID *uuid.UUID `db:"organization_id" json:"organization_id"`
+	TrunkID        uuid.UUID `db:"trunk_id" json:"trunk_id"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
 }
 
 func (q *Queries) ListTrunkEndpoints(ctx context.Context, arg ListTrunkEndpointsParams) ([]TrunkEndpoint, error) {
@@ -625,13 +833,11 @@ const listTrunkEndpointsForHealthCheck = `-- name: ListTrunkEndpointsForHealthCh
 WITH due AS (
     SELECT te.id
     FROM trunk_endpoints AS te
-    JOIN trunks AS t ON t.id = te.trunk_id
-    JOIN carrier_connections AS cc ON cc.id = t.carrier_connection_id
+    JOIN trunks AS t
+      ON t.id = te.trunk_id
+     AND t.organization_id = te.organization_id
     WHERE te.enabled = true
       AND t.status = 'active'
-      AND cc.status = 'active'
-      AND te.organization_id IS NOT DISTINCT FROM t.organization_id
-      AND cc.organization_id IS NOT DISTINCT FROM t.organization_id
       AND (te.cooldown_until IS NULL OR te.cooldown_until <= $1)
       AND (te.last_checked_at IS NULL OR te.last_checked_at <= $2)
     ORDER BY te.last_checked_at ASC NULLS FIRST
@@ -691,39 +897,34 @@ func (q *Queries) ListTrunkEndpointsForHealthCheck(ctx context.Context, arg List
 	return items, nil
 }
 
-const listTrunksByCarrierConnectionID = `-- name: ListTrunksByCarrierConnectionID :many
-SELECT t.id, t.organization_id, t.carrier_connection_id, t.name, t.direction, t.status, t.created_at, t.updated_at
-FROM trunks AS t
-JOIN carrier_connections AS cc ON cc.id = t.carrier_connection_id
-WHERE t.carrier_connection_id = $1
-  AND t.organization_id = $2
-  AND cc.organization_id = t.organization_id
-ORDER BY t.created_at DESC
+const listTrunkSourceIPs = `-- name: ListTrunkSourceIPs :many
+SELECT id, organization_id, trunk_id, cidr, created_at
+FROM trunk_source_ips
+WHERE trunk_id = $1
+  AND organization_id = $2
+ORDER BY created_at ASC
 `
 
-type ListTrunksByCarrierConnectionIDParams struct {
-	CarrierConnectionID *uuid.UUID `db:"carrier_connection_id" json:"carrier_connection_id"`
-	OrganizationID      *uuid.UUID `db:"organization_id" json:"organization_id"`
+type ListTrunkSourceIPsParams struct {
+	TrunkID        uuid.UUID `db:"trunk_id" json:"trunk_id"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
 }
 
-func (q *Queries) ListTrunksByCarrierConnectionID(ctx context.Context, arg ListTrunksByCarrierConnectionIDParams) ([]Trunk, error) {
-	rows, err := q.db.Query(ctx, listTrunksByCarrierConnectionID, arg.CarrierConnectionID, arg.OrganizationID)
+func (q *Queries) ListTrunkSourceIPs(ctx context.Context, arg ListTrunkSourceIPsParams) ([]TrunkSourceIp, error) {
+	rows, err := q.db.Query(ctx, listTrunkSourceIPs, arg.TrunkID, arg.OrganizationID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []Trunk{}
+	items := []TrunkSourceIp{}
 	for rows.Next() {
-		var i Trunk
+		var i TrunkSourceIp
 		if err := rows.Scan(
 			&i.ID,
 			&i.OrganizationID,
-			&i.CarrierConnectionID,
-			&i.Name,
-			&i.Direction,
-			&i.Status,
+			&i.TrunkID,
+			&i.Cidr,
 			&i.CreatedAt,
-			&i.UpdatedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -736,13 +937,13 @@ func (q *Queries) ListTrunksByCarrierConnectionID(ctx context.Context, arg ListT
 }
 
 const listTrunksByOrganizationID = `-- name: ListTrunksByOrganizationID :many
-SELECT t.id, t.organization_id, t.carrier_connection_id, t.name, t.direction, t.status, t.created_at, t.updated_at
-FROM trunks AS t
-WHERE t.organization_id = $1
-ORDER BY t.created_at DESC
+SELECT id, organization_id, name, direction, status, outbound_auth_method, auth_username, auth_realm, auth_secret_ciphertext, inbound_enabled, inbound_auth_method, inbound_username, inbound_realm, inbound_secret_ciphertext, max_cps, max_concurrent_calls, codecs, supports_video, supports_fax, created_at, updated_at
+FROM trunks
+WHERE organization_id = $1
+ORDER BY created_at DESC
 `
 
-func (q *Queries) ListTrunksByOrganizationID(ctx context.Context, organizationID *uuid.UUID) ([]Trunk, error) {
+func (q *Queries) ListTrunksByOrganizationID(ctx context.Context, organizationID uuid.UUID) ([]Trunk, error) {
 	rows, err := q.db.Query(ctx, listTrunksByOrganizationID, organizationID)
 	if err != nil {
 		return nil, err
@@ -754,10 +955,23 @@ func (q *Queries) ListTrunksByOrganizationID(ctx context.Context, organizationID
 		if err := rows.Scan(
 			&i.ID,
 			&i.OrganizationID,
-			&i.CarrierConnectionID,
 			&i.Name,
 			&i.Direction,
 			&i.Status,
+			&i.OutboundAuthMethod,
+			&i.AuthUsername,
+			&i.AuthRealm,
+			&i.AuthSecretCiphertext,
+			&i.InboundEnabled,
+			&i.InboundAuthMethod,
+			&i.InboundUsername,
+			&i.InboundRealm,
+			&i.InboundSecretCiphertext,
+			&i.MaxCps,
+			&i.MaxConcurrentCalls,
+			&i.Codecs,
+			&i.SupportsVideo,
+			&i.SupportsFax,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 		); err != nil {
@@ -773,7 +987,8 @@ func (q *Queries) ListTrunksByOrganizationID(ctx context.Context, organizationID
 
 const markTrunkEndpointHealthy = `-- name: MarkTrunkEndpointHealthy :one
 UPDATE trunk_endpoints
-SET health_status = 'healthy',
+SET
+    health_status = 'healthy',
     consecutive_failures = 0,
     last_checked_at = $1,
     last_response_code = $2,
@@ -825,7 +1040,8 @@ func (q *Queries) MarkTrunkEndpointHealthy(ctx context.Context, arg MarkTrunkEnd
 
 const markTrunkEndpointProbeFailed = `-- name: MarkTrunkEndpointProbeFailed :one
 UPDATE trunk_endpoints
-SET consecutive_failures = consecutive_failures + 1,
+SET
+    consecutive_failures = consecutive_failures + 1,
     health_status = CASE
         WHEN consecutive_failures + 1 >= $1 THEN 'unhealthy'
         ELSE health_status
@@ -835,7 +1051,8 @@ SET consecutive_failures = consecutive_failures + 1,
     last_latency_ms = $3,
     last_error = $4,
     cooldown_until = CASE
-        WHEN consecutive_failures + 1 >= $1 THEN $5::TIMESTAMPTZ
+        WHEN consecutive_failures + 1 >= $1
+            THEN $5::TIMESTAMPTZ
         ELSE NULL
     END
 WHERE id = $6
@@ -885,24 +1102,206 @@ func (q *Queries) MarkTrunkEndpointProbeFailed(ctx context.Context, arg MarkTrun
 	return i, err
 }
 
-const updateTrunk = `-- name: UpdateTrunk :one
-UPDATE trunks AS t
-SET
-    name = COALESCE($1, t.name),
-    direction = COALESCE($2, t.direction),
-    status = COALESCE($3, t.status),
+const setTrunkInboundDigestAuth = `-- name: SetTrunkInboundDigestAuth :exec
+WITH updated AS (
+    UPDATE trunks AS t
+    SET inbound_auth_method = 'digest',
+        inbound_username = $1,
+        inbound_realm = $2,
+        inbound_secret_ciphertext = $4,
+        updated_at = NOW()
+    WHERE t.id = $5
+      AND t.organization_id = $6
+    RETURNING t.id, t.organization_id
+)
+INSERT INTO trunk_digest_credentials (
+    trunk_id,
+    organization_id,
+    direction,
+    username,
+    realm,
+    ha1_md5
+)
+SELECT
+    updated.id,
+    updated.organization_id,
+    'inbound',
+    $1,
+    $2,
+    $3
+FROM updated
+ON CONFLICT (trunk_id, direction)
+DO UPDATE SET
+    username = EXCLUDED.username,
+    realm = EXCLUDED.realm,
+    ha1_md5 = EXCLUDED.ha1_md5,
     updated_at = NOW()
-WHERE t.id = $4
-  AND t.organization_id = $5
-RETURNING t.id, t.organization_id, t.carrier_connection_id, t.name, t.direction, t.status, t.created_at, t.updated_at
+`
+
+type SetTrunkInboundDigestAuthParams struct {
+	InboundUsername         *string   `db:"inbound_username" json:"inbound_username"`
+	InboundRealm            *string   `db:"inbound_realm" json:"inbound_realm"`
+	InboundHa1Md5           *string   `db:"inbound_ha1_md5" json:"inbound_ha1_md5"`
+	InboundSecretCiphertext *string   `db:"inbound_secret_ciphertext" json:"inbound_secret_ciphertext"`
+	ID                      uuid.UUID `db:"id" json:"id"`
+	OrganizationID          uuid.UUID `db:"organization_id" json:"organization_id"`
+}
+
+func (q *Queries) SetTrunkInboundDigestAuth(ctx context.Context, arg SetTrunkInboundDigestAuthParams) error {
+	_, err := q.db.Exec(ctx, setTrunkInboundDigestAuth,
+		arg.InboundUsername,
+		arg.InboundRealm,
+		arg.InboundHa1Md5,
+		arg.InboundSecretCiphertext,
+		arg.ID,
+		arg.OrganizationID,
+	)
+	return err
+}
+
+const setTrunkInboundIPAuth = `-- name: SetTrunkInboundIPAuth :exec
+WITH updated AS (
+    UPDATE trunks AS t
+    SET inbound_auth_method = 'ip',
+        inbound_username = NULL,
+        inbound_realm = NULL,
+        inbound_secret_ciphertext = NULL,
+        updated_at = NOW()
+    WHERE t.id = $1
+      AND t.organization_id = $2
+    RETURNING t.id
+)
+DELETE FROM trunk_digest_credentials AS d
+USING updated
+WHERE d.trunk_id = updated.id
+  AND d.direction = 'inbound'
+`
+
+type SetTrunkInboundIPAuthParams struct {
+	ID             uuid.UUID `db:"id" json:"id"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+}
+
+func (q *Queries) SetTrunkInboundIPAuth(ctx context.Context, arg SetTrunkInboundIPAuthParams) error {
+	_, err := q.db.Exec(ctx, setTrunkInboundIPAuth, arg.ID, arg.OrganizationID)
+	return err
+}
+
+const setTrunkInboundNoAuth = `-- name: SetTrunkInboundNoAuth :exec
+WITH updated AS (
+    UPDATE trunks AS t
+    SET inbound_auth_method = 'none',
+        inbound_username = NULL,
+        inbound_realm = NULL,
+        inbound_secret_ciphertext = NULL,
+        updated_at = NOW()
+    WHERE t.id = $1
+      AND t.organization_id = $2
+    RETURNING t.id
+)
+DELETE FROM trunk_digest_credentials AS d
+USING updated
+WHERE d.trunk_id = updated.id
+  AND d.direction = 'inbound'
+`
+
+type SetTrunkInboundNoAuthParams struct {
+	ID             uuid.UUID `db:"id" json:"id"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+}
+
+func (q *Queries) SetTrunkInboundNoAuth(ctx context.Context, arg SetTrunkInboundNoAuthParams) error {
+	_, err := q.db.Exec(ctx, setTrunkInboundNoAuth, arg.ID, arg.OrganizationID)
+	return err
+}
+
+const setTrunkOutboundDigestAuth = `-- name: SetTrunkOutboundDigestAuth :exec
+WITH updated AS (
+    UPDATE trunks AS t
+    SET outbound_auth_method = 'digest',
+        auth_username = $1,
+        auth_realm = $2,
+        auth_secret_ciphertext = $4,
+        updated_at = NOW()
+    WHERE t.id = $5
+      AND t.organization_id = $6
+    RETURNING t.id, t.organization_id
+)
+INSERT INTO trunk_digest_credentials (
+    trunk_id,
+    organization_id,
+    direction,
+    username,
+    realm,
+    ha1_md5
+)
+SELECT
+    updated.id,
+    updated.organization_id,
+    'outbound',
+    $1,
+    $2,
+    $3
+FROM updated
+ON CONFLICT (trunk_id, direction)
+DO UPDATE SET
+    username = EXCLUDED.username,
+    realm = EXCLUDED.realm,
+    ha1_md5 = EXCLUDED.ha1_md5,
+    updated_at = NOW()
+`
+
+type SetTrunkOutboundDigestAuthParams struct {
+	AuthUsername         *string   `db:"auth_username" json:"auth_username"`
+	AuthRealm            *string   `db:"auth_realm" json:"auth_realm"`
+	AuthHa1Md5           *string   `db:"auth_ha1_md5" json:"auth_ha1_md5"`
+	AuthSecretCiphertext *string   `db:"auth_secret_ciphertext" json:"auth_secret_ciphertext"`
+	ID                   uuid.UUID `db:"id" json:"id"`
+	OrganizationID       uuid.UUID `db:"organization_id" json:"organization_id"`
+}
+
+func (q *Queries) SetTrunkOutboundDigestAuth(ctx context.Context, arg SetTrunkOutboundDigestAuthParams) error {
+	_, err := q.db.Exec(ctx, setTrunkOutboundDigestAuth,
+		arg.AuthUsername,
+		arg.AuthRealm,
+		arg.AuthHa1Md5,
+		arg.AuthSecretCiphertext,
+		arg.ID,
+		arg.OrganizationID,
+	)
+	return err
+}
+
+const updateTrunk = `-- name: UpdateTrunk :one
+UPDATE trunks
+SET
+    name = COALESCE($1, name),
+    direction = COALESCE($2, direction),
+    status = COALESCE($3, status),
+    inbound_enabled = COALESCE($4, inbound_enabled),
+    max_cps = COALESCE($5, max_cps),
+    max_concurrent_calls = COALESCE($6, max_concurrent_calls),
+    codecs = COALESCE($7, codecs),
+    supports_video = COALESCE($8, supports_video),
+    supports_fax = COALESCE($9, supports_fax),
+    updated_at = NOW()
+WHERE id = $10
+  AND organization_id = $11
+RETURNING id, organization_id, name, direction, status, outbound_auth_method, auth_username, auth_realm, auth_secret_ciphertext, inbound_enabled, inbound_auth_method, inbound_username, inbound_realm, inbound_secret_ciphertext, max_cps, max_concurrent_calls, codecs, supports_video, supports_fax, created_at, updated_at
 `
 
 type UpdateTrunkParams struct {
-	Name           *string    `db:"name" json:"name"`
-	Direction      *string    `db:"direction" json:"direction"`
-	Status         *string    `db:"status" json:"status"`
-	ID             uuid.UUID  `db:"id" json:"id"`
-	OrganizationID *uuid.UUID `db:"organization_id" json:"organization_id"`
+	Name               *string   `db:"name" json:"name"`
+	Direction          *string   `db:"direction" json:"direction"`
+	Status             *string   `db:"status" json:"status"`
+	InboundEnabled     *bool     `db:"inbound_enabled" json:"inbound_enabled"`
+	MaxCps             *int32    `db:"max_cps" json:"max_cps"`
+	MaxConcurrentCalls *int32    `db:"max_concurrent_calls" json:"max_concurrent_calls"`
+	Codecs             []string  `db:"codecs" json:"codecs"`
+	SupportsVideo      *bool     `db:"supports_video" json:"supports_video"`
+	SupportsFax        *bool     `db:"supports_fax" json:"supports_fax"`
+	ID                 uuid.UUID `db:"id" json:"id"`
+	OrganizationID     uuid.UUID `db:"organization_id" json:"organization_id"`
 }
 
 func (q *Queries) UpdateTrunk(ctx context.Context, arg UpdateTrunkParams) (Trunk, error) {
@@ -910,6 +1309,12 @@ func (q *Queries) UpdateTrunk(ctx context.Context, arg UpdateTrunkParams) (Trunk
 		arg.Name,
 		arg.Direction,
 		arg.Status,
+		arg.InboundEnabled,
+		arg.MaxCps,
+		arg.MaxConcurrentCalls,
+		arg.Codecs,
+		arg.SupportsVideo,
+		arg.SupportsFax,
 		arg.ID,
 		arg.OrganizationID,
 	)
@@ -917,10 +1322,23 @@ func (q *Queries) UpdateTrunk(ctx context.Context, arg UpdateTrunkParams) (Trunk
 	err := row.Scan(
 		&i.ID,
 		&i.OrganizationID,
-		&i.CarrierConnectionID,
 		&i.Name,
 		&i.Direction,
 		&i.Status,
+		&i.OutboundAuthMethod,
+		&i.AuthUsername,
+		&i.AuthRealm,
+		&i.AuthSecretCiphertext,
+		&i.InboundEnabled,
+		&i.InboundAuthMethod,
+		&i.InboundUsername,
+		&i.InboundRealm,
+		&i.InboundSecretCiphertext,
+		&i.MaxCps,
+		&i.MaxConcurrentCalls,
+		&i.Codecs,
+		&i.SupportsVideo,
+		&i.SupportsFax,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -949,34 +1367,57 @@ SET
           OR $3::TEXT IS NOT NULL THEN 0
         ELSE te.consecutive_failures
     END,
-    last_checked_at = CASE WHEN $1::TEXT IS NOT NULL OR $2::INTEGER IS NOT NULL OR $3::TEXT IS NOT NULL THEN NULL ELSE te.last_checked_at END,
-    last_response_code = CASE WHEN $1::TEXT IS NOT NULL OR $2::INTEGER IS NOT NULL OR $3::TEXT IS NOT NULL THEN NULL ELSE te.last_response_code END,
-    last_latency_ms = CASE WHEN $1::TEXT IS NOT NULL OR $2::INTEGER IS NOT NULL OR $3::TEXT IS NOT NULL THEN NULL ELSE te.last_latency_ms END,
-    last_error = CASE WHEN $1::TEXT IS NOT NULL OR $2::INTEGER IS NOT NULL OR $3::TEXT IS NOT NULL THEN NULL ELSE te.last_error END,
-    cooldown_until = CASE WHEN $1::TEXT IS NOT NULL OR $2::INTEGER IS NOT NULL OR $3::TEXT IS NOT NULL THEN NULL ELSE te.cooldown_until END,
+    last_checked_at = CASE
+        WHEN $1::TEXT IS NOT NULL
+          OR $2::INTEGER IS NOT NULL
+          OR $3::TEXT IS NOT NULL THEN NULL
+        ELSE te.last_checked_at
+    END,
+    last_response_code = CASE
+        WHEN $1::TEXT IS NOT NULL
+          OR $2::INTEGER IS NOT NULL
+          OR $3::TEXT IS NOT NULL THEN NULL
+        ELSE te.last_response_code
+    END,
+    last_latency_ms = CASE
+        WHEN $1::TEXT IS NOT NULL
+          OR $2::INTEGER IS NOT NULL
+          OR $3::TEXT IS NOT NULL THEN NULL
+        ELSE te.last_latency_ms
+    END,
+    last_error = CASE
+        WHEN $1::TEXT IS NOT NULL
+          OR $2::INTEGER IS NOT NULL
+          OR $3::TEXT IS NOT NULL THEN NULL
+        ELSE te.last_error
+    END,
+    cooldown_until = CASE
+        WHEN $1::TEXT IS NOT NULL
+          OR $2::INTEGER IS NOT NULL
+          OR $3::TEXT IS NOT NULL THEN NULL
+        ELSE te.cooldown_until
+    END,
     updated_at = NOW()
 FROM trunks AS t
-JOIN carrier_connections AS cc ON cc.id = t.carrier_connection_id
 WHERE te.id = $8
   AND te.trunk_id = $9
   AND te.organization_id = $10
   AND t.id = te.trunk_id
   AND t.organization_id = te.organization_id
-  AND cc.organization_id = te.organization_id
 RETURNING te.id, te.organization_id, te.trunk_id, te.host, te.port, te.transport, te.direction, te.priority, te.weight, te.enabled, te.health_status, te.consecutive_failures, te.last_checked_at, te.last_response_code, te.last_latency_ms, te.last_error, te.cooldown_until, te.created_at, te.updated_at
 `
 
 type UpdateTrunkEndpointParams struct {
-	Host           *string    `db:"host" json:"host"`
-	Port           *int32     `db:"port" json:"port"`
-	Transport      *string    `db:"transport" json:"transport"`
-	Direction      *string    `db:"direction" json:"direction"`
-	Priority       *int32     `db:"priority" json:"priority"`
-	Weight         *int32     `db:"weight" json:"weight"`
-	Enabled        *bool      `db:"enabled" json:"enabled"`
-	ID             uuid.UUID  `db:"id" json:"id"`
-	TrunkID        uuid.UUID  `db:"trunk_id" json:"trunk_id"`
-	OrganizationID *uuid.UUID `db:"organization_id" json:"organization_id"`
+	Host           *string   `db:"host" json:"host"`
+	Port           *int32    `db:"port" json:"port"`
+	Transport      *string   `db:"transport" json:"transport"`
+	Direction      *string   `db:"direction" json:"direction"`
+	Priority       *int32    `db:"priority" json:"priority"`
+	Weight         *int32    `db:"weight" json:"weight"`
+	Enabled        *bool     `db:"enabled" json:"enabled"`
+	ID             uuid.UUID `db:"id" json:"id"`
+	TrunkID        uuid.UUID `db:"trunk_id" json:"trunk_id"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
 }
 
 func (q *Queries) UpdateTrunkEndpoint(ctx context.Context, arg UpdateTrunkEndpointParams) (TrunkEndpoint, error) {

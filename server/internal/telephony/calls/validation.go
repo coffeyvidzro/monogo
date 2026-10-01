@@ -80,9 +80,6 @@ func validateListRequest(req ListRequest) error {
 }
 
 func validateRouteAttribution(route RouteAttribution) error {
-	if route.CarrierConnectionID == nil || *route.CarrierConnectionID == uuid.Nil {
-		return apperror.NewBadRequest("carrier_connection_id is required")
-	}
 	if route.TrunkID != nil && *route.TrunkID == uuid.Nil {
 		return apperror.NewBadRequest("trunk_id is invalid")
 	}
@@ -161,8 +158,8 @@ func validateInboundAdmission(req InboundAdmissionRequest) error {
 	if req.VoiceAgentBindingID == uuid.Nil {
 		return apperror.NewBadRequest("voice_agent_binding_id is required")
 	}
-	if req.CarrierConnectionID == uuid.Nil {
-		return apperror.NewBadRequest("carrier_connection_id is required")
+	if req.TrunkID == uuid.Nil {
+		return apperror.NewBadRequest("trunk_id is required")
 	}
 	if strings.TrimSpace(req.FromURI) == "" {
 		return apperror.NewBadRequest("from_uri is required")

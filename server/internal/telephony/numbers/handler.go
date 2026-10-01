@@ -89,18 +89,18 @@ func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 	httputil.OK(w, response(number))
 }
 
-func (h *Handler) SetCarrierConnection(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) SetTrunk(w http.ResponseWriter, r *http.Request) {
 	organizationID, numberID, err := requestIDs(r)
 	if err != nil {
 		httputil.Error(w, err)
 		return
 	}
-	req, err := helper.DecodeJSON[SetCarrierConnectionRequest](r)
+	req, err := helper.DecodeJSON[SetTrunkRequest](r)
 	if err != nil {
 		httputil.Error(w, err)
 		return
 	}
-	number, err := h.service.SetCarrierConnection(r.Context(), organizationID, numberID, req)
+	number, err := h.service.SetTrunk(r.Context(), organizationID, numberID, req)
 	if err != nil {
 		httputil.Error(w, err)
 		return

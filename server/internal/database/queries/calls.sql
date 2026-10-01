@@ -41,7 +41,7 @@ LIMIT 1;
 -- name: GetCallLifecycleSnapshot :one
 SELECT
     c.organization_id,
-    c.carrier_connection_id,
+    c.trunk_id,
     c.direction,
     c.state,
     c.media_state,
@@ -71,21 +71,21 @@ LIMIT sqlc.arg(batch_size);
 -- name: ListActiveCallsForAdmissionReconciliation :many
 SELECT
     id,
-    carrier_connection_id
+    trunk_id
 FROM calls
 WHERE state IN ('initiating', 'ringing', 'answered', 'active')
-  AND carrier_connection_id IS NOT NULL
+  AND trunk_id IS NOT NULL
 ORDER BY created_at ASC;
 
 -- Revalidate the DID-derived tenant and route tuple before the call service
 -- persists or admits an inbound call.
 -- name: GetInboundCallContext :one
 SELECT
-    cc.max_cps,
-    cc.max_concurrent_calls
+    t.max_cps,
+    t.max_concurrent_calls
 FROM phone_numbers AS pn
-JOIN carrier_connections AS cc
-  ON cc.id = pn.carrier_connection_id
+JOIN trunks AS t
+  ON t.id = pn.trunk_id
 JOIN voice_agent_bindings AS binding
   ON binding.phone_number_id = pn.id
  AND binding.organization_id = pn.organization_id
@@ -97,12 +97,12 @@ JOIN organizations AS o
 WHERE pn.id = sqlc.arg(phone_number_id)
   AND pn.organization_id = sqlc.arg(organization_id)
   AND pn.number = sqlc.arg(called_number)
-  AND pn.carrier_connection_id = sqlc.arg(carrier_connection_id)
+  AND pn.trunk_id = sqlc.arg(trunk_id)
   AND pn.status = 'active'
   AND pn.voice_enabled = true
-  AND cc.status = 'active'
-  AND cc.inbound_enabled = true
-  AND cc.organization_id = pn.organization_id
+  AND t.status = 'active'
+  AND t.inbound_enabled = true
+  AND t.organization_id = pn.organization_id
   AND binding.id = sqlc.arg(voice_agent_binding_id)
   AND agent.id = sqlc.arg(voice_agent_id)
   AND agent.status = 'active'
@@ -113,7 +113,6 @@ LIMIT 1;
 -- name: SetCallRouteAttribution :one
 UPDATE calls
 SET
-    carrier_connection_id = sqlc.arg(carrier_connection_id),
     trunk_id = sqlc.arg(trunk_id),
     trunk_endpoint_id = sqlc.arg(trunk_endpoint_id),
     updated_at = NOW()
@@ -266,8 +265,6 @@ SELECT
     COALESCE(c.sip_call_id, '—')::TEXT AS sip_call_id,
     COALESCE(c.voice_agent_id::TEXT, '—')::TEXT AS voice_agent_id,
     COALESCE(agent.name, '—')::TEXT AS voice_agent_name,
-    COALESCE(c.carrier_connection_id::TEXT, '—')::TEXT AS carrier_connection_id,
-    COALESCE(cc.name, '—')::TEXT AS carrier_connection_name,
     COALESCE(c.trunk_id::TEXT, '—')::TEXT AS trunk_id,
     COALESCE(t.name, '—')::TEXT AS trunk_name,
     COALESCE(c.trunk_endpoint_id::TEXT, '—')::TEXT AS trunk_endpoint_id,
@@ -291,11 +288,10 @@ SELECT
 FROM calls AS c
 JOIN organizations AS o ON o.id = c.organization_id
 LEFT JOIN voice_agents AS agent ON agent.id = c.voice_agent_id
-LEFT JOIN carrier_connections AS cc ON cc.id = c.carrier_connection_id
 LEFT JOIN trunks AS t ON t.id = c.trunk_id
 LEFT JOIN recordings AS r
   ON r.call_id = c.id
  AND r.organization_id = c.organization_id
 WHERE c.id = sqlc.arg(id)
-GROUP BY c.id, o.name, agent.name, cc.name, t.name
+GROUP BY c.id, o.name, agent.name, t.name
 LIMIT 1;

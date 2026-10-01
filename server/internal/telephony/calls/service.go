@@ -22,8 +22,20 @@ type Service struct {
 }
 
 type routeAttemptMetrics interface {
-	RouteAttempt(context.Context, uuid.UUID, uuid.UUID, uuid.UUID, string, string, int)
-	EndpointSelection(context.Context, uuid.UUID, uuid.UUID, uuid.UUID, bool)
+	RouteAttempt(
+		context.Context,
+		uuid.UUID,
+		uuid.UUID,
+		string,
+		string,
+		int,
+	)
+	EndpointSelection(
+		context.Context,
+		uuid.UUID,
+		uuid.UUID,
+		bool,
+	)
 }
 
 func NewService(
@@ -94,18 +106,23 @@ func (s *Service) Create(ctx context.Context, organizationID uuid.UUID, req Crea
 		attemptCtx context.Context,
 		route routing.OutboundRoute,
 	) (calling.OriginateResult, error) {
-		carrierID, trunkID, endpointID := route.CarrierConnectionID, route.TrunkID, route.TrunkEndpointID
-		if _, attributionErr := s.repo.SetRouteAttribution(attemptCtx, organizationID, call.ID, RouteAttribution{
-			CarrierConnectionID: &carrierID,
-			TrunkID:             &trunkID,
-			TrunkEndpointID:     &endpointID,
-		}); attributionErr != nil {
+		trunkID := route.TrunkID
+		endpointID := route.TrunkEndpointID
+		if _, attributionErr := s.repo.SetRouteAttribution(
+			attemptCtx,
+			organizationID,
+			call.ID,
+			RouteAttribution{
+				TrunkID:         &trunkID,
+				TrunkEndpointID: &endpointID,
+			},
+		); attributionErr != nil {
 			return calling.OriginateResult{}, &calling.OriginateError{
 				Class: calling.OriginateFailureInternal, Err: attributionErr,
 			}
 		}
 		if admissionErr := s.admission.Acquire(
-			attemptCtx, route.CarrierConnectionID, call.ID.String(), route.Limits,
+			attemptCtx, route.TrunkID, call.ID.String(), route.Limits,
 		); admissionErr != nil {
 			return calling.OriginateResult{}, &calling.OriginateError{
 				Class: calling.OriginateFailureCapacity, Err: admissionErr,
@@ -113,24 +130,30 @@ func (s *Service) Create(ctx context.Context, organizationID uuid.UUID, req Crea
 		}
 		result, originateErr := s.controller.Originate(attemptCtx, calling.OriginateRequest{
 			CallID: call.ID, Destination: req.ToURI, CallerID: req.FromURI,
-			CarrierConnectionID: route.CarrierConnectionID,
-			Host:                route.Host, Port: route.Port, Transport: route.Transport,
+			TrunkID: route.TrunkID,
+			Host:    route.Host, Port: route.Port, Transport: route.Transport,
 			Privacy: req.Privacy, DTMFMode: req.DTMFMode, MediaEncryption: req.MediaEncryption,
 		})
 		if originateErr != nil {
-			_ = s.admission.Release(attemptCtx, route.CarrierConnectionID, call.ID.String())
+			_ = s.admission.Release(attemptCtx, route.TrunkID, call.ID.String())
 		}
 		return result, originateErr
 	}, func(attemptCtx context.Context, attempt routeAttemptOutcome) {
 		if s.metrics != nil {
 			s.metrics.RouteAttempt(
-				attemptCtx, attempt.Route.CarrierConnectionID, attempt.Route.TrunkID,
-				attempt.Route.TrunkEndpointID, attempt.Outcome, attempt.FailureClass, attempt.Attempt,
+				attemptCtx,
+				attempt.Route.TrunkID,
+				attempt.Route.TrunkEndpointID,
+				attempt.Outcome,
+				attempt.FailureClass,
+				attempt.Attempt,
 			)
 			if attempt.Outcome == "succeeded" {
 				s.metrics.EndpointSelection(
-					attemptCtx, attempt.Route.CarrierConnectionID, attempt.Route.TrunkID,
-					attempt.Route.TrunkEndpointID, attempt.Attempt > 1,
+					attemptCtx,
+					attempt.Route.TrunkID,
+					attempt.Route.TrunkEndpointID,
+					attempt.Attempt > 1,
 				)
 			}
 		}
@@ -142,7 +165,7 @@ func (s *Service) Create(ctx context.Context, organizationID uuid.UUID, req Crea
 	}
 	if err := s.channels.Bind(ctx, call.ID, result.ChannelID); err != nil {
 		_ = s.controller.Hangup(ctx, result.ChannelID)
-		_ = s.admission.Release(ctx, selected.CarrierConnectionID, call.ID.String())
+		_ = s.admission.Release(ctx, selected.TrunkID, call.ID.String())
 		reason := "channel_binding_failed"
 		_, _ = s.repo.MarkFailed(ctx, organizationID, call.ID, &reason)
 		return sqlc.Call{}, apperror.NewInternal("bind call channel", err)
@@ -168,8 +191,8 @@ func (s *Service) AdmitInbound(
 		if err != nil {
 			return sqlc.Call{}, s.rejectInbound(ctx, req.ChannelID, err)
 		}
-		if existing.CarrierConnectionID != nil {
-			if err := s.admission.Refresh(ctx, *existing.CarrierConnectionID, existing.ID); err != nil {
+		if existing.TrunkID != nil {
+			if err := s.admission.Refresh(ctx, *existing.TrunkID, existing.ID); err != nil {
 				return sqlc.Call{}, s.rejectInbound(
 					ctx,
 					req.ChannelID,
@@ -195,7 +218,7 @@ func (s *Service) AdmitInbound(
 		VoiceAgentID:        req.VoiceAgentID,
 		PhoneNumberID:       req.PhoneNumberID,
 		VoiceAgentBindingID: req.VoiceAgentBindingID,
-		CarrierConnectionID: req.CarrierConnectionID,
+		TrunkID:             req.TrunkID,
 		CalledNumber:        req.ToURI,
 	})
 	if err != nil {
@@ -204,7 +227,7 @@ func (s *Service) AdmitInbound(
 
 	if err := s.admission.Acquire(
 		ctx,
-		decision.CarrierConnectionID,
+		decision.TrunkID,
 		req.ChannelID,
 		decision.Limits,
 	); err != nil {
@@ -218,7 +241,7 @@ func (s *Service) AdmitInbound(
 		existing, readErr := s.repo.GetBySIPCallIDGlobal(ctx, req.SIPCallID)
 		if readErr == nil {
 			if existing.ID.String() != req.ChannelID {
-				_ = s.admission.Release(ctx, decision.CarrierConnectionID, req.ChannelID)
+				_ = s.admission.Release(ctx, decision.TrunkID, req.ChannelID)
 			}
 			if validateErr := validateExistingInbound(existing, req); validateErr != nil {
 				return sqlc.Call{}, s.rejectInbound(ctx, req.ChannelID, validateErr)
@@ -227,8 +250,8 @@ func (s *Service) AdmitInbound(
 			if attributionErr != nil {
 				return sqlc.Call{}, s.rejectInbound(ctx, req.ChannelID, attributionErr)
 			}
-			if existing.CarrierConnectionID != nil {
-				if refreshErr := s.admission.Refresh(ctx, *existing.CarrierConnectionID, existing.ID); refreshErr != nil {
+			if existing.TrunkID != nil {
+				if refreshErr := s.admission.Refresh(ctx, *existing.TrunkID, existing.ID); refreshErr != nil {
 					return sqlc.Call{}, s.rejectInbound(
 						ctx,
 						req.ChannelID,
@@ -241,7 +264,7 @@ func (s *Service) AdmitInbound(
 			}
 			return existing, nil
 		}
-		_ = s.admission.Release(ctx, decision.CarrierConnectionID, req.ChannelID)
+		_ = s.admission.Release(ctx, decision.TrunkID, req.ChannelID)
 		return sqlc.Call{}, s.rejectInbound(
 			ctx,
 			req.ChannelID,
@@ -249,12 +272,12 @@ func (s *Service) AdmitInbound(
 		)
 	}
 
-	carrierID := req.CarrierConnectionID
+	trunkID := req.TrunkID
 	call, err = s.repo.SetRouteAttribution(ctx, req.OrganizationID, call.ID, RouteAttribution{
-		CarrierConnectionID: &carrierID,
+		TrunkID: &trunkID,
 	})
 	if err != nil {
-		_ = s.admission.Release(ctx, decision.CarrierConnectionID, req.ChannelID)
+		_ = s.admission.Release(ctx, decision.TrunkID, req.ChannelID)
 		reason := "inbound_attribution_failed"
 		_, _ = s.repo.MarkFailed(ctx, req.OrganizationID, call.ID, &reason)
 		return sqlc.Call{}, s.rejectInbound(
@@ -266,13 +289,13 @@ func (s *Service) AdmitInbound(
 
 	if err := s.admission.Bind(
 		ctx,
-		decision.CarrierConnectionID,
+		decision.TrunkID,
 		req.ChannelID,
 		call.ID,
 	); err != nil {
 		reason := "inbound_admission_binding_failed"
 		_, _ = s.repo.MarkFailed(ctx, req.OrganizationID, call.ID, &reason)
-		_ = s.admission.Release(ctx, decision.CarrierConnectionID, req.ChannelID)
+		_ = s.admission.Release(ctx, decision.TrunkID, req.ChannelID)
 		return sqlc.Call{}, s.rejectInbound(
 			ctx,
 			req.ChannelID,
@@ -281,7 +304,7 @@ func (s *Service) AdmitInbound(
 	}
 
 	if err := s.bindInboundChannel(ctx, call, req.ChannelID); err != nil {
-		_ = s.admission.Release(ctx, decision.CarrierConnectionID, call.ID.String())
+		_ = s.admission.Release(ctx, decision.TrunkID, call.ID.String())
 		reason := "inbound_channel_binding_failed"
 		_, _ = s.repo.MarkFailed(ctx, req.OrganizationID, call.ID, &reason)
 		return sqlc.Call{}, s.rejectInbound(ctx, req.ChannelID, err)
@@ -298,8 +321,10 @@ func validateExistingInbound(call sqlc.Call, req InboundAdmissionRequest) error 
 		call.ToUri != req.ToURI {
 		return apperror.NewConflict("SIP Call-ID is already associated with a different call")
 	}
-	if call.CarrierConnectionID != nil && *call.CarrierConnectionID != req.CarrierConnectionID {
-		return apperror.NewConflict("SIP Call-ID carrier attribution does not match")
+	if call.TrunkID != nil && *call.TrunkID != req.TrunkID {
+		return apperror.NewConflict(
+			"SIP Call-ID trunk attribution does not match",
+		)
 	}
 	if isTerminalState(call.State) {
 		return apperror.NewConflict("inbound SIP call is already terminal")
@@ -312,13 +337,16 @@ func (s *Service) ensureInboundAttribution(
 	call sqlc.Call,
 	req InboundAdmissionRequest,
 ) (sqlc.Call, error) {
-	if call.CarrierConnectionID != nil {
+	if call.TrunkID != nil {
 		return call, nil
 	}
-	carrierID := req.CarrierConnectionID
-	updated, err := s.repo.SetRouteAttribution(ctx, req.OrganizationID, call.ID, RouteAttribution{
-		CarrierConnectionID: &carrierID,
-	})
+	trunkID := req.TrunkID
+	updated, err := s.repo.SetRouteAttribution(
+		ctx,
+		req.OrganizationID,
+		call.ID,
+		RouteAttribution{TrunkID: &trunkID},
+	)
 	if err != nil {
 		return sqlc.Call{}, apperror.NewInternal("set inbound route attribution", err)
 	}
@@ -519,22 +547,22 @@ func (s *Service) controlContext(ctx context.Context, org, id uuid.UUID) (sqlc.C
 func admissionError(err error) error {
 	switch {
 	case errors.Is(err, calling.ErrAdmissionCPS):
-		return apperror.NewTooManyRequests("carrier CPS limit exceeded")
+		return apperror.NewTooManyRequests("trunk CPS limit exceeded")
 	case errors.Is(err, calling.ErrAdmissionConcurrent):
-		return apperror.NewTooManyRequests("carrier concurrent call limit exceeded")
+		return apperror.NewTooManyRequests("trunk concurrent call limit exceeded")
 	default:
-		return apperror.NewServiceUnavailable("carrier admission service unavailable", err)
+		return apperror.NewServiceUnavailable("trunk admission service unavailable", err)
 	}
 }
 
 func admissionFailureReason(err error) string {
 	switch {
 	case errors.Is(err, calling.ErrAdmissionCPS):
-		return "carrier_cps_limit"
+		return "trunk_cps_limit"
 	case errors.Is(err, calling.ErrAdmissionConcurrent):
-		return "carrier_concurrent_limit"
+		return "trunk_concurrent_limit"
 	default:
-		return "carrier_admission_failed"
+		return "trunk_admission_failed"
 	}
 }
 

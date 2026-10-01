@@ -30,7 +30,7 @@ INSERT INTO calls (
     $6,
     $7
 )
-RETURNING id, organization_id, voice_agent_id, carrier_connection_id, trunk_id, trunk_endpoint_id, direction, state, media_state, from_uri, to_uri, sip_call_id, started_at, answered_at, ended_at, hangup_reason, created_at, updated_at
+RETURNING id, organization_id, voice_agent_id, trunk_id, trunk_endpoint_id, direction, state, media_state, from_uri, to_uri, sip_call_id, started_at, answered_at, ended_at, hangup_reason, created_at, updated_at
 `
 
 type CreateCallParams struct {
@@ -58,7 +58,6 @@ func (q *Queries) CreateCall(ctx context.Context, arg CreateCallParams) (Call, e
 		&i.ID,
 		&i.OrganizationID,
 		&i.VoiceAgentID,
-		&i.CarrierConnectionID,
 		&i.TrunkID,
 		&i.TrunkEndpointID,
 		&i.Direction,
@@ -90,8 +89,6 @@ SELECT
     COALESCE(c.sip_call_id, '—')::TEXT AS sip_call_id,
     COALESCE(c.voice_agent_id::TEXT, '—')::TEXT AS voice_agent_id,
     COALESCE(agent.name, '—')::TEXT AS voice_agent_name,
-    COALESCE(c.carrier_connection_id::TEXT, '—')::TEXT AS carrier_connection_id,
-    COALESCE(cc.name, '—')::TEXT AS carrier_connection_name,
     COALESCE(c.trunk_id::TEXT, '—')::TEXT AS trunk_id,
     COALESCE(t.name, '—')::TEXT AS trunk_name,
     COALESCE(c.trunk_endpoint_id::TEXT, '—')::TEXT AS trunk_endpoint_id,
@@ -115,42 +112,39 @@ SELECT
 FROM calls AS c
 JOIN organizations AS o ON o.id = c.organization_id
 LEFT JOIN voice_agents AS agent ON agent.id = c.voice_agent_id
-LEFT JOIN carrier_connections AS cc ON cc.id = c.carrier_connection_id
 LEFT JOIN trunks AS t ON t.id = c.trunk_id
 LEFT JOIN recordings AS r
   ON r.call_id = c.id
  AND r.organization_id = c.organization_id
 WHERE c.id = $1
-GROUP BY c.id, o.name, agent.name, cc.name, t.name
+GROUP BY c.id, o.name, agent.name, t.name
 LIMIT 1
 `
 
 type GetBackofficeCallRow struct {
-	ID                    string `db:"id" json:"id"`
-	OrganizationID        string `db:"organization_id" json:"organization_id"`
-	OrganizationName      string `db:"organization_name" json:"organization_name"`
-	Direction             string `db:"direction" json:"direction"`
-	State                 string `db:"state" json:"state"`
-	MediaState            string `db:"media_state" json:"media_state"`
-	FromUri               string `db:"from_uri" json:"from_uri"`
-	ToUri                 string `db:"to_uri" json:"to_uri"`
-	SipCallID             string `db:"sip_call_id" json:"sip_call_id"`
-	VoiceAgentID          string `db:"voice_agent_id" json:"voice_agent_id"`
-	VoiceAgentName        string `db:"voice_agent_name" json:"voice_agent_name"`
-	CarrierConnectionID   string `db:"carrier_connection_id" json:"carrier_connection_id"`
-	CarrierConnectionName string `db:"carrier_connection_name" json:"carrier_connection_name"`
-	TrunkID               string `db:"trunk_id" json:"trunk_id"`
-	TrunkName             string `db:"trunk_name" json:"trunk_name"`
-	TrunkEndpointID       string `db:"trunk_endpoint_id" json:"trunk_endpoint_id"`
-	HangupReason          string `db:"hangup_reason" json:"hangup_reason"`
-	DurationSeconds       int64  `db:"duration_seconds" json:"duration_seconds"`
-	RecordingCount        int64  `db:"recording_count" json:"recording_count"`
-	RecordingStatus       string `db:"recording_status" json:"recording_status"`
-	StartedAt             string `db:"started_at" json:"started_at"`
-	AnsweredAt            string `db:"answered_at" json:"answered_at"`
-	EndedAt               string `db:"ended_at" json:"ended_at"`
-	CreatedAt             string `db:"created_at" json:"created_at"`
-	UpdatedAt             string `db:"updated_at" json:"updated_at"`
+	ID               string `db:"id" json:"id"`
+	OrganizationID   string `db:"organization_id" json:"organization_id"`
+	OrganizationName string `db:"organization_name" json:"organization_name"`
+	Direction        string `db:"direction" json:"direction"`
+	State            string `db:"state" json:"state"`
+	MediaState       string `db:"media_state" json:"media_state"`
+	FromUri          string `db:"from_uri" json:"from_uri"`
+	ToUri            string `db:"to_uri" json:"to_uri"`
+	SipCallID        string `db:"sip_call_id" json:"sip_call_id"`
+	VoiceAgentID     string `db:"voice_agent_id" json:"voice_agent_id"`
+	VoiceAgentName   string `db:"voice_agent_name" json:"voice_agent_name"`
+	TrunkID          string `db:"trunk_id" json:"trunk_id"`
+	TrunkName        string `db:"trunk_name" json:"trunk_name"`
+	TrunkEndpointID  string `db:"trunk_endpoint_id" json:"trunk_endpoint_id"`
+	HangupReason     string `db:"hangup_reason" json:"hangup_reason"`
+	DurationSeconds  int64  `db:"duration_seconds" json:"duration_seconds"`
+	RecordingCount   int64  `db:"recording_count" json:"recording_count"`
+	RecordingStatus  string `db:"recording_status" json:"recording_status"`
+	StartedAt        string `db:"started_at" json:"started_at"`
+	AnsweredAt       string `db:"answered_at" json:"answered_at"`
+	EndedAt          string `db:"ended_at" json:"ended_at"`
+	CreatedAt        string `db:"created_at" json:"created_at"`
+	UpdatedAt        string `db:"updated_at" json:"updated_at"`
 }
 
 func (q *Queries) GetBackofficeCall(ctx context.Context, id uuid.UUID) (GetBackofficeCallRow, error) {
@@ -168,8 +162,6 @@ func (q *Queries) GetBackofficeCall(ctx context.Context, id uuid.UUID) (GetBacko
 		&i.SipCallID,
 		&i.VoiceAgentID,
 		&i.VoiceAgentName,
-		&i.CarrierConnectionID,
-		&i.CarrierConnectionName,
 		&i.TrunkID,
 		&i.TrunkName,
 		&i.TrunkEndpointID,
@@ -187,7 +179,7 @@ func (q *Queries) GetBackofficeCall(ctx context.Context, id uuid.UUID) (GetBacko
 }
 
 const getCall = `-- name: GetCall :one
-SELECT id, organization_id, voice_agent_id, carrier_connection_id, trunk_id, trunk_endpoint_id, direction, state, media_state, from_uri, to_uri, sip_call_id, started_at, answered_at, ended_at, hangup_reason, created_at, updated_at
+SELECT id, organization_id, voice_agent_id, trunk_id, trunk_endpoint_id, direction, state, media_state, from_uri, to_uri, sip_call_id, started_at, answered_at, ended_at, hangup_reason, created_at, updated_at
 FROM calls
 WHERE organization_id = $1
   AND id = $2
@@ -206,7 +198,6 @@ func (q *Queries) GetCall(ctx context.Context, arg GetCallParams) (Call, error) 
 		&i.ID,
 		&i.OrganizationID,
 		&i.VoiceAgentID,
-		&i.CarrierConnectionID,
 		&i.TrunkID,
 		&i.TrunkEndpointID,
 		&i.Direction,
@@ -226,7 +217,7 @@ func (q *Queries) GetCall(ctx context.Context, arg GetCallParams) (Call, error) 
 }
 
 const getCallBySIPCallID = `-- name: GetCallBySIPCallID :one
-SELECT id, organization_id, voice_agent_id, carrier_connection_id, trunk_id, trunk_endpoint_id, direction, state, media_state, from_uri, to_uri, sip_call_id, started_at, answered_at, ended_at, hangup_reason, created_at, updated_at
+SELECT id, organization_id, voice_agent_id, trunk_id, trunk_endpoint_id, direction, state, media_state, from_uri, to_uri, sip_call_id, started_at, answered_at, ended_at, hangup_reason, created_at, updated_at
 FROM calls
 WHERE organization_id = $1
   AND sip_call_id = $2
@@ -245,7 +236,6 @@ func (q *Queries) GetCallBySIPCallID(ctx context.Context, arg GetCallBySIPCallID
 		&i.ID,
 		&i.OrganizationID,
 		&i.VoiceAgentID,
-		&i.CarrierConnectionID,
 		&i.TrunkID,
 		&i.TrunkEndpointID,
 		&i.Direction,
@@ -265,7 +255,7 @@ func (q *Queries) GetCallBySIPCallID(ctx context.Context, arg GetCallBySIPCallID
 }
 
 const getCallBySIPCallIDGlobal = `-- name: GetCallBySIPCallIDGlobal :one
-SELECT id, organization_id, voice_agent_id, carrier_connection_id, trunk_id, trunk_endpoint_id, direction, state, media_state, from_uri, to_uri, sip_call_id, started_at, answered_at, ended_at, hangup_reason, created_at, updated_at
+SELECT id, organization_id, voice_agent_id, trunk_id, trunk_endpoint_id, direction, state, media_state, from_uri, to_uri, sip_call_id, started_at, answered_at, ended_at, hangup_reason, created_at, updated_at
 FROM calls
 WHERE sip_call_id = $1
 LIMIT 1
@@ -278,7 +268,6 @@ func (q *Queries) GetCallBySIPCallIDGlobal(ctx context.Context, sipCallID *strin
 		&i.ID,
 		&i.OrganizationID,
 		&i.VoiceAgentID,
-		&i.CarrierConnectionID,
 		&i.TrunkID,
 		&i.TrunkEndpointID,
 		&i.Direction,
@@ -300,7 +289,7 @@ func (q *Queries) GetCallBySIPCallIDGlobal(ctx context.Context, sipCallID *strin
 const getCallLifecycleSnapshot = `-- name: GetCallLifecycleSnapshot :one
 SELECT
     c.organization_id,
-    c.carrier_connection_id,
+    c.trunk_id,
     c.direction,
     c.state,
     c.media_state,
@@ -311,12 +300,12 @@ LIMIT 1
 `
 
 type GetCallLifecycleSnapshotRow struct {
-	OrganizationID      uuid.UUID          `db:"organization_id" json:"organization_id"`
-	CarrierConnectionID *uuid.UUID         `db:"carrier_connection_id" json:"carrier_connection_id"`
-	Direction           string             `db:"direction" json:"direction"`
-	State               string             `db:"state" json:"state"`
-	MediaState          string             `db:"media_state" json:"media_state"`
-	AnsweredAt          pgtype.Timestamptz `db:"answered_at" json:"answered_at"`
+	OrganizationID uuid.UUID          `db:"organization_id" json:"organization_id"`
+	TrunkID        *uuid.UUID         `db:"trunk_id" json:"trunk_id"`
+	Direction      string             `db:"direction" json:"direction"`
+	State          string             `db:"state" json:"state"`
+	MediaState     string             `db:"media_state" json:"media_state"`
+	AnsweredAt     pgtype.Timestamptz `db:"answered_at" json:"answered_at"`
 }
 
 func (q *Queries) GetCallLifecycleSnapshot(ctx context.Context, id uuid.UUID) (GetCallLifecycleSnapshotRow, error) {
@@ -324,7 +313,7 @@ func (q *Queries) GetCallLifecycleSnapshot(ctx context.Context, id uuid.UUID) (G
 	var i GetCallLifecycleSnapshotRow
 	err := row.Scan(
 		&i.OrganizationID,
-		&i.CarrierConnectionID,
+		&i.TrunkID,
 		&i.Direction,
 		&i.State,
 		&i.MediaState,
@@ -335,11 +324,11 @@ func (q *Queries) GetCallLifecycleSnapshot(ctx context.Context, id uuid.UUID) (G
 
 const getInboundCallContext = `-- name: GetInboundCallContext :one
 SELECT
-    cc.max_cps,
-    cc.max_concurrent_calls
+    t.max_cps,
+    t.max_concurrent_calls
 FROM phone_numbers AS pn
-JOIN carrier_connections AS cc
-  ON cc.id = pn.carrier_connection_id
+JOIN trunks AS t
+  ON t.id = pn.trunk_id
 JOIN voice_agent_bindings AS binding
   ON binding.phone_number_id = pn.id
  AND binding.organization_id = pn.organization_id
@@ -351,12 +340,12 @@ JOIN organizations AS o
 WHERE pn.id = $1
   AND pn.organization_id = $2
   AND pn.number = $3
-  AND pn.carrier_connection_id = $4
+  AND pn.trunk_id = $4
   AND pn.status = 'active'
   AND pn.voice_enabled = true
-  AND cc.status = 'active'
-  AND cc.inbound_enabled = true
-  AND cc.organization_id = pn.organization_id
+  AND t.status = 'active'
+  AND t.inbound_enabled = true
+  AND t.organization_id = pn.organization_id
   AND binding.id = $5
   AND agent.id = $6
   AND agent.status = 'active'
@@ -369,7 +358,7 @@ type GetInboundCallContextParams struct {
 	PhoneNumberID       uuid.UUID  `db:"phone_number_id" json:"phone_number_id"`
 	OrganizationID      uuid.UUID  `db:"organization_id" json:"organization_id"`
 	CalledNumber        string     `db:"called_number" json:"called_number"`
-	CarrierConnectionID *uuid.UUID `db:"carrier_connection_id" json:"carrier_connection_id"`
+	TrunkID             *uuid.UUID `db:"trunk_id" json:"trunk_id"`
 	VoiceAgentBindingID uuid.UUID  `db:"voice_agent_binding_id" json:"voice_agent_binding_id"`
 	VoiceAgentID        uuid.UUID  `db:"voice_agent_id" json:"voice_agent_id"`
 }
@@ -386,7 +375,7 @@ func (q *Queries) GetInboundCallContext(ctx context.Context, arg GetInboundCallC
 		arg.PhoneNumberID,
 		arg.OrganizationID,
 		arg.CalledNumber,
-		arg.CarrierConnectionID,
+		arg.TrunkID,
 		arg.VoiceAgentBindingID,
 		arg.VoiceAgentID,
 	)
@@ -398,16 +387,16 @@ func (q *Queries) GetInboundCallContext(ctx context.Context, arg GetInboundCallC
 const listActiveCallsForAdmissionReconciliation = `-- name: ListActiveCallsForAdmissionReconciliation :many
 SELECT
     id,
-    carrier_connection_id
+    trunk_id
 FROM calls
 WHERE state IN ('initiating', 'ringing', 'answered', 'active')
-  AND carrier_connection_id IS NOT NULL
+  AND trunk_id IS NOT NULL
 ORDER BY created_at ASC
 `
 
 type ListActiveCallsForAdmissionReconciliationRow struct {
-	ID                  uuid.UUID  `db:"id" json:"id"`
-	CarrierConnectionID *uuid.UUID `db:"carrier_connection_id" json:"carrier_connection_id"`
+	ID      uuid.UUID  `db:"id" json:"id"`
+	TrunkID *uuid.UUID `db:"trunk_id" json:"trunk_id"`
 }
 
 func (q *Queries) ListActiveCallsForAdmissionReconciliation(ctx context.Context) ([]ListActiveCallsForAdmissionReconciliationRow, error) {
@@ -419,7 +408,7 @@ func (q *Queries) ListActiveCallsForAdmissionReconciliation(ctx context.Context)
 	items := []ListActiveCallsForAdmissionReconciliationRow{}
 	for rows.Next() {
 		var i ListActiveCallsForAdmissionReconciliationRow
-		if err := rows.Scan(&i.ID, &i.CarrierConnectionID); err != nil {
+		if err := rows.Scan(&i.ID, &i.TrunkID); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -498,7 +487,7 @@ func (q *Queries) ListBackofficeCalls(ctx context.Context) ([]ListBackofficeCall
 }
 
 const listCalls = `-- name: ListCalls :many
-SELECT id, organization_id, voice_agent_id, carrier_connection_id, trunk_id, trunk_endpoint_id, direction, state, media_state, from_uri, to_uri, sip_call_id, started_at, answered_at, ended_at, hangup_reason, created_at, updated_at
+SELECT id, organization_id, voice_agent_id, trunk_id, trunk_endpoint_id, direction, state, media_state, from_uri, to_uri, sip_call_id, started_at, answered_at, ended_at, hangup_reason, created_at, updated_at
 FROM calls
 WHERE organization_id = $1
   AND ($2::text IS NULL OR state = $2::text)
@@ -532,7 +521,6 @@ func (q *Queries) ListCalls(ctx context.Context, arg ListCallsParams) ([]Call, e
 			&i.ID,
 			&i.OrganizationID,
 			&i.VoiceAgentID,
-			&i.CarrierConnectionID,
 			&i.TrunkID,
 			&i.TrunkEndpointID,
 			&i.Direction,
@@ -559,7 +547,7 @@ func (q *Queries) ListCalls(ctx context.Context, arg ListCallsParams) ([]Call, e
 }
 
 const listCallsForReconciliation = `-- name: ListCallsForReconciliation :many
-SELECT id, organization_id, voice_agent_id, carrier_connection_id, trunk_id, trunk_endpoint_id, direction, state, media_state, from_uri, to_uri, sip_call_id, started_at, answered_at, ended_at, hangup_reason, created_at, updated_at
+SELECT id, organization_id, voice_agent_id, trunk_id, trunk_endpoint_id, direction, state, media_state, from_uri, to_uri, sip_call_id, started_at, answered_at, ended_at, hangup_reason, created_at, updated_at
 FROM calls
 WHERE state IN ('initiating', 'ringing', 'answered', 'active')
   AND sip_call_id IS NOT NULL
@@ -586,7 +574,6 @@ func (q *Queries) ListCallsForReconciliation(ctx context.Context, arg ListCallsF
 			&i.ID,
 			&i.OrganizationID,
 			&i.VoiceAgentID,
-			&i.CarrierConnectionID,
 			&i.TrunkID,
 			&i.TrunkEndpointID,
 			&i.Direction,
@@ -618,7 +605,7 @@ SET state = 'active', updated_at = NOW()
 WHERE organization_id = $1
   AND id = $2
   AND state IN ('answered', 'ringing')
-RETURNING id, organization_id, voice_agent_id, carrier_connection_id, trunk_id, trunk_endpoint_id, direction, state, media_state, from_uri, to_uri, sip_call_id, started_at, answered_at, ended_at, hangup_reason, created_at, updated_at
+RETURNING id, organization_id, voice_agent_id, trunk_id, trunk_endpoint_id, direction, state, media_state, from_uri, to_uri, sip_call_id, started_at, answered_at, ended_at, hangup_reason, created_at, updated_at
 `
 
 type MarkCallActiveParams struct {
@@ -633,7 +620,6 @@ func (q *Queries) MarkCallActive(ctx context.Context, arg MarkCallActiveParams) 
 		&i.ID,
 		&i.OrganizationID,
 		&i.VoiceAgentID,
-		&i.CarrierConnectionID,
 		&i.TrunkID,
 		&i.TrunkEndpointID,
 		&i.Direction,
@@ -661,7 +647,7 @@ SET
 WHERE organization_id = $1
   AND id = $2
   AND state IN ('initiating', 'ringing')
-RETURNING id, organization_id, voice_agent_id, carrier_connection_id, trunk_id, trunk_endpoint_id, direction, state, media_state, from_uri, to_uri, sip_call_id, started_at, answered_at, ended_at, hangup_reason, created_at, updated_at
+RETURNING id, organization_id, voice_agent_id, trunk_id, trunk_endpoint_id, direction, state, media_state, from_uri, to_uri, sip_call_id, started_at, answered_at, ended_at, hangup_reason, created_at, updated_at
 `
 
 type MarkCallAnsweredParams struct {
@@ -676,7 +662,6 @@ func (q *Queries) MarkCallAnswered(ctx context.Context, arg MarkCallAnsweredPara
 		&i.ID,
 		&i.OrganizationID,
 		&i.VoiceAgentID,
-		&i.CarrierConnectionID,
 		&i.TrunkID,
 		&i.TrunkEndpointID,
 		&i.Direction,
@@ -705,7 +690,7 @@ SET
 WHERE organization_id = $2
   AND id = $3
   AND state IN ('initiating', 'ringing')
-RETURNING id, organization_id, voice_agent_id, carrier_connection_id, trunk_id, trunk_endpoint_id, direction, state, media_state, from_uri, to_uri, sip_call_id, started_at, answered_at, ended_at, hangup_reason, created_at, updated_at
+RETURNING id, organization_id, voice_agent_id, trunk_id, trunk_endpoint_id, direction, state, media_state, from_uri, to_uri, sip_call_id, started_at, answered_at, ended_at, hangup_reason, created_at, updated_at
 `
 
 type MarkCallCancelledParams struct {
@@ -721,7 +706,6 @@ func (q *Queries) MarkCallCancelled(ctx context.Context, arg MarkCallCancelledPa
 		&i.ID,
 		&i.OrganizationID,
 		&i.VoiceAgentID,
-		&i.CarrierConnectionID,
 		&i.TrunkID,
 		&i.TrunkEndpointID,
 		&i.Direction,
@@ -750,7 +734,7 @@ SET
 WHERE organization_id = $2
   AND id = $3
   AND state NOT IN ('completed', 'failed', 'cancelled')
-RETURNING id, organization_id, voice_agent_id, carrier_connection_id, trunk_id, trunk_endpoint_id, direction, state, media_state, from_uri, to_uri, sip_call_id, started_at, answered_at, ended_at, hangup_reason, created_at, updated_at
+RETURNING id, organization_id, voice_agent_id, trunk_id, trunk_endpoint_id, direction, state, media_state, from_uri, to_uri, sip_call_id, started_at, answered_at, ended_at, hangup_reason, created_at, updated_at
 `
 
 type MarkCallCompletedParams struct {
@@ -766,7 +750,6 @@ func (q *Queries) MarkCallCompleted(ctx context.Context, arg MarkCallCompletedPa
 		&i.ID,
 		&i.OrganizationID,
 		&i.VoiceAgentID,
-		&i.CarrierConnectionID,
 		&i.TrunkID,
 		&i.TrunkEndpointID,
 		&i.Direction,
@@ -795,7 +778,7 @@ SET
 WHERE organization_id = $2
   AND id = $3
   AND state NOT IN ('completed', 'failed', 'cancelled')
-RETURNING id, organization_id, voice_agent_id, carrier_connection_id, trunk_id, trunk_endpoint_id, direction, state, media_state, from_uri, to_uri, sip_call_id, started_at, answered_at, ended_at, hangup_reason, created_at, updated_at
+RETURNING id, organization_id, voice_agent_id, trunk_id, trunk_endpoint_id, direction, state, media_state, from_uri, to_uri, sip_call_id, started_at, answered_at, ended_at, hangup_reason, created_at, updated_at
 `
 
 type MarkCallFailedParams struct {
@@ -811,7 +794,6 @@ func (q *Queries) MarkCallFailed(ctx context.Context, arg MarkCallFailedParams) 
 		&i.ID,
 		&i.OrganizationID,
 		&i.VoiceAgentID,
-		&i.CarrierConnectionID,
 		&i.TrunkID,
 		&i.TrunkEndpointID,
 		&i.Direction,
@@ -839,7 +821,7 @@ WHERE organization_id = $1
   AND id = $2
   AND state IN ('answered', 'active')
   AND media_state = 'active'
-RETURNING id, organization_id, voice_agent_id, carrier_connection_id, trunk_id, trunk_endpoint_id, direction, state, media_state, from_uri, to_uri, sip_call_id, started_at, answered_at, ended_at, hangup_reason, created_at, updated_at
+RETURNING id, organization_id, voice_agent_id, trunk_id, trunk_endpoint_id, direction, state, media_state, from_uri, to_uri, sip_call_id, started_at, answered_at, ended_at, hangup_reason, created_at, updated_at
 `
 
 type MarkCallHeldParams struct {
@@ -854,7 +836,6 @@ func (q *Queries) MarkCallHeld(ctx context.Context, arg MarkCallHeldParams) (Cal
 		&i.ID,
 		&i.OrganizationID,
 		&i.VoiceAgentID,
-		&i.CarrierConnectionID,
 		&i.TrunkID,
 		&i.TrunkEndpointID,
 		&i.Direction,
@@ -882,7 +863,7 @@ WHERE organization_id = $1
   AND id = $2
   AND state IN ('answered', 'active')
   AND media_state = 'held'
-RETURNING id, organization_id, voice_agent_id, carrier_connection_id, trunk_id, trunk_endpoint_id, direction, state, media_state, from_uri, to_uri, sip_call_id, started_at, answered_at, ended_at, hangup_reason, created_at, updated_at
+RETURNING id, organization_id, voice_agent_id, trunk_id, trunk_endpoint_id, direction, state, media_state, from_uri, to_uri, sip_call_id, started_at, answered_at, ended_at, hangup_reason, created_at, updated_at
 `
 
 type MarkCallResumedParams struct {
@@ -897,7 +878,6 @@ func (q *Queries) MarkCallResumed(ctx context.Context, arg MarkCallResumedParams
 		&i.ID,
 		&i.OrganizationID,
 		&i.VoiceAgentID,
-		&i.CarrierConnectionID,
 		&i.TrunkID,
 		&i.TrunkEndpointID,
 		&i.Direction,
@@ -922,7 +902,7 @@ SET state = 'ringing', updated_at = NOW()
 WHERE organization_id = $1
   AND id = $2
   AND state = 'initiating'
-RETURNING id, organization_id, voice_agent_id, carrier_connection_id, trunk_id, trunk_endpoint_id, direction, state, media_state, from_uri, to_uri, sip_call_id, started_at, answered_at, ended_at, hangup_reason, created_at, updated_at
+RETURNING id, organization_id, voice_agent_id, trunk_id, trunk_endpoint_id, direction, state, media_state, from_uri, to_uri, sip_call_id, started_at, answered_at, ended_at, hangup_reason, created_at, updated_at
 `
 
 type MarkCallRingingParams struct {
@@ -937,7 +917,6 @@ func (q *Queries) MarkCallRinging(ctx context.Context, arg MarkCallRingingParams
 		&i.ID,
 		&i.OrganizationID,
 		&i.VoiceAgentID,
-		&i.CarrierConnectionID,
 		&i.TrunkID,
 		&i.TrunkEndpointID,
 		&i.Direction,
@@ -959,26 +938,23 @@ func (q *Queries) MarkCallRinging(ctx context.Context, arg MarkCallRingingParams
 const setCallRouteAttribution = `-- name: SetCallRouteAttribution :one
 UPDATE calls
 SET
-    carrier_connection_id = $1,
-    trunk_id = $2,
-    trunk_endpoint_id = $3,
+    trunk_id = $1,
+    trunk_endpoint_id = $2,
     updated_at = NOW()
-WHERE organization_id = $4
-  AND id = $5
-RETURNING id, organization_id, voice_agent_id, carrier_connection_id, trunk_id, trunk_endpoint_id, direction, state, media_state, from_uri, to_uri, sip_call_id, started_at, answered_at, ended_at, hangup_reason, created_at, updated_at
+WHERE organization_id = $3
+  AND id = $4
+RETURNING id, organization_id, voice_agent_id, trunk_id, trunk_endpoint_id, direction, state, media_state, from_uri, to_uri, sip_call_id, started_at, answered_at, ended_at, hangup_reason, created_at, updated_at
 `
 
 type SetCallRouteAttributionParams struct {
-	CarrierConnectionID *uuid.UUID `db:"carrier_connection_id" json:"carrier_connection_id"`
-	TrunkID             *uuid.UUID `db:"trunk_id" json:"trunk_id"`
-	TrunkEndpointID     *uuid.UUID `db:"trunk_endpoint_id" json:"trunk_endpoint_id"`
-	OrganizationID      uuid.UUID  `db:"organization_id" json:"organization_id"`
-	ID                  uuid.UUID  `db:"id" json:"id"`
+	TrunkID         *uuid.UUID `db:"trunk_id" json:"trunk_id"`
+	TrunkEndpointID *uuid.UUID `db:"trunk_endpoint_id" json:"trunk_endpoint_id"`
+	OrganizationID  uuid.UUID  `db:"organization_id" json:"organization_id"`
+	ID              uuid.UUID  `db:"id" json:"id"`
 }
 
 func (q *Queries) SetCallRouteAttribution(ctx context.Context, arg SetCallRouteAttributionParams) (Call, error) {
 	row := q.db.QueryRow(ctx, setCallRouteAttribution,
-		arg.CarrierConnectionID,
 		arg.TrunkID,
 		arg.TrunkEndpointID,
 		arg.OrganizationID,
@@ -989,7 +965,6 @@ func (q *Queries) SetCallRouteAttribution(ctx context.Context, arg SetCallRouteA
 		&i.ID,
 		&i.OrganizationID,
 		&i.VoiceAgentID,
-		&i.CarrierConnectionID,
 		&i.TrunkID,
 		&i.TrunkEndpointID,
 		&i.Direction,
@@ -1043,7 +1018,7 @@ SET
     updated_at = NOW()
 WHERE organization_id = $2
   AND id = $3
-RETURNING id, organization_id, voice_agent_id, carrier_connection_id, trunk_id, trunk_endpoint_id, direction, state, media_state, from_uri, to_uri, sip_call_id, started_at, answered_at, ended_at, hangup_reason, created_at, updated_at
+RETURNING id, organization_id, voice_agent_id, trunk_id, trunk_endpoint_id, direction, state, media_state, from_uri, to_uri, sip_call_id, started_at, answered_at, ended_at, hangup_reason, created_at, updated_at
 `
 
 type UpdateCallStateParams struct {
@@ -1059,7 +1034,6 @@ func (q *Queries) UpdateCallState(ctx context.Context, arg UpdateCallStateParams
 		&i.ID,
 		&i.OrganizationID,
 		&i.VoiceAgentID,
-		&i.CarrierConnectionID,
 		&i.TrunkID,
 		&i.TrunkEndpointID,
 		&i.Direction,

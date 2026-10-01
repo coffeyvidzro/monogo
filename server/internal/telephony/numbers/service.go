@@ -34,7 +34,10 @@ func (s *Service) Create(
 	return row, writeError(err)
 }
 
-func (s *Service) List(ctx context.Context, organizationID uuid.UUID) ([]sqlc.PhoneNumber, error) {
+func (s *Service) List(
+	ctx context.Context,
+	organizationID uuid.UUID,
+) ([]sqlc.PhoneNumber, error) {
 	if err := validateOrganization(organizationID); err != nil {
 		return nil, err
 	}
@@ -45,7 +48,10 @@ func (s *Service) List(ctx context.Context, organizationID uuid.UUID) ([]sqlc.Ph
 	return rows, nil
 }
 
-func (s *Service) Get(ctx context.Context, organizationID, id uuid.UUID) (sqlc.PhoneNumber, error) {
+func (s *Service) Get(
+	ctx context.Context,
+	organizationID, id uuid.UUID,
+) (sqlc.PhoneNumber, error) {
 	if err := validateIDs(organizationID, id); err != nil {
 		return sqlc.PhoneNumber{}, err
 	}
@@ -55,8 +61,7 @@ func (s *Service) Get(ctx context.Context, organizationID, id uuid.UUID) (sqlc.P
 
 func (s *Service) Update(
 	ctx context.Context,
-	organizationID uuid.UUID,
-	id uuid.UUID,
+	organizationID, id uuid.UUID,
 	req UpdateRequest,
 ) (sqlc.PhoneNumber, error) {
 	if err := validateIDs(organizationID, id); err != nil {
@@ -69,23 +74,32 @@ func (s *Service) Update(
 	return row, writeError(err)
 }
 
-func (s *Service) SetCarrierConnection(
+func (s *Service) SetTrunk(
 	ctx context.Context,
-	organizationID uuid.UUID,
-	id uuid.UUID,
-	req SetCarrierConnectionRequest,
+	organizationID, id uuid.UUID,
+	req SetTrunkRequest,
 ) (sqlc.PhoneNumber, error) {
 	if err := validateIDs(organizationID, id); err != nil {
 		return sqlc.PhoneNumber{}, err
 	}
-	if req.CarrierConnectionID == uuid.Nil {
-		return sqlc.PhoneNumber{}, apperror.NewBadRequest("carrier_connection_id is required")
+	if req.TrunkID == uuid.Nil {
+		return sqlc.PhoneNumber{}, apperror.NewBadRequest(
+			"trunk_id is required",
+		)
 	}
-	row, err := s.repo.SetCarrierConnection(ctx, organizationID, id, req.CarrierConnectionID)
+	row, err := s.repo.SetTrunk(
+		ctx,
+		organizationID,
+		id,
+		req.TrunkID,
+	)
 	return row, writeError(err)
 }
 
-func (s *Service) Delete(ctx context.Context, organizationID, id uuid.UUID) error {
+func (s *Service) Delete(
+	ctx context.Context,
+	organizationID, id uuid.UUID,
+) error {
 	if _, err := s.Get(ctx, organizationID, id); err != nil {
 		return err
 	}
@@ -108,15 +122,16 @@ func writeError(err error) error {
 		return nil
 	}
 	if errors.Is(err, pgx.ErrNoRows) {
-		return apperror.NewNotFound("number or carrier connection not found")
+		return apperror.NewNotFound("number or trunk not found")
 	}
+
 	var dbError *pgconn.PgError
 	if errors.As(err, &dbError) {
 		switch dbError.Code {
 		case "23505":
 			return apperror.NewConflict("number already exists")
 		case "23503", "23514", "23502":
-			return apperror.NewBadRequest("number or carrier connection is invalid")
+			return apperror.NewBadRequest("number or trunk is invalid")
 		}
 	}
 	return apperror.NewInternal("update number", err)

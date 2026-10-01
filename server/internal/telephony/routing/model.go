@@ -1,15 +1,13 @@
 package routing
 
-import (
-	"github.com/google/uuid"
-)
+import "github.com/google/uuid"
 
 type InboundRequest struct {
 	OrganizationID      uuid.UUID
 	VoiceAgentID        uuid.UUID
 	PhoneNumberID       uuid.UUID
 	VoiceAgentBindingID uuid.UUID
-	CarrierConnectionID uuid.UUID
+	TrunkID             uuid.UUID
 	CalledNumber        string
 }
 
@@ -23,7 +21,7 @@ type InboundDecision struct {
 	VoiceAgentID        uuid.UUID
 	PhoneNumberID       uuid.UUID
 	VoiceAgentBindingID uuid.UUID
-	CarrierConnectionID uuid.UUID
+	TrunkID             uuid.UUID
 	CalledNumber        string
 	Limits              Limits
 }
@@ -35,13 +33,12 @@ type OutboundRequest struct {
 }
 
 type OutboundRoute struct {
-	CarrierConnectionID uuid.UUID
-	TrunkID             uuid.UUID
-	TrunkEndpointID     uuid.UUID
-	Host                string
-	Port                uint16
-	Transport           string
-	Limits              Limits
+	TrunkID         uuid.UUID
+	TrunkEndpointID uuid.UUID
+	Host            string
+	Port            uint16
+	Transport       string
+	Limits          Limits
 }
 
 type OutboundDecision struct {

@@ -8,7 +8,6 @@ import (
 	"github.com/coffeyvidzro/monogo/internal/runtime/calling"
 	"github.com/coffeyvidzro/monogo/internal/security/encryption"
 	"github.com/coffeyvidzro/monogo/internal/telephony/calls"
-	"github.com/coffeyvidzro/monogo/internal/telephony/carriers"
 	"github.com/coffeyvidzro/monogo/internal/telephony/numbers"
 	"github.com/coffeyvidzro/monogo/internal/telephony/recordings"
 	"github.com/coffeyvidzro/monogo/internal/telephony/routing"
@@ -30,7 +29,6 @@ type Dependencies struct {
 
 type Module struct {
 	Calls      CallsModule
-	Carriers   CarriersModule
 	Numbers    NumbersModule
 	WebRTC     WebRTCModule
 	Recordings RecordingsModule
@@ -42,12 +40,6 @@ type CallsModule struct {
 	Repository *calls.Repository
 	Service    *calls.Service
 	Handler    *calls.Handler
-}
-
-type CarriersModule struct {
-	Repository *carriers.Repository
-	Service    *carriers.Service
-	Handler    *carriers.Handler
 }
 
 type NumbersModule struct {
@@ -96,12 +88,17 @@ func New(deps Dependencies) (*Module, error) {
 	numbersService := numbers.NewService(numbersRepository)
 
 	recordingsRepository := recordings.NewRepository(deps.DB)
-	recordingsService := recordings.NewService(recordingsRepository, deps.RecordingStorage)
+	recordingsService := recordings.NewService(
+		recordingsRepository,
+		deps.RecordingStorage,
+	)
 
 	trunksRepository := trunks.NewRepository(deps.Queries)
-	trunksService := trunks.NewService(trunksRepository, deps.DB)
-	carriersRepository := carriers.NewRepository(deps.Queries)
-	carriersService := carriers.NewService(carriersRepository, deps.DB, deps.CredentialCipher)
+	trunksService := trunks.NewService(
+		trunksRepository,
+		deps.DB,
+		deps.CredentialCipher,
+	)
 
 	return &Module{
 		Calls: CallsModule{
@@ -122,11 +119,6 @@ func New(deps Dependencies) (*Module, error) {
 			Repository: recordingsRepository,
 			Service:    recordingsService,
 			Handler:    recordings.NewHandler(recordingsService),
-		},
-		Carriers: CarriersModule{
-			Repository: carriersRepository,
-			Service:    carriersService,
-			Handler:    carriers.NewHandler(carriersService),
 		},
 		Trunks: TrunksModule{
 			Repository: trunksRepository,

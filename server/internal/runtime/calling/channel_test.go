@@ -17,9 +17,9 @@ func TestChannelKey(t *testing.T) {
 }
 
 func TestAdmissionPrefix(t *testing.T) {
-	carrierID := uuid.New()
-	want := "telecom:admission:carrier:" + carrierID.String()
-	if got := admissionPrefix(carrierID); got != want {
+	trunkID := uuid.New()
+	want := "telecom:admission:trunk:" + trunkID.String()
+	if got := admissionPrefix(trunkID); got != want {
 		t.Fatalf("admission prefix = %q, want %q", got, want)
 	}
 }

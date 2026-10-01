@@ -28,7 +28,7 @@ func TestNormalizeBYOCRejectsInvalidValues(t *testing.T) {
 		{Number: "0201234567", CountryCode: "GH"},
 		{Number: "+023201234567", CountryCode: "GH"},
 		{Number: "+233201234567", CountryCode: "GHA"},
-		{Number: "+233201234567", CountryCode: "GH", CarrierConnectionID: new(uuid.UUID)},
+		{Number: "+233201234567", CountryCode: "GH", TrunkID: new(uuid.UUID)},
 	}
 	for _, req := range tests {
 		if err := normalizeCreate(&req); err == nil {

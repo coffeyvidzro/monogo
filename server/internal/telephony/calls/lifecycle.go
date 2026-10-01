@@ -42,16 +42,16 @@ func (s *Service) ObserveLifecycle(ctx context.Context, event LifecycleEvent) er
 		}
 	}
 
-	if !isTerminalLifecycle(event.Type) && snapshot.CarrierConnectionID != nil {
-		if err := s.admission.Refresh(ctx, *snapshot.CarrierConnectionID, event.CallID); err != nil {
-			return apperror.NewServiceUnavailable("refresh carrier call lease", err)
+	if !isTerminalLifecycle(event.Type) && snapshot.TrunkID != nil {
+		if err := s.admission.Refresh(ctx, *snapshot.TrunkID, event.CallID); err != nil {
+			return apperror.NewServiceUnavailable("refresh trunk call lease", err)
 		}
 	}
 	if lifecycleAlreadyApplied(snapshot, event.Type) {
 		if isTerminalLifecycle(event.Type) {
 			_ = s.channels.Delete(ctx, event.CallID)
-			if snapshot.CarrierConnectionID != nil {
-				_ = s.admission.Release(ctx, *snapshot.CarrierConnectionID, event.CallID.String())
+			if snapshot.TrunkID != nil {
+				_ = s.admission.Release(ctx, *snapshot.TrunkID, event.CallID.String())
 			}
 		}
 		return nil
@@ -81,8 +81,8 @@ func (s *Service) ObserveLifecycle(ctx context.Context, event LifecycleEvent) er
 	}
 	if err == nil && isTerminalLifecycle(event.Type) {
 		_ = s.channels.Delete(ctx, event.CallID)
-		if snapshot.CarrierConnectionID != nil {
-			_ = s.admission.Release(ctx, *snapshot.CarrierConnectionID, event.CallID.String())
+		if snapshot.TrunkID != nil {
+			_ = s.admission.Release(ctx, *snapshot.TrunkID, event.CallID.String())
 		}
 	}
 	return err

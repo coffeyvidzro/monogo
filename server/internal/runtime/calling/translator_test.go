@@ -112,7 +112,7 @@ func TestTranslateInboundFreeSWITCHEvent(t *testing.T) {
 	voiceAgentID := uuid.New()
 	phoneNumberID := uuid.New()
 	bindingID := uuid.New()
-	carrierID := uuid.New()
+	trunkID := uuid.New()
 
 	event, err := TranslateInboundFreeSWITCHEvent(freeswitch.Event{
 		Name: "CHANNEL_CREATE",
@@ -120,7 +120,7 @@ func TestTranslateInboundFreeSWITCHEvent(t *testing.T) {
 			"Unique-ID":            "fs-inbound-1",
 			"variable_sip_call_id": "sip-call-123",
 			"variable_sip_h_X-Leamout-Organization-ID":        organizationID.String(),
-			"variable_sip_h_X-Leamout-Carrier-Connection-ID":  carrierID.String(),
+			"variable_sip_h_X-Leamout-Trunk-ID":               trunkID.String(),
 			"variable_sip_h_X-Leamout-Phone-Number-ID":        phoneNumberID.String(),
 			"variable_sip_h_X-Leamout-Voice-Agent-Binding-ID": bindingID.String(),
 			"variable_sip_h_X-Leamout-Voice-Agent-ID":         voiceAgentID.String(),
@@ -139,7 +139,7 @@ func TestTranslateInboundFreeSWITCHEvent(t *testing.T) {
 		event.VoiceAgentID != voiceAgentID ||
 		event.PhoneNumberID != phoneNumberID ||
 		event.VoiceAgentBindingID != bindingID ||
-		event.CarrierConnectionID != carrierID {
+		event.TrunkID != trunkID {
 		t.Fatalf("unexpected inbound admission identity: %+v", event)
 	}
 }

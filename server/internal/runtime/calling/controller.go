@@ -14,28 +14,28 @@ import (
 )
 
 const (
-	openSIPSEgressHost         = "opensips"
-	openSIPSEgressPort         = 5060
-	leamoutCallIDVar           = "leamout_call_id"
-	routeURIHeaderVar          = "sip_h_X-Leamout-Route-URI"
-	carrierConnectionHeaderVar = "sip_h_X-Leamout-Carrier-Connection-ID"
-	privacyHeaderVar           = "sip_h_X-Leamout-Privacy"
-	dtmfTypeVar                = "dtmf_type"
-	mediaEncryptionHeaderVar   = "sip_h_X-Leamout-Media-Encryption"
+	openSIPSEgressHost       = "opensips"
+	openSIPSEgressPort       = 5060
+	leamoutCallIDVar         = "leamout_call_id"
+	routeURIHeaderVar        = "sip_h_X-Leamout-Route-URI"
+	trunkHeaderVar           = "sip_h_X-Leamout-Trunk-ID"
+	privacyHeaderVar         = "sip_h_X-Leamout-Privacy"
+	dtmfTypeVar              = "dtmf_type"
+	mediaEncryptionHeaderVar = "sip_h_X-Leamout-Media-Encryption"
 )
 
 type OriginateRequest struct {
-	CallID              uuid.UUID
-	Destination         string
-	CallerID            string
-	CarrierConnectionID uuid.UUID
-	Host                string
-	Port                uint16
-	Transport           string
-	Privacy             bool
-	DTMFMode            string
-	MediaEncryption     string
-	MaxDurationSeconds  int32
+	CallID             uuid.UUID
+	Destination        string
+	CallerID           string
+	TrunkID            uuid.UUID
+	Host               string
+	Port               uint16
+	Transport          string
+	Privacy            bool
+	DTMFMode           string
+	MediaEncryption    string
+	MaxDurationSeconds int32
 }
 
 type OriginateResult struct {
@@ -117,8 +117,8 @@ func egressVariables(req OriginateRequest, routeURI string) (map[string]string, 
 	if req.CallID == uuid.Nil {
 		return nil, fmt.Errorf("call id is required")
 	}
-	if req.CarrierConnectionID == uuid.Nil {
-		return nil, fmt.Errorf("resolved carrier connection id is required")
+	if req.TrunkID == uuid.Nil {
+		return nil, fmt.Errorf("resolved trunk id is required")
 	}
 
 	if req.MaxDurationSeconds < 0 {
@@ -126,9 +126,9 @@ func egressVariables(req OriginateRequest, routeURI string) (map[string]string, 
 	}
 
 	variables := map[string]string{
-		leamoutCallIDVar:           req.CallID.String(),
-		routeURIHeaderVar:          routeURI,
-		carrierConnectionHeaderVar: req.CarrierConnectionID.String(),
+		leamoutCallIDVar:  req.CallID.String(),
+		routeURIHeaderVar: routeURI,
+		trunkHeaderVar:    req.TrunkID.String(),
 	}
 
 	if req.MaxDurationSeconds > 0 {
@@ -192,8 +192,8 @@ func freeSWITCHEgress(req OriginateRequest) (string, string, error) {
 		return "", "", fmt.Errorf("caller id is invalid")
 	}
 
-	carrierTarget := net.JoinHostPort(host, strconv.Itoa(int(req.Port)))
-	routeURI := fmt.Sprintf("sip:%s;transport=%s", carrierTarget, transport)
+	trunkTarget := net.JoinHostPort(host, strconv.Itoa(int(req.Port)))
+	routeURI := fmt.Sprintf("sip:%s;transport=%s", trunkTarget, transport)
 
 	openSIPSTarget := net.JoinHostPort(openSIPSEgressHost, strconv.Itoa(openSIPSEgressPort))
 	endpoint := fmt.Sprintf("sofia/internal/%s@%s;transport=udp", destination, openSIPSTarget)

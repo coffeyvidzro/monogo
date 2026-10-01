@@ -28,8 +28,8 @@ func validateInboundRequest(req InboundRequest) error {
 	if req.VoiceAgentBindingID == uuid.Nil {
 		return apperror.NewBadRequest("voice_agent_binding_id is required")
 	}
-	if req.CarrierConnectionID == uuid.Nil {
-		return apperror.NewBadRequest("carrier_connection_id is required")
+	if req.TrunkID == uuid.Nil {
+		return apperror.NewBadRequest("trunk_id is required")
 	}
 	if req.CalledNumber == "" {
 		return apperror.NewBadRequest("called_number is required")

@@ -24,7 +24,7 @@ func NewService(repo *Repository, policy Policy) *Service {
 }
 
 // ResolveInbound revalidates the DID-derived organization, application, and
-// carrier tuple before the call domain admits or persists an inbound call.
+// trunk tuple before the call domain admits or persists an inbound call.
 func (s *Service) ResolveInbound(
 	ctx context.Context,
 	req InboundRequest,
@@ -47,7 +47,7 @@ func (s *Service) ResolveInbound(
 		VoiceAgentID:        req.VoiceAgentID,
 		PhoneNumberID:       req.PhoneNumberID,
 		VoiceAgentBindingID: req.VoiceAgentBindingID,
-		CarrierConnectionID: req.CarrierConnectionID,
+		TrunkID:             req.TrunkID,
 		CalledNumber:        req.CalledNumber,
 		Limits:              inbound.Limits,
 	}, nil
