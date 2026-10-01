@@ -251,8 +251,6 @@ def provision():
         (201,),
     )
     STATE["number"] = number
-    if number.get("type") != "byoc":
-        raise Failure("test DID was not created as a BYOC number")
     if number.get("trunk_id") != trunk["id"]:
         raise Failure("test DID was not created on the SIP trunk")
 

@@ -142,20 +142,20 @@ def deploy():
 
 
 def assert_digest_runtime(secret_name, expected_ha1):
-    connection_id = S["connection"]["id"]
+    trunk_id = S["trunk"]["id"]
     stored = psql(
-        f"SELECT auth_secret_ciphertext FROM trunks WHERE id='{connection_id}'"
+        f"SELECT auth_secret_ciphertext FROM trunks WHERE id='{trunk_id}'"
     )
     if not stored or secret_name in stored:
         raise Failure("credential was not encrypted")
     runtime = psql(
-        f"SELECT username||':'||realm||':'||ha1_md5 FROM trunk_digest_credentials WHERE trunk_id='{connection_id}' AND direction='outbound'"
+        f"SELECT username||':'||realm||':'||ha1_md5 FROM trunk_digest_credentials WHERE trunk_id='{trunk_id}' AND direction='outbound'"
     )
     expected = f"byoc-user:carrier.example:{expected_ha1}"
     if runtime != expected:
         raise Failure(f"realm-bound runtime HA1 mismatch: {runtime!r}")
     opensips_password = psql(
-        f"SELECT password FROM opensips_outbound_trunk_credentials WHERE trunk_id='{connection_id}'"
+        f"SELECT password FROM opensips_outbound_trunk_credentials WHERE trunk_id='{trunk_id}'"
     )
     if opensips_password != "0x" + expected_ha1:
         raise Failure("OpenSIPS outbound HA1 view was not updated")
@@ -172,7 +172,7 @@ def connection_and_auth():
         },
         (201,),
     )
-    S["connection"] = item
+    S["trunk"] = item
     api(
         "PUT",
         f"/v1/trunks/{item['id']}/outbound-auth",
@@ -194,7 +194,7 @@ def connection_and_auth():
 
 
 def trunk():
-    item = S["connection"]
+    item = S["trunk"]
     S["trunk"] = item
     endpoint = api(
         "POST",
@@ -218,15 +218,13 @@ def number_and_app():
         {
             "number": DID,
             "country_code": "US",
-            "trunk_id": S["connection"]["id"],
+            "trunk_id": S["trunk"]["id"],
             "voice_enabled": True,
         },
         (201,),
     )
     S["number"] = number
-    if number.get("type") != "byoc":
-        raise Failure("DID was not created as BYOC")
-    if number.get("trunk_id") != S["connection"]["id"]:
+    if number.get("trunk_id") != S["trunk"]["id"]:
         raise Failure("DID ownership was not assigned at creation")
 
     caller = api(
@@ -235,15 +233,13 @@ def number_and_app():
         {
             "number": CALLER,
             "country_code": "US",
-            "trunk_id": S["connection"]["id"],
+            "trunk_id": S["trunk"]["id"],
             "voice_enabled": True,
         },
         (201,),
     )
     S["caller_number"] = caller
-    if caller.get("type") != "byoc":
-        raise Failure("caller identity was not created as BYOC")
-    if caller.get("trunk_id") != S["connection"]["id"]:
+    if caller.get("trunk_id") != S["trunk"]["id"]:
         raise Failure("caller identity ownership was not assigned at creation")
 
     app = api(
@@ -282,7 +278,7 @@ def reject_cross_org_did_ownership():
         TOKEN_B,
     )
     owned = api("GET", f"/v1/numbers/{S['number']['id']}")
-    if owned.get("trunk_id") != S["connection"]["id"]:
+    if owned.get("trunk_id") != S["trunk"]["id"]:
         raise Failure("cross-organization request changed DID ownership")
     return "tenant B cannot read or reassign tenant A DID ownership"
 

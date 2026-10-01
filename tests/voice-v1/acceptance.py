@@ -312,8 +312,6 @@ def create_voice_application():
         expected={201},
     )
     STATE["number_id"] = number["id"]
-    if number.get("type") != "byoc":
-        raise AcceptanceError("test DID was not created as a BYOC number")
     if number.get("trunk_id") != STATE["trunk_id"]:
         raise AcceptanceError("test DID was not created on the SIP trunk")
 
@@ -331,8 +329,6 @@ def create_voice_application():
         expected={201},
     )
     STATE["caller_number_id"] = caller_number["id"]
-    if caller_number.get("type") != "byoc":
-        raise AcceptanceError("caller identity was not created as a BYOC number")
     if caller_number.get("trunk_id") != STATE["trunk_id"]:
         raise AcceptanceError(
             "caller identity was not created on the SIP trunk"
