@@ -44,12 +44,6 @@ func RunWithConfig(ctx context.Context, cfg Config) error {
 	if err != nil {
 		return fmt.Errorf("initialize media session manager: %w", err)
 	}
-	registration, err := startNodeRegistration(ctx, cfg, manager, logger)
-	if err != nil {
-		return fmt.Errorf("register media node: %w", err)
-	}
-	defer registration.close(context.Background())
-
 	tokens, err := transport.NewTokenService(cfg.TokenSecret)
 	if err != nil {
 		return fmt.Errorf("initialize media tokens: %w", err)
@@ -76,6 +70,14 @@ func RunWithConfig(ctx context.Context, cfg Config) error {
 		}
 		serverErr <- err
 	}()
+
+	registration, err := startNodeRegistration(ctx, cfg, manager, logger)
+	if err != nil {
+		_ = server.Close()
+		return fmt.Errorf("register media node: %w", err)
+	}
+	defer registration.close(context.Background())
+
 	logger.Info(ctx, "media runtime started", "address", listener.Addr().String())
 
 	var result error
