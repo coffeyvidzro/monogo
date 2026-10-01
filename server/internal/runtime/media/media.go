@@ -40,6 +40,9 @@ func RunWithConfig(ctx context.Context, cfg Config) error {
 		return err
 	}
 	logger := logging.New().With("process", "media")
+	if _, err := builtInProviderRegistry(); err != nil {
+		return fmt.Errorf("initialize provider registry: %w", err)
+	}
 	manager, err := session.NewManager(cfg.MaxSessions, cfg.AttachTimeout, mediaEngines(cfg))
 	if err != nil {
 		return fmt.Errorf("initialize media session manager: %w", err)
