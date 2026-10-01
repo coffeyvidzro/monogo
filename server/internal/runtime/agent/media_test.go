@@ -40,7 +40,7 @@ func TestMediaClientCreatesAndStopsSession(t *testing.T) {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusCreated)
 			_ = json.NewEncoder(w).Encode(map[string]string{
-				"websocket_url": "ws://media.internal/v1/audio-forks?token=test",
+				"websocket_url":         "ws://media.internal/v1/audio-forks?token=test",
 				"control_websocket_url": "ws://media.internal/internal/v1/sessions/" + sessionID.String() + "/control",
 			})
 		case r.Method == http.MethodDelete &&

@@ -66,9 +66,9 @@ func (e Engine) Start(ctx context.Context, cfg session.Config) (session.Stream, 
 		groqConfig.Tools = append(groqConfig.Tools, groq.Tool{
 			Type: "function",
 			Function: groq.FunctionDefinition{
-				Name: tool.Name,
+				Name:        tool.Name,
 				Description: tool.Description,
-				Parameters: tool.Parameters,
+				Parameters:  tool.Parameters,
 			},
 		})
 	}
@@ -98,15 +98,15 @@ type stream struct {
 	audio       chan session.AudioFrame
 	events      chan session.Event
 
-	mu             sync.Mutex
-	messages       []groq.Message
-	generation     uint64
-	responseCancel context.CancelFunc
+	mu               sync.Mutex
+	messages         []groq.Message
+	generation       uint64
+	responseCancel   context.CancelFunc
 	responseActive   bool
 	pendingToolCalls map[string]string
 	responses        sync.WaitGroup
-	closeOnce      sync.Once
-	done           chan struct{}
+	closeOnce        sync.Once
+	done             chan struct{}
 }
 
 func (s *stream) SendAudio(ctx context.Context, frame session.AudioFrame) error {
@@ -134,8 +134,8 @@ func (s *stream) SubmitToolResult(ctx context.Context, result session.ToolResult
 	}
 	delete(s.pendingToolCalls, result.ToolCallID)
 	s.messages = append(s.messages, groq.Message{
-		Role: "tool",
-		Content: result.Content,
+		Role:       "tool",
+		Content:    result.Content,
 		ToolCallID: result.ToolCallID,
 	})
 	if len(s.pendingToolCalls) != 0 {
@@ -411,10 +411,10 @@ func (s *stream) awaitToolResults(generation uint64, calls []*session.ToolCallEv
 	message := groq.Message{Role: "assistant"}
 	for _, call := range calls {
 		message.ToolCalls = append(message.ToolCalls, groq.MessageToolCall{
-			ID: call.ID,
+			ID:   call.ID,
 			Type: "function",
 			Function: groq.MessageFunctionCall{
-				Name: call.Name,
+				Name:      call.Name,
 				Arguments: string(call.Arguments),
 			},
 		})

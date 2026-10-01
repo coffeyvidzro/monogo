@@ -106,7 +106,6 @@ func (c *mediaControl) readLoop(ctx context.Context) {
 	}
 }
 
-
 func (r *Runtime) registerControl(
 	ctx context.Context,
 	call sqlc.Call,
@@ -187,7 +186,6 @@ func (r *Runtime) stopMediaSession(ctx context.Context, id uuid.UUID) error {
 	return r.media.StopSession(ctx, id)
 }
 
-
 func (r *Runtime) executeRealtimeTool(
 	call sqlc.Call,
 	sessionID uuid.UUID,
@@ -202,7 +200,7 @@ func (r *Runtime) executeRealtimeTool(
 
 	result := session.ToolResult{
 		ToolCallID: toolCall.ID,
-		Name: toolCall.Name,
+		Name:       toolCall.Name,
 	}
 	tool, err := r.orchestrator.ResolveToolByName(
 		ctx,
@@ -214,12 +212,12 @@ func (r *Runtime) executeRealtimeTool(
 		var execution tools.ExecuteResult
 		execution, err = r.orchestrator.ExecuteTool(ctx, tools.ExecuteRequest{
 			OrganizationID: call.OrganizationID,
-			VoiceAgentID: *call.VoiceAgentID,
-			SessionID: sessionID,
-			CallID: call.ID,
-			ToolID: tool.ID,
-			ToolCallID: toolCall.ID,
-			Arguments: toolCall.Arguments,
+			VoiceAgentID:   *call.VoiceAgentID,
+			SessionID:      sessionID,
+			CallID:         call.ID,
+			ToolID:         tool.ID,
+			ToolCallID:     toolCall.ID,
+			Arguments:      toolCall.Arguments,
 		})
 		if err == nil {
 			result.Name = execution.Name
@@ -235,7 +233,7 @@ func (r *Runtime) executeRealtimeTool(
 	}
 
 	if sendErr := control.Send(ctx, session.Command{
-		Type: session.CommandToolResult,
+		Type:       session.CommandToolResult,
 		ToolResult: &result,
 	}); sendErr != nil && r.logger != nil {
 		r.logger.Error(

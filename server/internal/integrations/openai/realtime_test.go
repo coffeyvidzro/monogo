@@ -133,8 +133,8 @@ func TestRealtimeSubmitsToolResultAndContinuesResponse(t *testing.T) {
 
 	if err := stream.SubmitToolResult(ctx, session.ToolResult{
 		ToolCallID: "call-1",
-		Name: "lookup",
-		Content: `{"ok":true}`,
+		Name:       "lookup",
+		Content:    `{"ok":true}`,
 	}); err != nil {
 		t.Fatalf("SubmitToolResult() error = %v", err)
 	}

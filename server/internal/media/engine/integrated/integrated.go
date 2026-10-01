@@ -33,10 +33,10 @@ func (e Engine) Start(ctx context.Context, cfg session.Config) (session.Stream, 
 	providerConfig.Tools = make([]openai.Tool, 0, len(cfg.Tools))
 	for _, tool := range cfg.Tools {
 		providerConfig.Tools = append(providerConfig.Tools, openai.Tool{
-			Type: "function",
-			Name: tool.Name,
+			Type:        "function",
+			Name:        tool.Name,
 			Description: tool.Description,
-			Parameters: tool.Parameters,
+			Parameters:  tool.Parameters,
 		})
 	}
 	return client.Start(ctx, providerConfig, cfg)

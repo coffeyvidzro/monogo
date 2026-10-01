@@ -197,15 +197,15 @@ func (db *lifecycleDB) Query(_ context.Context, query string, _ ...interface{}) 
 
 type emptyLifecycleRows struct{}
 
-func (emptyLifecycleRows) Close()                                      {}
-func (emptyLifecycleRows) Err() error                                  { return nil }
-func (emptyLifecycleRows) CommandTag() pgconn.CommandTag               { return pgconn.CommandTag{} }
+func (emptyLifecycleRows) Close()                                       {}
+func (emptyLifecycleRows) Err() error                                   { return nil }
+func (emptyLifecycleRows) CommandTag() pgconn.CommandTag                { return pgconn.CommandTag{} }
 func (emptyLifecycleRows) FieldDescriptions() []pgconn.FieldDescription { return nil }
-func (emptyLifecycleRows) Next() bool                                  { return false }
-func (emptyLifecycleRows) Scan(...interface{}) error                   { return pgx.ErrNoRows }
-func (emptyLifecycleRows) Values() ([]interface{}, error)              { return nil, nil }
-func (emptyLifecycleRows) RawValues() [][]byte                         { return nil }
-func (emptyLifecycleRows) Conn() *pgx.Conn                             { return nil }
+func (emptyLifecycleRows) Next() bool                                   { return false }
+func (emptyLifecycleRows) Scan(...interface{}) error                    { return pgx.ErrNoRows }
+func (emptyLifecycleRows) Values() ([]interface{}, error)               { return nil, nil }
+func (emptyLifecycleRows) RawValues() [][]byte                          { return nil }
+func (emptyLifecycleRows) Conn() *pgx.Conn                              { return nil }
 
 func (db *lifecycleDB) QueryRow(_ context.Context, query string, args ...interface{}) pgx.Row {
 	db.mu.Lock()

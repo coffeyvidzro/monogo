@@ -125,7 +125,7 @@ func (h *handler) createSession(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
 	w.WriteHeader(http.StatusCreated)
 	_ = json.NewEncoder(w).Encode(createSessionResponse{
-		WebSocketURL: websocketURL.String(),
+		WebSocketURL:        websocketURL.String(),
 		ControlWebSocketURL: controlURL,
 	})
 }
@@ -221,8 +221,8 @@ func (h *handler) controlWebSocketURL(r *http.Request, id uuid.UUID) (string, er
 	}
 	return (&url.URL{
 		Scheme: scheme,
-		Host: host,
-		Path: "/internal/v1/sessions/" + id.String() + "/control",
+		Host:   host,
+		Path:   "/internal/v1/sessions/" + id.String() + "/control",
 	}).String(), nil
 }
 

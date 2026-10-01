@@ -327,7 +327,7 @@ func TestControlAttachmentForwardsToolResult(t *testing.T) {
 
 	want := session.ToolResult{ToolCallID: "call-1", Name: "lookup", Content: `{"ok":true}`}
 	if err := control.Command(context.Background(), session.Command{
-		Type: session.CommandToolResult,
+		Type:       session.CommandToolResult,
 		ToolResult: &want,
 	}); err != nil {
 		t.Fatalf("Command() error = %v", err)

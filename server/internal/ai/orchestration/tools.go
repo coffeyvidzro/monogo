@@ -31,10 +31,10 @@ func (s *Service) ToolDefinitions(
 			continue
 		}
 		result = append(result, session.ToolDefinition{
-			ID: tool.ID,
-			Name: tool.Name,
+			ID:          tool.ID,
+			Name:        tool.Name,
 			Description: tool.Description,
-			Parameters: json.RawMessage(append([]byte(nil), tool.Parameters...)),
+			Parameters:  json.RawMessage(append([]byte(nil), tool.Parameters...)),
 		})
 	}
 	return result, nil

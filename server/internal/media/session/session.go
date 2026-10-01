@@ -103,17 +103,17 @@ func (f AudioFrame) Validate() error {
 
 // Config is the immutable configuration resolved before a media session starts.
 type Config struct {
-	ID             uuid.UUID       `json:"id"`
-	OrganizationID uuid.UUID       `json:"organization_id"`
-	CallID         uuid.UUID       `json:"call_id"`
-	ChannelID      uuid.UUID       `json:"channel_id"`
-	Engine         Engine          `json:"engine"`
-	InputFormat    AudioFormat     `json:"input_format"`
-	OutputFormat   AudioFormat     `json:"output_format"`
-	Language       string          `json:"language,omitempty"`
-	Instructions   string          `json:"instructions,omitempty"`
-	Voice          string          `json:"voice,omitempty"`
-	EngineConfig   json.RawMessage `json:"engine_config,omitempty"`
+	ID             uuid.UUID        `json:"id"`
+	OrganizationID uuid.UUID        `json:"organization_id"`
+	CallID         uuid.UUID        `json:"call_id"`
+	ChannelID      uuid.UUID        `json:"channel_id"`
+	Engine         Engine           `json:"engine"`
+	InputFormat    AudioFormat      `json:"input_format"`
+	OutputFormat   AudioFormat      `json:"output_format"`
+	Language       string           `json:"language,omitempty"`
+	Instructions   string           `json:"instructions,omitempty"`
+	Voice          string           `json:"voice,omitempty"`
+	EngineConfig   json.RawMessage  `json:"engine_config,omitempty"`
 	Tools          []ToolDefinition `json:"tools,omitempty"`
 }
 
@@ -125,10 +125,10 @@ type ToolDefinition struct {
 }
 
 type ToolResult struct {
-	ToolCallID  string `json:"tool_call_id"`
-	Name        string `json:"name,omitempty"`
-	Content     string `json:"content"`
-	IsError     bool   `json:"is_error,omitempty"`
+	ToolCallID string `json:"tool_call_id"`
+	Name       string `json:"name,omitempty"`
+	Content    string `json:"content"`
+	IsError    bool   `json:"is_error,omitempty"`
 }
 
 // Validate checks identity, media, and immutable configuration invariants.
@@ -262,12 +262,11 @@ type Event struct {
 	OccurredAt      time.Time        `json:"occurred_at"`
 }
 
-
 type CommandType string
 
 const (
-	CommandInterrupt CommandType = "response.interrupt"
-	CommandStop      CommandType = "session.stop"
+	CommandInterrupt  CommandType = "response.interrupt"
+	CommandStop       CommandType = "session.stop"
 	CommandToolResult CommandType = "tool.result"
 )
 
