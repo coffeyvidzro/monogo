@@ -6,9 +6,12 @@ import (
 	"fmt"
 	"net/http"
 	"sync"
+	"time"
 
 	"github.com/coder/websocket"
+	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
 	"github.com/coffeyvidzro/monogo/internal/media/session"
+	"github.com/google/uuid"
 )
 
 type mediaControl struct {
@@ -97,4 +100,81 @@ func (c *mediaControl) readLoop(ctx context.Context) {
 			return
 		}
 	}
+}
+
+
+func (r *Runtime) registerControl(
+	ctx context.Context,
+	call sqlc.Call,
+	sessionID uuid.UUID,
+	rawURL string,
+) error {
+	control, err := r.media.OpenControl(ctx, rawURL)
+	if err != nil {
+		return err
+	}
+
+	r.mu.Lock()
+	if existing := r.controls[sessionID]; existing != nil {
+		r.mu.Unlock()
+		_ = control.Close()
+		return fmt.Errorf("media control already registered for session %s", sessionID)
+	}
+	r.controls[sessionID] = control
+	r.mu.Unlock()
+
+	go r.observeControl(call, sessionID, control)
+	return nil
+}
+
+func (r *Runtime) observeControl(call sqlc.Call, sessionID uuid.UUID, control *mediaControl) {
+	defer func() {
+		r.mu.Lock()
+		if current := r.controls[sessionID]; current == control {
+			delete(r.controls, sessionID)
+		}
+		r.mu.Unlock()
+		_ = control.Close()
+	}()
+
+	for event := range control.Events() {
+		if r.logger != nil {
+			r.logger.Info(
+				context.Background(),
+				"Voice Agent media event",
+				"call_id", call.ID,
+				"voice_agent_session_id", sessionID,
+				"event_type", event.Type,
+				"provider_id", event.ProviderID,
+			)
+		}
+		if event.Type == session.EventError &&
+			event.Failure != nil &&
+			event.Failure.Terminal {
+			endedAt := event.OccurredAt
+			if endedAt.IsZero() {
+				endedAt = time.Now().UTC()
+			}
+			_ = r.failSession(context.Background(), call, endedAt)
+			return
+		}
+	}
+}
+
+func (r *Runtime) stopMediaSession(ctx context.Context, id uuid.UUID) error {
+	r.mu.Lock()
+	control := r.controls[id]
+	if control != nil {
+		delete(r.controls, id)
+	}
+	r.mu.Unlock()
+
+	if control != nil {
+		err := control.Send(ctx, session.Command{Type: session.CommandStop})
+		closeErr := control.Close()
+		if err == nil {
+			return closeErr
+		}
+	}
+	return r.media.StopSession(ctx, id)
 }
