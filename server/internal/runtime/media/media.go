@@ -40,7 +40,7 @@ func RunWithConfig(ctx context.Context, cfg Config) error {
 		return err
 	}
 	logger := logging.New().With("process", "media")
-	manager, err := session.NewManager(cfg.MaxSessions, cfg.TokenTTL, mediaEngines(cfg))
+	manager, err := session.NewManager(cfg.MaxSessions, cfg.AttachTimeout, mediaEngines(cfg))
 	if err != nil {
 		return fmt.Errorf("initialize media session manager: %w", err)
 	}
