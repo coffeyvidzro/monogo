@@ -2,7 +2,6 @@
 INSERT INTO call_participants (
     organization_id,
     call_id,
-    subscriber_id,
     role,
     address,
     direction,
@@ -11,7 +10,6 @@ INSERT INTO call_participants (
 ) VALUES (
     sqlc.arg(organization_id),
     sqlc.arg(call_id),
-    sqlc.narg(subscriber_id),
     sqlc.arg(role),
     sqlc.narg(address),
     sqlc.narg(direction),
