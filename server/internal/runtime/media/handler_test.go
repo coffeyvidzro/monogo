@@ -146,7 +146,12 @@ func TestHandlerExposesMediaMetrics(t *testing.T) {
 	}
 
 	response := httptest.NewRecorder()
-	handler.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/metrics", nil))
+	handler.ServeHTTP(response, httptest.NewRequestWithContext(
+		context.Background(),
+		http.MethodGet,
+		"/metrics",
+		nil,
+	))
 	if response.Code != http.StatusOK {
 		t.Fatalf("metrics status = %d", response.Code)
 	}
