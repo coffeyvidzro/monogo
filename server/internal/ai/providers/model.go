@@ -30,23 +30,23 @@ type Credential struct {
 }
 
 type CreateCredentialRequest struct {
-	Provider string \`json:"provider"\`
-	Name     string \`json:"name"\`
-	Secret   string \`json:"secret"\`
+	Provider string `json:"provider"`
+	Name     string `json:"name"`
+	Secret   string `json:"secret"`
 }
 
 type RotateCredentialRequest struct {
-	Secret string \`json:"secret"\`
+	Secret string `json:"secret"`
 }
 
 type CredentialResponse struct {
-	ID             uuid.UUID \`json:"id"\`
-	OrganizationID uuid.UUID \`json:"organization_id"\`
-	Provider       string    \`json:"provider"\`
-	Name           string    \`json:"name"\`
-	CreatedAt      time.Time \`json:"created_at"\`
-	RotatedAt      time.Time \`json:"rotated_at"\`
-	UpdatedAt      time.Time \`json:"updated_at"\`
+	ID             uuid.UUID `json:"id"`
+	OrganizationID uuid.UUID `json:"organization_id"`
+	Provider       string    `json:"provider"`
+	Name           string    `json:"name"`
+	CreatedAt      time.Time `json:"created_at"`
+	RotatedAt      time.Time `json:"rotated_at"`
+	UpdatedAt      time.Time `json:"updated_at"`
 }
 
 type Binding struct {
@@ -60,19 +60,19 @@ type Binding struct {
 }
 
 type UpsertBindingRequest struct {
-	Provider     string          \`json:"provider"\`
-	CredentialID uuid.UUID       \`json:"credential_id"\`
-	Config       json.RawMessage \`json:"config,omitempty"\`
+	Provider     string          `json:"provider"`
+	CredentialID uuid.UUID       `json:"credential_id"`
+	Config       json.RawMessage `json:"config,omitempty"`
 }
 
 type BindingResponse struct {
-	ID             uuid.UUID       \`json:"id"\`
-	OrganizationID uuid.UUID       \`json:"organization_id"\`
-	VoiceAgentID   uuid.UUID       \`json:"voice_agent_id"\`
-	Role           string          \`json:"role"\`
-	Provider       string          \`json:"provider"\`
-	CredentialID   uuid.UUID       \`json:"credential_id"\`
-	Config         json.RawMessage \`json:"config"\`
+	ID             uuid.UUID       `json:"id"`
+	OrganizationID uuid.UUID       `json:"organization_id"`
+	VoiceAgentID   uuid.UUID       `json:"voice_agent_id"`
+	Role           string          `json:"role"`
+	Provider       string          `json:"provider"`
+	CredentialID   uuid.UUID       `json:"credential_id"`
+	Config         json.RawMessage `json:"config"`
 }
 
 type ResolvedBinding struct {
