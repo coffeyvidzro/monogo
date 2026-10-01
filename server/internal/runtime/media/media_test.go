@@ -74,7 +74,7 @@ func validRuntimeConfig() Config {
 	return Config{
 		ListenAddress: "127.0.0.1:0", PublicWebSocket: "ws://media:8090/v1/audio-forks",
 		TokenSecret: strings.Repeat("s", 32), ControlToken: strings.Repeat("c", 32),
-		TokenTTL: time.Minute, MaxSessions: 2, ReadLimit: 65536,
+		TokenTTL: time.Minute, AttachTimeout: time.Minute, MaxSessions: 2, ReadLimit: 65536,
 		HandshakeTimeout: time.Second, DrainTimeout: time.Second,
 	}
 }
