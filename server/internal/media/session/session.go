@@ -101,6 +101,15 @@ func (f AudioFrame) Validate() error {
 	return nil
 }
 
+// Duration returns the PCM16 frame duration represented by Data.
+func (f AudioFrame) Duration() time.Duration {
+	if f.Format.SampleRateHz <= 0 || f.Format.Channels <= 0 || len(f.Data) == 0 {
+		return 0
+	}
+	samples := len(f.Data) / (2 * f.Format.Channels)
+	return time.Duration(samples) * time.Second / time.Duration(f.Format.SampleRateHz)
+}
+
 // Config is the immutable configuration resolved before a media session starts.
 type Config struct {
 	ID             uuid.UUID        `json:"id"`
