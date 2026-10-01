@@ -134,6 +134,7 @@ func (s *fakeStream) Interrupt(context.Context) error {
 	s.interruptOnce.Do(func() { close(s.interrupted) })
 	return nil
 }
+func (s *fakeStream) SubmitToolResult(context.Context, session.ToolResult) error { return nil }
 func (s *fakeStream) Audio() <-chan session.AudioFrame { return s.audio }
 func (s *fakeStream) Events() <-chan session.Event     { return s.events }
 func (s *fakeStream) Close(context.Context) error {
