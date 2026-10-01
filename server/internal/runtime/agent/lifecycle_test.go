@@ -188,9 +188,24 @@ func (db *lifecycleDB) Exec(context.Context, string, ...interface{}) (pgconn.Com
 	return pgconn.CommandTag{}, errors.New("unexpected lifecycle test Exec")
 }
 
-func (db *lifecycleDB) Query(context.Context, string, ...interface{}) (pgx.Rows, error) {
+func (db *lifecycleDB) Query(_ context.Context, query string, _ ...interface{}) (pgx.Rows, error) {
+	if strings.Contains(query, "-- name: ListVoiceAgentToolsByAgentID") {
+		return emptyLifecycleRows{}, nil
+	}
 	return nil, errors.New("unexpected lifecycle test Query")
 }
+
+type emptyLifecycleRows struct{}
+
+func (emptyLifecycleRows) Close()                                      {}
+func (emptyLifecycleRows) Err() error                                  { return nil }
+func (emptyLifecycleRows) CommandTag() pgconn.CommandTag               { return pgconn.CommandTag{} }
+func (emptyLifecycleRows) FieldDescriptions() []pgconn.FieldDescription { return nil }
+func (emptyLifecycleRows) Next() bool                                  { return false }
+func (emptyLifecycleRows) Scan(...interface{}) error                   { return pgx.ErrNoRows }
+func (emptyLifecycleRows) Values() ([]interface{}, error)              { return nil, nil }
+func (emptyLifecycleRows) RawValues() [][]byte                         { return nil }
+func (emptyLifecycleRows) Conn() *pgx.Conn                             { return nil }
 
 func (db *lifecycleDB) QueryRow(_ context.Context, query string, args ...interface{}) pgx.Row {
 	db.mu.Lock()
