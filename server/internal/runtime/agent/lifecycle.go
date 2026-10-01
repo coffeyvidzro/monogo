@@ -71,7 +71,7 @@ func (r *Runtime) attach(ctx context.Context, call sqlc.Call, channelID string) 
 		return fmt.Errorf("FreeSWITCH channel is already attached to Voice Agent session %s", existing)
 	}
 
-	format, err := mediaFormat(record.Engine)
+	profile, err := session.ProfileForEngine(session.Engine(record.Engine))
 	if err != nil {
 		_ = r.failSession(ctx, call, time.Now().UTC())
 		return err
@@ -81,8 +81,8 @@ func (r *Runtime) attach(ctx context.Context, call sqlc.Call, channelID string) 
 		OrganizationID: call.OrganizationID,
 		CallID:         call.ID,
 		ChannelID:      channelUUID,
-		InputFormat:    format,
-		OutputFormat:   format,
+		InputFormat:    profile.InputFormat,
+		OutputFormat:   profile.OutputFormat,
 	})
 
 	websocketURL, err := r.media.CreateSession(ctx, cfg)
@@ -95,7 +95,7 @@ func (r *Runtime) attach(ctx context.Context, call sqlc.Call, channelID string) 
 		ChannelID:    channelID,
 		WebSocketURL: websocketURL,
 		MixType:      "mono",
-		SampleRateHz: format.SampleRateHz,
+		SampleRateHz: profile.InputFormat.SampleRateHz,
 	})
 	if err != nil {
 		stopErr := r.media.StopSession(ctx, record.ID)
@@ -122,13 +122,13 @@ func (r *Runtime) attach(ctx context.Context, call sqlc.Call, channelID string) 
 			"call_id", call.ID,
 			"channel_id", channelID,
 			"voice_agent_session_id", record.ID,
-			"sample_rate_hz", format.SampleRateHz,
+			"sample_rate_hz", profile.InputFormat.SampleRateHz,
 			"websocket_url", redactWebSocketURL(websocketURL),
 			"freeswitch_command", fmt.Sprintf(
 				"uuid_audio_fork %s start %s mono %d",
 				channelID,
 				redactWebSocketURL(websocketURL),
-				format.SampleRateHz,
+				profile.InputFormat.SampleRateHz,
 			),
 			"freeswitch_reply_text", strings.TrimSpace(reply.Text),
 			"freeswitch_reply_body", strings.TrimSpace(reply.Body),
@@ -183,17 +183,6 @@ func (r *Runtime) failSession(ctx context.Context, call sqlc.Call, endedAt time.
 		endedAt,
 	)
 	return err
-}
-
-func mediaFormat(engine string) (session.AudioFormat, error) {
-	switch session.Engine(engine) {
-	case session.EngineComposable:
-		return session.AudioFormat{SampleRateHz: 16000, Channels: 1}, nil
-	case session.EngineIntegrated:
-		return session.AudioFormat{SampleRateHz: 24000, Channels: 1}, nil
-	default:
-		return session.AudioFormat{}, fmt.Errorf("unsupported Voice Agent engine %q", engine)
-	}
 }
 
 func redactWebSocketURL(raw string) string {
