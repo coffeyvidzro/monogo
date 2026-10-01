@@ -239,14 +239,14 @@ func (s *realtimeStream) handle(event ServerEvent) {
 		})
 	case "conversation.item.input_audio_transcription.delta":
 		s.emitEvent(session.Event{
-			Type: session.EventTranscriptDelta,
+			Type:       session.EventTranscriptDelta,
 			Transcript: &session.TranscriptEvent{Text: event.Delta},
 			ProviderID: providerID,
 			OccurredAt: now,
 		})
 	case "conversation.item.input_audio_transcription.completed":
 		s.emitEvent(session.Event{
-			Type: session.EventTranscriptFinal,
+			Type:       session.EventTranscriptFinal,
 			Transcript: &session.TranscriptEvent{Text: event.Transcript},
 			ProviderID: providerID,
 			OccurredAt: now,
@@ -267,9 +267,9 @@ func (s *realtimeStream) handle(event ServerEvent) {
 				s.emitEvent(session.Event{
 					Type: session.EventUsage,
 					Usage: &session.UsageEvent{
-						InputTokens: usage.InputTokens,
+						InputTokens:  usage.InputTokens,
 						OutputTokens: usage.OutputTokens,
-						TotalTokens: usage.TotalTokens,
+						TotalTokens:  usage.TotalTokens,
 					},
 					ProviderID: providerID,
 					OccurredAt: now,
@@ -286,8 +286,8 @@ func (s *realtimeStream) handle(event ServerEvent) {
 		audio, err := base64.StdEncoding.DecodeString(event.Delta)
 		if err != nil {
 			s.emitEvent(session.Event{
-				Type: session.EventError,
-				Failure: &session.FailureEvent{Source: "openai", Message: err.Error(), Terminal: true},
+				Type:       session.EventError,
+				Failure:    &session.FailureEvent{Source: "openai", Message: err.Error(), Terminal: true},
 				OccurredAt: now,
 			})
 			return
@@ -324,8 +324,8 @@ func (s *realtimeStream) handle(event ServerEvent) {
 		s.emitEvent(session.Event{
 			Type: session.EventToolCall,
 			ToolCall: &session.ToolCallEvent{
-				ID: event.CallID,
-				Name: event.Name,
+				ID:        event.CallID,
+				Name:      event.Name,
 				Arguments: json.RawMessage(arguments),
 			},
 			ProviderID: providerID,
@@ -336,9 +336,9 @@ func (s *realtimeStream) handle(event ServerEvent) {
 			s.emitEvent(session.Event{
 				Type: session.EventError,
 				Failure: &session.FailureEvent{
-					Source: "openai",
-					Code: event.Error.Code,
-					Message: event.Error.Message,
+					Source:   "openai",
+					Code:     event.Error.Code,
+					Message:  event.Error.Message,
 					Terminal: false,
 				},
 				ProviderID: providerID,

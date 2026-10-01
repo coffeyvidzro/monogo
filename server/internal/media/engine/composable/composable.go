@@ -167,7 +167,7 @@ func (s *stream) handleTurn(event deepgram.Event) {
 			return
 		}
 		s.emit(session.Event{
-			Type: session.EventTranscriptFinal,
+			Type:       session.EventTranscriptFinal,
 			Transcript: &session.TranscriptEvent{Text: text},
 			ProviderID: event.RequestID,
 			OccurredAt: time.Now().UTC(),
@@ -232,8 +232,8 @@ func (s *stream) generate(ctx context.Context, generation uint64, messages []gro
 						continue
 					}
 					s.emitCurrent(ctx, generation, session.Event{
-						Type: session.EventToolCall,
-						ToolCall: call,
+						Type:       session.EventToolCall,
+						ToolCall:   call,
 						OccurredAt: time.Now().UTC(),
 					})
 				}
@@ -267,7 +267,7 @@ func (s *stream) generate(ctx context.Context, generation uint64, messages []gro
 				completionEvents = nil
 				continue
 			}
-				if event.Err != nil {
+			if event.Err != nil {
 				s.failResponse(ctx, generation, event.Err)
 				return
 			}
@@ -275,9 +275,9 @@ func (s *stream) generate(ctx context.Context, generation uint64, messages []gro
 				s.emitCurrent(ctx, generation, session.Event{
 					Type: session.EventUsage,
 					Usage: &session.UsageEvent{
-						InputTokens: event.Usage.PromptTokens,
+						InputTokens:  event.Usage.PromptTokens,
 						OutputTokens: event.Usage.CompletionTokens,
-						TotalTokens: event.Usage.TotalTokens,
+						TotalTokens:  event.Usage.TotalTokens,
 					},
 					ProviderID: event.CompletionID,
 					OccurredAt: time.Now().UTC(),
@@ -286,8 +286,8 @@ func (s *stream) generate(ctx context.Context, generation uint64, messages []gro
 			if event.TextDelta != "" {
 				text.WriteString(event.TextDelta)
 				s.emitCurrent(ctx, generation, session.Event{
-					Type: session.EventResponseDelta,
-					Response: &session.ResponseEvent{Text: event.TextDelta},
+					Type:       session.EventResponseDelta,
+					Response:   &session.ResponseEvent{Text: event.TextDelta},
 					ProviderID: event.CompletionID,
 					OccurredAt: time.Now().UTC(),
 				})
