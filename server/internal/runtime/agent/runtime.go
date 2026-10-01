@@ -19,6 +19,7 @@ type Runtime struct {
 
 	mu       sync.Mutex
 	controls map[uuid.UUID]*mediaControl
+	states   map[uuid.UUID]*conversationState
 }
 
 func New(
@@ -47,5 +48,6 @@ func New(
 		freeSwitch:   freeSwitch,
 		logger:       logger,
 		controls:     make(map[uuid.UUID]*mediaControl),
+		states:       make(map[uuid.UUID]*conversationState),
 	}, nil
 }
