@@ -24,14 +24,14 @@ func (r *Repository) Create(ctx context.Context, p sqlc.CreateCarrierConnectionP
 }
 
 func (r *Repository) Get(ctx context.Context, org, id uuid.UUID) (sqlc.GetCarrierConnectionByIDRow, error) {
-	return r.queries.GetCarrierConnectionByID(ctx, sqlc.GetCarrierConnectionByIDParams{ID: id, OrganizationID: &org})
+	return r.queries.GetCarrierConnectionByID(ctx, sqlc.GetCarrierConnectionByIDParams{ID: id, OrganizationID: org})
 }
 
 func (r *Repository) List(
 	ctx context.Context,
 	org uuid.UUID,
 ) ([]sqlc.ListCarrierConnectionsByOrganizationIDRow, error) {
-	return r.queries.ListCarrierConnectionsByOrganizationID(ctx, &org)
+	return r.queries.ListCarrierConnectionsByOrganizationID(ctx, org)
 }
 
 func (r *Repository) Update(ctx context.Context, org, id uuid.UUID, req UpdateRequest) (sqlc.CarrierConnection, error) {
@@ -49,18 +49,18 @@ func (r *Repository) Update(ctx context.Context, org, id uuid.UUID, req UpdateRe
 		SupportsVideo:      req.SupportsVideo,
 		SupportsFax:        req.SupportsFax,
 		ID:                 id,
-		OrganizationID:     &org,
+		OrganizationID:     org,
 	})
 }
 
 func (r *Repository) Disable(ctx context.Context, org, id uuid.UUID) error {
-	return r.queries.DisableCarrierConnection(ctx, sqlc.DisableCarrierConnectionParams{ID: id, OrganizationID: &org})
+	return r.queries.DisableCarrierConnection(ctx, sqlc.DisableCarrierConnectionParams{ID: id, OrganizationID: org})
 }
 
 func (r *Repository) InsertDigest(ctx context.Context, org, id uuid.UUID, direction, username, realm, ha1 string) error {
 	return r.queries.InsertCarrierDigestCredential(ctx, sqlc.InsertCarrierDigestCredentialParams{
 		CarrierConnectionID: id,
-		OrganizationID:      &org,
+		OrganizationID:      org,
 		Direction:           direction,
 		Username:            username,
 		Realm:               realm,
@@ -75,14 +75,14 @@ func (r *Repository) SetOutboundDigest(ctx context.Context, org, id uuid.UUID, u
 		AuthRealm:            &realm,
 		AuthHa1Md5:           &ha1,
 		ID:                   id,
-		OrganizationID:       &org,
+		OrganizationID:       org,
 	})
 }
 
 func (r *Repository) ClearOutbound(ctx context.Context, org, id uuid.UUID) error {
 	return r.queries.ClearCarrierConnectionOutboundAuth(ctx, sqlc.ClearCarrierConnectionOutboundAuthParams{
 		ID:             id,
-		OrganizationID: &org,
+		OrganizationID: org,
 	})
 }
 
@@ -93,21 +93,21 @@ func (r *Repository) SetInboundDigest(ctx context.Context, org, id uuid.UUID, us
 		InboundRealm:            &realm,
 		InboundHa1Md5:           &ha1,
 		ID:                      id,
-		OrganizationID:          &org,
+		OrganizationID:          org,
 	})
 }
 
 func (r *Repository) SetInboundIP(ctx context.Context, org, id uuid.UUID) error {
 	return r.queries.SetCarrierConnectionInboundIPAuth(ctx, sqlc.SetCarrierConnectionInboundIPAuthParams{
 		ID:             id,
-		OrganizationID: &org,
+		OrganizationID: org,
 	})
 }
 
 func (r *Repository) SetInboundNone(ctx context.Context, org, id uuid.UUID) error {
 	return r.queries.SetCarrierConnectionInboundNoAuth(ctx, sqlc.SetCarrierConnectionInboundNoAuthParams{
 		ID:             id,
-		OrganizationID: &org,
+		OrganizationID: org,
 	})
 }
 

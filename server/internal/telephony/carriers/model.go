@@ -52,7 +52,6 @@ type SourceIPRequest struct {
 type Response struct {
 	ID                     uuid.UUID `json:"id"`
 	OrganizationID         uuid.UUID `json:"organization_id"`
-	ProviderID             uuid.UUID `json:"provider_id"`
 	Name                   string    `json:"name"`
 	Status                 string    `json:"status"`
 	OutboundAuthMethod     string    `json:"outbound_auth_method"`

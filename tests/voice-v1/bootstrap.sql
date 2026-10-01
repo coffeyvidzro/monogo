@@ -16,7 +16,7 @@ VALUES (
     'voice-v1-acceptance',
     'Y6rtC8BR465xPLxeDGcWiQyGBL6zR5L9JcqWYj8naWE',
     'lm_org_v1smoke0',
-    '["audit:read","calls:read","calls:write","carriers:read","carriers:write","conferences:read","conferences:write","numbers:read","numbers:write","recordings:read","recordings:write","sip-domains:read","sip-domains:write","subscribers:read","subscribers:write","trunks:read","trunks:write","voice-applications:read","voice-applications:write","webhooks:read","webhooks:write"]'::jsonb
+    '["audit:read","calls:read","calls:write","carriers:read","carriers:write","numbers:read","numbers:write","recordings:read","recordings:write","sip-domains:read","sip-domains:write","subscribers:read","subscribers:write","trunks:read","trunks:write","voice-applications:read","voice-applications:write","webhooks:read","webhooks:write"]'::jsonb
 )
 ON CONFLICT (id) DO NOTHING;
 

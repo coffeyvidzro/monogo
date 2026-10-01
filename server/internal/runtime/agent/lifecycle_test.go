@@ -36,7 +36,7 @@ func TestLifecycleDuplicateChannelAnswerAttachesOnce(t *testing.T) {
 	call := sqlc.Call{
 		ID:             db.callID,
 		OrganizationID: db.organizationID,
-		ApplicationID:  &db.applicationID,
+		VoiceAgentID:   &db.agent.ID,
 	}
 	event := calling.LifecycleEvent{
 		CallID:     call.ID,
@@ -84,7 +84,7 @@ func TestLifecycleAudioForkFailureCleansUpAttachment(t *testing.T) {
 	call := sqlc.Call{
 		ID:             db.callID,
 		OrganizationID: db.organizationID,
-		ApplicationID:  &db.applicationID,
+		VoiceAgentID:   &db.agent.ID,
 	}
 	event := calling.LifecycleEvent{
 		CallID:     call.ID,
@@ -153,7 +153,6 @@ func newLifecycleRuntime(
 type lifecycleDB struct {
 	mu             sync.Mutex
 	organizationID uuid.UUID
-	applicationID  uuid.UUID
 	callID         uuid.UUID
 	agent          sqlc.VoiceAgent
 	sessionID      uuid.UUID
@@ -167,7 +166,6 @@ func newLifecycleDB() *lifecycleDB {
 	organizationID := uuid.New()
 	return &lifecycleDB{
 		organizationID: organizationID,
-		applicationID:  uuid.New(),
 		callID:         uuid.New(),
 		sessionID:      uuid.New(),
 		agent: sqlc.VoiceAgent{
@@ -202,7 +200,7 @@ func (db *lifecycleDB) QueryRow(_ context.Context, query string, args ...interfa
 			return lifecycleRow{err: pgx.ErrNoRows}
 		}
 		return lifecycleRow{values: voiceAgentSessionValues(*db.session)}
-	case strings.Contains(query, "-- name: GetVoiceAgentByApplicationID"):
+	case strings.Contains(query, "-- name: GetVoiceAgentByID"):
 		return lifecycleRow{values: voiceAgentValues(db.agent)}
 	case strings.Contains(query, "-- name: CreateVoiceAgentSession"):
 		db.creates++

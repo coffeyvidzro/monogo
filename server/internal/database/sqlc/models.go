@@ -124,32 +124,6 @@ type CarrierDigestCredential struct {
 	UpdatedAt           pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 }
 
-type Conference struct {
-	ID             uuid.UUID          `db:"id" json:"id"`
-	OrganizationID uuid.UUID          `db:"organization_id" json:"organization_id"`
-	Name           string             `db:"name" json:"name"`
-	State          string             `db:"state" json:"state"`
-	StartedAt      pgtype.Timestamptz `db:"started_at" json:"started_at"`
-	EndedAt        pgtype.Timestamptz `db:"ended_at" json:"ended_at"`
-	CreatedAt      pgtype.Timestamptz `db:"created_at" json:"created_at"`
-	UpdatedAt      pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
-}
-
-type ConferenceParticipant struct {
-	ID                uuid.UUID          `db:"id" json:"id"`
-	OrganizationID    uuid.UUID          `db:"organization_id" json:"organization_id"`
-	ConferenceID      uuid.UUID          `db:"conference_id" json:"conference_id"`
-	CallParticipantID *uuid.UUID         `db:"call_participant_id" json:"call_participant_id"`
-	State             string             `db:"state" json:"state"`
-	Muted             bool               `db:"muted" json:"muted"`
-	Deaf              bool               `db:"deaf" json:"deaf"`
-	Speaking          bool               `db:"speaking" json:"speaking"`
-	JoinedAt          pgtype.Timestamptz `db:"joined_at" json:"joined_at"`
-	LeftAt            pgtype.Timestamptz `db:"left_at" json:"left_at"`
-	CreatedAt         pgtype.Timestamptz `db:"created_at" json:"created_at"`
-	UpdatedAt         pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
-}
-
 type Idempotency struct {
 	Scope               string             `db:"scope" json:"scope"`
 	IdempotencyKey      string             `db:"idempotency_key" json:"idempotency_key"`

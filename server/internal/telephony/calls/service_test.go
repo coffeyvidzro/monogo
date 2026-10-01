@@ -29,19 +29,19 @@ func TestAdmissionFailureReason(t *testing.T) {
 
 func TestValidateExistingInbound(t *testing.T) {
 	organizationID := uuid.New()
-	applicationID := uuid.New()
+	voiceAgentID := uuid.New()
 	carrierID := uuid.New()
 
 	req := InboundAdmissionRequest{
 		OrganizationID:      organizationID,
-		ApplicationID:       applicationID,
+		VoiceAgentID:        voiceAgentID,
 		CarrierConnectionID: carrierID,
 		ToURI:               "+14155550100",
 	}
 
 	call := sqlc.Call{
 		OrganizationID:      organizationID,
-		ApplicationID:       &applicationID,
+		VoiceAgentID:        &voiceAgentID,
 		CarrierConnectionID: &carrierID,
 		Direction:           string(DirectionInbound),
 		State:               string(StateRinging),
@@ -60,20 +60,20 @@ func TestValidateExistingInbound(t *testing.T) {
 
 func TestValidateExistingInboundRejectsCarrierMismatch(t *testing.T) {
 	organizationID := uuid.New()
-	applicationID := uuid.New()
+	voiceAgentID := uuid.New()
 	carrierID := uuid.New()
 	otherCarrierID := uuid.New()
 
 	req := InboundAdmissionRequest{
 		OrganizationID:      organizationID,
-		ApplicationID:       applicationID,
+		VoiceAgentID:        voiceAgentID,
 		CarrierConnectionID: carrierID,
 		ToURI:               "+14155550100",
 	}
 
 	call := sqlc.Call{
 		OrganizationID:      organizationID,
-		ApplicationID:       &applicationID,
+		VoiceAgentID:        &voiceAgentID,
 		CarrierConnectionID: &otherCarrierID,
 		Direction:           string(DirectionInbound),
 		State:               string(StateRinging),

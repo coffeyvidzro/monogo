@@ -21,7 +21,6 @@ import (
 	"github.com/coffeyvidzro/monogo/internal/security/authn"
 	"github.com/coffeyvidzro/monogo/internal/security/encryption"
 	"github.com/coffeyvidzro/monogo/internal/telephony"
-	"github.com/coffeyvidzro/monogo/internal/telephony/conferences"
 	"github.com/coffeyvidzro/monogo/internal/telephony/recordings"
 	"github.com/coffeyvidzro/monogo/internal/telephony/webrtc"
 	"github.com/coffeyvidzro/monogo/internal/tenancy"
@@ -117,16 +116,15 @@ func newModules(ctx context.Context, cfg config.Config) (*modules, error) {
 
 	metricsRegistry := metrics.New(redisClient)
 	telephonyModule, err := telephony.New(telephony.Dependencies{
-		DB:                   postgresClient.Pool(),
-		Queries:              queries,
-		CallsController:      calling.NewController(freeSwitch),
-		CallsChannelStore:    calling.NewChannelStore(redisClient),
-		CallsAdmission:       calling.NewAdmissionLimiter(redisClient),
-		ConferenceController: conferences.NewFreeSWITCHController(freeSwitch),
-		CredentialCipher:     credentialCipher,
-		WebRTCService:        turnService,
-		RecordingStorage:     recordingStorage,
-		Metrics:              metricsRegistry,
+		DB:                postgresClient.Pool(),
+		Queries:           queries,
+		CallsController:   calling.NewController(freeSwitch),
+		CallsChannelStore: calling.NewChannelStore(redisClient),
+		CallsAdmission:    calling.NewAdmissionLimiter(redisClient),
+		CredentialCipher:  credentialCipher,
+		WebRTCService:     turnService,
+		RecordingStorage:  recordingStorage,
+		Metrics:           metricsRegistry,
 	})
 	if err != nil {
 		closeDependencies()

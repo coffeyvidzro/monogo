@@ -176,7 +176,7 @@ The telephony layer remains a first-class part of the product.
   configuration.
 - **Trunks and routing**: organization-owned call paths and endpoint health.
 - **Phone numbers**: customer-owned voice bindings.
-- **Calls, conferences, and recordings**: programmable voice primitives used by
+- **Calls and recordings**: programmable voice primitives used by
   the Agent Runtime.
 
 ## Control plane

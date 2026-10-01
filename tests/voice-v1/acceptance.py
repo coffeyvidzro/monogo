@@ -12,7 +12,6 @@ import time
 import urllib.error
 import urllib.request
 import uuid
-import xml.etree.ElementTree as ET
 
 API_BASE = os.getenv("VOICE_V1_API_BASE", "http://127.0.0.1:8080")
 TOKEN = os.getenv("VOICE_V1_TOKEN", "lm_org_v1smoke0_v1smoke0abcdefghijklmnopqrstuvwx")
@@ -610,49 +609,6 @@ def hangup_outbound():
     return f"outbound cleanup persisted {call['state']}"
 
 
-def conference():
-    name = "voice-v1-" + uuid.uuid4().hex[:8]
-    _, item = api(
-        "POST",
-        "/v1/conferences/",
-        {"application_id": STATE["application_id"], "name": name},
-        expected={201},
-    )
-    if item["state"] != "active":
-        raise AcceptanceError("conference API did not create active state")
-
-    fs_cli(
-        "freeswitch",
-        "bgapi originate "
-        f"{{origination_caller_id_number={CALLER}}}"
-        f"loopback/9196/leamout &conference({name}@default)",
-    )
-    wait_for(
-        "conference media room",
-        lambda: name if name in fs_cli("freeswitch", "conference list") else False,
-        timeout=15,
-    )
-
-    try:
-        api("POST", f"/v1/conferences/{item['id']}/lock", expected={200})
-        conference_xml = ET.fromstring(fs_cli("freeswitch", "conference xml_list"))
-        locked = next(
-            (
-                conference.get("locked")
-                for conference in conference_xml.iter("conference")
-                if conference.get("name") == name
-            ),
-            None,
-        )
-        if locked != "true":
-            raise AcceptanceError("conference lock is not observable in FreeSWITCH")
-        api("POST", f"/v1/conferences/{item['id']}/unlock", expected={200})
-        api("DELETE", f"/v1/conferences/{item['id']}", expected={200})
-    finally:
-        fs_cli("freeswitch", f"conference {name} kick all")
-
-    return "conference lifecycle and controls are observable in FreeSWITCH"
-
 
 def normalized_events():
     required = {
@@ -756,7 +712,7 @@ def print_summary():
     print("\nVoice v1 acceptance matrix")
     print("=" * 72)
     failed = 0
-    for number in range(1, 17):
+    for number in range(1, 16):
         status, name, detail = RESULTS.get(
             number,
             ("FAIL", "unexecuted acceptance item", "dependency prevented execution"),
@@ -779,8 +735,8 @@ def main():
     try:
         configure_webhook()
     except Exception as error:
-        RESULTS[14] = ("FAIL", "Receive webhooks", f"webhook setup failed: {error}")
-        print(f"FAIL 14 Receive webhooks: webhook setup failed: {error}")
+        RESULTS[13] = ("FAIL", "Receive webhooks", f"webhook setup failed: {error}")
+        print(f"FAIL 13 Receive webhooks: webhook setup failed: {error}")
 
     inbound_ok = record(4, "Receive an inbound call", inbound_call)
     if inbound_ok:
@@ -803,13 +759,12 @@ def main():
                     f"outbound hangup failed: {error}",
                 )
 
-    record(11, "Create/manage conferences", conference)
-    record(12, "Receive normalized call events", normalized_events)
-    record(13, "Query call state", query_call_state)
-    if RESULTS.get(14, ("PASS",))[0] != "FAIL":
-        record(14, "Receive webhooks", webhooks)
-    record(15, "Inspect call/media health", health)
-    record(16, "Restart components without corrupting state", restart_safety)
+    record(11, "Receive normalized call events", normalized_events)
+    record(12, "Query call state", query_call_state)
+    if RESULTS.get(13, ("PASS",))[0] != "FAIL":
+        record(13, "Receive webhooks", webhooks)
+    record(14, "Inspect call/media health", health)
+    record(15, "Restart components without corrupting state", restart_safety)
 
     failed = print_summary()
     if failed:
@@ -817,7 +772,7 @@ def main():
             f"\nVoice v1 acceptance FAILED: {failed} capability check(s) did not pass."
         )
         return 1
-    print("\nVoice v1 acceptance PASSED: all 16 capabilities are complete.")
+    print("\nVoice v1 acceptance PASSED: all 15 capabilities are complete.")
     return 0
 
 

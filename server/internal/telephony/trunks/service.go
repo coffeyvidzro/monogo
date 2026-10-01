@@ -60,7 +60,7 @@ func (s *Service) Create(ctx context.Context, organizationID uuid.UUID, req Crea
 	}
 	item, err := s.mutateTrunk(ctx, EventTrunkCreated, func(repo *Repository) (sqlc.Trunk, error) {
 		return repo.Create(ctx, sqlc.CreateTrunkParams{
-			OrganizationID:      &organizationID,
+			OrganizationID:      organizationID,
 			CarrierConnectionID: *req.CarrierConnectionID,
 			Name:                name,
 			Direction:           req.Direction,

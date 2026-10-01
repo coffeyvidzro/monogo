@@ -9,7 +9,6 @@ import (
 	"github.com/coffeyvidzro/monogo/internal/security/encryption"
 	"github.com/coffeyvidzro/monogo/internal/telephony/calls"
 	"github.com/coffeyvidzro/monogo/internal/telephony/carriers"
-	"github.com/coffeyvidzro/monogo/internal/telephony/conferences"
 	"github.com/coffeyvidzro/monogo/internal/telephony/numbers"
 	"github.com/coffeyvidzro/monogo/internal/telephony/recordings"
 	"github.com/coffeyvidzro/monogo/internal/telephony/routing"
@@ -20,22 +19,20 @@ import (
 )
 
 type Dependencies struct {
-	DB                   *pgxpool.Pool
-	Queries              *sqlc.Queries
-	CallsController      *calling.Controller
-	CallsChannelStore    *calling.ChannelStore
-	CallsAdmission       *calling.AdmissionLimiter
-	ConferenceController conferences.Controller
-	CredentialCipher     *encryption.Cipher
-	WebRTCService        *webrtc.Service
-	RecordingStorage     recordings.Storage
-	Metrics              *metrics.Registry
+	DB                *pgxpool.Pool
+	Queries           *sqlc.Queries
+	CallsController   *calling.Controller
+	CallsChannelStore *calling.ChannelStore
+	CallsAdmission    *calling.AdmissionLimiter
+	CredentialCipher  *encryption.Cipher
+	WebRTCService     *webrtc.Service
+	RecordingStorage  recordings.Storage
+	Metrics           *metrics.Registry
 }
 
 type Module struct {
 	Calls       CallsModule
 	Carriers    CarriersModule
-	Conferences ConferencesModule
 	Numbers     NumbersModule
 	WebRTC      WebRTCModule
 	Recordings  RecordingsModule
@@ -55,12 +52,6 @@ type CarriersModule struct {
 	Repository *carriers.Repository
 	Service    *carriers.Service
 	Handler    *carriers.Handler
-}
-
-type ConferencesModule struct {
-	Repository *conferences.Repository
-	Service    *conferences.Service
-	Handler    *conferences.Handler
 }
 
 type NumbersModule struct {
@@ -123,12 +114,6 @@ func New(deps Dependencies) (*Module, error) {
 	recordingsRepository := recordings.NewRepository(deps.DB)
 	recordingsService := recordings.NewService(recordingsRepository, deps.RecordingStorage)
 
-	conferencesRepository := conferences.NewRepository(deps.DB)
-	conferencesService := conferences.NewService(
-		conferencesRepository,
-		deps.ConferenceController,
-	)
-
 	subscribersRepository := subscribers.NewRepository(deps.Queries)
 	subscribersService := subscribers.NewService(subscribersRepository)
 
@@ -155,20 +140,10 @@ func New(deps Dependencies) (*Module, error) {
 			Repository: routingRepository,
 			Service:    routingService,
 		},
-		Voice: VoiceModule{
-			Repository: voiceRepository,
-			Service:    voiceService,
-			Handler:    voice.NewHandler(voiceService),
-		},
 		Recordings: RecordingsModule{
 			Repository: recordingsRepository,
 			Service:    recordingsService,
 			Handler:    recordings.NewHandler(recordingsService),
-		},
-		Conferences: ConferencesModule{
-			Repository: conferencesRepository,
-			Service:    conferencesService,
-			Handler:    conferences.NewHandler(conferencesService),
 		},
 		Subscribers: SubscribersModule{
 			Repository: subscribersRepository,
