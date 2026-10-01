@@ -360,7 +360,6 @@ media/
   engine/
   session/
   transport/
-  vad/
 
 runtime/
   calling/
