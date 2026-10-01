@@ -279,13 +279,32 @@ func (s *realtimeStream) handle(event ServerEvent) {
 		case s.audio <- frame:
 		case <-s.ctx.Done():
 		}
-	case "response.function_call_arguments.delta", "response.function_call_arguments.done":
+	case "response.function_call_arguments.delta":
+		// Tool argument deltas are provider framing. The normalized runtime
+		// contract only emits complete tool calls.
+	case "response.function_call_arguments.done":
+		arguments := event.Arguments
+		if arguments == "" {
+			arguments = event.Delta
+		}
+		if !json.Valid([]byte(arguments)) {
+			s.emitEvent(session.Event{
+				Type: session.EventError,
+				Failure: &session.FailureEvent{
+					Source: "openai", Code: "invalid_tool_arguments",
+					Message: "OpenAI Realtime returned invalid tool arguments", Terminal: false,
+				},
+				ProviderID: providerID,
+				OccurredAt: now,
+			})
+			break
+		}
 		s.emitEvent(session.Event{
 			Type: session.EventToolCall,
 			ToolCall: &session.ToolCallEvent{
 				ID: event.CallID,
 				Name: event.Name,
-				Arguments: json.RawMessage(event.Arguments + event.Delta),
+				Arguments: json.RawMessage(arguments),
 			},
 			ProviderID: providerID,
 			OccurredAt: now,
