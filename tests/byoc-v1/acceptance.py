@@ -144,18 +144,18 @@ def deploy():
 def assert_digest_runtime(secret_name, expected_ha1):
     connection_id = S["connection"]["id"]
     stored = psql(
-        f"SELECT auth_secret_ciphertext FROM carrier_connections WHERE id='{connection_id}'"
+        f"SELECT auth_secret_ciphertext FROM trunks WHERE id='{connection_id}'"
     )
     if not stored or secret_name in stored:
         raise Failure("credential was not encrypted")
     runtime = psql(
-        f"SELECT username||':'||realm||':'||ha1_md5 FROM carrier_digest_credentials WHERE carrier_connection_id='{connection_id}' AND direction='outbound'"
+        f"SELECT username||':'||realm||':'||ha1_md5 FROM trunk_digest_credentials WHERE trunk_id='{connection_id}' AND direction='outbound'"
     )
     expected = f"byoc-user:carrier.example:{expected_ha1}"
     if runtime != expected:
         raise Failure(f"realm-bound runtime HA1 mismatch: {runtime!r}")
     opensips_password = psql(
-        f"SELECT password FROM opensips_outbound_carrier_credentials WHERE carrier_connection_id='{connection_id}'"
+        f"SELECT password FROM opensips_outbound_trunk_credentials WHERE trunk_id='{connection_id}'"
     )
     if opensips_password != "0x" + expected_ha1:
         raise Failure("OpenSIPS outbound HA1 view was not updated")
@@ -164,9 +164,10 @@ def assert_digest_runtime(secret_name, expected_ha1):
 def connection_and_auth():
     item = api(
         "POST",
-        "/v1/carrier-connections/",
+        "/v1/trunks/",
         {
-            "name": "BYOC synthetic carrier",
+            "name": "BYOC synthetic trunk",
+            "direction": "bidirectional",
             "inbound_enabled": True,
         },
         (201,),
@@ -174,7 +175,7 @@ def connection_and_auth():
     S["connection"] = item
     api(
         "PUT",
-        f"/v1/carrier-connections/{item['id']}/outbound-auth",
+        f"/v1/trunks/{item['id']}/outbound-auth",
         {
             "method": "digest",
             "username": "byoc-user",
@@ -184,8 +185,8 @@ def connection_and_auth():
         (204,),
     )
     # PUT acknowledges credential storage with no response body. Verify the
-    # actual persisted carrier configuration via GET instead.
-    updated = api("GET", f"/v1/carrier-connections/{item['id']}")
+    # actual persisted trunk configuration via GET instead.
+    updated = api("GET", f"/v1/trunks/{item['id']}")
     if not updated["has_outbound_credentials"]:
         raise Failure("outbound credentials were not marked present")
     assert_digest_runtime("first-secret", "367072b7e49f70c083774e6dc9d06af8")
@@ -193,22 +194,8 @@ def connection_and_auth():
 
 
 def trunk():
-    item = api(
-        "POST",
-        "/v1/trunks/",
-        {
-            "type": "byoc",
-            "carrier_connection_id": S["connection"]["id"],
-            "name": "BYOC trunk",
-            "direction": "bidirectional",
-        },
-        (201,),
-    )
+    item = S["connection"]
     S["trunk"] = item
-    if item.get("type") != "byoc":
-        raise Failure("trunk was not created as BYOC")
-    if item.get("carrier_connection_id") != S["connection"]["id"]:
-        raise Failure("trunk was not created on the carrier connection")
     endpoint = api(
         "POST",
         f"/v1/trunks/{item['id']}/endpoints",
@@ -224,7 +211,6 @@ def trunk():
     S["endpoint"] = endpoint
     return f"trunk {item['id']} routes to endpoint {endpoint['id']}"
 
-
 def number_and_app():
     number = api(
         "POST",
@@ -232,7 +218,7 @@ def number_and_app():
         {
             "number": DID,
             "country_code": "US",
-            "carrier_connection_id": S["connection"]["id"],
+            "trunk_id": S["connection"]["id"],
             "voice_enabled": True,
         },
         (201,),
@@ -240,7 +226,7 @@ def number_and_app():
     S["number"] = number
     if number.get("type") != "byoc":
         raise Failure("DID was not created as BYOC")
-    if number.get("carrier_connection_id") != S["connection"]["id"]:
+    if number.get("trunk_id") != S["connection"]["id"]:
         raise Failure("DID ownership was not assigned at creation")
 
     caller = api(
@@ -249,7 +235,7 @@ def number_and_app():
         {
             "number": CALLER,
             "country_code": "US",
-            "carrier_connection_id": S["connection"]["id"],
+            "trunk_id": S["connection"]["id"],
             "voice_enabled": True,
         },
         (201,),
@@ -257,7 +243,7 @@ def number_and_app():
     S["caller_number"] = caller
     if caller.get("type") != "byoc":
         raise Failure("caller identity was not created as BYOC")
-    if caller.get("carrier_connection_id") != S["connection"]["id"]:
+    if caller.get("trunk_id") != S["connection"]["id"]:
         raise Failure("caller identity ownership was not assigned at creation")
 
     app = api(
@@ -279,7 +265,7 @@ def number_and_app():
 def reject_cross_org_did_ownership():
     foreign_connection = api(
         "POST",
-        "/v1/carrier-connections/",
+        "/v1/trunks/",
         {
             "name": "BYOC foreign tenant carrier",
             "inbound_enabled": True,
@@ -290,13 +276,13 @@ def reject_cross_org_did_ownership():
     api("GET", f"/v1/numbers/{S['number']['id']}", expected=(404,), token=TOKEN_B)
     api(
         "PATCH",
-        f"/v1/numbers/{S['number']['id']}/carrier-connection",
-        {"carrier_connection_id": foreign_connection["id"]},
+        f"/v1/numbers/{S['number']['id']}/trunk",
+        {"trunk_id": foreign_connection["id"]},
         (404,),
         TOKEN_B,
     )
     owned = api("GET", f"/v1/numbers/{S['number']['id']}")
-    if owned.get("carrier_connection_id") != S["connection"]["id"]:
+    if owned.get("trunk_id") != S["connection"]["id"]:
         raise Failure("cross-organization request changed DID ownership")
     return "tenant B cannot read or reassign tenant A DID ownership"
 
@@ -315,7 +301,6 @@ def outbound(label):
     )
     S[f"outbound_{label}"] = call
     expected = {
-        "carrier_connection_id": S["connection"]["id"],
         "trunk_id": S["trunk"]["id"],
         "trunk_endpoint_id": S["endpoint"]["id"],
     }
@@ -355,7 +340,7 @@ def rotate_and_authenticated_outbound():
         raise Failure("OpenSIPS container id is unavailable before rotation")
     api(
         "PUT",
-        f"/v1/carrier-connections/{S['connection']['id']}/outbound-auth",
+        f"/v1/trunks/{S['connection']['id']}/outbound-auth",
         {
             "method": "digest",
             "username": "byoc-user",
@@ -364,7 +349,7 @@ def rotate_and_authenticated_outbound():
         },
         (204,),
     )
-    updated = api("GET", f"/v1/carrier-connections/{S['connection']['id']}")
+    updated = api("GET", f"/v1/trunks/{S['connection']['id']}")
     if not updated["has_outbound_credentials"]:
         raise Failure("rotated outbound credentials were not marked present")
     assert_digest_runtime("rotated-secret", "9fcc44d55f26bac30b97201af8e5654d")
@@ -388,7 +373,7 @@ def rejected_before_allowlist():
 def add_source_and_inbound():
     source = api(
         "POST",
-        f"/v1/carrier-connections/{S['connection']['id']}/source-ips",
+        f"/v1/trunks/{S['connection']['id']}/source-ips",
         {"cidr": "172.30.0.50/32"},
         (201,),
     )
@@ -418,7 +403,7 @@ def add_source_and_inbound():
         fs(f"uuid_kill {carrier_uuid}")
         api(
             "DELETE",
-            f"/v1/carrier-connections/{S['connection']['id']}/source-ips/{source['id']}",
+            f"/v1/trunks/{S['connection']['id']}/source-ips/{source['id']}",
             expected=(204,),
         )
 
@@ -433,7 +418,7 @@ def add_source_and_inbound():
 def disable_rejects_routes():
     api(
         "PATCH",
-        f"/v1/carrier-connections/{S['connection']['id']}",
+        f"/v1/trunks/{S['connection']['id']}",
         {"status": "disabled"},
     )
     api(
@@ -442,7 +427,7 @@ def disable_rejects_routes():
         {"trunk_id": S["trunk"]["id"], "from_uri": CALLER, "to_uri": DID},
         (404,),
     )
-    return "disabled carrier connection excludes outbound routes"
+    return "disabled trunk excludes outbound routes"
 
 
 def restart_persistence():
@@ -452,10 +437,10 @@ def restart_persistence():
         lambda: urllib.request.urlopen(API + "/readyz", timeout=2).status == 200,
         45,
     )
-    item = api("GET", f"/v1/carrier-connections/{S['connection']['id']}")
+    item = api("GET", f"/v1/trunks/{S['connection']['id']}")
     if item["status"] != "disabled":
-        raise Failure("carrier state changed after restart")
-    return "carrier configuration survives OpenSIPS and API restart"
+        raise Failure("trunk state changed after restart")
+    return "trunk configuration survives OpenSIPS and API restart"
 
 
 def main():

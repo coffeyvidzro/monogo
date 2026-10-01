@@ -220,22 +220,21 @@ def rtpengine_media_sockets():
 
 
 def provision():
-    # Carrier-provider inventory is internal, seeded by migration 013.
-
-    connection = api(
+    trunk = api(
         "POST",
-        "/v1/carrier-connections/",
+        "/v1/trunks/",
         {
-            "name": "Graceful drain synthetic carrier",
+            "name": "Graceful drain synthetic trunk",
+            "direction": "bidirectional",
             "inbound_enabled": True,
         },
         (201,),
     )
-    STATE["connection"] = connection
+    STATE["trunk"] = trunk
 
     api(
         "POST",
-        f"/v1/carrier-connections/{connection['id']}/source-ips",
+        f"/v1/trunks/{trunk['id']}/source-ips",
         {"cidr": "172.30.0.50/32"},
         (201,),
     )
@@ -246,7 +245,7 @@ def provision():
         {
             "number": DID,
             "country_code": "US",
-            "carrier_connection_id": connection["id"],
+            "trunk_id": trunk["id"],
             "voice_enabled": True,
         },
         (201,),
@@ -254,8 +253,8 @@ def provision():
     STATE["number"] = number
     if number.get("type") != "byoc":
         raise Failure("test DID was not created as a BYOC number")
-    if number.get("carrier_connection_id") != connection["id"]:
-        raise Failure("test DID was not created on the carrier connection")
+    if number.get("trunk_id") != trunk["id"]:
+        raise Failure("test DID was not created on the SIP trunk")
 
     app = api(
         "POST",

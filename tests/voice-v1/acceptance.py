@@ -265,50 +265,24 @@ def deploy():
 
 
 def configure_provider():
-    # The platform's carrier-provider catalog is an internal fixture.
-    # Migration 013 seeds the generic SIP provider.
-    provider_id = psql(
-        "SELECT id::text FROM carrier_providers "
-        "WHERE slug='generic-sip' AND status='active'"
-    )
-    if not provider_id:
-        raise AcceptanceError("migration-seeded generic SIP provider is unavailable")
-
-    _, connection = api(
+    _, trunk = api(
         "POST",
-        "/v1/carrier-connections/",
+        "/v1/trunks/",
         {
-            "name": "voice-v1-carrier",
+            "name": "voice-v1-trunk",
+            "direction": "bidirectional",
             "inbound_enabled": True,
             "codecs": ["PCMU", "PCMA"],
         },
         expected={201},
     )
-    STATE["connection_id"] = connection["id"]
+    STATE["trunk_id"] = trunk["id"]
     api(
         "POST",
-        f"/v1/carrier-connections/{connection['id']}/source-ips",
+        f"/v1/trunks/{trunk['id']}/source-ips",
         {"cidr": "172.30.0.50/32"},
         expected={201},
     )
-
-    _, trunk = api(
-        "POST",
-        "/v1/trunks/",
-        {
-            "type": "byoc",
-            "carrier_connection_id": connection["id"],
-            "name": "voice-v1-trunk",
-            "direction": "bidirectional",
-        },
-        expected={201},
-    )
-    STATE["trunk_id"] = trunk["id"]
-    if trunk.get("type") != "byoc":
-        raise AcceptanceError("test trunk was not created as a BYOC trunk")
-    if trunk.get("carrier_connection_id") != connection["id"]:
-        raise AcceptanceError("test trunk was not created on the carrier connection")
-
     _, endpoint = api(
         "POST",
         f"/v1/trunks/{trunk['id']}/endpoints",
@@ -322,7 +296,7 @@ def configure_provider():
     )
     if endpoint["host"] != "voice-v1-carrier":
         raise AcceptanceError("trunk endpoint was not persisted")
-    return f"carrier {connection['id']} routes to the synthetic SIP peer"
+    return f"trunk {trunk['id']} routes to the synthetic SIP peer"
 
 
 def create_voice_application():
@@ -332,7 +306,7 @@ def create_voice_application():
         {
             "number": DID,
             "country_code": "US",
-            "carrier_connection_id": STATE["connection_id"],
+            "trunk_id": STATE["trunk_id"],
             "voice_enabled": True,
         },
         expected={201},
@@ -340,18 +314,18 @@ def create_voice_application():
     STATE["number_id"] = number["id"]
     if number.get("type") != "byoc":
         raise AcceptanceError("test DID was not created as a BYOC number")
-    if number.get("carrier_connection_id") != STATE["connection_id"]:
-        raise AcceptanceError("test DID was not created on the carrier connection")
+    if number.get("trunk_id") != STATE["trunk_id"]:
+        raise AcceptanceError("test DID was not created on the SIP trunk")
 
     # Current outbound routing requires the caller identity itself to be an
-    # owned, voice-enabled number on the same carrier connection as the trunk.
+    # owned, voice-enabled number on the same SIP trunk.
     _, caller_number = api(
         "POST",
         "/v1/numbers/",
         {
             "number": CALLER,
             "country_code": "US",
-            "carrier_connection_id": STATE["connection_id"],
+            "trunk_id": STATE["trunk_id"],
             "voice_enabled": True,
         },
         expected={201},
@@ -359,9 +333,9 @@ def create_voice_application():
     STATE["caller_number_id"] = caller_number["id"]
     if caller_number.get("type") != "byoc":
         raise AcceptanceError("caller identity was not created as a BYOC number")
-    if caller_number.get("carrier_connection_id") != STATE["connection_id"]:
+    if caller_number.get("trunk_id") != STATE["trunk_id"]:
         raise AcceptanceError(
-            "caller identity was not created on the carrier connection"
+            "caller identity was not created on the SIP trunk"
         )
 
     _, application = api(

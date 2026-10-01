@@ -134,35 +134,23 @@ def fake_openai_state():
 
 
 def setup_carrier():
-
-    connection = api(
-        "POST", "/v1/carrier-connections/",
+    trunk = api(
+        "POST", "/v1/trunks/",
         {
-            "name": "voice-agent-v1-carrier",
+            "name": "voice-agent-v1-trunk",
+            "direction": "bidirectional",
             "inbound_enabled": True,
             "codecs": ["PCMU", "PCMA"],
         },
         expected={201},
     )[1]
-    STATE["connection_id"] = connection["id"]
+    STATE["trunk_id"] = trunk["id"]
     api(
         "POST",
-        f"/v1/carrier-connections/{connection['id']}/source-ips",
+        f"/v1/trunks/{trunk['id']}/source-ips",
         {"cidr": "172.30.0.50/32"},
         expected={201},
     )
-
-    trunk = api(
-        "POST", "/v1/trunks/",
-        {
-            "type": "byoc",
-            "carrier_connection_id": connection["id"],
-            "name": "voice-agent-v1-trunk",
-            "direction": "bidirectional",
-        },
-        expected={201},
-    )[1]
-    STATE["trunk_id"] = trunk["id"]
     api(
         "POST",
         f"/v1/trunks/{trunk['id']}/endpoints",
@@ -182,7 +170,7 @@ def setup_voice_application():
         {
             "number": DID,
             "country_code": "US",
-            "carrier_connection_id": STATE["connection_id"],
+            "trunk_id": STATE["trunk_id"],
             "voice_enabled": True,
         },
         expected={201},
@@ -192,7 +180,7 @@ def setup_voice_application():
         {
             "number": CALLER,
             "country_code": "US",
-            "carrier_connection_id": STATE["connection_id"],
+            "trunk_id": STATE["trunk_id"],
             "voice_enabled": True,
         },
         expected={201},
@@ -688,7 +676,7 @@ def hangup_and_verify_completion():
 
 def main():
     setup_carrier()
-    print("PASS 01 carrier and BYOC trunk configured")
+    print("PASS 01 SIP trunk configured")
     setup_voice_application()
     print("PASS 02 voice application and numbers configured")
     setup_voice_agent()
