@@ -71,7 +71,7 @@ func (s *Service) Create(ctx context.Context, org uuid.UUID, req CreateRequest) 
 	transactionRepo := s.repo.WithTx(tx)
 	row, err := transactionRepo.Create(ctx, sqlc.CreateCarrierConnectionParams{
 		ID:                      id,
-		OrganizationID:          &org,
+		OrganizationID:          org,
 		Name:                    req.Name,
 		Status:                  req.Status,
 		OutboundAuthMethod:      &outMethod,
@@ -401,13 +401,9 @@ func writeError(err error, message string) error {
 }
 
 func responseFromRow(r sqlc.CarrierConnection) Response {
-	org := uuid.Nil
-	if r.OrganizationID != nil {
-		org = *r.OrganizationID
-	}
 	return Response{
 		ID:                     r.ID,
-		OrganizationID:         org,
+		OrganizationID:         r.OrganizationID,
 		Name:                   r.Name,
 		Status:                 r.Status,
 		OutboundAuthMethod:     r.OutboundAuthMethod,
@@ -428,13 +424,9 @@ func responseFromRow(r sqlc.CarrierConnection) Response {
 }
 
 func responseFromGet(r sqlc.GetCarrierConnectionByIDRow) Response {
-	org := uuid.Nil
-	if r.OrganizationID != nil {
-		org = *r.OrganizationID
-	}
 	return Response{
 		ID:                     r.ID,
-		OrganizationID:         org,
+		OrganizationID:         r.OrganizationID,
 		Name:                   r.Name,
 		Status:                 r.Status,
 		OutboundAuthMethod:     r.OutboundAuthMethod,
@@ -459,7 +451,7 @@ func responseFromGet(r sqlc.GetCarrierConnectionByIDRow) Response {
 func responseFromList(r sqlc.ListCarrierConnectionsByOrganizationIDRow) Response {
 	return Response{
 		ID:                     r.ID,
-		OrganizationID:         *r.OrganizationID,
+		OrganizationID:         r.OrganizationID,
 		Name:                   r.Name,
 		Status:                 r.Status,
 		OutboundAuthMethod:     r.OutboundAuthMethod,
