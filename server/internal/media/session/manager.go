@@ -354,6 +354,10 @@ func pump(parent, sessionCtx context.Context, connection Connection, stream Stre
 					return io.EOF
 				}
 				switch event.Type {
+				case EventError:
+					if event.Failure != nil && event.Failure.Terminal {
+						return fmt.Errorf("terminal media provider failure: %s", event.Failure.Message)
+					}
 				case EventResponseStarted:
 					suppressPlayback.Store(false)
 					playbackActive.Store(true)
