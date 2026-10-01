@@ -19,15 +19,7 @@ func (r *Runtime) createMediaSession(
 
 	node, err := r.mediaNodes.Place(ctx, cfg.ID)
 	if err != nil {
-		if r.logger != nil {
-			r.logger.Warn(
-				ctx,
-				"media node placement unavailable; using static fallback",
-				"voice_agent_session_id", cfg.ID,
-				"error", err,
-			)
-		}
-		return r.media.CreateSession(ctx, cfg)
+		return mediaSessionEndpoints{}, fmt.Errorf("place media session: %w", err)
 	}
 
 	endpoints, err := r.media.CreateSessionAt(ctx, node.ControlURL, cfg)
