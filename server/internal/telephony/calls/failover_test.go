@@ -191,7 +191,6 @@ func testRoutes(count int) []routing.OutboundRoute {
 	for index := range routes {
 		routes[index] = routing.OutboundRoute{
 			TrunkID:         uuid.New(),
-			TrunkID:         uuid.New(),
 			TrunkEndpointID: uuid.New(),
 		}
 	}
