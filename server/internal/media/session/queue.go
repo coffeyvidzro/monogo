@@ -19,15 +19,17 @@ type RuntimeLimits struct {
 	MaxFrameDuration     time.Duration
 	InputQueueDuration   time.Duration
 	OutputQueueDuration  time.Duration
+	ProviderStartTimeout time.Duration
 	ProviderWriteTimeout time.Duration
 	PlaybackWriteTimeout time.Duration
 }
 
 func DefaultRuntimeLimits() RuntimeLimits {
 	return RuntimeLimits{
-		MaxFrameDuration:     100 * time.Millisecond,
+		MaxFrameDuration:     200 * time.Millisecond,
 		InputQueueDuration:   400 * time.Millisecond,
 		OutputQueueDuration:  800 * time.Millisecond,
+		ProviderStartTimeout: 10 * time.Second,
 		ProviderWriteTimeout: 2 * time.Second,
 		PlaybackWriteTimeout: 2 * time.Second,
 	}
@@ -37,6 +39,7 @@ func (l RuntimeLimits) validate() error {
 	if l.MaxFrameDuration <= 0 ||
 		l.InputQueueDuration <= 0 ||
 		l.OutputQueueDuration <= 0 ||
+		l.ProviderStartTimeout <= 0 ||
 		l.ProviderWriteTimeout <= 0 ||
 		l.PlaybackWriteTimeout <= 0 {
 		return errors.New("media runtime limits must be positive")
