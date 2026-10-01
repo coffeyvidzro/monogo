@@ -6,7 +6,6 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/coffeyvidzro/monogo/internal/telephony/calls"
-	"github.com/coffeyvidzro/monogo/internal/telephony/carriers"
 	"github.com/coffeyvidzro/monogo/internal/telephony/numbers"
 	"github.com/coffeyvidzro/monogo/internal/telephony/recordings"
 	"github.com/coffeyvidzro/monogo/internal/telephony/trunks"
@@ -32,8 +31,6 @@ func RegisterRoutes(
 		organizationAccess("numbers"),
 		idempotency,
 	)
-
-	carriers.RegisterRoutes(router, module.Carriers.Handler, organizationAccess("carriers"))
 
 	recordings.RegisterRoutes(
 		router,

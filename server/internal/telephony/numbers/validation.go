@@ -38,8 +38,8 @@ func normalizeCreate(req *CreateRequest) error {
 		req.CountryCode[1] < 'A' || req.CountryCode[1] > 'Z' {
 		return apperror.NewBadRequest("country_code must be a two-letter ISO country code")
 	}
-	if req.CarrierConnectionID != nil && *req.CarrierConnectionID == uuid.Nil {
-		return apperror.NewBadRequest("carrier_connection_id must be a valid UUID")
+	if req.TrunkID != nil && *req.TrunkID == uuid.Nil {
+		return apperror.NewBadRequest("trunk_id must be a valid UUID")
 	}
 	return nil
 }

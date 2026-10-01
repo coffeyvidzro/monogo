@@ -7,7 +7,6 @@ func TestValidateScopesAcceptsAPIResourceScopes(t *testing.T) {
 		"calls:read",
 		"calls:write",
 		"numbers:read",
-		"carriers:write",
 		"webhooks:read",
 		"voice-agents:read",
 		"voice-agents:write",
@@ -27,12 +26,22 @@ func TestValidateScopesRejectsUnknownAndDuplicateScopes(t *testing.T) {
 		scopes []string
 	}{
 		{name: "unknown", scopes: []string{"everything:write"}},
-		{name: "credential self-management", scopes: []string{"credentials:write"}},
-		{name: "duplicate", scopes: []string{"calls:read", "calls:read"}},
+		{
+			name:   "credential self-management",
+			scopes: []string{"credentials:write"},
+		},
+		{
+			name:   "duplicate",
+			scopes: []string{"calls:read", "calls:read"},
+		},
+		{
+			name:   "removed carrier scope",
+			scopes: []string{"carriers:read"},
+		},
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if err := ValidateScopes(tt.scopes); err == nil {
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if err := ValidateScopes(test.scopes); err == nil {
 				t.Fatal("expected invalid scopes to be rejected")
 			}
 		})
