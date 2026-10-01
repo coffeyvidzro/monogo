@@ -40,11 +40,11 @@ func TestFreeSWITCHEgressRejectsUnsafeHost(t *testing.T) {
 
 func TestEgressVariablesCarryLeamoutIdentity(t *testing.T) {
 	callID := uuid.New()
-	carrierID := uuid.New()
+	trunkID := uuid.New()
 
 	variables, err := egressVariables(OriginateRequest{
 		CallID:              callID,
-		CarrierConnectionID: carrierID,
+		TrunkID: trunkID,
 		Privacy:             true,
 		DTMFMode:            "rfc2833",
 		MediaEncryption:     "sdes_srtp",
@@ -57,8 +57,8 @@ func TestEgressVariablesCarryLeamoutIdentity(t *testing.T) {
 	if variables[leamoutCallIDVar] != callID.String() {
 		t.Fatalf("call id variable = %q", variables[leamoutCallIDVar])
 	}
-	if variables[carrierConnectionHeaderVar] != carrierID.String() {
-		t.Fatalf("carrier id variable = %q", variables[carrierConnectionHeaderVar])
+	if variables[trunkHeaderVar] != trunkID.String() {
+		t.Fatalf("trunk id variable = %q", variables[trunkHeaderVar])
 	}
 	if !strings.Contains(variables[routeURIHeaderVar], "carrier.example.com") {
 		t.Fatalf("route URI variable = %q", variables[routeURIHeaderVar])
@@ -75,7 +75,7 @@ func TestEgressVariablesRejectNegativeMaximumDuration(t *testing.T) {
 	_, err := egressVariables(
 		OriginateRequest{
 			CallID:              uuid.New(),
-			CarrierConnectionID: uuid.New(),
+			TrunkID: uuid.New(),
 			MaxDurationSeconds:  -1,
 		},
 		"sip:carrier.example.com:5061;transport=tls",

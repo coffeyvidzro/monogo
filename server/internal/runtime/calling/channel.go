@@ -15,8 +15,8 @@ import (
 
 var (
 	ErrChannelUnavailable  = errors.New("active call channel unavailable")
-	ErrAdmissionCPS        = errors.New("carrier CPS limit exceeded")
-	ErrAdmissionConcurrent = errors.New("carrier concurrent call limit exceeded")
+	ErrAdmissionCPS        = errors.New("trunk CPS limit exceeded")
+	ErrAdmissionConcurrent = errors.New("trunk concurrent call limit exceeded")
 )
 
 const callAdmissionLeaseTTL = 26 * time.Hour
@@ -80,20 +80,20 @@ func NewAdmissionLimiter(client *redisintegration.Client) *AdmissionLimiter {
 
 func (l *AdmissionLimiter) Acquire(
 	ctx context.Context,
-	carrierConnectionID uuid.UUID,
+	trunkID uuid.UUID,
 	leaseID string,
 	limits routing.Limits,
 ) error {
-	if carrierConnectionID == uuid.Nil || leaseID == "" {
-		return fmt.Errorf("carrier connection id and lease id are required")
+	if trunkID == uuid.Nil || leaseID == "" {
+		return fmt.Errorf("trunk id and lease id are required")
 	}
 	if limits.MaxCPS < 1 || limits.MaxConcurrentCalls < 1 {
-		return fmt.Errorf("carrier admission limits must be positive")
+		return fmt.Errorf("trunk admission limits must be positive")
 	}
 
 	allowed, reason, err := l.client.AcquireCallLease(
 		ctx,
-		admissionPrefix(carrierConnectionID),
+		admissionPrefix(trunkID),
 		leaseID,
 		int64(limits.MaxCPS),
 		int64(limits.MaxConcurrentCalls),
@@ -112,22 +112,22 @@ func (l *AdmissionLimiter) Acquire(
 	case "concurrent":
 		return ErrAdmissionConcurrent
 	default:
-		return fmt.Errorf("carrier admission rejected: %s", reason)
+		return fmt.Errorf("trunk admission rejected: %s", reason)
 	}
 }
 
 func (l *AdmissionLimiter) Bind(
 	ctx context.Context,
-	carrierConnectionID uuid.UUID,
+	trunkID uuid.UUID,
 	leaseID string,
 	callID uuid.UUID,
 ) error {
-	if carrierConnectionID == uuid.Nil || leaseID == "" || callID == uuid.Nil {
-		return fmt.Errorf("carrier connection id, lease id, and call id are required")
+	if trunkID == uuid.Nil || leaseID == "" || callID == uuid.Nil {
+		return fmt.Errorf("trunk id, lease id, and call id are required")
 	}
 	return l.client.BindCallLease(
 		ctx,
-		admissionPrefix(carrierConnectionID),
+		admissionPrefix(trunkID),
 		leaseID,
 		callID.String(),
 	)
@@ -135,29 +135,29 @@ func (l *AdmissionLimiter) Bind(
 
 func (l *AdmissionLimiter) Release(
 	ctx context.Context,
-	carrierConnectionID uuid.UUID,
+	trunkID uuid.UUID,
 	callOrLeaseID string,
 ) error {
-	if carrierConnectionID == uuid.Nil || callOrLeaseID == "" {
-		return fmt.Errorf("carrier connection id and call or lease id are required")
+	if trunkID == uuid.Nil || callOrLeaseID == "" {
+		return fmt.Errorf("trunk id and call or lease id are required")
 	}
 	return l.client.ReleaseCallLease(
 		ctx,
-		admissionPrefix(carrierConnectionID),
+		admissionPrefix(trunkID),
 		callOrLeaseID,
 	)
 }
 
 func (l *AdmissionLimiter) Refresh(
 	ctx context.Context,
-	carrierConnectionID, callID uuid.UUID,
+	trunkID, callID uuid.UUID,
 ) error {
-	if carrierConnectionID == uuid.Nil || callID == uuid.Nil {
-		return fmt.Errorf("carrier connection id and call id are required")
+	if trunkID == uuid.Nil || callID == uuid.Nil {
+		return fmt.Errorf("trunk id and call id are required")
 	}
 	return l.client.RefreshCallLease(
 		ctx,
-		admissionPrefix(carrierConnectionID),
+		admissionPrefix(trunkID),
 		callID.String(),
 		callAdmissionLeaseTTL,
 	)
@@ -167,6 +167,6 @@ func channelKey(callID uuid.UUID) string {
 	return "telecom:calls:channel:" + callID.String()
 }
 
-func admissionPrefix(carrierConnectionID uuid.UUID) string {
-	return "telecom:admission:carrier:" + carrierConnectionID.String()
+func admissionPrefix(trunkID uuid.UUID) string {
+	return "telecom:admission:trunk:" + trunkID.String()
 }
