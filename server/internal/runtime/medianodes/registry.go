@@ -15,8 +15,10 @@ import (
 )
 
 const (
-	nodePrefix    = "runtime:media:nodes:"
-	ownerPrefix   = "runtime:media:sessions:"
+	nodePrefix     = "runtime:media:node:"
+	drainingPrefix = "runtime:media:draining:"
+	leasesPrefix   = "runtime:media:leases:"
+	ownerPrefix    = "runtime:media:session:"
 	heartbeatTTL  = 15 * time.Second
 	leaseTTL      = 45 * time.Second
 )
@@ -204,11 +206,11 @@ func nodeKey(nodeID string) string {
 }
 
 func drainingKey(nodeID string) string {
-	return nodePrefix + nodeID + ":draining"
+	return drainingPrefix + nodeID
 }
 
 func leasesKey(nodeID string) string {
-	return nodePrefix + nodeID + ":leases"
+	return leasesPrefix + nodeID
 }
 
 func ownerKey(sessionID uuid.UUID) string {
