@@ -19,8 +19,8 @@ const (
 	drainingPrefix = "runtime:media:draining:"
 	leasesPrefix   = "runtime:media:leases:"
 	ownerPrefix    = "runtime:media:session:"
-	heartbeatTTL  = 15 * time.Second
-	leaseTTL      = 45 * time.Second
+	heartbeatTTL   = 15 * time.Second
+	leaseTTL       = 45 * time.Second
 )
 
 type Node struct {

@@ -23,7 +23,7 @@ type Runtime struct {
 	controls     map[uuid.UUID]*mediaControl
 	states       map[uuid.UUID]*conversationState
 	callSessions map[uuid.UUID]uuid.UUID
-	sessionNodes  map[uuid.UUID]medianodes.Node
+	sessionNodes map[uuid.UUID]medianodes.Node
 }
 
 func New(

@@ -355,7 +355,6 @@ func (m *Manager) SessionIDs() []uuid.UUID {
 	return ids
 }
 
-
 // Config returns the immutable configuration of a live session. It is used by
 // the control endpoint to make repeated create requests idempotent.
 func (m *Manager) Config(id uuid.UUID) (Config, bool) {
