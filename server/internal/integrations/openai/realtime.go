@@ -254,6 +254,28 @@ func (s *realtimeStream) handle(event ServerEvent) {
 	case "response.created":
 		s.emitEvent(session.Event{Type: session.EventResponseStarted, ProviderID: providerID, OccurredAt: now})
 	case "response.done":
+		if event.Response != nil && len(event.Response.Usage) != 0 {
+			var usage struct {
+				InputTokens  int `json:"input_tokens"`
+				OutputTokens int `json:"output_tokens"`
+				TotalTokens  int `json:"total_tokens"`
+			}
+			if json.Unmarshal(event.Response.Usage, &usage) == nil {
+				if usage.TotalTokens == 0 {
+					usage.TotalTokens = usage.InputTokens + usage.OutputTokens
+				}
+				s.emitEvent(session.Event{
+					Type: session.EventUsage,
+					Usage: &session.UsageEvent{
+						InputTokens: usage.InputTokens,
+						OutputTokens: usage.OutputTokens,
+						TotalTokens: usage.TotalTokens,
+					},
+					ProviderID: providerID,
+					OccurredAt: now,
+				})
+			}
+		}
 		s.emitEvent(session.Event{
 			Type:            session.EventResponseStopped,
 			ProviderID:      providerID,
@@ -317,7 +339,7 @@ func (s *realtimeStream) handle(event ServerEvent) {
 					Source: "openai",
 					Code: event.Error.Code,
 					Message: event.Error.Message,
-					Terminal: true,
+					Terminal: false,
 				},
 				ProviderID: providerID,
 				OccurredAt: now,
