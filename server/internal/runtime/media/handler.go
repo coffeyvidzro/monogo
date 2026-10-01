@@ -9,12 +9,11 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/coder/websocket"
-	"strings"
-	"sync/atomic"
-
 	"github.com/coffeyvidzro/monogo/internal/media/session"
 	"github.com/coffeyvidzro/monogo/internal/media/transport"
 	"github.com/google/uuid"
