@@ -221,15 +221,15 @@ type FailureEvent struct {
 // Event is a provider-neutral session event. ProviderPayload is reserved for
 // diagnostics and must never be required for runtime behavior.
 type Event struct {
-	Type            EventType
-	Transcript      *TranscriptEvent
-	Response        *ResponseEvent
-	ToolCall        *ToolCallEvent
-	Usage           *UsageEvent
-	Failure         *FailureEvent
-	ProviderID      string
-	ProviderPayload []byte
-	OccurredAt      time.Time
+	Type            EventType        `json:"type"`
+	Transcript      *TranscriptEvent `json:"transcript,omitempty"`
+	Response        *ResponseEvent   `json:"response,omitempty"`
+	ToolCall        *ToolCallEvent   `json:"tool_call,omitempty"`
+	Usage           *UsageEvent      `json:"usage,omitempty"`
+	Failure         *FailureEvent    `json:"failure,omitempty"`
+	ProviderID      string           `json:"provider_id,omitempty"`
+	ProviderPayload []byte           `json:"-"`
+	OccurredAt      time.Time        `json:"occurred_at"`
 }
 
 // Stream is one live provider session. Implementations must make Close
