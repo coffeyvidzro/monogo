@@ -58,7 +58,7 @@ Responsibilities:
 - SIP ingress and egress;
 - authentication and routing;
 - call establishment and teardown;
-- answer, bridge, transfer, hold, playback, DTMF, recording, and conferences;
+- answer, bridge, transfer, hold, playback, DTMF, and recording;
 - codec and media negotiation;
 - RTP anchoring and media policy;
 - WebRTC connectivity when required.
