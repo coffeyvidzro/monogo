@@ -438,11 +438,6 @@ func (s *lifecycleMediaServer) createCount() int {
 	return s.creates
 }
 
-func (s *lifecycleMediaServer) deleteCount() int {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.deletes
-}
 
 func (s *lifecycleMediaServer) stopCount() int {
 	s.mu.Lock()
