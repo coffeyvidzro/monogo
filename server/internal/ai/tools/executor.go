@@ -73,6 +73,31 @@ func NewExecutor(service *Service, callServices ...*calls.Service) *Executor {
 	}
 }
 
+func (e *Executor) List(
+	ctx context.Context,
+	organizationID, voiceAgentID uuid.UUID,
+) ([]sqlc.VoiceAgentTool, error) {
+	return e.service.List(ctx, organizationID, voiceAgentID)
+}
+
+func (e *Executor) ResolveByName(
+	ctx context.Context,
+	organizationID, voiceAgentID uuid.UUID,
+	name string,
+) (sqlc.VoiceAgentTool, error) {
+	items, err := e.service.List(ctx, organizationID, voiceAgentID)
+	if err != nil {
+		return sqlc.VoiceAgentTool{}, err
+	}
+	name = strings.TrimSpace(name)
+	for _, tool := range items {
+		if tool.Enabled && tool.Name == name {
+			return tool, nil
+		}
+	}
+	return sqlc.VoiceAgentTool{}, apperror.NewNotFound("enabled voice agent tool not found")
+}
+
 func (e *Executor) Execute(ctx context.Context, req ExecuteRequest) (ExecuteResult, error) {
 	if ctx == nil {
 		return ExecuteResult{}, apperror.NewBadRequest("tool execution context is required")

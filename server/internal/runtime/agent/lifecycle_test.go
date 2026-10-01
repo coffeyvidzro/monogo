@@ -103,6 +103,10 @@ func TestLifecycleAudioForkFailureCleansUpAttachment(t *testing.T) {
 	if got := media.createCount(); got != 1 {
 		t.Fatalf("media session creates = %d, want 1", got)
 	}
+	deadline := time.Now().Add(time.Second)
+	for media.stopCount() != 1 && time.Now().Before(deadline) {
+		time.Sleep(time.Millisecond)
+	}
 	if got := media.stopCount(); got != 1 {
 		t.Fatalf("media session stops = %d, want 1", got)
 	}
@@ -188,9 +192,25 @@ func (db *lifecycleDB) Exec(context.Context, string, ...interface{}) (pgconn.Com
 	return pgconn.CommandTag{}, errors.New("unexpected lifecycle test Exec")
 }
 
-func (db *lifecycleDB) Query(context.Context, string, ...interface{}) (pgx.Rows, error) {
+func (db *lifecycleDB) Query(_ context.Context, query string, _ ...interface{}) (pgx.Rows, error) {
+	if strings.Contains(query, "-- name: ListVoiceAgentToolsByAgentID") {
+		return emptyLifecycleRows{}, nil
+	}
 	return nil, errors.New("unexpected lifecycle test Query")
 }
+
+type emptyLifecycleRows struct{}
+
+func (emptyLifecycleRows) Close()                                       {}
+func (emptyLifecycleRows) Err() error                                   { return nil }
+func (emptyLifecycleRows) CommandTag() pgconn.CommandTag                { return pgconn.CommandTag{} }
+func (emptyLifecycleRows) FieldDescriptions() []pgconn.FieldDescription { return nil }
+func (emptyLifecycleRows) Next() bool                                   { return false }
+func (emptyLifecycleRows) Scan(...interface{}) error                    { return pgx.ErrNoRows }
+func (emptyLifecycleRows) Values() ([]interface{}, error)               { return nil, nil }
+func (emptyLifecycleRows) RawValues() [][]byte                          { return nil }
+func (emptyLifecycleRows) Conn() *pgx.Conn                              { return nil }
+func (emptyLifecycleRows) TypeMap() *pgtype.Map                         { return pgtype.NewMap() }
 
 func (db *lifecycleDB) QueryRow(_ context.Context, query string, args ...interface{}) pgx.Row {
 	db.mu.Lock()
@@ -416,12 +436,6 @@ func (s *lifecycleMediaServer) createCount() int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.creates
-}
-
-func (s *lifecycleMediaServer) deleteCount() int {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.deletes
 }
 
 func (s *lifecycleMediaServer) stopCount() int {

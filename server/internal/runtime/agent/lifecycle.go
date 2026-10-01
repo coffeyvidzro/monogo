@@ -84,6 +84,16 @@ func (r *Runtime) attach(ctx context.Context, call sqlc.Call, channelID string) 
 		InputFormat:    profile.InputFormat,
 		OutputFormat:   profile.OutputFormat,
 	})
+	toolDefinitions, err := r.orchestrator.ToolDefinitions(
+		ctx,
+		call.OrganizationID,
+		*call.VoiceAgentID,
+	)
+	if err != nil {
+		_ = r.failSession(ctx, call, time.Now().UTC())
+		return fmt.Errorf("resolve Voice Agent tools: %w", err)
+	}
+	cfg.Tools = toolDefinitions
 
 	endpoints, err := r.media.CreateSession(ctx, cfg)
 	if err != nil {

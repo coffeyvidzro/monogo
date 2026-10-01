@@ -205,6 +205,8 @@ func (c *ControlAttachment) Command(ctx context.Context, command Command) error 
 		return c.session.interrupt(ctx)
 	case CommandStop:
 		return c.manager.Stop(ctx, c.id)
+	case CommandToolResult:
+		return c.session.submitToolResult(ctx, *command.ToolResult)
 	default:
 		return fmt.Errorf("unsupported media command %q", command.Type)
 	}
@@ -378,6 +380,17 @@ func (s *managedSession) finishResources(attached bool) {
 			s.markComplete()
 		}
 	})
+}
+
+func (s *managedSession) submitToolResult(ctx context.Context, result ToolResult) error {
+	s.mu.Lock()
+	if s.finished || s.stream == nil {
+		s.mu.Unlock()
+		return ErrSessionNotFound
+	}
+	stream := s.stream
+	s.mu.Unlock()
+	return stream.SubmitToolResult(ctx, result)
 }
 
 func (s *managedSession) interrupt(ctx context.Context) error {

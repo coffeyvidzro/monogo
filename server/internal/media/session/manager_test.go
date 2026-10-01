@@ -119,6 +119,7 @@ type fakeStream struct {
 	interrupted   chan struct{}
 	interruptOnce sync.Once
 	closeOnce     sync.Once
+	toolResults   chan session.ToolResult
 }
 
 func newFakeStream() *fakeStream {
@@ -126,12 +127,17 @@ func newFakeStream() *fakeStream {
 		audio:       make(chan session.AudioFrame, 1),
 		events:      make(chan session.Event, 4),
 		interrupted: make(chan struct{}),
+		toolResults: make(chan session.ToolResult, 1),
 	}
 }
 
 func (s *fakeStream) SendAudio(context.Context, session.AudioFrame) error { return nil }
 func (s *fakeStream) Interrupt(context.Context) error {
 	s.interruptOnce.Do(func() { close(s.interrupted) })
+	return nil
+}
+func (s *fakeStream) SubmitToolResult(_ context.Context, result session.ToolResult) error {
+	s.toolResults <- result
 	return nil
 }
 func (s *fakeStream) Audio() <-chan session.AudioFrame { return s.audio }
@@ -294,5 +300,44 @@ func TestManagerReturnsTerminalProviderFailure(t *testing.T) {
 		}
 	case <-time.After(time.Second):
 		t.Fatal("Attach() did not stop after terminal provider failure")
+	}
+}
+
+func TestControlAttachmentForwardsToolResult(t *testing.T) {
+	format := session.AudioFormat{SampleRateHz: 24000, Channels: 1}
+	cfg := session.Config{
+		ID: uuid.New(), OrganizationID: uuid.New(), CallID: uuid.New(), ChannelID: uuid.New(),
+		Engine: session.EngineIntegrated, InputFormat: format, OutputFormat: format,
+	}
+	stream := newFakeStream()
+	manager, err := session.NewManager(1, time.Minute, map[session.Engine]session.Starter{
+		session.EngineIntegrated: fakeStarter{stream: stream},
+	})
+	if err != nil {
+		t.Fatalf("NewManager() error = %v", err)
+	}
+	if err := manager.Start(context.Background(), cfg); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	control, err := manager.AttachControl(cfg.ID)
+	if err != nil {
+		t.Fatalf("AttachControl() error = %v", err)
+	}
+	defer control.Close()
+
+	want := session.ToolResult{ToolCallID: "call-1", Name: "lookup", Content: `{"ok":true}`}
+	if err := control.Command(context.Background(), session.Command{
+		Type:       session.CommandToolResult,
+		ToolResult: &want,
+	}); err != nil {
+		t.Fatalf("Command() error = %v", err)
+	}
+	select {
+	case got := <-stream.toolResults:
+		if got.ToolCallID != want.ToolCallID || got.Name != want.Name || got.Content != want.Content {
+			t.Fatalf("tool result = %+v", got)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for tool result")
 	}
 }

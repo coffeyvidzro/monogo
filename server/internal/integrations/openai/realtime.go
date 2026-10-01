@@ -150,6 +150,27 @@ func (s *realtimeStream) Interrupt(ctx context.Context) error {
 	})
 }
 
+func (s *realtimeStream) SubmitToolResult(ctx context.Context, result session.ToolResult) error {
+	if strings.TrimSpace(result.ToolCallID) == "" {
+		return fmt.Errorf("OpenAI Realtime tool_call_id is required")
+	}
+	if err := s.writeJSON(ctx, ClientEvent{
+		Type:    "conversation.item.create",
+		EventID: uuid.NewString(),
+		Item: &ConversationItem{
+			Type:   "function_call_output",
+			CallID: result.ToolCallID,
+			Output: result.Content,
+		},
+	}); err != nil {
+		return err
+	}
+	return s.writeJSON(ctx, ClientEvent{
+		Type:    "response.create",
+		EventID: uuid.NewString(),
+	})
+}
+
 func (s *realtimeStream) Audio() <-chan session.AudioFrame {
 	return s.audio
 }

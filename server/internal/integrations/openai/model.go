@@ -25,11 +25,18 @@ type Tool struct {
 }
 
 type ClientEvent struct {
-	Type       string         `json:"type"`
-	EventID    string         `json:"event_id,omitempty"`
-	Session    *SessionUpdate `json:"session,omitempty"`
-	Audio      string         `json:"audio,omitempty"`
-	ResponseID string         `json:"response_id,omitempty"`
+	Type       string            `json:"type"`
+	EventID    string            `json:"event_id,omitempty"`
+	Session    *SessionUpdate    `json:"session,omitempty"`
+	Audio      string            `json:"audio,omitempty"`
+	ResponseID string            `json:"response_id,omitempty"`
+	Item       *ConversationItem `json:"item,omitempty"`
+}
+
+type ConversationItem struct {
+	Type   string `json:"type"`
+	CallID string `json:"call_id,omitempty"`
+	Output string `json:"output,omitempty"`
 }
 
 type SessionUpdate struct {

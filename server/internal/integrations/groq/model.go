@@ -21,8 +21,21 @@ type Config struct {
 }
 
 type Message struct {
-	Role    string `json:"role"`
-	Content string `json:"content"`
+	Role       string            `json:"role"`
+	Content    string            `json:"content,omitempty"`
+	ToolCalls  []MessageToolCall `json:"tool_calls,omitempty"`
+	ToolCallID string            `json:"tool_call_id,omitempty"`
+}
+
+type MessageToolCall struct {
+	ID       string              `json:"id"`
+	Type     string              `json:"type"`
+	Function MessageFunctionCall `json:"function"`
+}
+
+type MessageFunctionCall struct {
+	Name      string `json:"name"`
+	Arguments string `json:"arguments"`
 }
 
 type Tool struct {

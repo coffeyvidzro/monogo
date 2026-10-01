@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/coder/websocket"
+	"github.com/coffeyvidzro/monogo/internal/ai/tools"
 	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
 	"github.com/coffeyvidzro/monogo/internal/media/session"
 	"github.com/google/uuid"
@@ -19,6 +20,7 @@ type mediaControl struct {
 	events     chan session.Event
 	cancel     context.CancelFunc
 	closeOnce  sync.Once
+	writeMu    sync.Mutex
 }
 
 func (c *mediaClient) OpenControl(ctx context.Context, rawURL string) (*mediaControl, error) {
@@ -65,6 +67,8 @@ func (c *mediaControl) Send(ctx context.Context, command session.Command) error 
 	if err != nil {
 		return fmt.Errorf("marshal media command: %w", err)
 	}
+	c.writeMu.Lock()
+	defer c.writeMu.Unlock()
 	if err := c.connection.Write(ctx, websocket.MessageText, payload); err != nil {
 		return fmt.Errorf("send media command: %w", err)
 	}
@@ -101,7 +105,6 @@ func (c *mediaControl) readLoop(ctx context.Context) {
 		}
 	}
 }
-
 
 func (r *Runtime) registerControl(
 	ctx context.Context,
@@ -148,6 +151,10 @@ func (r *Runtime) observeControl(call sqlc.Call, sessionID uuid.UUID, control *m
 				"provider_id", event.ProviderID,
 			)
 		}
+		if event.Type == session.EventToolCall && event.ToolCall != nil {
+			go r.executeRealtimeTool(call, sessionID, control, *event.ToolCall)
+			continue
+		}
 		if event.Type == session.EventError &&
 			event.Failure != nil &&
 			event.Failure.Terminal {
@@ -177,4 +184,66 @@ func (r *Runtime) stopMediaSession(ctx context.Context, id uuid.UUID) error {
 		}
 	}
 	return r.media.StopSession(ctx, id)
+}
+
+func (r *Runtime) executeRealtimeTool(
+	call sqlc.Call,
+	sessionID uuid.UUID,
+	control *mediaControl,
+	toolCall session.ToolCallEvent,
+) {
+	if call.VoiceAgentID == nil {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 35*time.Second)
+	defer cancel()
+
+	result := session.ToolResult{
+		ToolCallID: toolCall.ID,
+		Name:       toolCall.Name,
+	}
+	tool, err := r.orchestrator.ResolveToolByName(
+		ctx,
+		call.OrganizationID,
+		*call.VoiceAgentID,
+		toolCall.Name,
+	)
+	if err == nil {
+		var execution tools.ExecuteResult
+		execution, err = r.orchestrator.ExecuteTool(ctx, tools.ExecuteRequest{
+			OrganizationID: call.OrganizationID,
+			VoiceAgentID:   *call.VoiceAgentID,
+			SessionID:      sessionID,
+			CallID:         call.ID,
+			ToolID:         tool.ID,
+			ToolCallID:     toolCall.ID,
+			Arguments:      toolCall.Arguments,
+		})
+		if err == nil {
+			result.Name = execution.Name
+			result.Content = string(execution.Body)
+		}
+	}
+	if err != nil {
+		result.IsError = true
+		result.Content = err.Error()
+	}
+	if result.Content == "" {
+		result.Content = "{}"
+	}
+
+	if sendErr := control.Send(ctx, session.Command{
+		Type:       session.CommandToolResult,
+		ToolResult: &result,
+	}); sendErr != nil && r.logger != nil {
+		r.logger.Error(
+			context.Background(),
+			"send Voice Agent tool result",
+			"call_id", call.ID,
+			"voice_agent_session_id", sessionID,
+			"tool_call_id", toolCall.ID,
+			"tool_name", toolCall.Name,
+			"error", sendErr,
+		)
+	}
 }

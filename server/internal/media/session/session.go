@@ -103,17 +103,32 @@ func (f AudioFrame) Validate() error {
 
 // Config is the immutable configuration resolved before a media session starts.
 type Config struct {
-	ID             uuid.UUID       `json:"id"`
-	OrganizationID uuid.UUID       `json:"organization_id"`
-	CallID         uuid.UUID       `json:"call_id"`
-	ChannelID      uuid.UUID       `json:"channel_id"`
-	Engine         Engine          `json:"engine"`
-	InputFormat    AudioFormat     `json:"input_format"`
-	OutputFormat   AudioFormat     `json:"output_format"`
-	Language       string          `json:"language,omitempty"`
-	Instructions   string          `json:"instructions,omitempty"`
-	Voice          string          `json:"voice,omitempty"`
-	EngineConfig   json.RawMessage `json:"engine_config,omitempty"`
+	ID             uuid.UUID        `json:"id"`
+	OrganizationID uuid.UUID        `json:"organization_id"`
+	CallID         uuid.UUID        `json:"call_id"`
+	ChannelID      uuid.UUID        `json:"channel_id"`
+	Engine         Engine           `json:"engine"`
+	InputFormat    AudioFormat      `json:"input_format"`
+	OutputFormat   AudioFormat      `json:"output_format"`
+	Language       string           `json:"language,omitempty"`
+	Instructions   string           `json:"instructions,omitempty"`
+	Voice          string           `json:"voice,omitempty"`
+	EngineConfig   json.RawMessage  `json:"engine_config,omitempty"`
+	Tools          []ToolDefinition `json:"tools,omitempty"`
+}
+
+type ToolDefinition struct {
+	ID          uuid.UUID       `json:"id"`
+	Name        string          `json:"name"`
+	Description string          `json:"description,omitempty"`
+	Parameters  json.RawMessage `json:"parameters"`
+}
+
+type ToolResult struct {
+	ToolCallID string `json:"tool_call_id"`
+	Name       string `json:"name,omitempty"`
+	Content    string `json:"content"`
+	IsError    bool   `json:"is_error,omitempty"`
 }
 
 // Validate checks identity, media, and immutable configuration invariants.
@@ -157,6 +172,20 @@ func (c Config) Validate() error {
 			return fmt.Errorf("engine config must be a JSON object")
 		}
 	}
+	names := make(map[string]struct{}, len(c.Tools))
+	for _, tool := range c.Tools {
+		if tool.ID == uuid.Nil || tool.Name == "" {
+			return fmt.Errorf("media tool id and name are required")
+		}
+		if _, exists := names[tool.Name]; exists {
+			return fmt.Errorf("duplicate media tool name %q", tool.Name)
+		}
+		names[tool.Name] = struct{}{}
+		var parameters map[string]json.RawMessage
+		if err := json.Unmarshal(tool.Parameters, &parameters); err != nil || parameters == nil {
+			return fmt.Errorf("media tool %q parameters must be a JSON object", tool.Name)
+		}
+	}
 	return nil
 }
 
@@ -172,7 +201,8 @@ func (c Config) Equal(other Config) bool {
 		c.Language == other.Language &&
 		c.Instructions == other.Instructions &&
 		c.Voice == other.Voice &&
-		bytes.Equal(c.EngineConfig, other.EngineConfig)
+		bytes.Equal(c.EngineConfig, other.EngineConfig) &&
+		toolDefinitionsEqual(c.Tools, other.Tools)
 }
 
 // EventType identifies normalized output from any realtime engine.
@@ -232,23 +262,35 @@ type Event struct {
 	OccurredAt      time.Time        `json:"occurred_at"`
 }
 
-
 type CommandType string
 
 const (
-	CommandInterrupt CommandType = "response.interrupt"
-	CommandStop      CommandType = "session.stop"
+	CommandInterrupt  CommandType = "response.interrupt"
+	CommandStop       CommandType = "session.stop"
+	CommandToolResult CommandType = "tool.result"
 )
 
 // Command is a provider-neutral control instruction sent by Agent Runtime to
 // one live Media Runtime session.
 type Command struct {
-	Type CommandType `json:"type"`
+	Type       CommandType `json:"type"`
+	ToolResult *ToolResult `json:"tool_result,omitempty"`
 }
 
 func (c Command) Validate() error {
 	switch c.Type {
 	case CommandInterrupt, CommandStop:
+		if c.ToolResult != nil {
+			return fmt.Errorf("media command %q does not accept a tool result", c.Type)
+		}
+		return nil
+	case CommandToolResult:
+		if c.ToolResult == nil {
+			return fmt.Errorf("tool_result is required")
+		}
+		if c.ToolResult.ToolCallID == "" {
+			return fmt.Errorf("tool_call_id is required")
+		}
 		return nil
 	default:
 		return fmt.Errorf("unsupported media command %q", c.Type)
@@ -260,6 +302,7 @@ func (c Command) Validate() error {
 type Stream interface {
 	SendAudio(context.Context, AudioFrame) error
 	Interrupt(context.Context) error
+	SubmitToolResult(context.Context, ToolResult) error
 	Audio() <-chan AudioFrame
 	Events() <-chan Event
 	Close(context.Context) error
@@ -268,4 +311,19 @@ type Stream interface {
 // Starter creates a live stream for a validated session configuration.
 type Starter interface {
 	Start(context.Context, Config) (Stream, error)
+}
+
+func toolDefinitionsEqual(left, right []ToolDefinition) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for i := range left {
+		if left[i].ID != right[i].ID ||
+			left[i].Name != right[i].Name ||
+			left[i].Description != right[i].Description ||
+			!bytes.Equal(left[i].Parameters, right[i].Parameters) {
+			return false
+		}
+	}
+	return true
 }
