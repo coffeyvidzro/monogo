@@ -1,85 +1,126 @@
 # Monogo
 
-**Leamout is the carrier-grade runtime and control plane for autonomous voice agents.**
+**Leamout is a carrier-grade runtime and control plane for autonomous voice agents. It connects customer-owned telephony infrastructure to realtime AI agents while providing call control, media orchestration, model orchestration, tool execution, interruption handling, routing, observability, and enterprise deployment infrastructure.**
 
-Monogo is the core runtime implementation behind Leamout. It connects
-customer-owned SIP carriers, trunks, phone numbers, PBXs, and WebRTC endpoints
-to realtime autonomous voice agents.
+Monogo is the core runtime implementation behind Leamout.
 
-Leamout owns call control, media orchestration, agent execution, routing,
-observability, and platform operations. Customers keep their carrier
-relationships and pay their carriers directly.
+Leamout sits between customer-owned telephony infrastructure and realtime AI
+systems. It owns the runtime required to establish, control, process, and
+observe autonomous voice calls while customers keep their carrier relationships,
+phone numbers, trunks, PBXs, and carrier billing.
 
-Leamout is not a general-purpose CPaaS or telecom reseller.
+Leamout is not a general-purpose CPaaS, telecom reseller, or managed carrier.
 
-## Product model
+## Architecture
+
+Leamout is organized around three explicit runtime boundaries:
 
 ```text
-                       Leamout / Monogo
+                              Leamout
 
-                    Agent Control Plane
-                            |
-                    Realtime Agent Runtime
-                            |
-                     Telephony Runtime
-                            |
-              +-------------+-------------+
-              |             |             |
-           SIP trunk       PBX          WebRTC
-              |             |             |
-              +-------------+-------------+
-                            |
-                    customer-owned
-                       connectivity
++------------------------------------------------------------------+
+|                         CONTROL PLANE                            |
+|                                                                  |
+|  Auth  Tenancy  Agents  Routing  Credentials  API  Webhooks      |
+|  Observability  Runtime registration  Deployment configuration   |
++-------------------------------+----------------------------------+
+                                |
+                                | configuration and control
+                                v
++------------------------------------------------------------------+
+|                         AGENT RUNTIME                            |
+|                                                                  |
+|  Agent sessions  Turn control  Barge-in  Model orchestration     |
+|  Tool execution  Conversation state  Human handoff               |
++-------------------------------+----------------------------------+
+                                |
+                                | realtime audio
+                                v
++------------------------------------------------------------------+
+|                       TELEPHONY RUNTIME                          |
+|                                                                  |
+|  OpenSIPS        FreeSWITCH        RTPengine        Coturn        |
+|  SIP edge        Call execution    Media boundary   WebRTC TURN   |
++-------------------------------+----------------------------------+
+                                |
+                                v
+                       customer-owned
+                         connectivity
+
+                 SIP carrier · PBX · SBC · WebRTC
 ```
 
-The core product boundary is:
+The control plane configures the runtime but does not sit in the live audio hot
+path. The Agent Runtime owns per-call conversational execution. The Telephony
+Runtime owns SIP signaling, call control, and media integration.
+
+See [docs/architecture.md](docs/architecture.md) for the canonical system
+architecture and [docs/media-plane.md](docs/media-plane.md) for realtime media
+contracts and runtime status.
+
+## Product boundary
+
+Leamout provides:
 
 - carrier-grade SIP and media infrastructure;
 - programmable call control;
-- realtime AI voice sessions;
+- realtime autonomous voice-agent sessions;
 - turn detection and interruption handling;
-- STT, LLM, and TTS provider orchestration;
-- enterprise tool execution and handoff;
+- composable STT, LLM, and TTS orchestration;
+- integrated realtime model support;
+- enterprise tool execution;
+- routing and human handoff;
 - recordings, events, webhooks, and observability;
-- self-hosted and cloud deployment.
+- self-hosted, private-cloud, and cloud deployment infrastructure.
 
-Customers bring their own carrier connectivity. Leamout does not buy or resell
-carrier minutes, phone numbers, SMS, or WhatsApp capacity.
+Leamout does not buy or resell carrier minutes, phone numbers, SMS, WhatsApp
+capacity, or managed carrier services.
 
 ## BYOC only
 
 Carrier connectivity is organization-owned.
 
-A customer can connect an existing SIP carrier, trunk, PBX, or SBC and continue
-using the carrier account and phone numbers they already control.
-
-Leamout provides the control plane around that connectivity:
+A customer connects an existing SIP carrier, trunk, PBX, SBC, or supported
+WebRTC endpoint and continues using the carrier account and phone numbers they
+already control.
 
 ```text
-Customer carrier / PBX
-         |
-         v
-      OpenSIPS
-         |
-   RTPengine / FreeSWITCH
-         |
-         v
-   Leamout Agent Runtime
-         |
-   +-----+------+------+
-   |            |      |
-  STT          LLM    TTS
+Customer carrier / PBX / SBC
+             |
+             v
+          OpenSIPS
+             |
+             v
+        FreeSWITCH
+             |
+      RTPengine media
+             |
+             v
+   Leamout Media Runtime
+             |
+             v
+    Leamout Agent Runtime
 ```
 
-Carrier providers are descriptive catalog metadata only. Monogo does not ship
-provider-owned DIDWW, CommPeak, SMPP, WhatsApp, or other carrier-specific
-commerce adapters.
+Carrier providers are connectivity metadata and configuration targets, not
+Leamout commerce integrations.
 
-## AI voice runtime
+## Agent runtime
 
-Live audio stays on the realtime media path. Audio frames are not published
-through NATS or persisted to PostgreSQL.
+The Agent Runtime owns the state and execution of a live autonomous voice
+session:
+
+- conversation and turn state;
+- interruption and barge-in handling;
+- streaming model orchestration;
+- tool-call authorization and execution;
+- playback cancellation;
+- human handoff;
+- runtime events and diagnostics.
+
+Latency-sensitive session state stays local to the active runtime whenever
+possible. Redis is used for distributed coordination where cross-process state
+is actually required.
 
 The media runtime supports two engine models:
 
@@ -87,21 +128,50 @@ The media runtime supports two engine models:
 - **Integrated**: an end-to-end realtime voice model.
 
 Current provider integrations include Deepgram, Groq, Cartesia, and OpenAI
-Realtime. Provider integrations translate external protocols into the
-provider-neutral media session model rather than defining the product
+Realtime. Provider packages adapt external protocols into Leamout's
+provider-neutral media contracts; providers do not define the product
 architecture.
 
-See [docs/media-plane.md](docs/media-plane.md) for the media contracts,
-transport model, and runtime status.
+## Media path
+
+Live audio stays on the realtime media path.
+
+Audio frames are not published through NATS JetStream and are not persisted to
+PostgreSQL.
+
+```text
+Caller RTP
+    |
+    v
+RTPengine
+    |
+    v
+FreeSWITCH
+    |
+    | bidirectional audio stream
+    v
+Go Media Runtime
+    |
+    v
+Agent Runtime
+    |
+    +--> composable STT -> LLM -> TTS
+    |
+    +--> integrated realtime model
+```
+
+Immediate actions such as interruption, playback cancellation, and turn
+transitions occur inside the runtime. Durable events can be emitted
+asynchronously after the runtime has acted.
 
 ## Telephony runtime
 
 The telephony layer remains a first-class part of the product.
 
-- **OpenSIPS**: SIP edge, authentication, and routing.
-- **FreeSWITCH**: call application and media control runtime.
+- **OpenSIPS**: SIP edge, authentication, routing, and policy enforcement.
+- **FreeSWITCH**: B2BUA, call application, and media-control runtime.
 - **RTPengine**: RTP anchoring and media boundary.
-- **Coturn**: TURN services for WebRTC.
+- **Coturn**: STUN/TURN services when WebRTC connectivity requires them.
 - **Carrier connections**: customer-owned SIP authentication and source-IP
   configuration.
 - **Trunks and routing**: organization-owned call paths and endpoint health.
@@ -109,53 +179,98 @@ The telephony layer remains a first-class part of the product.
 - **Calls, conferences, and recordings**: programmable voice primitives used by
   the Agent Runtime.
 
+## Control plane
+
+The control plane owns durable configuration and management:
+
+- organizations and identities;
+- agents and agent configuration;
+- telephony connections and routing;
+- model and tool credentials;
+- API and authorization;
+- runtime registration and deployment configuration;
+- events, webhooks, diagnostics, and observability.
+
+Its infrastructure includes:
+
+- **PostgreSQL** for durable product and control-plane state;
+- **Redis** for admission, coordination, ephemeral distributed state, and rate
+  limiting;
+- **NATS JetStream** for durable asynchronous events and background work.
+
+NATS is not part of the live audio path.
+
+## Tool execution
+
+Models do not receive unrestricted database or infrastructure access.
+
+Agent tool calls flow through Leamout's tool runtime, which is responsible for
+authorization, schema validation, timeouts, cancellation, auditing, and
+execution against approved customer systems.
+
+```text
+Model
+  |
+  v
+Tool request
+  |
+  v
+Leamout Tool Runtime
+  |
+  +-- authorize
+  +-- validate
+  +-- execute
+  +-- audit
+  |
+  v
+Customer API / CRM / service
+```
+
 ## Commercial boundary
 
-Billing and payment processing are intentionally not part of the current
-runtime. The repository is focused on telephony, realtime media, and autonomous
-voice-agent infrastructure while the commercial model is redesigned separately.
+Billing and payment processing are intentionally outside the current runtime
+architecture while the commercial model is redesigned separately.
 
 Customer carrier spend remains outside Leamout.
-
 
 ## Services
 
 - `server`: HTTP control plane and public API.
-- `worker`: asynchronous jobs, event consumers, reconciliation, and SIP
-  endpoint health checks.
-- `media`: low-latency realtime audio and AI provider orchestration.
+- `worker`: asynchronous jobs, event consumers, and background coordination.
+- `media`: low-latency realtime audio and AI-provider orchestration.
 - `opensips`: public SIP edge and routing.
 - `freeswitch`: call application and media runtime.
 - `rtpengine`: RTP/media boundary.
-- PostgreSQL: durable product and control-plane state.
-- Redis: realtime coordination, admission state, and ephemeral state.
-- NATS JetStream: durable asynchronous events. It is not part of the live audio
-  path.
+- `coturn`: WebRTC STUN/TURN when required.
+
+The Go codebase remains modular. Product modules should not become independent
+network services unless scaling, isolation, or deployment requirements justify
+that boundary.
 
 ## Repository direction
 
 Current engineering work is focused on turning the existing telephony platform
-into a unified Agent Runtime:
+into a unified autonomous voice-agent runtime:
 
 ```text
-telephony core
-     |
-     v
+telephony runtime
+      |
+      v
 realtime media
-     |
-     v
+      |
+      v
 agent sessions
-     |
-     +-- turn control
-     +-- barge-in
-     +-- model orchestration
-     +-- tool execution
-     +-- human handoff
-     +-- observability
+      |
+      +-- turn control
+      +-- barge-in
+      +-- model orchestration
+      +-- tool execution
+      +-- human handoff
+      +-- observability
 ```
 
-General-purpose messaging, managed carrier commerce, and telecom resale are
-outside the current product boundary.
+General-purpose messaging, managed carrier commerce, telecom resale, telecom
+wallet charging, and payment adapters are outside the current product boundary.
 
 ## Validation
 
