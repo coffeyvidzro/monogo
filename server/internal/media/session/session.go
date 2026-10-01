@@ -232,6 +232,29 @@ type Event struct {
 	OccurredAt      time.Time        `json:"occurred_at"`
 }
 
+
+type CommandType string
+
+const (
+	CommandInterrupt CommandType = "response.interrupt"
+	CommandStop      CommandType = "session.stop"
+)
+
+// Command is a provider-neutral control instruction sent by Agent Runtime to
+// one live Media Runtime session.
+type Command struct {
+	Type CommandType `json:"type"`
+}
+
+func (c Command) Validate() error {
+	switch c.Type {
+	case CommandInterrupt, CommandStop:
+		return nil
+	default:
+		return fmt.Errorf("unsupported media command %q", c.Type)
+	}
+}
+
 // Stream is one live provider session. Implementations must make Close
 // idempotent and close Events when the stream has terminated.
 type Stream interface {

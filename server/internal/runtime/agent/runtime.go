@@ -2,6 +2,9 @@ package agent
 
 import (
 	"fmt"
+	"sync"
+
+	"github.com/google/uuid"
 
 	"github.com/coffeyvidzro/monogo/internal/ai/orchestration"
 	"github.com/coffeyvidzro/monogo/internal/integrations/freeswitch"
@@ -13,6 +16,9 @@ type Runtime struct {
 	media        *mediaClient
 	freeSwitch   *freeswitch.Client
 	logger       *logging.Logger
+
+	mu       sync.Mutex
+	controls map[uuid.UUID]*mediaControl
 }
 
 func New(
@@ -40,5 +46,6 @@ func New(
 		media:        media,
 		freeSwitch:   freeSwitch,
 		logger:       logger,
+		controls:     make(map[uuid.UUID]*mediaControl),
 	}, nil
 }
