@@ -36,7 +36,7 @@ func TestLifecycleDuplicateChannelAnswerAttachesOnce(t *testing.T) {
 	call := sqlc.Call{
 		ID:             db.callID,
 		OrganizationID: db.organizationID,
-		VoiceAgentID:    &db.agent.ID,
+		VoiceAgentID:   &db.agent.ID,
 	}
 	event := calling.LifecycleEvent{
 		CallID:     call.ID,
@@ -84,7 +84,7 @@ func TestLifecycleAudioForkFailureCleansUpAttachment(t *testing.T) {
 	call := sqlc.Call{
 		ID:             db.callID,
 		OrganizationID: db.organizationID,
-		VoiceAgentID:    &db.agent.ID,
+		VoiceAgentID:   &db.agent.ID,
 	}
 	event := calling.LifecycleEvent{
 		CallID:     call.ID,

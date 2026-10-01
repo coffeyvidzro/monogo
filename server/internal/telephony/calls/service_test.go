@@ -34,14 +34,14 @@ func TestValidateExistingInbound(t *testing.T) {
 
 	req := InboundAdmissionRequest{
 		OrganizationID:      organizationID,
-		VoiceAgentID:       voiceAgentID,
+		VoiceAgentID:        voiceAgentID,
 		CarrierConnectionID: carrierID,
 		ToURI:               "+14155550100",
 	}
 
 	call := sqlc.Call{
 		OrganizationID:      organizationID,
-		VoiceAgentID:       &voiceAgentID,
+		VoiceAgentID:        &voiceAgentID,
 		CarrierConnectionID: &carrierID,
 		Direction:           string(DirectionInbound),
 		State:               string(StateRinging),
@@ -66,14 +66,14 @@ func TestValidateExistingInboundRejectsCarrierMismatch(t *testing.T) {
 
 	req := InboundAdmissionRequest{
 		OrganizationID:      organizationID,
-		VoiceAgentID:       voiceAgentID,
+		VoiceAgentID:        voiceAgentID,
 		CarrierConnectionID: carrierID,
 		ToURI:               "+14155550100",
 	}
 
 	call := sqlc.Call{
 		OrganizationID:      organizationID,
-		VoiceAgentID:       &voiceAgentID,
+		VoiceAgentID:        &voiceAgentID,
 		CarrierConnectionID: &otherCarrierID,
 		Direction:           string(DirectionInbound),
 		State:               string(StateRinging),
