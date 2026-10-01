@@ -268,17 +268,22 @@ def setup_voice_agent():
     if rotated == first_secret or len(rotated) < 32:
         raise AcceptanceError("webhook signing secret rotation did not produce a new secret")
 
-    api(
+    builtin = api(
         "POST",
         f"/v1/voice-agents/{agent['id']}/tools/",
         {
             "type": "builtin",
-            "name": "hangup_call",
-            "description": "Hang up the current call.",
-            "parameters": {"type": "object", "properties": {}},
+            "name": "send_dtmf",
+            "description": "Send DTMF digits on the current call.",
+            "parameters": {
+                "type": "object",
+                "properties": {"digits": {"type": "string"}},
+                "required": ["digits"],
+            },
         },
         expected={201},
-    )
+    )[1]
+    STATE["tool_id"] = builtin["id"]
 
 
 def originate_call():
@@ -368,6 +373,12 @@ def verify_provider_session():
     audio = session.get("audio") or {}
     if (audio.get("input") or {}).get("format", {}).get("rate") != 24000:
         raise AcceptanceError("provider input format is not 24 kHz PCM")
+    tools = session.get("tools") or []
+    names = {tool.get("name") for tool in tools}
+    if "send_dtmf" not in names:
+        raise AcceptanceError(
+            f"provider tool definitions missing send_dtmf: {sorted(names)}"
+        )
 
 
 def verify_snapshot_immutability():
@@ -470,10 +481,21 @@ def verify_audio_roundtrip():
 
         if (
             provider.get("audio_appends", 0) > 0
-            and provider.get("responses", 0) > 0
+            and provider.get("tool_calls", 0) == 1
+            and provider.get("tool_results", 0) == 1
+            and provider.get("responses", 0) >= 2
             and fork.get("sent_bytes", 0) > 0
             and fork.get("playback_bytes_played", 0) > 0
         ):
+            tool_result = provider.get("last_tool_result") or {}
+            if tool_result.get("call_id") != "tool-call-1":
+                raise AcceptanceError(
+                    f"provider tool result call_id = {tool_result.get('call_id')!r}"
+                )
+            if json.loads(tool_result.get("output") or "{}") != {"ok": True}:
+                raise AcceptanceError(
+                    f"provider tool result output = {tool_result.get('output')!r}"
+                )
             return
         time.sleep(0.25)
 
@@ -484,6 +506,48 @@ def verify_audio_roundtrip():
         f"provider={json.dumps(provider, sort_keys=True)} "
         f"audio_fork={json.dumps(fork, sort_keys=True)}"
     )
+
+def verify_durable_realtime_history():
+    def tool_execution():
+        row = psql(
+            "SELECT state || '|' || tool_call_id || '|' || "
+            "COALESCE(response_status::text, '') || '|' || "
+            "convert_from(response_body, 'UTF8') "
+            "FROM voice_agent_tool_executions "
+            f"WHERE session_id='{STATE['session_id']}' "
+            "ORDER BY created_at ASC LIMIT 1"
+        )
+        return row if row else False
+
+    execution = wait_for("durable Voice Agent tool execution", tool_execution)
+    state, tool_call_id, status, body = execution.split("|", 3)
+    if state != "succeeded" or tool_call_id != "tool-call-1":
+        raise AcceptanceError(f"unexpected tool execution: {execution}")
+    if status != "200" or json.loads(body) != {"ok": True}:
+        raise AcceptanceError(f"unexpected tool result: {execution}")
+
+    def turns():
+        raw = psql(
+            "SELECT sequence::text || '|' || role || '|' || content || '|' || "
+            "COALESCE(tool_name, '') || '|' || COALESCE(tool_call_id, '') "
+            "FROM voice_agent_turns "
+            f"WHERE session_id='{STATE['session_id']}' "
+            "ORDER BY sequence ASC"
+        )
+        rows = [line for line in raw.splitlines() if line]
+        return rows if len(rows) >= 3 else False
+
+    rows = wait_for("durable Voice Agent conversation turns", turns)
+    parsed = [row.split("|", 4) for row in rows]
+    if [item[0] for item in parsed[:3]] != ["1", "2", "3"]:
+        raise AcceptanceError(f"turn sequence is not monotonic: {rows}")
+    if parsed[0][1] != "user" or parsed[0][2] != "Please send digit five.":
+        raise AcceptanceError(f"unexpected user turn: {parsed[0]}")
+    if parsed[1][1] != "tool" or parsed[1][3] != "send_dtmf" or parsed[1][4] != "tool-call-1":
+        raise AcceptanceError(f"unexpected tool turn: {parsed[1]}")
+    if parsed[2][1] != "assistant" or parsed[2][2] != "I sent digit five.":
+        raise AcceptanceError(f"unexpected assistant turn: {parsed[2]}")
+
 
 def hangup_and_verify_completion():
     api("POST", f"/v1/calls/{STATE['call_id']}/hangup", expected={200})
@@ -507,6 +571,29 @@ def hangup_and_verify_completion():
             f"Voice Agent session state = {session_state}, want completed"
         )
 
+    summary = psql(
+        "SELECT turn_count::text || '|' || interruption_count::text || '|' || "
+        "COALESCE(first_response_latency_ms::text, '') || '|' || "
+        "COALESCE(avg_turn_latency_ms::text, '') "
+        "FROM voice_agent_sessions "
+        f"WHERE id='{STATE['session_id']}'"
+    )
+    turn_count, interruption_count, first_latency, avg_latency = summary.split("|", 3)
+    if turn_count != "1":
+        raise AcceptanceError(f"turn_count = {turn_count}, want 1")
+    if interruption_count != "0":
+        raise AcceptanceError(
+            f"interruption_count = {interruption_count}, want 0"
+        )
+    if first_latency == "" or int(first_latency) < 0:
+        raise AcceptanceError(
+            f"first_response_latency_ms = {first_latency!r}, want non-negative"
+        )
+    if avg_latency == "" or int(avg_latency) < 0:
+        raise AcceptanceError(
+            f"avg_turn_latency_ms = {avg_latency!r}, want non-negative"
+        )
+
 
 def main():
     setup_carrier()
@@ -524,10 +611,12 @@ def main():
     verify_snapshot_immutability()
     print("PASS 07 active call retained immutable durable agent snapshot")
     verify_audio_roundtrip()
-    print("PASS 08 bidirectional Voice Agent audio completed through media plane")
+    print("PASS 08 audio and realtime tool-result round trip completed")
+    verify_durable_realtime_history()
+    print("PASS 09 user, tool, and assistant turns persisted durably")
     hangup_and_verify_completion()
-    print("PASS 09 call hangup completed the durable Voice Agent session")
-    print("Voice Agent v1 lifecycle acceptance passed")
+    print("PASS 10 session completion persisted conversation summary metrics")
+    print("Voice Agent v1 realtime release gate passed")
 
 
 if __name__ == "__main__":
