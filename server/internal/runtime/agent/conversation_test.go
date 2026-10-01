@@ -14,7 +14,7 @@ func TestConversationStatePersistsFinalTurnsAndSummary(t *testing.T) {
 	state.observe(session.Event{Type: session.EventSpeechStarted, OccurredAt: base})
 	state.observe(session.Event{Type: session.EventSpeechStopped, OccurredAt: base.Add(500 * time.Millisecond)})
 	user, ok := state.userTurn(session.Event{
-		Type: session.EventTranscriptFinal,
+		Type:       session.EventTranscriptFinal,
 		Transcript: &session.TranscriptEvent{Text: "hello"},
 		ProviderID: "user-1",
 		OccurredAt: base.Add(550 * time.Millisecond),
@@ -28,13 +28,13 @@ func TestConversationStatePersistsFinalTurnsAndSummary(t *testing.T) {
 
 	state.observe(session.Event{Type: session.EventResponseStarted, OccurredAt: base.Add(700 * time.Millisecond)})
 	state.observe(session.Event{
-		Type: session.EventResponseDelta,
-		Response: &session.ResponseEvent{Text: "Hi "},
+		Type:       session.EventResponseDelta,
+		Response:   &session.ResponseEvent{Text: "Hi "},
 		OccurredAt: base.Add(750 * time.Millisecond),
 	})
 	state.observe(session.Event{
-		Type: session.EventResponseDelta,
-		Response: &session.ResponseEvent{Text: "there"},
+		Type:       session.EventResponseDelta,
+		Response:   &session.ResponseEvent{Text: "there"},
 		OccurredAt: base.Add(800 * time.Millisecond),
 	})
 	stopped := session.Event{Type: session.EventResponseStopped, ProviderID: "assistant-1", OccurredAt: base.Add(time.Second)}

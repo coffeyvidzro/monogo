@@ -101,7 +101,7 @@ func (s *Service) CreateTurn(
 ) (sqlc.VoiceAgentTurn, error) {
 	return s.conversations.CreateTurn(ctx, conversations.Identity{
 		OrganizationID: organizationID,
-		SessionID: sessionID,
+		SessionID:      sessionID,
 	}, req)
 }
 

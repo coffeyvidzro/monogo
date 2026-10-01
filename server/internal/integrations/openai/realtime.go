@@ -275,8 +275,8 @@ func (s *realtimeStream) handle(event ServerEvent) {
 	case "response.output_audio_transcript.delta", "response.audio_transcript.delta":
 		if event.Delta != "" {
 			s.emitEvent(session.Event{
-				Type: session.EventResponseDelta,
-				Response: &session.ResponseEvent{Text: event.Delta},
+				Type:       session.EventResponseDelta,
+				Response:   &session.ResponseEvent{Text: event.Delta},
 				ProviderID: providerID,
 				OccurredAt: now,
 			})

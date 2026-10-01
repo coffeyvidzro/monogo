@@ -179,10 +179,10 @@ func (r *Runtime) finish(
 		state,
 		endedAt,
 		conversations.CompleteRequest{
-			TurnCount: summary.TurnCount,
-			InterruptionCount: summary.InterruptionCount,
+			TurnCount:              summary.TurnCount,
+			InterruptionCount:      summary.InterruptionCount,
 			FirstResponseLatencyMS: summary.FirstResponseLatencyMS,
-			AverageTurnLatencyMS: summary.AverageTurnLatencyMS,
+			AverageTurnLatencyMS:   summary.AverageTurnLatencyMS,
 		},
 	)
 	if err != nil {
@@ -207,10 +207,10 @@ func (r *Runtime) failSession(ctx context.Context, call sqlc.Call, endedAt time.
 		"failed",
 		endedAt,
 		conversations.CompleteRequest{
-			TurnCount: summary.TurnCount,
-			InterruptionCount: summary.InterruptionCount,
+			TurnCount:              summary.TurnCount,
+			InterruptionCount:      summary.InterruptionCount,
 			FirstResponseLatencyMS: summary.FirstResponseLatencyMS,
-			AverageTurnLatencyMS: summary.AverageTurnLatencyMS,
+			AverageTurnLatencyMS:   summary.AverageTurnLatencyMS,
 		},
 	)
 	if err == nil {

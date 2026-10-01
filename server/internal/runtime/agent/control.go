@@ -285,7 +285,6 @@ func (r *Runtime) executeRealtimeTool(
 	}
 }
 
-
 func (r *Runtime) persistTurn(
 	organizationID, sessionID uuid.UUID,
 	req conversations.CreateTurnRequest,

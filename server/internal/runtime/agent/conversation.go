@@ -14,17 +14,17 @@ type conversationState struct {
 
 	nextSequence int32
 
-	speechStartedAt time.Time
-	speechStoppedAt time.Time
+	speechStartedAt   time.Time
+	speechStoppedAt   time.Time
 	responseStartedAt time.Time
-	responseActive bool
-	assistantText strings.Builder
+	responseActive    bool
+	assistantText     strings.Builder
 
-	turnCount int32
-	interruptionCount int32
+	turnCount            int32
+	interruptionCount    int32
 	firstResponseLatency *time.Duration
-	totalTurnLatency time.Duration
-	turnLatencyCount int32
+	totalTurnLatency     time.Duration
+	turnLatencyCount     int32
 }
 
 func newConversationState() *conversationState {
@@ -102,13 +102,13 @@ func (s *conversationState) userTurn(event session.Event) (conversations.CreateT
 		sttLatency = &value
 	}
 	return conversations.CreateTurnRequest{
-		Sequence: sequence,
-		Role: "user",
-		Content: text,
-		ProviderID: providerID,
+		Sequence:        sequence,
+		Role:            "user",
+		Content:         text,
+		ProviderID:      providerID,
 		SpeechStartedAt: speechStartedAt,
-		SpeechEndedAt: speechEndedAt,
-		STTLatencyMS: sttLatency,
+		SpeechEndedAt:   speechEndedAt,
+		STTLatencyMS:    sttLatency,
 	}, true
 }
 
@@ -146,11 +146,11 @@ func (s *conversationState) assistantTurn(event session.Event) (conversations.Cr
 		turnLatency = &value
 	}
 	return conversations.CreateTurnRequest{
-		Sequence: sequence,
-		Role: "assistant",
-		Content: text,
-		ProviderID: providerID,
-		LLMTTFTMS: llmTTFT,
+		Sequence:      sequence,
+		Role:          "assistant",
+		Content:       text,
+		ProviderID:    providerID,
+		LLMTTFTMS:     llmTTFT,
 		TurnLatencyMS: turnLatency,
 	}, true
 }
@@ -167,12 +167,12 @@ func (s *conversationState) toolTurn(name, callID, content string, isError bool)
 		metadata = []byte(`{"is_error":true}`)
 	}
 	return conversations.CreateTurnRequest{
-		Sequence: sequence,
-		Role: "tool",
-		Content: content,
-		ToolName: &toolName,
+		Sequence:   sequence,
+		Role:       "tool",
+		Content:    content,
+		ToolName:   &toolName,
 		ToolCallID: &toolCallID,
-		Metadata: metadata,
+		Metadata:   metadata,
 	}
 }
 
@@ -180,7 +180,7 @@ func (s *conversationState) summary() conversationSummary {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	result := conversationSummary{
-		TurnCount: s.turnCount,
+		TurnCount:         s.turnCount,
 		InterruptionCount: s.interruptionCount,
 	}
 	if s.firstResponseLatency != nil {
@@ -195,10 +195,10 @@ func (s *conversationState) summary() conversationSummary {
 }
 
 type conversationSummary struct {
-	TurnCount int32
-	InterruptionCount int32
+	TurnCount              int32
+	InterruptionCount      int32
 	FirstResponseLatencyMS *int32
-	AverageTurnLatencyMS *int32
+	AverageTurnLatencyMS   *int32
 }
 
 func durationMilliseconds(value time.Duration) int32 {
