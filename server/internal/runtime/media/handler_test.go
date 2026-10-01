@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -118,5 +119,46 @@ func TestHandlerCreatesAuthenticatedSessionAndUpdatesReadiness(t *testing.T) {
 	defer cancel()
 	if err := manager.Drain(drainCtx); err != nil {
 		t.Fatalf("Drain() error = %v", err)
+	}
+}
+
+func TestHandlerExposesMediaMetrics(t *testing.T) {
+	cfg := validRuntimeConfig()
+	manager, err := session.NewManager(1, cfg.AttachTimeout, map[session.Engine]session.Starter{
+		session.EngineEcho: echo.Engine{},
+	})
+	if err != nil {
+		t.Fatalf("NewManager() error = %v", err)
+	}
+	tokens, err := transport.NewTokenService(cfg.TokenSecret)
+	if err != nil {
+		t.Fatalf("NewTokenService() error = %v", err)
+	}
+	handler := newHandler(cfg, manager, tokens, http.NotFoundHandler())
+
+	format := session.AudioFormat{SampleRateHz: 16000, Channels: 1}
+	sessionConfig := session.Config{
+		ID: uuid.New(), OrganizationID: uuid.New(), CallID: uuid.New(), ChannelID: uuid.New(),
+		Engine: session.EngineEcho, InputFormat: format, OutputFormat: format,
+	}
+	if err := manager.Start(context.Background(), sessionConfig); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/metrics", nil))
+	if response.Code != http.StatusOK {
+		t.Fatalf("metrics status = %d", response.Code)
+	}
+	body := response.Body.String()
+	for _, want := range []string{
+		"leamout_media_sessions_active 1",
+		"leamout_media_sessions_started_total 1",
+		"leamout_media_attach_latency_count",
+		"leamout_media_turn_latency_count",
+	} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("metrics body missing %q: %s", want, body)
+		}
 	}
 }
