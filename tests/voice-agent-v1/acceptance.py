@@ -373,6 +373,12 @@ def verify_provider_session():
     audio = session.get("audio") or {}
     if (audio.get("input") or {}).get("format", {}).get("rate") != 24000:
         raise AcceptanceError("provider input format is not 24 kHz PCM")
+    tools = session.get("tools") or []
+    names = {tool.get("name") for tool in tools}
+    if "send_dtmf" not in names:
+        raise AcceptanceError(
+            f"provider tool definitions missing send_dtmf: {sorted(names)}"
+        )
 
 
 def verify_snapshot_immutability():
@@ -475,10 +481,21 @@ def verify_audio_roundtrip():
 
         if (
             provider.get("audio_appends", 0) > 0
-            and provider.get("responses", 0) > 0
+            and provider.get("tool_calls", 0) == 1
+            and provider.get("tool_results", 0) == 1
+            and provider.get("responses", 0) >= 2
             and fork.get("sent_bytes", 0) > 0
             and fork.get("playback_bytes_played", 0) > 0
         ):
+            tool_result = provider.get("last_tool_result") or {}
+            if tool_result.get("call_id") != "tool-call-1":
+                raise AcceptanceError(
+                    f"provider tool result call_id = {tool_result.get('call_id')!r}"
+                )
+            if json.loads(tool_result.get("output") or "{}") != {"ok": True}:
+                raise AcceptanceError(
+                    f"provider tool result output = {tool_result.get('output')!r}"
+                )
             return
         time.sleep(0.25)
 
