@@ -226,13 +226,15 @@ func validConfig() session.Config {
 }
 
 type fakeConnection struct {
-	metadata  session.ConnectionMetadata
-	incoming  chan session.AudioFrame
-	outgoing  chan session.AudioFrame
-	cleared   chan struct{}
-	closed    chan struct{}
-	once      sync.Once
-	clearOnce sync.Once
+	metadata       session.ConnectionMetadata
+	incoming       chan session.AudioFrame
+	outgoing       chan session.AudioFrame
+	cleared        chan struct{}
+	closed         chan struct{}
+	receiveStarted chan struct{}
+	once           sync.Once
+	clearOnce      sync.Once
+	receiveOnce    sync.Once
 }
 
 func newFakeConnection(cfg session.Config) *fakeConnection {
@@ -243,11 +245,13 @@ func newFakeConnection(cfg session.Config) *fakeConnection {
 		},
 		incoming: make(chan session.AudioFrame, 1), outgoing: make(chan session.AudioFrame, 1),
 		cleared: make(chan struct{}), closed: make(chan struct{}),
+		receiveStarted: make(chan struct{}),
 	}
 }
 
 func (c *fakeConnection) Metadata() session.ConnectionMetadata { return c.metadata }
 func (c *fakeConnection) ReceiveAudio(ctx context.Context) (session.AudioFrame, error) {
+	c.receiveOnce.Do(func() { close(c.receiveStarted) })
 	select {
 	case frame, ok := <-c.incoming:
 		if !ok {
@@ -488,9 +492,12 @@ func TestManagerDrainClosesMultipleAttachedSessionsAndRejectsNewWork(t *testing.
 		go func() { result <- manager.Attach(context.Background(), connection) }()
 	}
 
-	deadline := time.Now().Add(time.Second)
-	for manager.Active() != 3 && time.Now().Before(deadline) {
-		time.Sleep(time.Millisecond)
+	for i, connection := range connections {
+		select {
+		case <-connection.receiveStarted:
+		case <-time.After(time.Second):
+			t.Fatalf("connection %d did not attach", i)
+		}
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
