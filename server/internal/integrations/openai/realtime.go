@@ -188,8 +188,10 @@ func (s *realtimeStream) readLoop() {
 		if err != nil {
 			if s.ctx.Err() == nil && websocket.CloseStatus(err) != websocket.StatusNormalClosure {
 				s.emitEvent(session.Event{
-					Type:       session.EventError,
-					Text:       fmt.Sprintf("read OpenAI Realtime: %v", err),
+					Type: session.EventError,
+					Failure: &session.FailureEvent{
+						Source: "openai", Message: fmt.Sprintf("read OpenAI Realtime: %v", err), Terminal: true,
+					},
 					OccurredAt: time.Now().UTC(),
 				})
 			}
@@ -197,8 +199,10 @@ func (s *realtimeStream) readLoop() {
 		}
 		if kind != websocket.MessageText {
 			s.emitEvent(session.Event{
-				Type:       session.EventError,
-				Text:       "OpenAI Realtime returned a non-text event",
+				Type: session.EventError,
+				Failure: &session.FailureEvent{
+					Source: "openai", Message: "OpenAI Realtime returned a non-text event", Terminal: true,
+				},
 				OccurredAt: time.Now().UTC(),
 			})
 			return
@@ -206,8 +210,10 @@ func (s *realtimeStream) readLoop() {
 		var event ServerEvent
 		if err := json.Unmarshal(payload, &event); err != nil {
 			s.emitEvent(session.Event{
-				Type:       session.EventError,
-				Text:       fmt.Sprintf("decode OpenAI Realtime event: %v", err),
+				Type: session.EventError,
+				Failure: &session.FailureEvent{
+					Source: "openai", Message: fmt.Sprintf("decode OpenAI Realtime event: %v", err), Terminal: true,
+				},
 				OccurredAt: time.Now().UTC(),
 			})
 			return
@@ -233,15 +239,15 @@ func (s *realtimeStream) handle(event ServerEvent) {
 		})
 	case "conversation.item.input_audio_transcription.delta":
 		s.emitEvent(session.Event{
-			Type:       session.EventTranscriptDelta,
-			Text:       event.Delta,
+			Type: session.EventTranscriptDelta,
+			Transcript: &session.TranscriptEvent{Text: event.Delta},
 			ProviderID: providerID,
 			OccurredAt: now,
 		})
 	case "conversation.item.input_audio_transcription.completed":
 		s.emitEvent(session.Event{
-			Type:       session.EventTranscriptFinal,
-			Text:       event.Transcript,
+			Type: session.EventTranscriptFinal,
+			Transcript: &session.TranscriptEvent{Text: event.Transcript},
 			ProviderID: providerID,
 			OccurredAt: now,
 		})
@@ -257,7 +263,11 @@ func (s *realtimeStream) handle(event ServerEvent) {
 	case "response.audio.delta", "response.output_audio.delta":
 		audio, err := base64.StdEncoding.DecodeString(event.Delta)
 		if err != nil {
-			s.emitEvent(session.Event{Type: session.EventError, Text: err.Error(), OccurredAt: now})
+			s.emitEvent(session.Event{
+				Type: session.EventError,
+				Failure: &session.FailureEvent{Source: "openai", Message: err.Error(), Terminal: true},
+				OccurredAt: now,
+			})
 			return
 		}
 		frame := session.AudioFrame{
@@ -271,16 +281,25 @@ func (s *realtimeStream) handle(event ServerEvent) {
 		}
 	case "response.function_call_arguments.delta", "response.function_call_arguments.done":
 		s.emitEvent(session.Event{
-			Type:       session.EventToolCall,
-			Text:       event.Arguments + event.Delta,
-			ProviderID: event.CallID,
+			Type: session.EventToolCall,
+			ToolCall: &session.ToolCallEvent{
+				ID: event.CallID,
+				Name: event.Name,
+				Arguments: json.RawMessage(event.Arguments + event.Delta),
+			},
+			ProviderID: providerID,
 			OccurredAt: now,
 		})
 	case "error":
 		if event.Error != nil {
 			s.emitEvent(session.Event{
-				Type:       session.EventError,
-				Text:       event.Error.Code + ": " + event.Error.Message,
+				Type: session.EventError,
+				Failure: &session.FailureEvent{
+					Source: "openai",
+					Code: event.Error.Code,
+					Message: event.Error.Message,
+					Terminal: true,
+				},
 				ProviderID: providerID,
 				OccurredAt: now,
 			})
