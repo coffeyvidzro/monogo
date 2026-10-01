@@ -80,3 +80,24 @@ func TestConfigRejectsInvalidEngineConfigAndProfile(t *testing.T) {
 		t.Fatal("Validate() accepted mismatched engine profile")
 	}
 }
+
+func TestConfigEqualIncludesEngineConfig(t *testing.T) {
+	profile, err := ProfileForEngine(EngineComposable)
+	if err != nil {
+		t.Fatal(err)
+	}
+	left := Config{
+		ID: uuid.New(), OrganizationID: uuid.New(), CallID: uuid.New(), ChannelID: uuid.New(),
+		Engine: EngineComposable, InputFormat: profile.InputFormat, OutputFormat: profile.OutputFormat,
+		EngineConfig: json.RawMessage(`{"model":"a"}`),
+	}
+	right := left
+	right.EngineConfig = json.RawMessage(`{"model":"b"}`)
+	if left.Equal(right) {
+		t.Fatal("Equal() ignored engine config")
+	}
+	right.EngineConfig = append(json.RawMessage(nil), left.EngineConfig...)
+	if !left.Equal(right) {
+		t.Fatal("Equal() rejected identical config")
+	}
+}
