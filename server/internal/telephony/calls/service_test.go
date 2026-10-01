@@ -14,8 +14,8 @@ func TestAdmissionFailureReason(t *testing.T) {
 		err  error
 		want string
 	}{
-		{name: "cps", err: calling.ErrAdmissionCPS, want: "carrier_cps_limit"},
-		{name: "concurrent", err: calling.ErrAdmissionConcurrent, want: "carrier_concurrent_limit"},
+		{name: "cps", err: calling.ErrAdmissionCPS, want: "trunk_cps_limit"},
+		{name: "concurrent", err: calling.ErrAdmissionConcurrent, want: "trunk_concurrent_limit"},
 	}
 
 	for _, tt := range tests {
@@ -58,11 +58,11 @@ func TestValidateExistingInbound(t *testing.T) {
 	}
 }
 
-func TestValidateExistingInboundRejectsCarrierMismatch(t *testing.T) {
+func TestValidateExistingInboundRejectsTrunkMismatch(t *testing.T) {
 	organizationID := uuid.New()
 	voiceAgentID := uuid.New()
 	trunkID := uuid.New()
-	otherCarrierID := uuid.New()
+	otherTrunkID := uuid.New()
 
 	req := InboundAdmissionRequest{
 		OrganizationID: organizationID,
@@ -74,13 +74,13 @@ func TestValidateExistingInboundRejectsCarrierMismatch(t *testing.T) {
 	call := sqlc.Call{
 		OrganizationID: organizationID,
 		VoiceAgentID:   &voiceAgentID,
-		TrunkID:        &otherCarrierID,
+		TrunkID:        &otherTrunkID,
 		Direction:      string(DirectionInbound),
 		State:          string(StateRinging),
 		ToUri:          req.ToURI,
 	}
 
 	if err := validateExistingInbound(call, req); err == nil {
-		t.Fatal("expected carrier attribution conflict")
+		t.Fatal("expected trunk attribution conflict")
 	}
 }
