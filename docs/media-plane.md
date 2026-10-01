@@ -128,6 +128,7 @@ The Media Runtime exposes:
 - `GET /readyz`;
 - authenticated `POST /internal/v1/sessions`;
 - authenticated/idempotent `DELETE /internal/v1/sessions/{id}`;
+- authenticated `GET /internal/v1/sessions/{id}/control` for the Agent Runtime control WebSocket;
 - `GET /v1/audio-forks` for the authenticated FreeSWITCH WebSocket attachment.
 
 Two independent timeouts apply:
@@ -140,11 +141,35 @@ Two independent timeouts apply:
 Token lifetime and session attachment lifetime intentionally do not share one
 configuration value.
 
+## Agent control channel
+
+Each live media session may have exactly one Agent Runtime control attachment.
+
+The control WebSocket is distinct from the FreeSWITCH audio WebSocket:
+
+```text
+FreeSWITCH ── PCM ───────────────► Media Runtime
+Agent Runtime ◄── events/commands ─► Media Runtime
+```
+
+Media Runtime sends normalized session events over this channel. Agent Runtime
+may currently send:
+
+- `response.interrupt` to cancel the active model response and clear buffered playback;
+- `session.stop` to stop the live media session.
+
+Tool-result submission is intentionally not part of this PR. The next layer will
+reuse this same channel rather than introducing another realtime transport.
+
+The control path remains in-memory and node-local. It does not publish live
+session control traffic through NATS or PostgreSQL.
+
 ## Runtime lifecycle
 
 The session manager owns active sessions in process memory. It enforces:
 
-- one attachment per session;
+- one audio attachment per session;
+- one Agent control attachment per session;
 - identity matching across organization, call, channel, and session;
 - concurrent-session capacity;
 - attachment timeout cleanup;
@@ -158,9 +183,8 @@ is not in the audio hot path.
 
 ## Current boundary
 
-The hardened contract in this layer does not yet implement:
+The current layer does not yet implement:
 
-- the Agent Runtime ↔ Media Runtime bidirectional control channel;
 - execution of Voice Agent tools;
 - tool-result submission back into a live provider stream;
 - distributed media-node placement or ownership.
