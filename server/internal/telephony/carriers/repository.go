@@ -60,7 +60,7 @@ func (r *Repository) Disable(ctx context.Context, org, id uuid.UUID) error {
 func (r *Repository) InsertDigest(ctx context.Context, org, id uuid.UUID, direction, username, realm, ha1 string) error {
 	return r.queries.InsertCarrierDigestCredential(ctx, sqlc.InsertCarrierDigestCredentialParams{
 		CarrierConnectionID: id,
-		OrganizationID:      &org,
+		OrganizationID:      org,
 		Direction:           direction,
 		Username:            username,
 		Realm:               realm,
@@ -82,7 +82,7 @@ func (r *Repository) SetOutboundDigest(ctx context.Context, org, id uuid.UUID, u
 func (r *Repository) ClearOutbound(ctx context.Context, org, id uuid.UUID) error {
 	return r.queries.ClearCarrierConnectionOutboundAuth(ctx, sqlc.ClearCarrierConnectionOutboundAuthParams{
 		ID:             id,
-		OrganizationID: &org,
+		OrganizationID: org,
 	})
 }
 
@@ -145,5 +145,5 @@ func (r *Repository) ListTrunks(ctx context.Context, org, id uuid.UUID) ([]sqlc.
 }
 
 func (r *Repository) ListTrunkEndpoints(ctx context.Context, org, trunkID uuid.UUID) ([]sqlc.TrunkEndpoint, error) {
-	return r.queries.ListTrunkEndpoints(ctx, sqlc.ListTrunkEndpointsParams{TrunkID: trunkID, OrganizationID: &org})
+	return r.queries.ListTrunkEndpoints(ctx, sqlc.ListTrunkEndpointsParams{TrunkID: trunkID, OrganizationID: org})
 }
