@@ -17,6 +17,7 @@ func TestMediaClientCreatesAndStopsSession(t *testing.T) {
 	sessionID := uuid.New()
 	var created bool
 	var stopped bool
+	var createdEngineConfig string
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("Authorization") != "Bearer "+token {
@@ -30,6 +31,7 @@ func TestMediaClientCreatesAndStopsSession(t *testing.T) {
 				http.Error(w, "invalid", http.StatusBadRequest)
 				return
 			}
+			createdEngineConfig = string(cfg.EngineConfig)
 			if cfg.ID != sessionID {
 				http.Error(w, "wrong id", http.StatusBadRequest)
 				return
@@ -66,9 +68,13 @@ func TestMediaClientCreatesAndStopsSession(t *testing.T) {
 		Engine:         session.EngineComposable,
 		InputFormat:    format,
 		OutputFormat:   format,
+		EngineConfig:   json.RawMessage(`{"model":"snapshot-model"}`),
 	})
 	if err != nil {
 		t.Fatalf("CreateSession() error = %v", err)
+	}
+	if createdEngineConfig != `{"model":"snapshot-model"}` {
+		t.Fatalf("engine config = %q", createdEngineConfig)
 	}
 	if websocketURL == "" || !created {
 		t.Fatalf("CreateSession() websocketURL = %q, created = %v", websocketURL, created)
