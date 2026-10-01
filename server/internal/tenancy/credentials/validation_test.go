@@ -13,8 +13,6 @@ func TestValidateScopesAcceptsAPIResourceScopes(t *testing.T) {
 		"voice-agents:write",
 		"trunks:read",
 		"trunks:write",
-		"sip-domains:read",
-		"subscribers:read",
 		"recordings:write",
 		"webrtc:read",
 	}
