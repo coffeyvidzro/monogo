@@ -3,6 +3,7 @@ package session
 import (
 	"encoding/json"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 )
@@ -99,5 +100,15 @@ func TestConfigEqualIncludesEngineConfig(t *testing.T) {
 	right.EngineConfig = append(json.RawMessage(nil), left.EngineConfig...)
 	if !left.Equal(right) {
 		t.Fatal("Equal() rejected identical config")
+	}
+}
+
+func TestAudioFrameDuration(t *testing.T) {
+	frame := AudioFrame{
+		Data: make([]byte, 640),
+		Format: AudioFormat{SampleRateHz: 16000, Channels: 1},
+	}
+	if got := frame.Duration(); got != 20*time.Millisecond {
+		t.Fatalf("Duration() = %s, want 20ms", got)
 	}
 }
