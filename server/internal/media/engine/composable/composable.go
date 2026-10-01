@@ -60,9 +60,21 @@ func (e Engine) Start(ctx context.Context, cfg session.Config) (session.Stream, 
 	if language := strings.TrimSpace(cfg.Language); language != "" {
 		cartesiaConfig.Language = language
 	}
+	groqConfig := e.Groq
+	groqConfig.Tools = make([]groq.Tool, 0, len(cfg.Tools))
+	for _, tool := range cfg.Tools {
+		groqConfig.Tools = append(groqConfig.Tools, groq.Tool{
+			Type: "function",
+			Function: groq.FunctionDefinition{
+				Name: tool.Name,
+				Description: tool.Description,
+				Parameters: tool.Parameters,
+			},
+		})
+	}
 	s := &stream{
 		ctx: streamCtx, cancel: cancel, transcriber: deepgramStream,
-		generator: generator, synthesizer: synthesizer, groq: e.Groq,
+		generator: generator, synthesizer: synthesizer, groq: groqConfig,
 		cartesia: cartesiaConfig, config: cfg,
 		audio: make(chan session.AudioFrame), events: make(chan session.Event, 32), done: make(chan struct{}),
 	}
