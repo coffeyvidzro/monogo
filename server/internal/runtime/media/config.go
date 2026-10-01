@@ -2,8 +2,8 @@ package media
 
 import (
 	"fmt"
-	"os"
 	"net/url"
+	"os"
 	"strings"
 	"time"
 
