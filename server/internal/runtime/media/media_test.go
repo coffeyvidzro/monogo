@@ -32,41 +32,34 @@ func TestRunRejectsNilContext(t *testing.T) {
 	}
 }
 
-func TestMediaEnginesRegistersIntegratedOnlyWithOpenAIKey(t *testing.T) {
-	withoutKey := mediaEngines(validRuntimeConfig())
-	if _, exists := withoutKey[session.EngineIntegrated]; exists {
-		t.Fatal("integrated engine registered without OpenAI API key")
-	}
+func TestMediaEnginesAlwaysRegisterTenantCapableEngines(t *testing.T) {
+	engines := mediaEngines(validRuntimeConfig())
 
-	cfg := validRuntimeConfig()
-	cfg.OpenAIAPIKey = "secret"
-	withKey := mediaEngines(cfg)
-	if _, exists := withKey[session.EngineIntegrated]; !exists {
-		t.Fatal("integrated engine not registered with OpenAI API key")
+	for _, engine := range []session.Engine{
+		session.EngineEcho,
+		session.EngineIntegrated,
+		session.EngineComposable,
+	} {
+		if _, exists := engines[engine]; !exists {
+			t.Fatalf("%s engine not registered", engine)
+		}
 	}
 }
 
-func TestConfigRejectsPartialComposableCredentials(t *testing.T) {
+func TestConfigRejectsPartialComposableFallbackCredentials(t *testing.T) {
 	cfg := validRuntimeConfig()
 	cfg.DeepgramAPIKey = "deepgram"
+
 	if err := cfg.Validate(); err == nil {
 		t.Fatal("Validate() error = nil")
 	}
 }
 
-func TestMediaEnginesRegistersComposableOnlyWithAllCredentials(t *testing.T) {
-	partial := validRuntimeConfig()
-	partial.DeepgramAPIKey = "deepgram"
-	if _, exists := mediaEngines(partial)[session.EngineComposable]; exists {
-		t.Fatal("composable engine registered with partial credentials")
-	}
+func TestConfigAcceptsNoGlobalProviderCredentials(t *testing.T) {
+	cfg := validRuntimeConfig()
 
-	configured := partial
-	configured.GroqAPIKey = "groq"
-	configured.CartesiaAPIKey = "cartesia"
-	configured.CartesiaVoiceID = "voice"
-	if _, exists := mediaEngines(configured)[session.EngineComposable]; !exists {
-		t.Fatal("composable engine not registered with all credentials")
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("Validate() error = %v", err)
 	}
 }
 
