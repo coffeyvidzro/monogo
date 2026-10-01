@@ -3,6 +3,7 @@ package agent
 import (
 	"bufio"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net"
@@ -14,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/coder/websocket"
 	"github.com/coffeyvidzro/monogo/internal/ai"
 	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
 	"github.com/coffeyvidzro/monogo/internal/integrations/freeswitch"
@@ -101,8 +103,8 @@ func TestLifecycleAudioForkFailureCleansUpAttachment(t *testing.T) {
 	if got := media.createCount(); got != 1 {
 		t.Fatalf("media session creates = %d, want 1", got)
 	}
-	if got := media.deleteCount(); got != 1 {
-		t.Fatalf("media session deletes = %d, want 1", got)
+	if got := media.stopCount(); got != 1 {
+		t.Fatalf("media session stops = %d, want 1", got)
 	}
 	if got := freeSwitch.audioForkStarts(); got != 1 {
 		t.Fatalf("audio fork starts = %d, want 1", got)
@@ -343,6 +345,7 @@ type lifecycleMediaServer struct {
 	mu      sync.Mutex
 	creates int
 	deletes int
+	stops   int
 }
 
 func newLifecycleMediaServer(t *testing.T) *lifecycleMediaServer {
@@ -353,16 +356,53 @@ func newLifecycleMediaServer(t *testing.T) *lifecycleMediaServer {
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
 		}
-		server.mu.Lock()
-		defer server.mu.Unlock()
 		switch {
+		case r.Method == http.MethodGet &&
+			strings.HasPrefix(r.URL.Path, "/internal/v1/sessions/") &&
+			strings.HasSuffix(r.URL.Path, "/control"):
+			ws, err := websocket.Accept(w, r, nil)
+			if err != nil {
+				return
+			}
+			defer func() { _ = ws.CloseNow() }()
+			for {
+				kind, payload, err := ws.Read(r.Context())
+				if err != nil {
+					return
+				}
+				if kind != websocket.MessageText {
+					return
+				}
+				var command struct {
+					Type string `json:"type"`
+				}
+				if json.Unmarshal(payload, &command) != nil {
+					return
+				}
+				if command.Type == "session.stop" {
+					server.mu.Lock()
+					server.stops++
+					server.mu.Unlock()
+					return
+				}
+			}
 		case r.Method == http.MethodPost && r.URL.Path == "/internal/v1/sessions":
+			server.mu.Lock()
 			server.creates++
+			server.mu.Unlock()
+			controlURL := "ws" + strings.TrimPrefix(server.URL, "http") +
+				"/internal/v1/sessions/" + serverSessionID(r).String() + "/control"
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusCreated)
-			_, _ = fmt.Fprint(w, `{"websocket_url":"ws://media.internal/v1/audio-forks?token=test"}`)
+			_, _ = fmt.Fprintf(
+				w,
+				`{"websocket_url":"ws://media.internal/v1/audio-forks?token=test","control_websocket_url":%q}`,
+				controlURL,
+			)
 		case r.Method == http.MethodDelete && strings.HasPrefix(r.URL.Path, "/internal/v1/sessions/"):
+			server.mu.Lock()
 			server.deletes++
+			server.mu.Unlock()
 			w.WriteHeader(http.StatusNoContent)
 		default:
 			http.NotFound(w, r)
@@ -382,6 +422,20 @@ func (s *lifecycleMediaServer) deleteCount() int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.deletes
+}
+
+func (s *lifecycleMediaServer) stopCount() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.stops
+}
+
+func serverSessionID(r *http.Request) uuid.UUID {
+	var cfg struct {
+		ID uuid.UUID `json:"id"`
+	}
+	_ = json.NewDecoder(r.Body).Decode(&cfg)
+	return cfg.ID
 }
 
 type lifecycleFreeSWITCHServer struct {

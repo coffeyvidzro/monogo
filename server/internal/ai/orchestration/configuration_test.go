@@ -11,6 +11,7 @@ func TestMediaConfigFromSessionUsesDurableSnapshot(t *testing.T) {
 	voice := "voice-a"
 	language := "en"
 	record := sqlc.VoiceAgentSession{
+		EngineConfigSnapshot: []byte(`{"model":"realtime-test"}`),
 		Engine:               "integrated",
 		InstructionsSnapshot: "snapshot instructions",
 		Voice:                &voice,
@@ -25,6 +26,9 @@ func TestMediaConfigFromSessionUsesDurableSnapshot(t *testing.T) {
 
 	if got.Engine != session.EngineIntegrated {
 		t.Fatalf("engine = %q", got.Engine)
+	}
+	if string(got.EngineConfig) != string(record.EngineConfigSnapshot) {
+		t.Fatalf("engine config = %s", got.EngineConfig)
 	}
 	if got.Instructions != record.InstructionsSnapshot {
 		t.Fatalf("instructions = %q", got.Instructions)

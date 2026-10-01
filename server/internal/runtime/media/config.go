@@ -15,6 +15,7 @@ type Config struct {
 	TokenSecret      string        `env:"MEDIA_TOKEN_SECRET,required"`
 	ControlToken     string        `env:"MEDIA_CONTROL_TOKEN,required"`
 	TokenTTL         time.Duration `env:"MEDIA_TOKEN_TTL" envDefault:"30s"`
+	AttachTimeout    time.Duration `env:"MEDIA_ATTACH_TIMEOUT" envDefault:"30s"`
 	MaxSessions      int           `env:"MEDIA_MAX_SESSIONS" envDefault:"100"`
 	ReadLimit        int64         `env:"MEDIA_MAX_FRAME_BYTES" envDefault:"65536"`
 	HandshakeTimeout time.Duration `env:"MEDIA_HANDSHAKE_TIMEOUT" envDefault:"5s"`
@@ -68,7 +69,7 @@ func (c Config) Validate() error {
 			return fmt.Errorf("OpenAI Realtime endpoint must be an absolute wss URL")
 		}
 	}
-	if c.TokenTTL <= 0 || c.HandshakeTimeout <= 0 || c.DrainTimeout <= 0 {
+	if c.TokenTTL <= 0 || c.AttachTimeout <= 0 || c.HandshakeTimeout <= 0 || c.DrainTimeout <= 0 {
 		return fmt.Errorf("media timeouts must be positive")
 	}
 	if c.MaxSessions <= 0 || c.ReadLimit <= 0 {

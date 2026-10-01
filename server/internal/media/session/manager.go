@@ -17,6 +17,8 @@ var (
 	ErrSessionNotFound        = errors.New("media session not found")
 	ErrSessionAlreadyExists   = errors.New("media session already exists")
 	ErrSessionAlreadyAttached = errors.New("media session already attached")
+	ErrControlAlreadyAttached = errors.New("media control already attached")
+	ErrControlBackpressure    = errors.New("media control event buffer is full")
 	ErrManagerDraining        = errors.New("media session manager is draining")
 	ErrCapacityExceeded       = errors.New("media session capacity exceeded")
 )
@@ -80,7 +82,10 @@ func (m *Manager) Start(ctx context.Context, cfg Config) error {
 		return fmt.Errorf("media engine %q is not configured", cfg.Engine)
 	}
 	managedCtx, cancel := context.WithCancel(context.Background())
-	managed := &managedSession{config: cfg, ctx: managedCtx, cancel: cancel, complete: make(chan struct{})}
+	managed := &managedSession{
+		config: cfg, ctx: managedCtx, cancel: cancel, complete: make(chan struct{}),
+		controlDone: make(chan struct{}),
+	}
 	stream, err := starter.Start(managedCtx, cfg)
 	if err != nil {
 		m.mu.Unlock()
@@ -141,7 +146,7 @@ func (m *Manager) Attach(ctx context.Context, connection Connection) error {
 	stream := managed.stream
 	managed.mu.Unlock()
 
-	err := pump(ctx, managed.ctx, connection, stream)
+	err := pump(ctx, managed.ctx, connection, stream, managed.publish)
 	managed.finish()
 	managed.markComplete()
 	m.remove(metadata.SessionID, managed)
@@ -149,6 +154,73 @@ func (m *Manager) Attach(ctx context.Context, connection Connection) error {
 		return nil
 	}
 	return err
+}
+
+type ControlAttachment struct {
+	manager *Manager
+	id      uuid.UUID
+	session *managedSession
+	events  <-chan Event
+	once    sync.Once
+}
+
+func (m *Manager) AttachControl(id uuid.UUID) (*ControlAttachment, error) {
+	if id == uuid.Nil {
+		return nil, fmt.Errorf("media session id is required")
+	}
+	m.mu.Lock()
+	managed, exists := m.sessions[id]
+	m.mu.Unlock()
+	if !exists {
+		return nil, ErrSessionNotFound
+	}
+
+	managed.mu.Lock()
+	defer managed.mu.Unlock()
+	if managed.finished || managed.ctx.Err() != nil {
+		return nil, ErrSessionNotFound
+	}
+	if managed.controlOpen {
+		return nil, ErrControlAlreadyAttached
+	}
+	events := make(chan Event, 64)
+	managed.control = events
+	managed.controlOpen = true
+	return &ControlAttachment{manager: m, id: id, session: managed, events: events}, nil
+}
+
+func (c *ControlAttachment) Events() <-chan Event {
+	return c.events
+}
+
+func (c *ControlAttachment) Command(ctx context.Context, command Command) error {
+	if ctx == nil {
+		return fmt.Errorf("media control context is required")
+	}
+	if err := command.Validate(); err != nil {
+		return err
+	}
+	switch command.Type {
+	case CommandInterrupt:
+		return c.session.interrupt(ctx)
+	case CommandStop:
+		return c.manager.Stop(ctx, c.id)
+	default:
+		return fmt.Errorf("unsupported media command %q", command.Type)
+	}
+}
+
+func (c *ControlAttachment) Close() {
+	c.once.Do(func() {
+		c.session.mu.Lock()
+		control := c.session.control
+		if c.session.controlOpen && control != nil {
+			c.session.controlOpen = false
+			c.session.control = nil
+			close(control)
+		}
+		c.session.mu.Unlock()
+	})
 }
 
 func (m *Manager) Stop(ctx context.Context, id uuid.UUID) error {
@@ -251,6 +323,10 @@ type managedSession struct {
 	complete chan struct{}
 
 	mu           sync.Mutex
+	control      chan Event
+	controlOpen  bool
+	controlDone  chan struct{}
+	controlOnce  sync.Once
 	stream       Stream
 	connection   Connection
 	attached     bool
@@ -286,6 +362,7 @@ func (s *managedSession) finishUnattached() bool {
 func (s *managedSession) finishResources(attached bool) {
 	s.finishOnce.Do(func() {
 		s.cancel()
+		s.closeControl()
 		s.mu.Lock()
 		stream, connection := s.stream, s.connection
 		s.mu.Unlock()
@@ -303,11 +380,64 @@ func (s *managedSession) finishResources(attached bool) {
 	})
 }
 
+func (s *managedSession) interrupt(ctx context.Context) error {
+	s.mu.Lock()
+	if s.finished || s.stream == nil {
+		s.mu.Unlock()
+		return ErrSessionNotFound
+	}
+	stream, connection := s.stream, s.connection
+	s.mu.Unlock()
+
+	if err := stream.Interrupt(ctx); err != nil {
+		return err
+	}
+	if connection != nil {
+		if err := connection.ClearPlayback(ctx); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (s *managedSession) publish(event Event) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if !s.controlOpen || s.control == nil {
+		return nil
+	}
+	select {
+	case s.control <- event:
+		return nil
+	default:
+		return ErrControlBackpressure
+	}
+}
+
+func (s *managedSession) closeControl() {
+	s.controlOnce.Do(func() {
+		s.mu.Lock()
+		control := s.control
+		s.controlOpen = false
+		s.control = nil
+		s.mu.Unlock()
+		if control != nil {
+			close(control)
+		}
+		close(s.controlDone)
+	})
+}
+
 func (s *managedSession) markComplete() {
 	s.completeOnce.Do(func() { close(s.complete) })
 }
 
-func pump(parent, sessionCtx context.Context, connection Connection, stream Stream) error {
+func pump(
+	parent, sessionCtx context.Context,
+	connection Connection,
+	stream Stream,
+	publish func(Event) error,
+) error {
 	ctx, cancel := context.WithCancel(parent)
 	defer cancel()
 	group, groupCtx := errgroup.WithContext(ctx)
@@ -353,7 +483,16 @@ func pump(parent, sessionCtx context.Context, connection Connection, stream Stre
 				if !ok {
 					return io.EOF
 				}
+				if publish != nil {
+					if err := publish(event); err != nil {
+						return err
+					}
+				}
 				switch event.Type {
+				case EventError:
+					if event.Failure != nil && event.Failure.Terminal {
+						return fmt.Errorf("terminal media provider failure: %s", event.Failure.Message)
+					}
 				case EventResponseStarted:
 					suppressPlayback.Store(false)
 					playbackActive.Store(true)

@@ -51,6 +51,7 @@ func TestRealtimeStreamsAudioAndNormalizedEvents(t *testing.T) {
 		receivedAudio <- appendEvent
 		encoded := base64.StdEncoding.EncodeToString([]byte{3, 0, 4, 0})
 		_ = ws.Write(r.Context(), websocket.MessageText, []byte(`{"type":"input_audio_buffer.speech_started","event_id":"evt-1"}`))
+		_ = ws.Write(r.Context(), websocket.MessageText, []byte(`{"type":"conversation.item.input_audio_transcription.completed","event_id":"evt-2","transcript":"hello"}`))
 		_ = ws.Write(r.Context(), websocket.MessageText, []byte(`{"type":"response.output_audio.delta","delta":"`+encoded+`"}`))
 		<-r.Context().Done()
 	}))
@@ -77,6 +78,10 @@ func TestRealtimeStreamsAudioAndNormalizedEvents(t *testing.T) {
 	}
 	if event := <-stream.Events(); event.Type != session.EventSpeechStarted {
 		t.Fatalf("event = %+v", event)
+	}
+	if event := <-stream.Events(); event.Type != session.EventTranscriptFinal ||
+		event.Transcript == nil || event.Transcript.Text != "hello" {
+		t.Fatalf("transcript event = %+v", event)
 	}
 	if frame := <-stream.Audio(); string(frame.Data) != string([]byte{3, 0, 4, 0}) {
 		t.Fatalf("audio = %v", frame.Data)

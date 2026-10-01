@@ -18,7 +18,7 @@ import (
 func TestHandlerCreatesAuthenticatedSessionAndUpdatesReadiness(t *testing.T) {
 	cfg := validRuntimeConfig()
 	cfg.MaxSessions = 1
-	manager, err := session.NewManager(1, cfg.TokenTTL, map[session.Engine]session.Starter{
+	manager, err := session.NewManager(1, cfg.AttachTimeout, map[session.Engine]session.Starter{
 		session.EngineEcho: echo.Engine{},
 	})
 	if err != nil {

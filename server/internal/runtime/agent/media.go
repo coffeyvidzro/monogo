@@ -23,7 +23,13 @@ type mediaClient struct {
 }
 
 type createMediaSessionResponse struct {
-	WebSocketURL string `json:"websocket_url"`
+	WebSocketURL        string `json:"websocket_url"`
+	ControlWebSocketURL string `json:"control_websocket_url"`
+}
+
+type mediaSessionEndpoints struct {
+	AudioURL   string
+	ControlURL string
 }
 
 func newMediaClient(cfg Config) (*mediaClient, error) {
@@ -37,39 +43,43 @@ func newMediaClient(cfg Config) (*mediaClient, error) {
 	}, nil
 }
 
-func (c *mediaClient) CreateSession(ctx context.Context, cfg session.Config) (string, error) {
+func (c *mediaClient) CreateSession(ctx context.Context, cfg session.Config) (mediaSessionEndpoints, error) {
 	payload, err := json.Marshal(cfg)
 	if err != nil {
-		return "", fmt.Errorf("marshal media session: %w", err)
+		return mediaSessionEndpoints{}, fmt.Errorf("marshal media session: %w", err)
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/internal/v1/sessions", bytes.NewReader(payload))
 	if err != nil {
-		return "", fmt.Errorf("create media session request: %w", err)
+		return mediaSessionEndpoints{}, fmt.Errorf("create media session request: %w", err)
 	}
 	req.Header.Set("Authorization", "Bearer "+c.token)
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := c.client.Do(req)
 	if err != nil {
-		return "", fmt.Errorf("create media session: %w", err)
+		return mediaSessionEndpoints{}, fmt.Errorf("create media session: %w", err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 	body, readErr := io.ReadAll(io.LimitReader(resp.Body, maxMediaControlResponse))
 	if readErr != nil {
-		return "", fmt.Errorf("read media session response: %w", readErr)
+		return mediaSessionEndpoints{}, fmt.Errorf("read media session response: %w", readErr)
 	}
 	if resp.StatusCode != http.StatusCreated {
-		return "", fmt.Errorf("create media session: HTTP %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
+		return mediaSessionEndpoints{}, fmt.Errorf("create media session: HTTP %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
 	}
 	var result createMediaSessionResponse
 	if err := json.Unmarshal(body, &result); err != nil {
-		return "", fmt.Errorf("decode media session response: %w", err)
+		return mediaSessionEndpoints{}, fmt.Errorf("decode media session response: %w", err)
 	}
-	parsed, err := url.Parse(strings.TrimSpace(result.WebSocketURL))
-	if err != nil || (parsed.Scheme != "ws" && parsed.Scheme != "wss") || parsed.Host == "" {
-		return "", fmt.Errorf("media session returned an invalid WebSocket URL")
+	audioURL, err := parseMediaWebSocketURL(result.WebSocketURL)
+	if err != nil {
+		return mediaSessionEndpoints{}, fmt.Errorf("media session returned an invalid audio WebSocket URL")
 	}
-	return parsed.String(), nil
+	controlURL, err := parseMediaWebSocketURL(result.ControlWebSocketURL)
+	if err != nil {
+		return mediaSessionEndpoints{}, fmt.Errorf("media session returned an invalid control WebSocket URL")
+	}
+	return mediaSessionEndpoints{AudioURL: audioURL, ControlURL: controlURL}, nil
 }
 
 func (c *mediaClient) StopSession(ctx context.Context, id uuid.UUID) error {
@@ -91,4 +101,12 @@ func (c *mediaClient) StopSession(ctx context.Context, id uuid.UUID) error {
 		return fmt.Errorf("stop media session: HTTP %d", resp.StatusCode)
 	}
 	return nil
+}
+
+func parseMediaWebSocketURL(raw string) (string, error) {
+	parsed, err := url.Parse(strings.TrimSpace(raw))
+	if err != nil || (parsed.Scheme != "ws" && parsed.Scheme != "wss") || parsed.Host == "" {
+		return "", fmt.Errorf("invalid media WebSocket URL")
+	}
+	return parsed.String(), nil
 }

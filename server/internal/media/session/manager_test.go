@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -260,3 +261,38 @@ func (c *fakeConnection) ClearPlayback(context.Context) error {
 }
 func (c *fakeConnection) Close() error { c.once.Do(func() { close(c.closed) }); return nil }
 func (c *fakeConnection) closeInput()  { close(c.incoming) }
+
+func TestManagerReturnsTerminalProviderFailure(t *testing.T) {
+	format := session.AudioFormat{SampleRateHz: 24000, Channels: 1}
+	cfg := session.Config{
+		ID: uuid.New(), OrganizationID: uuid.New(), CallID: uuid.New(), ChannelID: uuid.New(),
+		Engine: session.EngineIntegrated, InputFormat: format, OutputFormat: format,
+	}
+	stream := newFakeStream()
+	manager, err := session.NewManager(1, time.Minute, map[session.Engine]session.Starter{
+		session.EngineIntegrated: fakeStarter{stream: stream},
+	})
+	if err != nil {
+		t.Fatalf("NewManager() error = %v", err)
+	}
+	if err := manager.Start(context.Background(), cfg); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	connection := newFakeConnection(cfg)
+	done := make(chan error, 1)
+	go func() { done <- manager.Attach(context.Background(), connection) }()
+	stream.events <- session.Event{
+		Type: session.EventError,
+		Failure: &session.FailureEvent{
+			Source: "provider", Message: "transport failed", Terminal: true,
+		},
+	}
+	select {
+	case err := <-done:
+		if err == nil || !strings.Contains(err.Error(), "terminal media provider failure") {
+			t.Fatalf("Attach() error = %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("Attach() did not stop after terminal provider failure")
+	}
+}

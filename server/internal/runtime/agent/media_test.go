@@ -17,6 +17,7 @@ func TestMediaClientCreatesAndStopsSession(t *testing.T) {
 	sessionID := uuid.New()
 	var created bool
 	var stopped bool
+	var createdEngineConfig string
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("Authorization") != "Bearer "+token {
@@ -30,6 +31,7 @@ func TestMediaClientCreatesAndStopsSession(t *testing.T) {
 				http.Error(w, "invalid", http.StatusBadRequest)
 				return
 			}
+			createdEngineConfig = string(cfg.EngineConfig)
 			if cfg.ID != sessionID {
 				http.Error(w, "wrong id", http.StatusBadRequest)
 				return
@@ -39,6 +41,7 @@ func TestMediaClientCreatesAndStopsSession(t *testing.T) {
 			w.WriteHeader(http.StatusCreated)
 			_ = json.NewEncoder(w).Encode(map[string]string{
 				"websocket_url": "ws://media.internal/v1/audio-forks?token=test",
+				"control_websocket_url": "ws://media.internal/internal/v1/sessions/" + sessionID.String() + "/control",
 			})
 		case r.Method == http.MethodDelete &&
 			r.URL.Path == "/internal/v1/sessions/"+sessionID.String():
@@ -58,7 +61,7 @@ func TestMediaClientCreatesAndStopsSession(t *testing.T) {
 	}
 
 	format := session.AudioFormat{SampleRateHz: 16000, Channels: 1}
-	websocketURL, err := client.CreateSession(context.Background(), session.Config{
+	endpoints, err := client.CreateSession(context.Background(), session.Config{
 		ID:             sessionID,
 		OrganizationID: uuid.New(),
 		CallID:         uuid.New(),
@@ -66,12 +69,16 @@ func TestMediaClientCreatesAndStopsSession(t *testing.T) {
 		Engine:         session.EngineComposable,
 		InputFormat:    format,
 		OutputFormat:   format,
+		EngineConfig:   json.RawMessage(`{"model":"snapshot-model"}`),
 	})
 	if err != nil {
 		t.Fatalf("CreateSession() error = %v", err)
 	}
-	if websocketURL == "" || !created {
-		t.Fatalf("CreateSession() websocketURL = %q, created = %v", websocketURL, created)
+	if createdEngineConfig != `{"model":"snapshot-model"}` {
+		t.Fatalf("engine config = %q", createdEngineConfig)
+	}
+	if endpoints.AudioURL == "" || endpoints.ControlURL == "" || !created {
+		t.Fatalf("CreateSession() endpoints = %+v, created = %v", endpoints, created)
 	}
 
 	if err := client.StopSession(context.Background(), sessionID); err != nil {

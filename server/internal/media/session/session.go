@@ -2,7 +2,9 @@
 package session
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -33,6 +35,27 @@ func (f AudioFormat) Validate() error {
 		return fmt.Errorf("unsupported channel count %d", f.Channels)
 	}
 	return nil
+}
+
+// EngineProfile defines the media format owned by one engine topology.
+type EngineProfile struct {
+	InputFormat  AudioFormat
+	OutputFormat AudioFormat
+}
+
+// ProfileForEngine centralizes engine media requirements so callers do not need
+// provider-specific sample-rate knowledge.
+func ProfileForEngine(engine Engine) (EngineProfile, error) {
+	switch engine {
+	case EngineEcho, EngineComposable:
+		format := AudioFormat{SampleRateHz: 16000, Channels: 1}
+		return EngineProfile{InputFormat: format, OutputFormat: format}, nil
+	case EngineIntegrated:
+		format := AudioFormat{SampleRateHz: 24000, Channels: 1}
+		return EngineProfile{InputFormat: format, OutputFormat: format}, nil
+	default:
+		return EngineProfile{}, fmt.Errorf("unsupported media engine %q", engine)
+	}
 }
 
 // AudioFrame contains signed 16-bit little-endian PCM captured at CapturedAt.
@@ -80,19 +103,20 @@ func (f AudioFrame) Validate() error {
 
 // Config is the immutable configuration resolved before a media session starts.
 type Config struct {
-	ID             uuid.UUID   `json:"id"`
-	OrganizationID uuid.UUID   `json:"organization_id"`
-	CallID         uuid.UUID   `json:"call_id"`
-	ChannelID      uuid.UUID   `json:"channel_id"`
-	Engine         Engine      `json:"engine"`
-	InputFormat    AudioFormat `json:"input_format"`
-	OutputFormat   AudioFormat `json:"output_format"`
-	Language       string      `json:"language,omitempty"`
-	Instructions   string      `json:"instructions,omitempty"`
-	Voice          string      `json:"voice,omitempty"`
+	ID             uuid.UUID       `json:"id"`
+	OrganizationID uuid.UUID       `json:"organization_id"`
+	CallID         uuid.UUID       `json:"call_id"`
+	ChannelID      uuid.UUID       `json:"channel_id"`
+	Engine         Engine          `json:"engine"`
+	InputFormat    AudioFormat     `json:"input_format"`
+	OutputFormat   AudioFormat     `json:"output_format"`
+	Language       string          `json:"language,omitempty"`
+	Instructions   string          `json:"instructions,omitempty"`
+	Voice          string          `json:"voice,omitempty"`
+	EngineConfig   json.RawMessage `json:"engine_config,omitempty"`
 }
 
-// Validate checks identity and media invariants shared by all engines.
+// Validate checks identity, media, and immutable configuration invariants.
 func (c Config) Validate() error {
 	if c.ID == uuid.Nil {
 		return fmt.Errorf("session id is required")
@@ -106,8 +130,9 @@ func (c Config) Validate() error {
 	if c.ChannelID == uuid.Nil {
 		return fmt.Errorf("channel id is required")
 	}
-	if c.Engine != EngineEcho && c.Engine != EngineComposable && c.Engine != EngineIntegrated {
-		return fmt.Errorf("unsupported engine %q", c.Engine)
+	profile, err := ProfileForEngine(c.Engine)
+	if err != nil {
+		return err
 	}
 	if err := c.InputFormat.Validate(); err != nil {
 		return fmt.Errorf("input format: %w", err)
@@ -115,7 +140,39 @@ func (c Config) Validate() error {
 	if err := c.OutputFormat.Validate(); err != nil {
 		return fmt.Errorf("output format: %w", err)
 	}
+	if c.InputFormat != profile.InputFormat || c.OutputFormat != profile.OutputFormat {
+		return fmt.Errorf(
+			"media engine %q requires input %+v and output %+v",
+			c.Engine,
+			profile.InputFormat,
+			profile.OutputFormat,
+		)
+	}
+	if len(c.EngineConfig) != 0 {
+		var object map[string]json.RawMessage
+		if err := json.Unmarshal(c.EngineConfig, &object); err != nil {
+			return fmt.Errorf("engine config must be a JSON object: %w", err)
+		}
+		if object == nil {
+			return fmt.Errorf("engine config must be a JSON object")
+		}
+	}
 	return nil
+}
+
+// Equal compares immutable session configuration, including raw engine config.
+func (c Config) Equal(other Config) bool {
+	return c.ID == other.ID &&
+		c.OrganizationID == other.OrganizationID &&
+		c.CallID == other.CallID &&
+		c.ChannelID == other.ChannelID &&
+		c.Engine == other.Engine &&
+		c.InputFormat == other.InputFormat &&
+		c.OutputFormat == other.OutputFormat &&
+		c.Language == other.Language &&
+		c.Instructions == other.Instructions &&
+		c.Voice == other.Voice &&
+		bytes.Equal(c.EngineConfig, other.EngineConfig)
 }
 
 // EventType identifies normalized output from any realtime engine.
@@ -134,14 +191,68 @@ const (
 	EventError           EventType = "error"
 )
 
+type TranscriptEvent struct {
+	Text string `json:"text"`
+}
+
+type ResponseEvent struct {
+	Text string `json:"text,omitempty"`
+}
+
+type ToolCallEvent struct {
+	ID        string          `json:"id"`
+	Name      string          `json:"name"`
+	Arguments json.RawMessage `json:"arguments"`
+}
+
+type UsageEvent struct {
+	InputTokens  int `json:"input_tokens,omitempty"`
+	OutputTokens int `json:"output_tokens,omitempty"`
+	TotalTokens  int `json:"total_tokens,omitempty"`
+}
+
+type FailureEvent struct {
+	Source   string `json:"source,omitempty"`
+	Code     string `json:"code,omitempty"`
+	Message  string `json:"message"`
+	Terminal bool   `json:"terminal"`
+}
+
 // Event is a provider-neutral session event. ProviderPayload is reserved for
-// diagnostic metadata and must never be required for domain behavior.
+// diagnostics and must never be required for runtime behavior.
 type Event struct {
-	Type            EventType
-	Text            string
-	ProviderID      string
-	ProviderPayload []byte
-	OccurredAt      time.Time
+	Type            EventType        `json:"type"`
+	Transcript      *TranscriptEvent `json:"transcript,omitempty"`
+	Response        *ResponseEvent   `json:"response,omitempty"`
+	ToolCall        *ToolCallEvent   `json:"tool_call,omitempty"`
+	Usage           *UsageEvent      `json:"usage,omitempty"`
+	Failure         *FailureEvent    `json:"failure,omitempty"`
+	ProviderID      string           `json:"provider_id,omitempty"`
+	ProviderPayload []byte           `json:"-"`
+	OccurredAt      time.Time        `json:"occurred_at"`
+}
+
+
+type CommandType string
+
+const (
+	CommandInterrupt CommandType = "response.interrupt"
+	CommandStop      CommandType = "session.stop"
+)
+
+// Command is a provider-neutral control instruction sent by Agent Runtime to
+// one live Media Runtime session.
+type Command struct {
+	Type CommandType `json:"type"`
+}
+
+func (c Command) Validate() error {
+	switch c.Type {
+	case CommandInterrupt, CommandStop:
+		return nil
+	default:
+		return fmt.Errorf("unsupported media command %q", c.Type)
+	}
 }
 
 // Stream is one live provider session. Implementations must make Close

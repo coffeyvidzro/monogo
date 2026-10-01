@@ -4,6 +4,7 @@ package composable
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"sync"
@@ -132,8 +133,16 @@ func (s *stream) run() {
 				return
 			}
 			if event.Err != nil {
-				s.emit(session.Event{Type: session.EventError, Text: event.Err.Error(), OccurredAt: time.Now().UTC()})
-				continue
+				s.emit(session.Event{
+					Type: session.EventError,
+					Failure: &session.FailureEvent{
+						Source: "deepgram", Message: event.Err.Error(), Terminal: true,
+					},
+					OccurredAt: time.Now().UTC(),
+				})
+				s.cancelResponse()
+				s.responses.Wait()
+				return
 			}
 			s.handleTurn(event)
 		case <-s.ctx.Done():
@@ -157,7 +166,12 @@ func (s *stream) handleTurn(event deepgram.Event) {
 		if text == "" {
 			return
 		}
-		s.emit(session.Event{Type: session.EventTranscriptFinal, Text: text, ProviderID: event.RequestID, OccurredAt: time.Now().UTC()})
+		s.emit(session.Event{
+			Type:       session.EventTranscriptFinal,
+			Transcript: &session.TranscriptEvent{Text: text},
+			ProviderID: event.RequestID,
+			OccurredAt: time.Now().UTC(),
+		})
 		s.startResponse(text)
 	}
 }
@@ -197,11 +211,32 @@ func (s *stream) generate(ctx context.Context, generation uint64, messages []gro
 	var text strings.Builder
 	var pending strings.Builder
 	var heldChunk string
+	toolCalls := make(map[int]*session.ToolCallEvent)
+	toolOrder := make([]int, 0, 1)
 	completionEvents := completion.Events()
 	for {
 		select {
 		case event, ok := <-completionEvents:
 			if !ok || event.Done {
+				for _, index := range toolOrder {
+					call := toolCalls[index]
+					if call == nil || call.ID == "" || call.Name == "" || !json.Valid(call.Arguments) {
+						s.emitCurrent(ctx, generation, session.Event{
+							Type: session.EventError,
+							Failure: &session.FailureEvent{
+								Source: "groq", Code: "invalid_tool_call",
+								Message: "Groq returned an incomplete tool call", Terminal: false,
+							},
+							OccurredAt: time.Now().UTC(),
+						})
+						continue
+					}
+					s.emitCurrent(ctx, generation, session.Event{
+						Type:       session.EventToolCall,
+						ToolCall:   call,
+						OccurredAt: time.Now().UTC(),
+					})
+				}
 				finalChunk := strings.TrimSpace(pending.String())
 				switch {
 				case heldChunk != "" && finalChunk != "":
@@ -236,9 +271,26 @@ func (s *stream) generate(ctx context.Context, generation uint64, messages []gro
 				s.failResponse(ctx, generation, event.Err)
 				return
 			}
+			if event.Usage != nil {
+				s.emitCurrent(ctx, generation, session.Event{
+					Type: session.EventUsage,
+					Usage: &session.UsageEvent{
+						InputTokens:  event.Usage.PromptTokens,
+						OutputTokens: event.Usage.CompletionTokens,
+						TotalTokens:  event.Usage.TotalTokens,
+					},
+					ProviderID: event.CompletionID,
+					OccurredAt: time.Now().UTC(),
+				})
+			}
 			if event.TextDelta != "" {
 				text.WriteString(event.TextDelta)
-				s.emitCurrent(ctx, generation, session.Event{Type: session.EventResponseDelta, Text: event.TextDelta, ProviderID: event.CompletionID, OccurredAt: time.Now().UTC()})
+				s.emitCurrent(ctx, generation, session.Event{
+					Type:       session.EventResponseDelta,
+					Response:   &session.ResponseEvent{Text: event.TextDelta},
+					ProviderID: event.CompletionID,
+					OccurredAt: time.Now().UTC(),
+				})
 				pending.WriteString(event.TextDelta)
 				if shouldFlushSpeechChunk(pending.String()) {
 					chunk := strings.TrimSpace(pending.String())
@@ -252,8 +304,20 @@ func (s *stream) generate(ctx context.Context, generation uint64, messages []gro
 					heldChunk = chunk
 				}
 			}
-			if event.ToolName != "" {
-				s.emitCurrent(ctx, generation, session.Event{Type: session.EventToolCall, Text: event.ToolName, ProviderID: event.ToolCallID, ProviderPayload: event.ToolArguments, OccurredAt: time.Now().UTC()})
+			if event.ToolCallID != "" || event.ToolName != "" || len(event.ToolArguments) != 0 {
+				call, exists := toolCalls[event.ToolIndex]
+				if !exists {
+					call = &session.ToolCallEvent{}
+					toolCalls[event.ToolIndex] = call
+					toolOrder = append(toolOrder, event.ToolIndex)
+				}
+				if event.ToolCallID != "" {
+					call.ID = event.ToolCallID
+				}
+				if event.ToolName != "" {
+					call.Name = event.ToolName
+				}
+				call.Arguments = append(call.Arguments, event.ToolArguments...)
 			}
 		case <-ctx.Done():
 			return
@@ -313,7 +377,13 @@ func (s *stream) failResponse(ctx context.Context, generation uint64, err error)
 	if ctx.Err() != nil || !s.isCurrent(generation) {
 		return
 	}
-	s.emit(session.Event{Type: session.EventError, Text: err.Error(), OccurredAt: time.Now().UTC()})
+	s.emit(session.Event{
+		Type: session.EventError,
+		Failure: &session.FailureEvent{
+			Source: "composable", Message: err.Error(), Terminal: false,
+		},
+		OccurredAt: time.Now().UTC(),
+	})
 	s.stopResponse(generation, "")
 }
 
