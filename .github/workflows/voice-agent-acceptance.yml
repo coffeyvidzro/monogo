@@ -1,4 +1,4 @@
-name: Voice Agent v1 acceptance
+name: Voice Agent v1 realtime release gate
 
 on:
   workflow_dispatch:
@@ -21,7 +21,7 @@ concurrency:
 
 jobs:
   smoke:
-    name: Voice Agent lifecycle
+    name: Voice Agent realtime release gate
     runs-on: ubuntu-latest
     timeout-minutes: 45
 
@@ -35,5 +35,5 @@ jobs:
           python3 -m py_compile tests/voice-agent-v1/acceptance.py
           python3 -m py_compile tests/voice-agent-v1/fake_openai.py
 
-      - name: Run Voice Agent v1 lifecycle acceptance
+      - name: Run Voice Agent v1 realtime release gate
         run: sh tests/voice-agent-v1/run.sh
