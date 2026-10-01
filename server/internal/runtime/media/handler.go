@@ -84,7 +84,7 @@ func (h *handler) createSession(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		existing, ok := h.manager.Config(cfg.ID)
-		if !ok || existing != cfg {
+		if !ok || !existing.Equal(cfg) {
 			http.Error(w, "media session id conflicts with another configuration", http.StatusConflict)
 			return
 		}
