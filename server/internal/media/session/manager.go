@@ -110,7 +110,7 @@ func (m *Manager) Start(ctx context.Context, cfg Config) error {
 		cancel()
 		if timedOut {
 			m.metrics.failure(FailureProviderTimeout)
-			return ErrProviderWriteTimeout
+			return ErrProviderStartTimeout
 		}
 		return fmt.Errorf("start media engine: %w", err)
 	}
@@ -664,7 +664,7 @@ func classifyFailure(err error) FailureReason {
 		return FailureOutputBackpressure
 	case errors.Is(err, ErrFrameDurationExceeded):
 		return FailureFrameTooLarge
-	case errors.Is(err, ErrProviderWriteTimeout):
+	case errors.Is(err, ErrProviderStartTimeout), errors.Is(err, ErrProviderWriteTimeout):
 		return FailureProviderTimeout
 	case errors.Is(err, ErrPlaybackWriteTimeout):
 		return FailurePlaybackTimeout
