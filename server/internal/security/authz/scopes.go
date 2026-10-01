@@ -17,12 +17,8 @@ const (
 	ScopeCallsWrite       Scope = "calls:write"
 	ScopeRecordingsRead   Scope = "recordings:read"
 	ScopeRecordingsWrite  Scope = "recordings:write"
-	ScopeSubscribersRead  Scope = "subscribers:read"
-	ScopeSubscribersWrite Scope = "subscribers:write"
 	ScopeNumbersRead      Scope = "numbers:read"
 	ScopeNumbersWrite     Scope = "numbers:write"
-	ScopeSIPDomainsRead   Scope = "sip-domains:read"
-	ScopeSIPDomainsWrite  Scope = "sip-domains:write"
 	ScopeTrunksRead       Scope = "trunks:read"
 	ScopeTrunksWrite      Scope = "trunks:write"
 	ScopeCarriersRead     Scope = "carriers:read"
@@ -44,9 +40,7 @@ func (s Scope) IsValid() bool {
 		ScopeVoiceAgentsRead, ScopeVoiceAgentsWrite,
 		ScopeCallsRead, ScopeCallsWrite,
 		ScopeRecordingsRead, ScopeRecordingsWrite,
-		ScopeSubscribersRead, ScopeSubscribersWrite,
 		ScopeNumbersRead, ScopeNumbersWrite,
-		ScopeSIPDomainsRead, ScopeSIPDomainsWrite,
 		ScopeTrunksRead, ScopeTrunksWrite,
 		ScopeCarriersRead, ScopeCarriersWrite,
 		ScopeWebhooksRead, ScopeWebhooksWrite,
