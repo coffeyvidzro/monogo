@@ -5,8 +5,6 @@ services:
 
   media:
     environment:
-      OPENAI_API_KEY: "voice-agent-v1-not-live"
-      OPENAI_REALTIME_ENDPOINT: "wss://voice-agent-v1-openai:8444/v1/realtime"
       SSL_CERT_FILE: /voice-agent-v1-certs/ca.crt
     volumes:
       - ${VOICE_AGENT_V1_CERT_DIR:?VOICE_AGENT_V1_CERT_DIR is required}/ca.crt:/voice-agent-v1-certs/ca.crt:ro
