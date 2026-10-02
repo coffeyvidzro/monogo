@@ -9,16 +9,13 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/coffeyvidzro/monogo/internal/integrations/cartesia"
-	"github.com/coffeyvidzro/monogo/internal/integrations/deepgram"
-	"github.com/coffeyvidzro/monogo/internal/integrations/groq"
-	"github.com/coffeyvidzro/monogo/internal/integrations/openai"
 	"github.com/coffeyvidzro/monogo/internal/media/engine/composable"
 	"github.com/coffeyvidzro/monogo/internal/media/engine/echo"
 	"github.com/coffeyvidzro/monogo/internal/media/engine/integrated"
 	"github.com/coffeyvidzro/monogo/internal/media/session"
 	"github.com/coffeyvidzro/monogo/internal/media/transport"
 	"github.com/coffeyvidzro/monogo/internal/platform/logging"
+	providersdk "github.com/coffeyvidzro/monogo/internal/providers"
 )
 
 func Run(ctx context.Context) error {
@@ -40,10 +37,15 @@ func RunWithConfig(ctx context.Context, cfg Config) error {
 		return err
 	}
 	logger := logging.New().With("process", "media")
-	if _, err := builtInProviderRegistry(); err != nil {
+	registry, err := builtInProviderRegistry(cfg)
+	if err != nil {
 		return fmt.Errorf("initialize provider registry: %w", err)
 	}
-	manager, err := session.NewManager(cfg.MaxSessions, cfg.AttachTimeout, mediaEngines(cfg))
+	manager, err := session.NewManager(
+		cfg.MaxSessions,
+		cfg.AttachTimeout,
+		mediaEngines(registry),
+	)
 	if err != nil {
 		return fmt.Errorf("initialize media session manager: %w", err)
 	}
@@ -106,23 +108,18 @@ func RunWithConfig(ctx context.Context, cfg Config) error {
 	return result
 }
 
-func mediaEngines(cfg Config) map[session.Engine]session.Starter {
+func mediaEngines(registry *providersdk.Registry) map[session.Engine]session.Starter {
 	return map[session.Engine]session.Starter{
 		session.EngineEcho: echo.Engine{},
 		session.EngineIntegrated: integrated.Engine{
-			Client: openai.NewClient(nil),
-			Config: openai.Config{
-				APIKey:   cfg.OpenAIAPIKey,
-				Endpoint: cfg.OpenAIEndpoint,
-			},
+			Registry:        registry,
+			DefaultProvider: "openai",
 		},
 		session.EngineComposable: composable.Engine{
-			Deepgram: deepgram.Config{APIKey: cfg.DeepgramAPIKey},
-			Groq:     groq.Config{APIKey: cfg.GroqAPIKey},
-			Cartesia: cartesia.Config{
-				APIKey:  cfg.CartesiaAPIKey,
-				VoiceID: cfg.CartesiaVoiceID,
-			},
+			Registry:           registry,
+			DefaultSTTProvider: "deepgram",
+			DefaultLLMProvider: "groq",
+			DefaultTTSProvider: "cartesia",
 		},
 	}
 }
