@@ -112,6 +112,24 @@ func (r *Repository) RetryUpload(
 	return err
 }
 
+func (r *Repository) PinUpload(
+	ctx context.Context,
+	recording sqlc.Recording,
+	storageIntegrationID *uuid.UUID,
+	key string,
+	provider string,
+	bucket string,
+) (sqlc.Recording, error) {
+	return r.queries.PinRecordingUpload(ctx, sqlc.PinRecordingUploadParams{
+		StorageIntegrationID: storageIntegrationID,
+		StorageKey:           key,
+		StorageProvider:      provider,
+		StorageBucket:        bucket,
+		OrganizationID:       recording.OrganizationID,
+		ID:                   recording.ID,
+	})
+}
+
 func (r *Repository) GetCallOrganizationID(
 	ctx context.Context,
 	callID uuid.UUID,
