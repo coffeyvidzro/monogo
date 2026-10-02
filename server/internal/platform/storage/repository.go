@@ -80,10 +80,7 @@ func (r *Repository) GetActiveRecording(
 	ctx context.Context,
 	organizationID uuid.UUID,
 ) (Integration, string, error) {
-	row, err := r.queries.GetActiveRecordingStorageIntegration(
-		ctx,
-		organizationID,
-	)
+	row, err := r.queries.GetActiveRecordingStorageIntegration(ctx, organizationID)
 	if err != nil {
 		return Integration{}, "", err
 	}
@@ -101,12 +98,8 @@ func (r *Repository) Update(
 		ctx,
 		sqlc.UpdateStorageIntegrationParams{
 			Name:                      req.Name,
-			EndpointUrl:               req.EndpointURL,
-			Region:                    req.Region,
-			Bucket:                    req.Bucket,
 			AccessKeyID:               req.AccessKeyID,
 			SecretAccessKeyCiphertext: ciphertext,
-			UsePathStyle:              req.UsePathStyle,
 			Status:                    req.Status,
 			ID:                        id,
 			OrganizationID:            organizationID,
