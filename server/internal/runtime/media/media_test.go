@@ -33,7 +33,12 @@ func TestRunRejectsNilContext(t *testing.T) {
 }
 
 func TestMediaEnginesAlwaysRegisterTenantCapableEngines(t *testing.T) {
-	engines := mediaEngines(validRuntimeConfig())
+	cfg := validRuntimeConfig()
+	registry, err := builtInProviderRegistry(cfg)
+	if err != nil {
+		t.Fatalf("builtInProviderRegistry() error = %v", err)
+	}
+	engines := mediaEngines(registry)
 
 	for _, engine := range []session.Engine{
 		session.EngineEcho,
