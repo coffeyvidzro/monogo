@@ -45,13 +45,9 @@ func normalizeCreateWithPolicy(req *CreateRequest, allowPrivateEndpoints bool) e
 }
 
 func normalizeUpdate(req *UpdateRequest) error {
-	if req.Name == nil &&
-		req.AccessKeyID == nil &&
-		req.SecretAccessKey == nil &&
-		req.Status == nil {
+	if req.Name == nil && req.AccessKeyID == nil && req.SecretAccessKey == nil && req.Status == nil {
 		return apperror.NewBadRequest("at least one field is required")
 	}
-
 	if req.Name != nil {
 		value := strings.TrimSpace(*req.Name)
 		if err := validateName(value); err != nil {
@@ -101,11 +97,15 @@ func validateEndpoint(value string, allowPrivateEndpoints bool) error {
 	if !allowPrivateEndpoints && parsed.Scheme != "https" {
 		return apperror.NewBadRequest("endpoint_url must use HTTPS")
 	}
+
+	hostname := strings.ToLower(strings.TrimSuffix(parsed.Hostname(), "."))
 	if allowPrivateEndpoints {
+		if ip := net.ParseIP(hostname); ip != nil && unsafeSelfHostedIP(ip) {
+			return apperror.NewBadRequest("endpoint_url uses a disallowed network host")
+		}
 		return nil
 	}
 
-	hostname := strings.ToLower(strings.TrimSuffix(parsed.Hostname(), "."))
 	if hostname == "localhost" || strings.HasSuffix(hostname, ".localhost") {
 		return apperror.NewBadRequest("endpoint_url must use a public network host")
 	}
@@ -116,12 +116,12 @@ func validateEndpoint(value string, allowPrivateEndpoints bool) error {
 }
 
 func publicIP(ip net.IP) bool {
-	return ip.IsGlobalUnicast() &&
-		!ip.IsPrivate() &&
-		!ip.IsLoopback() &&
-		!ip.IsLinkLocalUnicast() &&
-		!ip.IsLinkLocalMulticast() &&
-		!ip.IsUnspecified()
+	return ip.IsGlobalUnicast() && !ip.IsPrivate() && !ip.IsLoopback() &&
+		!ip.IsLinkLocalUnicast() && !ip.IsLinkLocalMulticast() && !ip.IsUnspecified()
+}
+
+func unsafeSelfHostedIP(ip net.IP) bool {
+	return ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() || ip.IsUnspecified() || ip.IsMulticast()
 }
 
 func validateRegion(value string) error {
