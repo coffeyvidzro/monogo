@@ -22,6 +22,32 @@ The multi-tenant isolation rules in this document primarily protect Leamout Clou
 
 BYOS remains organization-owned and credential-isolated through the configured storage integration. Self-hosted deployments normally run inside a single customer's trust boundary, while retaining organization namespacing for consistency.
 
+## Deployment endpoint policy
+
+Leamout distinguishes Cloud and Self-Hosted storage networking with `DEPLOYMENT_MODE`.
+
+```text
+DEPLOYMENT_MODE=cloud
+    → public HTTPS S3-compatible endpoints only
+
+DEPLOYMENT_MODE=self-hosted
+    → private/internal HTTP or HTTPS S3-compatible endpoints allowed
+```
+
+`cloud` is the secure default.
+
+Cloud keeps public-network endpoint validation and outbound DNS/IP filtering so a tenant cannot turn the storage integration feature into an SSRF path into Leamout infrastructure.
+
+Self-hosted operators may intentionally point Leamout at infrastructure such as:
+
+```text
+http://10.0.0.25:9000
+https://minio.internal.example
+http://localhost:9000
+```
+
+That relaxed network policy only applies when the deployment is explicitly configured as self-hosted.
+
 ## Managed storage namespace
 
 Objects written to Leamout-managed storage use a server-generated organization namespace:
@@ -117,6 +143,32 @@ A recording persists the exact `storage_integration_id` that owns its object so 
 
 Leamout does not silently fall back to managed storage when a configured BYOS operation fails.
 
+## Upload destination pinning
+
+The selected destination is persisted before the object is written.
+
+```text
+recording ready for upload
+        ↓
+resolve active organization storage
+        ↓
+persist:
+  storage_integration_id
+  storage_key
+  storage_provider
+  storage_bucket
+        ↓
+PUT object
+        ↓
+complete recording
+```
+
+This prevents retry drift.
+
+For example, if Integration A is active when an upload starts, the recording is pinned to A before the object write. If the object write succeeds but the final completion update fails, and the organization later activates Integration B, the retry still uses Integration A and the original object key.
+
+For Leamout-managed storage, a pinned recording has no `storage_integration_id`; the persisted managed key/provider/bucket identify that the destination has already been selected. The worker must not re-resolve a newly active BYOS integration for that retry.
+
 ## Self-hosted storage
 
 Self-hosted Leamout uses bundled local MinIO by default.
@@ -127,7 +179,7 @@ The same organization-prefixed object layout is retained for predictable storage
 organizations/{organization_id}/recordings/...
 ```
 
-Operators may replace the bundled destination with their own external S3-compatible storage integration.
+Operators may replace the bundled destination with their own external S3-compatible storage integration, including private-network MinIO, Ceph, or another compatible object store when `DEPLOYMENT_MODE=self-hosted`.
 
 ## Security invariants
 
@@ -142,7 +194,10 @@ Recording storage must preserve these invariants:
 - a recording cannot reference another organization's storage integration;
 - BYOS secrets remain encrypted at rest and are never returned by the API;
 - disabled BYOS integrations remain resolvable for historical recordings;
-- configured BYOS failures never silently redirect data into Leamout-managed storage.
+- configured BYOS failures never silently redirect data into Leamout-managed storage;
+- Cloud storage endpoints remain public HTTPS only;
+- private/internal storage endpoints are accepted only for explicitly self-hosted deployments;
+- an upload destination is pinned before object write and reused on every retry.
 
 ## Provider neutrality
 
