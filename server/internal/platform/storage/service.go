@@ -55,7 +55,7 @@ func (s *Service) Create(
 	value, err := s.repo.Create(ctx, id, organizationID, req, ciphertext)
 	if conflict(err) {
 		return Integration{}, apperror.NewConflict(
-			"recording storage integration already exists",
+			"an active recording storage integration already exists",
 		)
 	}
 	if err != nil {
@@ -135,6 +135,11 @@ func (s *Service) Update(
 	}
 
 	value, err := s.repo.Update(ctx, organizationID, id, req, ciphertext)
+	if conflict(err) {
+		return Integration{}, apperror.NewConflict(
+			"another active recording storage integration already exists",
+		)
+	}
 	if err != nil {
 		return Integration{}, databaseError(err, "storage integration not found")
 	}
