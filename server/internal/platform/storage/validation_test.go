@@ -50,6 +50,26 @@ func TestNormalizeCreateRejectsEndpointPath(t *testing.T) {
 	}
 }
 
+func TestNormalizeCreateRejectsPrivateEndpoint(t *testing.T) {
+	for _, endpoint := range []string{
+		"https://127.0.0.1",
+		"https://10.0.0.1",
+		"https://169.254.169.254",
+		"https://localhost",
+	} {
+		req := CreateRequest{
+			Name:            "Recording archive",
+			EndpointURL:     endpoint,
+			Bucket:          "recordings",
+			AccessKeyID:     "access",
+			SecretAccessKey: "secret",
+		}
+		if err := normalizeCreate(&req); err == nil {
+			t.Fatalf("normalizeCreate(%q) error = nil, want public host error", endpoint)
+		}
+	}
+}
+
 func TestNormalizeUpdateRequiresField(t *testing.T) {
 	if err := normalizeUpdate(&UpdateRequest{}); err == nil {
 		t.Fatal("normalizeUpdate() error = nil, want empty update error")
