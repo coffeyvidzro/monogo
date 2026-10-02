@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"net"
 	"net/url"
 	"strings"
 
@@ -41,12 +42,8 @@ func normalizeCreate(req *CreateRequest) error {
 
 func normalizeUpdate(req *UpdateRequest) error {
 	if req.Name == nil &&
-		req.EndpointURL == nil &&
-		req.Region == nil &&
-		req.Bucket == nil &&
 		req.AccessKeyID == nil &&
 		req.SecretAccessKey == nil &&
-		req.UsePathStyle == nil &&
 		req.Status == nil {
 		return apperror.NewBadRequest("at least one field is required")
 	}
@@ -57,27 +54,6 @@ func normalizeUpdate(req *UpdateRequest) error {
 			return err
 		}
 		req.Name = &value
-	}
-	if req.EndpointURL != nil {
-		value := strings.TrimSpace(*req.EndpointURL)
-		if err := validateEndpoint(value); err != nil {
-			return err
-		}
-		req.EndpointURL = &value
-	}
-	if req.Region != nil {
-		value := strings.TrimSpace(*req.Region)
-		if err := validateRegion(value); err != nil {
-			return err
-		}
-		req.Region = &value
-	}
-	if req.Bucket != nil {
-		value := strings.TrimSpace(*req.Bucket)
-		if err := validateBucket(value); err != nil {
-			return err
-		}
-		req.Bucket = &value
 	}
 	if req.AccessKeyID != nil {
 		value := strings.TrimSpace(*req.AccessKeyID)
@@ -112,10 +88,29 @@ func validateName(value string) error {
 
 func validateEndpoint(value string) error {
 	parsed, err := url.Parse(value)
-	if err != nil || parsed.Scheme != "https" || parsed.Host == "" || parsed.User != nil || parsed.RawQuery != "" || parsed.Fragment != "" || (parsed.Path != "" && parsed.Path != "/") {
+	if err != nil || parsed.Scheme != "https" || parsed.Host == "" ||
+		parsed.User != nil || parsed.RawQuery != "" || parsed.Fragment != "" ||
+		(parsed.Path != "" && parsed.Path != "/") {
 		return apperror.NewBadRequest("endpoint_url must be an HTTPS origin")
 	}
+
+	hostname := strings.ToLower(strings.TrimSuffix(parsed.Hostname(), "."))
+	if hostname == "localhost" || strings.HasSuffix(hostname, ".localhost") {
+		return apperror.NewBadRequest("endpoint_url must use a public network host")
+	}
+	if ip := net.ParseIP(hostname); ip != nil && !publicIP(ip) {
+		return apperror.NewBadRequest("endpoint_url must use a public network host")
+	}
 	return nil
+}
+
+func publicIP(ip net.IP) bool {
+	return ip.IsGlobalUnicast() &&
+		!ip.IsPrivate() &&
+		!ip.IsLoopback() &&
+		!ip.IsLinkLocalUnicast() &&
+		!ip.IsLinkLocalMulticast() &&
+		!ip.IsUnspecified()
 }
 
 func validateRegion(value string) error {
