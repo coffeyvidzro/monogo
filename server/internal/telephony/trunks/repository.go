@@ -144,19 +144,6 @@ func (r *Repository) SetInboundIP(
 	)
 }
 
-func (r *Repository) SetInboundNone(
-	ctx context.Context,
-	organizationID, id uuid.UUID,
-) error {
-	return r.queries.SetTrunkInboundNoAuth(
-		ctx,
-		sqlc.SetTrunkInboundNoAuthParams{
-			ID:             id,
-			OrganizationID: organizationID,
-		},
-	)
-}
-
 func (r *Repository) CreateSourceIP(
 	ctx context.Context,
 	organizationID, trunkID uuid.UUID,

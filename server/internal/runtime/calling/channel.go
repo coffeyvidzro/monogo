@@ -100,7 +100,7 @@ func (l *AdmissionLimiter) Acquire(
 		callAdmissionLeaseTTL,
 	)
 	if err != nil {
-		return fmt.Errorf("acquire carrier call lease: %w", err)
+		return fmt.Errorf("acquire trunk call lease: %w", err)
 	}
 	if allowed {
 		return nil

@@ -79,7 +79,7 @@ func newModules(ctx context.Context, cfg config.Config) (*modules, error) {
 	credentialCipher, err := encryption.New(cfg.EncryptionKey)
 	if err != nil {
 		closeDependencies()
-		return nil, fmt.Errorf("initialize carrier credential encryption: %w", err)
+		return nil, fmt.Errorf("initialize trunk credential encryption: %w", err)
 	}
 
 	coturnClient, err := coturn.New(coturn.Config{

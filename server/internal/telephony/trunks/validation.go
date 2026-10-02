@@ -78,8 +78,8 @@ func normalizeCreate(req *CreateRequest) error {
 	if req.InboundAuthMethod != nil {
 		method = strings.ToLower(strings.TrimSpace(*req.InboundAuthMethod))
 	}
-	if method != "ip" && method != "digest" && method != "none" {
-		return apperror.NewBadRequest("inbound_auth_method must be ip, digest, or none")
+	if method != "ip" && method != "digest" {
+		return apperror.NewBadRequest("inbound_auth_method must be ip or digest")
 	}
 	req.InboundAuthMethod = &method
 
@@ -156,7 +156,7 @@ func normalizeAuth(req *AuthRequest, inbound bool) error {
 	req.Method = strings.ToLower(strings.TrimSpace(req.Method))
 	allowed := req.Method == "digest" ||
 		(!inbound && req.Method == "none") ||
-		(inbound && (req.Method == "ip" || req.Method == "none"))
+		(inbound && req.Method == "ip")
 	if !allowed {
 		return apperror.NewBadRequest("invalid authentication method")
 	}

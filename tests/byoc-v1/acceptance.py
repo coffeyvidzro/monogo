@@ -161,7 +161,7 @@ def assert_digest_runtime(secret_name, expected_ha1):
         raise Failure("OpenSIPS outbound HA1 view was not updated")
 
 
-def connection_and_auth():
+def trunk_and_auth():
     item = api(
         "POST",
         "/v1/trunks/",
@@ -195,7 +195,6 @@ def connection_and_auth():
 
 def trunk():
     item = S["trunk"]
-    S["trunk"] = item
     endpoint = api(
         "POST",
         f"/v1/trunks/{item['id']}/endpoints",
@@ -210,6 +209,7 @@ def trunk():
     )
     S["endpoint"] = endpoint
     return f"trunk {item['id']} routes to endpoint {endpoint['id']}"
+
 
 def number_and_app():
     number = api(
@@ -259,11 +259,11 @@ def number_and_app():
 
 
 def reject_cross_org_did_ownership():
-    foreign_connection = api(
+    foreign_trunk = api(
         "POST",
         "/v1/trunks/",
         {
-            "name": "BYOC foreign tenant carrier",
+            "name": "BYOC foreign tenant trunk",
             "inbound_enabled": True,
         },
         (201,),
@@ -273,7 +273,7 @@ def reject_cross_org_did_ownership():
     api(
         "PATCH",
         f"/v1/numbers/{S['number']['id']}/trunk",
-        {"trunk_id": foreign_connection["id"]},
+        {"trunk_id": foreign_trunk["id"]},
         (404,),
         TOKEN_B,
     )
@@ -313,7 +313,7 @@ def outbound(label):
     for field, value in expected.items():
         if persisted.get(field) != value:
             raise Failure(f"persisted {field}={persisted.get(field)!r}, want {value}")
-    return f"{label} authenticated call {call['id']} persisted connection/trunk/endpoint attribution"
+    return f"{label} authenticated call {call['id']} persisted trunk/endpoint attribution"
 
 
 def first_authenticated_outbound():
@@ -336,7 +336,7 @@ def rotate_and_authenticated_outbound():
         raise Failure("OpenSIPS container id is unavailable before rotation")
     api(
         "PUT",
-        f"/v1/trunks/{S['connection']['id']}/outbound-auth",
+        f"/v1/trunks/{S['trunk']['id']}/outbound-auth",
         {
             "method": "digest",
             "username": "byoc-user",
@@ -345,7 +345,7 @@ def rotate_and_authenticated_outbound():
         },
         (204,),
     )
-    updated = api("GET", f"/v1/trunks/{S['connection']['id']}")
+    updated = api("GET", f"/v1/trunks/{S['trunk']['id']}")
     if not updated["has_outbound_credentials"]:
         raise Failure("rotated outbound credentials were not marked present")
     assert_digest_runtime("rotated-secret", "9fcc44d55f26bac30b97201af8e5654d")
@@ -362,27 +362,27 @@ def rejected_before_allowlist():
         f"originate {{origination_caller_id_number={CALLER}}}sofia/internal/{DID}@opensips:5060 &park()"
     )
     if "+OK" in output:
-        raise Failure("untrusted carrier source was accepted")
-    return "unknown carrier source is rejected"
+        raise Failure("untrusted trunk source was accepted")
+    return "unknown trunk source is rejected"
 
 
 def add_source_and_inbound():
     source = api(
         "POST",
-        f"/v1/trunks/{S['connection']['id']}/source-ips",
+        f"/v1/trunks/{S['trunk']['id']}/source-ips",
         {"cidr": "172.30.0.50/32"},
         (201,),
     )
-    carrier_uuid = str(uuid.uuid4())
+    trunk_call_uuid = str(uuid.uuid4())
     try:
         before = {x["id"] for x in api("GET", "/v1/calls/?limit=100")["calls"]}
         output = fs(
             "bgapi originate "
-            f"{{origination_uuid={carrier_uuid},origination_caller_id_number={CALLER}}}"
+            f"{{origination_uuid={trunk_call_uuid},origination_caller_id_number={CALLER}}}"
             f"sofia/internal/{DID}@opensips:5060 &park()"
         )
         if "+OK Job-UUID:" not in output:
-            raise Failure("allowlisted carrier originate was not queued: " + output)
+            raise Failure("allowlisted trunk originate was not queued: " + output)
         call = wait(
             "inbound call",
             lambda: next(
@@ -396,10 +396,10 @@ def add_source_and_inbound():
         )
         S["inbound"] = call
     finally:
-        fs(f"uuid_kill {carrier_uuid}")
+        fs(f"uuid_kill {trunk_call_uuid}")
         api(
             "DELETE",
-            f"/v1/trunks/{S['connection']['id']}/source-ips/{source['id']}",
+            f"/v1/trunks/{S['trunk']['id']}/source-ips/{source['id']}",
             expected=(204,),
         )
 
@@ -407,14 +407,14 @@ def add_source_and_inbound():
         f"originate {{origination_caller_id_number={CALLER}}}sofia/internal/{DID}@opensips:5060 &park()"
     )
     if "+OK" in rejected:
-        raise Failure("removed carrier source remained authorized")
+        raise Failure("removed trunk source remained authorized")
     return "source-IP addition and removal took effect without OpenSIPS restart"
 
 
 def disable_rejects_routes():
     api(
         "PATCH",
-        f"/v1/trunks/{S['connection']['id']}",
+        f"/v1/trunks/{S['trunk']['id']}",
         {"status": "disabled"},
     )
     api(
@@ -433,7 +433,7 @@ def restart_persistence():
         lambda: urllib.request.urlopen(API + "/readyz", timeout=2).status == 200,
         45,
     )
-    item = api("GET", f"/v1/trunks/{S['connection']['id']}")
+    item = api("GET", f"/v1/trunks/{S['trunk']['id']}")
     if item["status"] != "disabled":
         raise Failure("trunk state changed after restart")
     return "trunk configuration survives OpenSIPS and API restart"
@@ -442,8 +442,7 @@ def restart_persistence():
 def main():
     tests = [
         ("Deploy BYOC stack", deploy),
-        ("Discover generic SIP provider", provider),
-        ("Activate first outbound digest credential", connection_and_auth),
+        ("Activate first outbound digest credential", trunk_and_auth),
         ("Provision trunk endpoint", trunk),
         ("Assign DID ownership", number_and_app),
         ("Reject cross-org DID ownership", reject_cross_org_did_ownership),
@@ -452,9 +451,9 @@ def main():
             "Rotate digest auth without OpenSIPS restart",
             rotate_and_authenticated_outbound,
         ),
-        ("Reject unknown source", rejected_before_allowlist),
+        ("Reject unknown trunk source", rejected_before_allowlist),
         ("Apply source IP live", add_source_and_inbound),
-        ("Disable carrier routing", disable_rejects_routes),
+        ("Disable trunk routing", disable_rejects_routes),
         ("Recover configuration", restart_persistence),
     ]
     for name, fn in tests:

@@ -54,11 +54,11 @@ CREATE TABLE IF NOT EXISTS trunks (
         )
     ),
     CONSTRAINT chk_trunks_inbound_auth_method CHECK (
-        inbound_auth_method IN ('ip', 'digest', 'none')
+        inbound_auth_method IN ('ip', 'digest')
     ),
     CONSTRAINT chk_trunks_inbound_auth_fields CHECK (
         (
-            inbound_auth_method IN ('ip', 'none')
+            inbound_auth_method = 'ip'
             AND inbound_username IS NULL
             AND inbound_realm IS NULL
             AND inbound_secret_ciphertext IS NULL
