@@ -89,6 +89,19 @@ func TestNormalizeCreateAllowsPrivateEndpointForSelfHosted(t *testing.T) {
 	}
 }
 
+func TestNormalizeCreateRejectsLinkLocalEndpointForSelfHosted(t *testing.T) {
+	req := CreateRequest{
+		Name:            "Recording archive",
+		EndpointURL:     "http://169.254.169.254/latest/meta-data",
+		Bucket:          "recordings",
+		AccessKeyID:     "access",
+		SecretAccessKey: "secret",
+	}
+	if err := normalizeCreateWithPolicy(&req, true); err == nil {
+		t.Fatal("normalizeCreateWithPolicy() error = nil, want link-local rejection")
+	}
+}
+
 func TestNormalizeUpdateRequiresField(t *testing.T) {
 	if err := normalizeUpdate(&UpdateRequest{}); err == nil {
 		t.Fatal("normalizeUpdate() error = nil, want empty update error")
