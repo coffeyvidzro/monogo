@@ -17,13 +17,14 @@ import (
 )
 
 type Config struct {
-	Endpoint     string
-	Region       string
-	Bucket       string
-	AccessKey    string
-	SecretKey    string
-	UsePathStyle bool
-	PlaybackTTL  time.Duration
+	Endpoint              string
+	Region                string
+	Bucket                string
+	AccessKey             string
+	SecretKey             string
+	UsePathStyle          bool
+	PlaybackTTL           time.Duration
+	AllowPrivateEndpoints bool
 }
 
 type Client struct {
@@ -59,7 +60,7 @@ func New(_ context.Context, cfg Config) (*Client, error) {
 		Secure:       secure,
 		Region:       cfg.Region,
 		BucketLookup: bucketLookup(cfg.UsePathStyle),
-		Transport:    publicTransport(),
+		Transport:    endpointTransport(cfg.AllowPrivateEndpoints),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("initialize S3 client: %w", err)
@@ -198,9 +199,13 @@ func parseEndpoint(value string) (string, bool, error) {
 	return parsed.Host, parsed.Scheme == "https", nil
 }
 
-func publicTransport() *http.Transport {
+func endpointTransport(allowPrivate bool) *http.Transport {
 	transport := http.DefaultTransport.(*http.Transport).Clone()
 	transport.Proxy = nil
+	if allowPrivate {
+		return transport
+	}
+
 	dialer := &net.Dialer{
 		Timeout:   30 * time.Second,
 		KeepAlive: 30 * time.Second,
