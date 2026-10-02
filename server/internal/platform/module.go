@@ -47,6 +47,7 @@ func New(
 	db *pgxpool.Pool,
 	queries *sqlc.Queries,
 	credentialCipher *encryption.Cipher,
+	allowPrivateStorageEndpoints ...bool,
 ) *Module {
 	auditRepository := audit.NewRepository(db)
 	auditService := audit.NewService(auditRepository)
@@ -58,7 +59,11 @@ func New(
 	)
 
 	storageRepository := storage.NewRepository(queries)
-	storageService := storage.NewService(storageRepository, credentialCipher)
+	storageService := storage.NewService(
+		storageRepository,
+		credentialCipher,
+		allowPrivateStorageEndpoints...,
+	)
 
 	webhooksRepository := webhooks.NewRepository(queries)
 	webhooksService := webhooks.NewService(webhooksRepository)
