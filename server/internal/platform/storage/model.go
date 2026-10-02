@@ -74,20 +74,5 @@ type ResolvedIntegration struct {
 }
 
 func response(value Integration) Response {
-	return Response{
-		ID:             value.ID,
-		OrganizationID: value.OrganizationID,
-		Name:           value.Name,
-		Provider:       value.Provider,
-		Purpose:        value.Purpose,
-		EndpointURL:    value.EndpointURL,
-		Region:         value.Region,
-		Bucket:         value.Bucket,
-		AccessKeyID:    value.AccessKeyID,
-		UsePathStyle:   value.UsePathStyle,
-		Status:         value.Status,
-		HasSecret:      value.HasSecret,
-		CreatedAt:      value.CreatedAt,
-		UpdatedAt:      value.UpdatedAt,
-	}
+	return Response(value)
 }
