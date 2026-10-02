@@ -106,6 +106,19 @@ WHERE id = sqlc.arg(id)
   AND status = 'uploading'
 RETURNING *;
 
+-- name: PinRecordingUpload :one
+UPDATE recordings
+SET storage_integration_id = sqlc.narg(storage_integration_id),
+    storage_key = sqlc.arg(storage_key),
+    storage_provider = sqlc.arg(storage_provider),
+    storage_bucket = sqlc.arg(storage_bucket),
+    updated_at = NOW()
+WHERE organization_id = sqlc.arg(organization_id)
+  AND id = sqlc.arg(id)
+  AND status = 'uploading'
+  AND storage_key IS NULL
+RETURNING *;
+
 -- name: CompleteRecording :one
 UPDATE recordings
 SET

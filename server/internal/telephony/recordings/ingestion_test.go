@@ -14,8 +14,8 @@ import (
 )
 
 type fakeIngestionRepository struct {
-	items                      []sqlc.Recording
-	completed, retries, failed int
+	items                              []sqlc.Recording
+	pinned, completed, retries, failed int
 }
 
 func (f *fakeIngestionRepository) ListForUpload(
@@ -25,6 +25,22 @@ func (f *fakeIngestionRepository) ListForUpload(
 	int32,
 ) ([]sqlc.Recording, error) {
 	return f.items, nil
+}
+
+func (f *fakeIngestionRepository) PinUpload(
+	_ context.Context,
+	item sqlc.Recording,
+	storageIntegrationID *uuid.UUID,
+	key string,
+	provider string,
+	bucket string,
+) (sqlc.Recording, error) {
+	f.pinned++
+	item.StorageIntegrationID = storageIntegrationID
+	item.StorageKey = &key
+	item.StorageProvider = &provider
+	item.StorageBucket = &bucket
+	return item, nil
 }
 
 func (f *fakeIngestionRepository) CompleteUpload(
@@ -95,8 +111,8 @@ func TestIngestionUploadsAndRemovesStagedFile(t *testing.T) {
 	if err := job.Ingest(context.Background()); err != nil {
 		t.Fatalf("Ingest() error = %v", err)
 	}
-	if repo.completed != 1 || string(object.putBody) != "RIFF-recording" {
-		t.Fatalf("completed=%d body=%q", repo.completed, object.putBody)
+	if repo.pinned != 1 || repo.completed != 1 || string(object.putBody) != "RIFF-recording" {
+		t.Fatalf("pinned=%d completed=%d body=%q", repo.pinned, repo.completed, object.putBody)
 	}
 	wantPrefix := "organizations/" + recording.OrganizationID.String() + "/recordings/2026/09/20/"
 	if !strings.HasPrefix(object.putKey, wantPrefix) {
@@ -104,6 +120,56 @@ func TestIngestionUploadsAndRemovesStagedFile(t *testing.T) {
 	}
 	if _, err := os.Stat(path); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("staged file still exists: %v", err)
+	}
+}
+
+func TestIngestionReusesPinnedStorageKey(t *testing.T) {
+	root := t.TempDir()
+	path := filepath.Join(root, "call.wav")
+	if err := os.WriteFile(path, []byte("RIFF-recording"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	organizationID, recordingID := uuid.New(), uuid.New()
+	key, err := recordingObjectKey(
+		organizationID,
+		recordingID,
+		time.Date(2026, 9, 19, 1, 2, 3, 0, time.UTC),
+		"wav",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	provider, bucket := "s3", "recordings"
+	recording := sqlc.Recording{
+		ID:              recordingID,
+		OrganizationID:  organizationID,
+		SourcePath:      &path,
+		Status:          "uploading",
+		StorageKey:      &key,
+		StorageProvider: &provider,
+		StorageBucket:   &bucket,
+	}
+	repo := &fakeIngestionRepository{items: []sqlc.Recording{recording}}
+	object := &fakeObjectStore{}
+	job, err := NewIngestionJob(
+		repo,
+		NewObjectStorage(object),
+		DefaultIngestionConfig(root),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	job.now = func() time.Time {
+		return time.Date(2026, 9, 20, 1, 2, 3, 0, time.UTC)
+	}
+	if err := job.Ingest(context.Background()); err != nil {
+		t.Fatalf("Ingest() error = %v", err)
+	}
+	if repo.pinned != 0 {
+		t.Fatalf("pin calls = %d, want 0 for already pinned upload", repo.pinned)
+	}
+	if object.putKey != key {
+		t.Fatalf("put key = %q, want pinned key %q", object.putKey, key)
 	}
 }
 

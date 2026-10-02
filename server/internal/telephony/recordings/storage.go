@@ -42,6 +42,17 @@ func NewResolvedObjectStorage(
 	return storage
 }
 
+func (s *ObjectStorage) ResolveUpload(
+	ctx context.Context,
+	recording sqlc.Recording,
+) (*uuid.UUID, string, string, error) {
+	client, integrationID, err := s.clientForRecording(ctx, recording, true)
+	if err != nil {
+		return nil, "", "", err
+	}
+	return integrationID, "s3", client.Bucket(), nil
+}
+
 func (s *ObjectStorage) Put(
 	ctx context.Context,
 	recording sqlc.Recording,
@@ -143,7 +154,10 @@ func (s *ObjectStorage) clientForRecording(
 		return client, &id, nil
 	}
 
-	if forUpload && s.integrations != nil {
+	// A storage key without an integration id means this upload was already
+	// pinned to Leamout-managed storage. Do not re-resolve the organization's
+	// active integration on retry.
+	if forUpload && recording.StorageKey == nil && s.integrations != nil {
 		resolved, err := s.integrations.ResolveRecording(
 			ctx,
 			recording.OrganizationID,
