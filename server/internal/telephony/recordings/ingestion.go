@@ -43,6 +43,14 @@ func DefaultIngestionConfig(stagingPath string) IngestionConfig {
 
 type ingestionRepository interface {
 	ListForUpload(context.Context, time.Time, time.Time, int32) ([]sqlc.Recording, error)
+	PinUpload(
+		context.Context,
+		sqlc.Recording,
+		*uuid.UUID,
+		string,
+		string,
+		string,
+	) (sqlc.Recording, error)
 	CompleteUpload(
 		context.Context,
 		sqlc.Recording,
@@ -179,15 +187,42 @@ func (j *IngestionJob) ingestOne(
 	if ext == "" {
 		ext = "bin"
 	}
-	key, err := recordingObjectKey(
-		recording.OrganizationID,
-		recording.ID,
-		j.now().UTC(),
-		ext,
-	)
-	if err != nil {
-		return j.retryOrFail(ctx, recording, err)
+
+	key := ""
+	if recording.StorageKey != nil {
+		key = *recording.StorageKey
+	} else {
+		key, err = recordingObjectKey(
+			recording.OrganizationID,
+			recording.ID,
+			j.now().UTC(),
+			ext,
+		)
+		if err != nil {
+			return j.retryOrFail(ctx, recording, err)
+		}
+
+		integrationID, provider, bucket, resolveErr := j.storage.ResolveUpload(ctx, recording)
+		if resolveErr != nil {
+			return j.retryOrFail(ctx, recording, resolveErr)
+		}
+		recording, err = j.repo.PinUpload(
+			ctx,
+			recording,
+			integrationID,
+			key,
+			provider,
+			bucket,
+		)
+		if err != nil {
+			return j.retryOrFail(
+				ctx,
+				recording,
+				fmt.Errorf("pin recording upload destination: %w", err),
+			)
+		}
 	}
+
 	contentType := mime.TypeByExtension("." + ext)
 	if contentType == "" {
 		contentType = "application/octet-stream"
