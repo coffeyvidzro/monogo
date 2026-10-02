@@ -202,10 +202,6 @@ func parseEndpoint(value string) (string, bool, error) {
 func endpointTransport(allowPrivate bool) *http.Transport {
 	transport := http.DefaultTransport.(*http.Transport).Clone()
 	transport.Proxy = nil
-	if allowPrivate {
-		return transport
-	}
-
 	dialer := &net.Dialer{
 		Timeout:   30 * time.Second,
 		KeepAlive: 30 * time.Second,
@@ -225,7 +221,11 @@ func endpointTransport(allowPrivate bool) *http.Transport {
 		}
 		var dialErr error
 		for _, resolved := range addresses {
-			if !publicEndpointIP(resolved.IP) {
+			allowed := publicEndpointIP(resolved.IP)
+			if allowPrivate {
+				allowed = selfHostedEndpointIP(resolved.IP)
+			}
+			if !allowed {
 				continue
 			}
 			conn, err := dialer.DialContext(
@@ -240,6 +240,9 @@ func endpointTransport(allowPrivate bool) *http.Transport {
 		}
 		if dialErr != nil {
 			return nil, dialErr
+		}
+		if allowPrivate {
+			return nil, fmt.Errorf("S3 endpoint resolves to a disallowed network")
 		}
 		return nil, fmt.Errorf("S3 endpoint resolves to a non-public network")
 	}
@@ -263,6 +266,18 @@ func publicEndpointIP(ip net.IP) bool {
 		}
 	}
 	return true
+}
+
+func selfHostedEndpointIP(ip net.IP) bool {
+	addr, ok := netip.AddrFromSlice(ip)
+	if !ok {
+		return false
+	}
+	addr = addr.Unmap()
+	if addr.IsLinkLocalUnicast() || addr.IsMulticast() || addr.IsUnspecified() {
+		return false
+	}
+	return addr.IsGlobalUnicast() || addr.IsLoopback()
 }
 
 var blockedPublicRanges = []netip.Prefix{
