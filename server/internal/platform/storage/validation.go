@@ -9,6 +9,10 @@ import (
 )
 
 func normalizeCreate(req *CreateRequest) error {
+	return normalizeCreateWithPolicy(req, false)
+}
+
+func normalizeCreateWithPolicy(req *CreateRequest, allowPrivateEndpoints bool) error {
 	req.Name = strings.TrimSpace(req.Name)
 	req.EndpointURL = strings.TrimSpace(req.EndpointURL)
 	req.Region = strings.TrimSpace(req.Region)
@@ -22,7 +26,7 @@ func normalizeCreate(req *CreateRequest) error {
 	if err := validateName(req.Name); err != nil {
 		return err
 	}
-	if err := validateEndpoint(req.EndpointURL); err != nil {
+	if err := validateEndpoint(req.EndpointURL, allowPrivateEndpoints); err != nil {
 		return err
 	}
 	if err := validateRegion(req.Region); err != nil {
@@ -86,12 +90,19 @@ func validateName(value string) error {
 	return nil
 }
 
-func validateEndpoint(value string) error {
+func validateEndpoint(value string, allowPrivateEndpoints bool) error {
 	parsed, err := url.Parse(value)
-	if err != nil || parsed.Scheme != "https" || parsed.Host == "" ||
+	if err != nil || parsed.Host == "" ||
+		(parsed.Scheme != "http" && parsed.Scheme != "https") ||
 		parsed.User != nil || parsed.RawQuery != "" || parsed.Fragment != "" ||
 		(parsed.Path != "" && parsed.Path != "/") {
-		return apperror.NewBadRequest("endpoint_url must be an HTTPS origin")
+		return apperror.NewBadRequest("endpoint_url must be an HTTP or HTTPS origin")
+	}
+	if !allowPrivateEndpoints && parsed.Scheme != "https" {
+		return apperror.NewBadRequest("endpoint_url must use HTTPS")
+	}
+	if allowPrivateEndpoints {
+		return nil
 	}
 
 	hostname := strings.ToLower(strings.TrimSuffix(parsed.Hostname(), "."))
