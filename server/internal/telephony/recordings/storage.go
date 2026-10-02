@@ -54,6 +54,11 @@ func (s *ObjectStorage) Put(
 	if err != nil {
 		return nil, "", "", err
 	}
+	if integrationID == nil {
+		if err := validateManagedRecordingKey(recording.OrganizationID, key); err != nil {
+			return nil, "", "", err
+		}
+	}
 	if err := client.Put(ctx, key, contentType, reader, size); err != nil {
 		return nil, "", "", err
 	}
@@ -69,12 +74,17 @@ func (s *ObjectStorage) PlaybackURL(
 		*recording.StorageProvider != "s3" {
 		return "", time.Time{}, fmt.Errorf("recording has no S3 object")
 	}
-	client, _, err := s.clientForRecording(ctx, recording, false)
+	client, integrationID, err := s.clientForRecording(ctx, recording, false)
 	if err != nil {
 		return "", time.Time{}, err
 	}
 	if recording.StorageBucket == nil || *recording.StorageBucket != client.Bucket() {
 		return "", time.Time{}, fmt.Errorf("recording S3 bucket is invalid")
+	}
+	if integrationID == nil {
+		if err := validateManagedRecordingKey(recording.OrganizationID, *recording.StorageKey); err != nil {
+			return "", time.Time{}, err
+		}
 	}
 	return client.PlaybackURL(ctx, *recording.StorageKey)
 }
@@ -88,12 +98,17 @@ func (s *ObjectStorage) Delete(
 		*recording.StorageProvider != "s3" {
 		return fmt.Errorf("recording has no S3 object")
 	}
-	client, _, err := s.clientForRecording(ctx, recording, false)
+	client, integrationID, err := s.clientForRecording(ctx, recording, false)
 	if err != nil {
 		return err
 	}
 	if recording.StorageBucket == nil || *recording.StorageBucket != client.Bucket() {
 		return fmt.Errorf("recording S3 bucket is invalid")
+	}
+	if integrationID == nil {
+		if err := validateManagedRecordingKey(recording.OrganizationID, *recording.StorageKey); err != nil {
+			return err
+		}
 	}
 	return client.Delete(ctx, *recording.StorageKey)
 }
