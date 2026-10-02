@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -96,6 +97,10 @@ func TestIngestionUploadsAndRemovesStagedFile(t *testing.T) {
 	}
 	if repo.completed != 1 || string(object.putBody) != "RIFF-recording" {
 		t.Fatalf("completed=%d body=%q", repo.completed, object.putBody)
+	}
+	wantPrefix := "organizations/" + recording.OrganizationID.String() + "/recordings/2026/09/20/"
+	if !strings.HasPrefix(object.putKey, wantPrefix) {
+		t.Fatalf("put key = %q, want prefix %q", object.putKey, wantPrefix)
 	}
 	if _, err := os.Stat(path); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("staged file still exists: %v", err)
