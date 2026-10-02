@@ -238,30 +238,22 @@ const updateStorageIntegration = `-- name: UpdateStorageIntegration :one
 UPDATE storage_integrations
 SET
     name = COALESCE($1, name),
-    endpoint_url = COALESCE($2, endpoint_url),
-    region = COALESCE($3, region),
-    bucket = COALESCE($4, bucket),
-    access_key_id = COALESCE($5, access_key_id),
+    access_key_id = COALESCE($2, access_key_id),
     secret_access_key_ciphertext = COALESCE(
-        $6,
+        $3,
         secret_access_key_ciphertext
     ),
-    use_path_style = COALESCE($7, use_path_style),
-    status = COALESCE($8, status),
+    status = COALESCE($4, status),
     updated_at = NOW()
-WHERE id = $9
-  AND organization_id = $10
+WHERE id = $5
+  AND organization_id = $6
 RETURNING id, organization_id, name, provider, purpose, endpoint_url, region, bucket, access_key_id, secret_access_key_ciphertext, use_path_style, status, created_at, updated_at
 `
 
 type UpdateStorageIntegrationParams struct {
 	Name                      *string   `db:"name" json:"name"`
-	EndpointUrl               *string   `db:"endpoint_url" json:"endpoint_url"`
-	Region                    *string   `db:"region" json:"region"`
-	Bucket                    *string   `db:"bucket" json:"bucket"`
 	AccessKeyID               *string   `db:"access_key_id" json:"access_key_id"`
 	SecretAccessKeyCiphertext *string   `db:"secret_access_key_ciphertext" json:"secret_access_key_ciphertext"`
-	UsePathStyle              *bool     `db:"use_path_style" json:"use_path_style"`
 	Status                    *string   `db:"status" json:"status"`
 	ID                        uuid.UUID `db:"id" json:"id"`
 	OrganizationID            uuid.UUID `db:"organization_id" json:"organization_id"`
@@ -270,12 +262,8 @@ type UpdateStorageIntegrationParams struct {
 func (q *Queries) UpdateStorageIntegration(ctx context.Context, arg UpdateStorageIntegrationParams) (StorageIntegration, error) {
 	row := q.db.QueryRow(ctx, updateStorageIntegration,
 		arg.Name,
-		arg.EndpointUrl,
-		arg.Region,
-		arg.Bucket,
 		arg.AccessKeyID,
 		arg.SecretAccessKeyCiphertext,
-		arg.UsePathStyle,
 		arg.Status,
 		arg.ID,
 		arg.OrganizationID,
