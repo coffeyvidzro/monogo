@@ -40,14 +40,14 @@ type CreateRequest struct {
 	UsePathStyle    bool   `json:"use_path_style"`
 }
 
+// UpdateRequest intentionally excludes endpoint, region, bucket, and path-style
+// settings. A storage integration is the durable identity of the object store
+// that owns historical recordings. To move recordings to a new destination,
+// disable this integration and create another one instead.
 type UpdateRequest struct {
 	Name            *string `json:"name,omitempty"`
-	EndpointURL     *string `json:"endpoint_url,omitempty"`
-	Region          *string `json:"region,omitempty"`
-	Bucket          *string `json:"bucket,omitempty"`
 	AccessKeyID     *string `json:"access_key_id,omitempty"`
 	SecretAccessKey *string `json:"secret_access_key,omitempty"`
-	UsePathStyle    *bool   `json:"use_path_style,omitempty"`
 	Status          *string `json:"status,omitempty"`
 }
 
