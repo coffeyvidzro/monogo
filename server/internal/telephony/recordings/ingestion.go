@@ -176,6 +176,9 @@ func (j *IngestionJob) ingestOne(
 	}
 
 	ext := strings.ToLower(strings.TrimPrefix(filepath.Ext(path), "."))
+	if ext == "" {
+		ext = "bin"
+	}
 	key, err := recordingObjectKey(
 		recording.OrganizationID,
 		recording.ID,
