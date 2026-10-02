@@ -64,6 +64,29 @@ func TestPublicEndpointIP(t *testing.T) {
 	}
 }
 
+func TestSelfHostedEndpointIP(t *testing.T) {
+	tests := []struct {
+		ip   string
+		want bool
+	}{
+		{ip: "8.8.8.8", want: true},
+		{ip: "10.0.0.1", want: true},
+		{ip: "127.0.0.1", want: true},
+		{ip: "fc00::1", want: true},
+		{ip: "169.254.169.254", want: false},
+		{ip: "0.0.0.0", want: false},
+		{ip: "224.0.0.1", want: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.ip, func(t *testing.T) {
+			if got := selfHostedEndpointIP(net.ParseIP(tt.ip)); got != tt.want {
+				t.Fatalf("selfHostedEndpointIP(%q) = %v, want %v", tt.ip, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestValidateKey(t *testing.T) {
 	for _, key := range []string{"", "/recording.wav", "../recording.wav", "recordings/../recording.wav"} {
 		if err := validateKey(key); err == nil {
