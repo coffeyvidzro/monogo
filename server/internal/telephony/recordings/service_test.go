@@ -43,8 +43,24 @@ func (f *fakeServiceRepository) Delete(_ context.Context, item sqlc.Recording) (
 
 func TestServicePlaybackReturnsSignedURL(t *testing.T) {
 	organizationID, recordingID := uuid.New(), uuid.New()
-	key, provider, bucket := "recordings/org/id.wav", "s3", "recordings"
-	repo := &fakeServiceRepository{recording: sqlc.Recording{ID: recordingID, OrganizationID: organizationID, Status: string(StatusCompleted), StorageKey: &key, StorageProvider: &provider, StorageBucket: &bucket}}
+	key, err := recordingObjectKey(
+		organizationID,
+		recordingID,
+		time.Date(2026, 10, 2, 0, 0, 0, 0, time.UTC),
+		"wav",
+	)
+	if err != nil {
+		t.Fatalf("recordingObjectKey() error = %v", err)
+	}
+	provider, bucket := "s3", "recordings"
+	repo := &fakeServiceRepository{recording: sqlc.Recording{
+		ID:              recordingID,
+		OrganizationID:  organizationID,
+		Status:          string(StatusCompleted),
+		StorageKey:      &key,
+		StorageProvider: &provider,
+		StorageBucket:   &bucket,
+	}}
 	service := NewService(repo, NewObjectStorage(&fakeObjectStore{}))
 	result, err := service.Playback(context.Background(), organizationID, recordingID)
 	if err != nil {
@@ -57,8 +73,24 @@ func TestServicePlaybackReturnsSignedURL(t *testing.T) {
 
 func TestServiceDeleteRemovesObjectBeforeRow(t *testing.T) {
 	organizationID, recordingID := uuid.New(), uuid.New()
-	key, provider, bucket := "recordings/org/id.wav", "s3", "recordings"
-	repo := &fakeServiceRepository{recording: sqlc.Recording{ID: recordingID, OrganizationID: organizationID, Status: string(StatusCompleted), StorageKey: &key, StorageProvider: &provider, StorageBucket: &bucket}}
+	key, err := recordingObjectKey(
+		organizationID,
+		recordingID,
+		time.Date(2026, 10, 2, 0, 0, 0, 0, time.UTC),
+		"wav",
+	)
+	if err != nil {
+		t.Fatalf("recordingObjectKey() error = %v", err)
+	}
+	provider, bucket := "s3", "recordings"
+	repo := &fakeServiceRepository{recording: sqlc.Recording{
+		ID:              recordingID,
+		OrganizationID:  organizationID,
+		Status:          string(StatusCompleted),
+		StorageKey:      &key,
+		StorageProvider: &provider,
+		StorageBucket:   &bucket,
+	}}
 	objects := &fakeObjectStore{}
 	service := NewService(repo, NewObjectStorage(objects))
 	if err := service.Delete(context.Background(), organizationID, recordingID); err != nil {
