@@ -14,12 +14,22 @@ import (
 )
 
 type Service struct {
-	repo   *Repository
-	cipher *encryption.Cipher
+	repo                  *Repository
+	cipher                *encryption.Cipher
+	allowPrivateEndpoints bool
 }
 
-func NewService(repo *Repository, cipher *encryption.Cipher) *Service {
-	return &Service{repo: repo, cipher: cipher}
+func NewService(
+	repo *Repository,
+	cipher *encryption.Cipher,
+	allowPrivateEndpoints ...bool,
+) *Service {
+	allowPrivate := len(allowPrivateEndpoints) > 0 && allowPrivateEndpoints[0]
+	return &Service{
+		repo:                  repo,
+		cipher:                cipher,
+		allowPrivateEndpoints: allowPrivate,
+	}
 }
 
 func (s *Service) Create(
@@ -30,7 +40,7 @@ func (s *Service) Create(
 	if organizationID == uuid.Nil {
 		return Integration{}, apperror.NewBadRequest("organization_id is required")
 	}
-	if err := normalizeCreate(&req); err != nil {
+	if err := normalizeCreateWithPolicy(&req, s.allowPrivateEndpoints); err != nil {
 		return Integration{}, err
 	}
 	if s.cipher == nil {
@@ -198,12 +208,13 @@ func (s *Service) Test(
 		return databaseError(err, "storage integration not found")
 	}
 	client, err := s3integration.New(ctx, s3integration.Config{
-		Endpoint:     resolved.EndpointURL,
-		Region:       resolved.Region,
-		Bucket:       resolved.Bucket,
-		AccessKey:    resolved.AccessKeyID,
-		SecretKey:    resolved.SecretAccessKey,
-		UsePathStyle: resolved.UsePathStyle,
+		Endpoint:              resolved.EndpointURL,
+		Region:                resolved.Region,
+		Bucket:                resolved.Bucket,
+		AccessKey:             resolved.AccessKeyID,
+		SecretKey:             resolved.SecretAccessKey,
+		UsePathStyle:          resolved.UsePathStyle,
+		AllowPrivateEndpoints: resolved.AllowPrivateEndpoint,
 	})
 	if err != nil {
 		return apperror.NewBadRequest(err.Error())
@@ -237,8 +248,9 @@ func (s *Service) resolve(
 		)
 	}
 	return ResolvedIntegration{
-		Integration:     value,
-		SecretAccessKey: secret,
+		Integration:          value,
+		SecretAccessKey:      secret,
+		AllowPrivateEndpoint: s.allowPrivateEndpoints,
 	}, nil
 }
 
