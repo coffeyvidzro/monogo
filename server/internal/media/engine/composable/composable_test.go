@@ -198,7 +198,7 @@ func (f *fakeTranscriber) SendAudio(ctx context.Context, frame session.AudioFram
 	}
 }
 
-func (f *fakeTranscriber) Finalize(context.Context) error { return nil }
+func (f *fakeTranscriber) Finalize(context.Context) error      { return nil }
 func (f *fakeTranscriber) Events() <-chan providersdk.STTEvent { return f.events }
 func (f *fakeTranscriber) Close(context.Context) error {
 	f.closeOnce.Do(func() { close(f.events) })
