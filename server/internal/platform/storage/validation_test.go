@@ -92,7 +92,7 @@ func TestNormalizeCreateAllowsPrivateEndpointForSelfHosted(t *testing.T) {
 func TestNormalizeCreateRejectsLinkLocalEndpointForSelfHosted(t *testing.T) {
 	req := CreateRequest{
 		Name:            "Recording archive",
-		EndpointURL:     "http://169.254.169.254/latest/meta-data",
+		EndpointURL:     "http://169.254.169.254",
 		Bucket:          "recordings",
 		AccessKeyID:     "access",
 		SecretAccessKey: "secret",
