@@ -115,6 +115,7 @@ func newModules(ctx context.Context, cfg config.Config) (*modules, error) {
 		postgresClient.Pool(),
 		queries,
 		credentialCipher,
+		cfg.IsSelfHosted(),
 	)
 	recordingStorage := recordings.NewResolvedObjectStorage(
 		objectClient,
