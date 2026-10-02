@@ -1,6 +1,9 @@
 package s3
 
-import "testing"
+import (
+	"net"
+	"testing"
+)
 
 func TestParseEndpoint(t *testing.T) {
 	tests := []struct {
@@ -31,6 +34,31 @@ func TestParseEndpoint(t *testing.T) {
 			}
 			if host != tt.host || secure != tt.secure {
 				t.Fatalf("parseEndpoint() = (%q, %v), want (%q, %v)", host, secure, tt.host, tt.secure)
+			}
+		})
+	}
+}
+
+func TestPublicEndpointIP(t *testing.T) {
+	tests := []struct {
+		ip   string
+		want bool
+	}{
+		{ip: "8.8.8.8", want: true},
+		{ip: "2606:4700:4700::1111", want: true},
+		{ip: "127.0.0.1", want: false},
+		{ip: "10.0.0.1", want: false},
+		{ip: "169.254.169.254", want: false},
+		{ip: "100.64.0.1", want: false},
+		{ip: "198.18.0.1", want: false},
+		{ip: "::1", want: false},
+		{ip: "fc00::1", want: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.ip, func(t *testing.T) {
+			if got := publicEndpointIP(net.ParseIP(tt.ip)); got != tt.want {
+				t.Fatalf("publicEndpointIP(%q) = %v, want %v", tt.ip, got, tt.want)
 			}
 		})
 	}
