@@ -10,19 +10,15 @@ import (
 	"sync"
 	"time"
 
-	"github.com/coffeyvidzro/monogo/internal/integrations/cartesia"
-	"github.com/coffeyvidzro/monogo/internal/integrations/deepgram"
-	"github.com/coffeyvidzro/monogo/internal/integrations/groq"
 	"github.com/coffeyvidzro/monogo/internal/media/session"
+	providersdk "github.com/coffeyvidzro/monogo/internal/providers"
 )
 
 type Engine struct {
-	Transcriber deepgram.Transcriber
-	Generator   groq.Generator
-	Synthesizer cartesia.StreamingSynthesizer
-	Deepgram    deepgram.Config
-	Groq        groq.Config
-	Cartesia    cartesia.Config
+	Registry           *providersdk.Registry
+	DefaultSTTProvider string
+	DefaultLLMProvider string
+	DefaultTTSProvider string
 }
 
 func (e Engine) Start(ctx context.Context, cfg session.Config) (session.Stream, error) {
@@ -32,160 +28,95 @@ func (e Engine) Start(ctx context.Context, cfg session.Config) (session.Stream, 
 	if cfg.Engine != session.EngineComposable {
 		return nil, fmt.Errorf("composable engine cannot start session engine %q", cfg.Engine)
 	}
-	transcriber := e.Transcriber
-	if transcriber == nil {
-		transcriber = deepgram.NewClient(nil)
-	}
-	generator := e.Generator
-	if generator == nil {
-		generator = groq.NewClient(nil)
-	}
-	synthesizer := e.Synthesizer
-	if synthesizer == nil {
-		synthesizer = cartesia.NewClient(nil)
-	}
-	deepgramConfig := e.Deepgram
-	if runtime, ok := cfg.Provider("stt"); ok {
-		if runtime.Provider != "deepgram" {
-			return nil, fmt.Errorf("unsupported composable STT provider %q", runtime.Provider)
-		}
-		deepgramConfig.APIKey = runtime.APIKey
-		if len(runtime.Config) != 0 {
-			var options struct {
-				Endpoint string `json:"endpoint"`
-				Model    string `json:"model"`
-			}
-			if err := json.Unmarshal(runtime.Config, &options); err != nil {
-				return nil, fmt.Errorf("decode Deepgram provider config: %w", err)
-			}
-			if value := strings.TrimSpace(options.Endpoint); value != "" {
-				deepgramConfig.Endpoint = value
-			}
-			if value := strings.TrimSpace(options.Model); value != "" {
-				deepgramConfig.Model = value
-			}
-		}
-	}
-	if language := strings.TrimSpace(cfg.Language); language != "" {
-		deepgramConfig.LanguageHints = append(append([]string(nil), deepgramConfig.LanguageHints...), language)
+	if e.Registry == nil {
+		return nil, fmt.Errorf("provider registry is required")
 	}
 
-	cartesiaConfig := e.Cartesia
-	if runtime, ok := cfg.Provider("tts"); ok {
-		if runtime.Provider != "cartesia" {
-			return nil, fmt.Errorf("unsupported composable TTS provider %q", runtime.Provider)
-		}
-		cartesiaConfig.APIKey = runtime.APIKey
-		if len(runtime.Config) != 0 {
-			var options struct {
-				Endpoint   string `json:"endpoint"`
-				APIVersion string `json:"api_version"`
-				Model      string `json:"model"`
-				VoiceID    string `json:"voice_id"`
-				Language   string `json:"language"`
-			}
-			if err := json.Unmarshal(runtime.Config, &options); err != nil {
-				return nil, fmt.Errorf("decode Cartesia provider config: %w", err)
-			}
-			if value := strings.TrimSpace(options.Endpoint); value != "" {
-				cartesiaConfig.Endpoint = value
-			}
-			if value := strings.TrimSpace(options.APIVersion); value != "" {
-				cartesiaConfig.APIVersion = value
-			}
-			if value := strings.TrimSpace(options.Model); value != "" {
-				cartesiaConfig.Model = value
-			}
-			if value := strings.TrimSpace(options.VoiceID); value != "" {
-				cartesiaConfig.VoiceID = value
-			}
-			if value := strings.TrimSpace(options.Language); value != "" {
-				cartesiaConfig.Language = value
-			}
-		}
+	sttID, sttRuntime := providerRuntime(cfg, "stt", e.DefaultSTTProvider, "deepgram")
+	llmID, llmRuntime := providerRuntime(cfg, "llm", e.DefaultLLMProvider, "groq")
+	ttsID, ttsRuntime := providerRuntime(cfg, "tts", e.DefaultTTSProvider, "cartesia")
+
+	stt, ok := e.Registry.STT(sttID)
+	if !ok {
+		return nil, fmt.Errorf("STT provider %q is not registered", sttID)
 	}
-	if voice := strings.TrimSpace(cfg.Voice); voice != "" {
-		cartesiaConfig.VoiceID = voice
+	llm, ok := e.Registry.LLM(llmID)
+	if !ok {
+		return nil, fmt.Errorf("LLM provider %q is not registered", llmID)
 	}
-	if language := strings.TrimSpace(cfg.Language); language != "" {
-		cartesiaConfig.Language = language
+	tts, ok := e.Registry.TTS(ttsID)
+	if !ok {
+		return nil, fmt.Errorf("TTS provider %q is not registered", ttsID)
 	}
 
-	groqConfig := e.Groq
-	if runtime, ok := cfg.Provider("llm"); ok {
-		if runtime.Provider != "groq" {
-			return nil, fmt.Errorf("unsupported composable LLM provider %q", runtime.Provider)
-		}
-		groqConfig.APIKey = runtime.APIKey
-		if len(runtime.Config) != 0 {
-			var options struct {
-				Endpoint            string   `json:"endpoint"`
-				Model               string   `json:"model"`
-				Temperature         *float64 `json:"temperature"`
-				MaxCompletionTokens int      `json:"max_completion_tokens"`
-			}
-			if err := json.Unmarshal(runtime.Config, &options); err != nil {
-				return nil, fmt.Errorf("decode Groq provider config: %w", err)
-			}
-			if value := strings.TrimSpace(options.Endpoint); value != "" {
-				groqConfig.Endpoint = value
-			}
-			if value := strings.TrimSpace(options.Model); value != "" {
-				groqConfig.Model = value
-			}
-			if options.Temperature != nil {
-				groqConfig.Temperature = options.Temperature
-			}
-			if options.MaxCompletionTokens > 0 {
-				groqConfig.MaxCompletionTokens = options.MaxCompletionTokens
-			}
-		}
-	}
-
-	deepgramStream, err := transcriber.Start(ctx, deepgramConfig, cfg.InputFormat)
+	transcriber, err := stt.StartSTT(ctx, sttRuntime, cfg.InputFormat, cfg.Language)
 	if err != nil {
 		return nil, fmt.Errorf("start transcription: %w", err)
 	}
+
 	streamCtx, cancel := context.WithCancel(ctx)
-	groqConfig.Tools = make([]groq.Tool, 0, len(cfg.Tools))
-	for _, tool := range cfg.Tools {
-		groqConfig.Tools = append(groqConfig.Tools, groq.Tool{
-			Type: "function",
-			Function: groq.FunctionDefinition{
-				Name:        tool.Name,
-				Description: tool.Description,
-				Parameters:  tool.Parameters,
-			},
-		})
-	}
 	s := &stream{
-		ctx: streamCtx, cancel: cancel, transcriber: deepgramStream,
-		generator: generator, synthesizer: synthesizer, groq: groqConfig,
-		cartesia: cartesiaConfig, config: cfg,
-		audio: make(chan session.AudioFrame), events: make(chan session.Event, 32), done: make(chan struct{}),
+		ctx:              streamCtx,
+		cancel:           cancel,
+		transcriber:      transcriber,
+		llm:              llm,
+		tts:              tts,
+		llmRuntime:       llmRuntime,
+		ttsRuntime:       ttsRuntime,
+		sttProviderID:    sttID,
+		llmProviderID:    llmID,
+		ttsProviderID:    ttsID,
+		config:           cfg,
+		audio:            make(chan session.AudioFrame),
+		events:           make(chan session.Event, 32),
+		done:             make(chan struct{}),
 		pendingToolCalls: make(map[string]string),
 	}
 	if instructions := strings.TrimSpace(cfg.Instructions); instructions != "" {
-		s.messages = append(s.messages, groq.Message{Role: "system", Content: instructions})
+		s.messages = append(s.messages, providersdk.Message{Role: "system", Content: instructions})
 	}
 	go s.run()
 	return s, nil
 }
 
+func providerRuntime(
+	cfg session.Config,
+	role string,
+	configuredDefault string,
+	fallback string,
+) (string, providersdk.Runtime) {
+	providerID := strings.TrimSpace(configuredDefault)
+	if providerID == "" {
+		providerID = fallback
+	}
+	if configured, ok := cfg.Provider(role); ok {
+		providerID = strings.TrimSpace(configured.Provider)
+		return providerID, providersdk.Runtime{
+			APIKey: configured.APIKey,
+			Config: append([]byte(nil), configured.Config...),
+		}
+	}
+	return providerID, providersdk.Runtime{}
+}
+
 type stream struct {
 	ctx         context.Context
 	cancel      context.CancelFunc
-	transcriber deepgram.Stream
-	generator   groq.Generator
-	synthesizer cartesia.StreamingSynthesizer
-	groq        groq.Config
-	cartesia    cartesia.Config
-	config      session.Config
-	audio       chan session.AudioFrame
-	events      chan session.Event
+	transcriber providersdk.STTStream
+	llm         providersdk.LLM
+	tts         providersdk.TTS
+	llmRuntime  providersdk.Runtime
+	ttsRuntime  providersdk.Runtime
+
+	sttProviderID string
+	llmProviderID string
+	ttsProviderID string
+	config        session.Config
+	audio         chan session.AudioFrame
+	events        chan session.Event
 
 	mu               sync.Mutex
-	messages         []groq.Message
+	messages         []providersdk.Message
 	generation       uint64
 	responseCancel   context.CancelFunc
 	responseActive   bool
@@ -219,7 +150,7 @@ func (s *stream) SubmitToolResult(ctx context.Context, result session.ToolResult
 		return fmt.Errorf("tool result name does not match pending call")
 	}
 	delete(s.pendingToolCalls, result.ToolCallID)
-	s.messages = append(s.messages, groq.Message{
+	s.messages = append(s.messages, providersdk.Message{
 		Role:       "tool",
 		Content:    result.Content,
 		ToolCallID: result.ToolCallID,
@@ -233,7 +164,7 @@ func (s *stream) SubmitToolResult(ctx context.Context, result session.ToolResult
 	responseCtx, cancel := context.WithCancel(s.ctx)
 	s.responseCancel = cancel
 	s.responseActive = true
-	messages := append([]groq.Message(nil), s.messages...)
+	messages := append([]providersdk.Message(nil), s.messages...)
 	s.responses.Add(1)
 	s.mu.Unlock()
 	s.emit(session.Event{Type: session.EventResponseStarted, OccurredAt: time.Now().UTC()})
@@ -269,11 +200,15 @@ func (s *stream) run() {
 				s.responses.Wait()
 				return
 			}
-			if event.Err != nil {
+			if event.Err != nil || event.Type == providersdk.STTEventError {
+				message := "speech-to-text provider failed"
+				if event.Err != nil {
+					message = event.Err.Error()
+				}
 				s.emit(session.Event{
 					Type: session.EventError,
 					Failure: &session.FailureEvent{
-						Source: "deepgram", Message: event.Err.Error(), Terminal: true,
+						Source: s.sttProviderID, Message: message, Terminal: true,
 					},
 					OccurredAt: time.Now().UTC(),
 				})
@@ -290,23 +225,31 @@ func (s *stream) run() {
 	}
 }
 
-func (s *stream) handleTurn(event deepgram.Event) {
-	switch event.TurnEvent {
-	case "StartOfTurn":
-		s.emit(session.Event{Type: session.EventSpeechStarted, ProviderID: event.RequestID, OccurredAt: time.Now().UTC()})
+func (s *stream) handleTurn(event providersdk.STTEvent) {
+	switch event.Type {
+	case providersdk.STTEventSpeechStarted:
+		s.emit(session.Event{
+			Type:       session.EventSpeechStarted,
+			ProviderID: event.ProviderID,
+			OccurredAt: time.Now().UTC(),
+		})
 		// Publish speech first so the transport clears already-buffered playback;
 		// generation cancellation below fences all subsequent provider audio.
 		s.cancelResponse()
-	case "EndOfTurn":
-		text := strings.TrimSpace(event.Transcript.Text)
-		s.emit(session.Event{Type: session.EventSpeechStopped, ProviderID: event.RequestID, OccurredAt: time.Now().UTC()})
+	case providersdk.STTEventSpeechStopped:
+		text := strings.TrimSpace(event.Text)
+		s.emit(session.Event{
+			Type:       session.EventSpeechStopped,
+			ProviderID: event.ProviderID,
+			OccurredAt: time.Now().UTC(),
+		})
 		if text == "" {
 			return
 		}
 		s.emit(session.Event{
 			Type:       session.EventTranscriptFinal,
 			Transcript: &session.TranscriptEvent{Text: text},
-			ProviderID: event.RequestID,
+			ProviderID: event.ProviderID,
 			OccurredAt: time.Now().UTC(),
 		})
 		s.startResponse(text)
@@ -323,28 +266,44 @@ func (s *stream) startResponse(text string) {
 	responseCtx, cancel := context.WithCancel(s.ctx)
 	s.responseCancel = cancel
 	s.responseActive = true
-	s.messages = append(s.messages, groq.Message{Role: "user", Content: text})
-	messages := append([]groq.Message(nil), s.messages...)
+	s.messages = append(s.messages, providersdk.Message{Role: "user", Content: text})
+	messages := append([]providersdk.Message(nil), s.messages...)
 	s.responses.Add(1)
 	s.mu.Unlock()
 	s.emit(session.Event{Type: session.EventResponseStarted, OccurredAt: time.Now().UTC()})
 	go s.generate(responseCtx, generation, messages)
 }
 
-func (s *stream) generate(ctx context.Context, generation uint64, messages []groq.Message) {
+func (s *stream) generate(
+	ctx context.Context,
+	generation uint64,
+	messages []providersdk.Message,
+) {
 	defer s.responses.Done()
-	completion, err := s.generator.Generate(ctx, s.groq, messages)
+	completion, err := s.llm.Generate(ctx, providersdk.LLMRequest{
+		Runtime:      s.llmRuntime,
+		Messages:     messages,
+		Tools:        s.config.Tools,
+		Instructions: s.config.Instructions,
+	})
 	if err != nil {
 		s.failResponse(ctx, generation, err)
 		return
 	}
 	defer func() { _ = completion.Close() }()
-	voice, err := s.synthesizer.StartSynthesis(ctx, s.cartesia, s.config.OutputFormat)
+
+	voice, err := s.tts.StartTTS(ctx, providersdk.TTSRequest{
+		Runtime:  s.ttsRuntime,
+		Format:   s.config.OutputFormat,
+		Voice:    s.config.Voice,
+		Language: s.config.Language,
+	})
 	if err != nil {
 		s.failResponse(ctx, generation, err)
 		return
 	}
 	defer func() { _ = voice.Close() }()
+
 	var text strings.Builder
 	var pending strings.Builder
 	var heldChunk string
@@ -362,8 +321,8 @@ func (s *stream) generate(ctx context.Context, generation uint64, messages []gro
 						s.emitCurrent(ctx, generation, session.Event{
 							Type: session.EventError,
 							Failure: &session.FailureEvent{
-								Source: "groq", Code: "invalid_tool_call",
-								Message: "Groq returned an incomplete tool call", Terminal: false,
+								Source: s.llmProviderID, Code: "invalid_tool_call",
+								Message: "LLM provider returned an incomplete tool call", Terminal: false,
 							},
 							OccurredAt: time.Now().UTC(),
 						})
@@ -414,15 +373,15 @@ func (s *stream) generate(ctx context.Context, generation uint64, messages []gro
 				s.failResponse(ctx, generation, event.Err)
 				return
 			}
-			if event.Usage != nil {
+			if event.InputTokens != 0 || event.OutputTokens != 0 || event.TotalTokens != 0 {
 				s.emitCurrent(ctx, generation, session.Event{
 					Type: session.EventUsage,
 					Usage: &session.UsageEvent{
-						InputTokens:  event.Usage.PromptTokens,
-						OutputTokens: event.Usage.CompletionTokens,
-						TotalTokens:  event.Usage.TotalTokens,
+						InputTokens:  event.InputTokens,
+						OutputTokens: event.OutputTokens,
+						TotalTokens:  event.TotalTokens,
 					},
-					ProviderID: event.CompletionID,
+					ProviderID: event.ResponseID,
 					OccurredAt: time.Now().UTC(),
 				})
 			}
@@ -431,7 +390,7 @@ func (s *stream) generate(ctx context.Context, generation uint64, messages []gro
 				s.emitCurrent(ctx, generation, session.Event{
 					Type:       session.EventResponseDelta,
 					Response:   &session.ResponseEvent{Text: event.TextDelta},
-					ProviderID: event.CompletionID,
+					ProviderID: event.ResponseID,
 					OccurredAt: time.Now().UTC(),
 				})
 				pending.WriteString(event.TextDelta)
@@ -494,15 +453,12 @@ func (s *stream) awaitToolResults(generation uint64, calls []*session.ToolCallEv
 	}
 	s.responseActive = false
 	s.responseCancel = nil
-	message := groq.Message{Role: "assistant"}
+	message := providersdk.Message{Role: "assistant"}
 	for _, call := range calls {
-		message.ToolCalls = append(message.ToolCalls, groq.MessageToolCall{
-			ID:   call.ID,
-			Type: "function",
-			Function: groq.MessageFunctionCall{
-				Name:      call.Name,
-				Arguments: string(call.Arguments),
-			},
+		message.ToolCalls = append(message.ToolCalls, providersdk.ToolCall{
+			ID:        call.ID,
+			Name:      call.Name,
+			Arguments: append([]byte(nil), call.Arguments...),
 		})
 		s.pendingToolCalls[call.ID] = call.Name
 	}
@@ -535,7 +491,7 @@ func (s *stream) stopResponse(generation uint64, assistantText string) {
 	s.responseActive = false
 	s.responseCancel = nil
 	if assistantText != "" {
-		s.messages = append(s.messages, groq.Message{Role: "assistant", Content: assistantText})
+		s.messages = append(s.messages, providersdk.Message{Role: "assistant", Content: assistantText})
 	}
 	s.mu.Unlock()
 	s.emit(session.Event{Type: session.EventResponseStopped, OccurredAt: time.Now().UTC()})
