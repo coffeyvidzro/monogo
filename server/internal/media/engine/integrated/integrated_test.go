@@ -12,6 +12,7 @@ import (
 	"github.com/coder/websocket"
 	"github.com/coffeyvidzro/monogo/internal/integrations/openai"
 	"github.com/coffeyvidzro/monogo/internal/media/session"
+	providersdk "github.com/coffeyvidzro/monogo/internal/providers"
 	"github.com/google/uuid"
 )
 
@@ -37,6 +38,18 @@ func TestEngineStartsOpenAIRealtimeWithSessionVoice(t *testing.T) {
 	}))
 	defer server.Close()
 
+	registry, err := providersdk.NewRegistry(openai.Provider{
+		Client: openai.NewClient(server.Client()),
+		Config: openai.Config{
+			APIKey:   "secret",
+			Endpoint: "wss" + strings.TrimPrefix(server.URL, "https"),
+			Voice:    "cedar",
+		},
+	})
+	if err != nil {
+		t.Fatalf("NewRegistry() error = %v", err)
+	}
+
 	format := session.AudioFormat{SampleRateHz: 24000, Channels: 1}
 	cfg := session.Config{
 		ID:             uuid.New(),
@@ -49,14 +62,7 @@ func TestEngineStartsOpenAIRealtimeWithSessionVoice(t *testing.T) {
 		Instructions:   "Be concise.",
 		Voice:          "marin",
 	}
-	engine := Engine{
-		Client: openai.NewClient(server.Client()),
-		Config: openai.Config{
-			APIKey:   "secret",
-			Endpoint: "wss" + strings.TrimPrefix(server.URL, "https"),
-			Voice:    "cedar",
-		},
-	}
+	engine := Engine{Registry: registry, DefaultProvider: "openai"}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
