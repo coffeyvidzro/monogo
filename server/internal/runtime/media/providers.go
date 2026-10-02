@@ -8,11 +8,25 @@ import (
 	providersdk "github.com/coffeyvidzro/monogo/internal/providers"
 )
 
-func builtInProviderRegistry() (*providersdk.Registry, error) {
+func builtInProviderRegistry(cfg Config) (*providersdk.Registry, error) {
 	return providersdk.NewRegistry(
-		deepgram.Provider{}.Descriptor(),
-		groq.Provider{}.Descriptor(),
-		cartesia.Provider{}.Descriptor(),
-		openai.Provider{}.Descriptor(),
+		deepgram.Provider{
+			Config: deepgram.Config{APIKey: cfg.DeepgramAPIKey},
+		},
+		groq.Provider{
+			Config: groq.Config{APIKey: cfg.GroqAPIKey},
+		},
+		cartesia.Provider{
+			Config: cartesia.Config{
+				APIKey:  cfg.CartesiaAPIKey,
+				VoiceID: cfg.CartesiaVoiceID,
+			},
+		},
+		openai.Provider{
+			Config: openai.Config{
+				APIKey:   cfg.OpenAIAPIKey,
+				Endpoint: cfg.OpenAIEndpoint,
+			},
+		},
 	)
 }
