@@ -17,14 +17,13 @@ import (
 )
 
 type Config struct {
-	Endpoint              string
-	Region                string
-	Bucket                string
-	AccessKey             string
-	SecretKey             string
-	UsePathStyle          bool
-	PlaybackTTL           time.Duration
-	AllowPrivateEndpoints bool
+	Endpoint     string
+	Region       string
+	Bucket       string
+	AccessKey    string
+	SecretKey    string
+	UsePathStyle bool
+	PlaybackTTL  time.Duration
 }
 
 type Client struct {
@@ -60,7 +59,7 @@ func New(_ context.Context, cfg Config) (*Client, error) {
 		Secure:       secure,
 		Region:       cfg.Region,
 		BucketLookup: bucketLookup(cfg.UsePathStyle),
-		Transport:    endpointTransport(cfg.AllowPrivateEndpoints),
+		Transport:    publicTransport(),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("initialize S3 client: %w", err)
@@ -199,7 +198,7 @@ func parseEndpoint(value string) (string, bool, error) {
 	return parsed.Host, parsed.Scheme == "https", nil
 }
 
-func endpointTransport(allowPrivate bool) *http.Transport {
+func publicTransport() *http.Transport {
 	transport := http.DefaultTransport.(*http.Transport).Clone()
 	transport.Proxy = nil
 	dialer := &net.Dialer{
@@ -221,11 +220,7 @@ func endpointTransport(allowPrivate bool) *http.Transport {
 		}
 		var dialErr error
 		for _, resolved := range addresses {
-			allowed := publicEndpointIP(resolved.IP)
-			if allowPrivate {
-				allowed = selfHostedEndpointIP(resolved.IP)
-			}
-			if !allowed {
+			if !publicEndpointIP(resolved.IP) {
 				continue
 			}
 			conn, err := dialer.DialContext(
@@ -240,9 +235,6 @@ func endpointTransport(allowPrivate bool) *http.Transport {
 		}
 		if dialErr != nil {
 			return nil, dialErr
-		}
-		if allowPrivate {
-			return nil, fmt.Errorf("S3 endpoint resolves to a disallowed network")
 		}
 		return nil, fmt.Errorf("S3 endpoint resolves to a non-public network")
 	}
@@ -266,18 +258,6 @@ func publicEndpointIP(ip net.IP) bool {
 		}
 	}
 	return true
-}
-
-func selfHostedEndpointIP(ip net.IP) bool {
-	addr, ok := netip.AddrFromSlice(ip)
-	if !ok {
-		return false
-	}
-	addr = addr.Unmap()
-	if addr.IsLinkLocalUnicast() || addr.IsMulticast() || addr.IsUnspecified() {
-		return false
-	}
-	return addr.IsGlobalUnicast() || addr.IsLoopback()
 }
 
 var blockedPublicRanges = []netip.Prefix{
