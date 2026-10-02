@@ -35,8 +35,8 @@ func TestObjectStoragePlaybackAndDelete(t *testing.T) {
 	key := "organizations/" + organizationID.String() + "/recordings/2026/10/02/id.wav"
 	provider, bucket := "s3", "recordings"
 	recording := sqlc.Recording{
-		OrganizationID: organizationID,
-		StorageKey:     &key,
+		OrganizationID:  organizationID,
+		StorageKey:      &key,
 		StorageProvider: &provider,
 		StorageBucket:   &bucket,
 	}
@@ -62,8 +62,8 @@ func TestObjectStorageRejectsManagedCrossTenantKey(t *testing.T) {
 	key := "organizations/" + otherOrganizationID.String() + "/recordings/id.wav"
 	provider, bucket := "s3", "recordings"
 	recording := sqlc.Recording{
-		OrganizationID: organizationID,
-		StorageKey:     &key,
+		OrganizationID:  organizationID,
+		StorageKey:      &key,
 		StorageProvider: &provider,
 		StorageBucket:   &bucket,
 	}
