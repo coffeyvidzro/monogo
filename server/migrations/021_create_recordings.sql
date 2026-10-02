@@ -2,6 +2,7 @@ CREATE TABLE IF NOT EXISTS recordings (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
     call_id UUID NOT NULL REFERENCES calls(id) ON DELETE CASCADE,
+    storage_integration_id UUID,
     status TEXT NOT NULL DEFAULT 'recording',
     storage_key TEXT,
     storage_provider TEXT,
@@ -20,6 +21,10 @@ CREATE TABLE IF NOT EXISTS recordings (
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
 
+    CONSTRAINT fk_recordings_storage_integration_scope
+        FOREIGN KEY (storage_integration_id, organization_id)
+        REFERENCES storage_integrations(id, organization_id)
+        ON DELETE RESTRICT,
     CONSTRAINT chk_recordings_status CHECK (
         status IN ('recording', 'uploading', 'completed', 'failed', 'deleted')
     ),
@@ -45,6 +50,10 @@ CREATE INDEX IF NOT EXISTS idx_recordings_organization_created
 
 CREATE INDEX IF NOT EXISTS idx_recordings_call_created
     ON recordings (call_id, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_recordings_storage_integration
+    ON recordings (organization_id, storage_integration_id)
+    WHERE storage_integration_id IS NOT NULL;
 
 CREATE INDEX IF NOT EXISTS idx_recordings_status
     ON recordings (organization_id, status, created_at DESC);

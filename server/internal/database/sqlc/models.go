@@ -215,26 +215,27 @@ type ProcessedEvent struct {
 }
 
 type Recording struct {
-	ID              uuid.UUID          `db:"id" json:"id"`
-	OrganizationID  uuid.UUID          `db:"organization_id" json:"organization_id"`
-	CallID          uuid.UUID          `db:"call_id" json:"call_id"`
-	Status          string             `db:"status" json:"status"`
-	StorageKey      *string            `db:"storage_key" json:"storage_key"`
-	StorageProvider *string            `db:"storage_provider" json:"storage_provider"`
-	StorageBucket   *string            `db:"storage_bucket" json:"storage_bucket"`
-	StorageUrl      *string            `db:"storage_url" json:"storage_url"`
-	SourcePath      *string            `db:"source_path" json:"source_path"`
-	StoppedAt       pgtype.Timestamptz `db:"stopped_at" json:"stopped_at"`
-	UploadAttempts  int32              `db:"upload_attempts" json:"upload_attempts"`
-	NextUploadAt    pgtype.Timestamptz `db:"next_upload_at" json:"next_upload_at"`
-	UploadError     *string            `db:"upload_error" json:"upload_error"`
-	FileSizeBytes   *int64             `db:"file_size_bytes" json:"file_size_bytes"`
-	Format          *string            `db:"format" json:"format"`
-	DurationSeconds *int32             `db:"duration_seconds" json:"duration_seconds"`
-	StartedAt       pgtype.Timestamptz `db:"started_at" json:"started_at"`
-	CompletedAt     pgtype.Timestamptz `db:"completed_at" json:"completed_at"`
-	CreatedAt       pgtype.Timestamptz `db:"created_at" json:"created_at"`
-	UpdatedAt       pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+	ID                   uuid.UUID          `db:"id" json:"id"`
+	OrganizationID       uuid.UUID          `db:"organization_id" json:"organization_id"`
+	CallID               uuid.UUID          `db:"call_id" json:"call_id"`
+	StorageIntegrationID *uuid.UUID         `db:"storage_integration_id" json:"storage_integration_id"`
+	Status               string             `db:"status" json:"status"`
+	StorageKey           *string            `db:"storage_key" json:"storage_key"`
+	StorageProvider      *string            `db:"storage_provider" json:"storage_provider"`
+	StorageBucket        *string            `db:"storage_bucket" json:"storage_bucket"`
+	StorageUrl           *string            `db:"storage_url" json:"storage_url"`
+	SourcePath           *string            `db:"source_path" json:"source_path"`
+	StoppedAt            pgtype.Timestamptz `db:"stopped_at" json:"stopped_at"`
+	UploadAttempts       int32              `db:"upload_attempts" json:"upload_attempts"`
+	NextUploadAt         pgtype.Timestamptz `db:"next_upload_at" json:"next_upload_at"`
+	UploadError          *string            `db:"upload_error" json:"upload_error"`
+	FileSizeBytes        *int64             `db:"file_size_bytes" json:"file_size_bytes"`
+	Format               *string            `db:"format" json:"format"`
+	DurationSeconds      *int32             `db:"duration_seconds" json:"duration_seconds"`
+	StartedAt            pgtype.Timestamptz `db:"started_at" json:"started_at"`
+	CompletedAt          pgtype.Timestamptz `db:"completed_at" json:"completed_at"`
+	CreatedAt            pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	UpdatedAt            pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 }
 
 type Session struct {
@@ -248,6 +249,23 @@ type Session struct {
 	LastSeenAt pgtype.Timestamptz `db:"last_seen_at" json:"last_seen_at"`
 	RevokedAt  pgtype.Timestamptz `db:"revoked_at" json:"revoked_at"`
 	CreatedAt  pgtype.Timestamptz `db:"created_at" json:"created_at"`
+}
+
+type StorageIntegration struct {
+	ID                        uuid.UUID          `db:"id" json:"id"`
+	OrganizationID            uuid.UUID          `db:"organization_id" json:"organization_id"`
+	Name                      string             `db:"name" json:"name"`
+	Provider                  string             `db:"provider" json:"provider"`
+	Purpose                   string             `db:"purpose" json:"purpose"`
+	EndpointUrl               string             `db:"endpoint_url" json:"endpoint_url"`
+	Region                    string             `db:"region" json:"region"`
+	Bucket                    string             `db:"bucket" json:"bucket"`
+	AccessKeyID               string             `db:"access_key_id" json:"access_key_id"`
+	SecretAccessKeyCiphertext string             `db:"secret_access_key_ciphertext" json:"secret_access_key_ciphertext"`
+	UsePathStyle              bool               `db:"use_path_style" json:"use_path_style"`
+	Status                    string             `db:"status" json:"status"`
+	CreatedAt                 pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	UpdatedAt                 pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 }
 
 type Trunk struct {

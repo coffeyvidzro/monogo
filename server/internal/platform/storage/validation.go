@@ -1,0 +1,133 @@
+package storage
+
+import (
+	"net/url"
+	"strings"
+
+	"github.com/coffeyvidzro/monogo/pkg/apperror"
+)
+
+func normalizeCreate(req *CreateRequest) error {
+	req.Name = strings.TrimSpace(req.Name)
+	req.EndpointURL = strings.TrimSpace(req.EndpointURL)
+	req.Region = strings.TrimSpace(req.Region)
+	req.Bucket = strings.TrimSpace(req.Bucket)
+	req.AccessKeyID = strings.TrimSpace(req.AccessKeyID)
+	req.SecretAccessKey = strings.TrimSpace(req.SecretAccessKey)
+
+	if req.Region == "" {
+		req.Region = "us-east-1"
+	}
+	if err := validateName(req.Name); err != nil {
+		return err
+	}
+	if err := validateEndpoint(req.EndpointURL); err != nil {
+		return err
+	}
+	if err := validateRegion(req.Region); err != nil {
+		return err
+	}
+	if err := validateBucket(req.Bucket); err != nil {
+		return err
+	}
+	if req.AccessKeyID == "" {
+		return apperror.NewBadRequest("access_key_id is required")
+	}
+	if req.SecretAccessKey == "" {
+		return apperror.NewBadRequest("secret_access_key is required")
+	}
+	return nil
+}
+
+func normalizeUpdate(req *UpdateRequest) error {
+	if req.Name == nil &&
+		req.EndpointURL == nil &&
+		req.Region == nil &&
+		req.Bucket == nil &&
+		req.AccessKeyID == nil &&
+		req.SecretAccessKey == nil &&
+		req.UsePathStyle == nil &&
+		req.Status == nil {
+		return apperror.NewBadRequest("at least one field is required")
+	}
+
+	if req.Name != nil {
+		value := strings.TrimSpace(*req.Name)
+		if err := validateName(value); err != nil {
+			return err
+		}
+		req.Name = &value
+	}
+	if req.EndpointURL != nil {
+		value := strings.TrimSpace(*req.EndpointURL)
+		if err := validateEndpoint(value); err != nil {
+			return err
+		}
+		req.EndpointURL = &value
+	}
+	if req.Region != nil {
+		value := strings.TrimSpace(*req.Region)
+		if err := validateRegion(value); err != nil {
+			return err
+		}
+		req.Region = &value
+	}
+	if req.Bucket != nil {
+		value := strings.TrimSpace(*req.Bucket)
+		if err := validateBucket(value); err != nil {
+			return err
+		}
+		req.Bucket = &value
+	}
+	if req.AccessKeyID != nil {
+		value := strings.TrimSpace(*req.AccessKeyID)
+		if value == "" {
+			return apperror.NewBadRequest("access_key_id cannot be empty")
+		}
+		req.AccessKeyID = &value
+	}
+	if req.SecretAccessKey != nil {
+		value := strings.TrimSpace(*req.SecretAccessKey)
+		if value == "" {
+			return apperror.NewBadRequest("secret_access_key cannot be empty")
+		}
+		req.SecretAccessKey = &value
+	}
+	if req.Status != nil {
+		value := strings.ToLower(strings.TrimSpace(*req.Status))
+		if value != StatusActive && value != StatusDisabled {
+			return apperror.NewBadRequest("status must be active or disabled")
+		}
+		req.Status = &value
+	}
+	return nil
+}
+
+func validateName(value string) error {
+	if len(value) < 1 || len(value) > 128 {
+		return apperror.NewBadRequest("name must be between 1 and 128 characters")
+	}
+	return nil
+}
+
+func validateEndpoint(value string) error {
+	parsed, err := url.Parse(value)
+	if err != nil || parsed.Scheme != "https" || parsed.Host == "" || parsed.User != nil || parsed.RawQuery != "" || parsed.Fragment != "" || (parsed.Path != "" && parsed.Path != "/") {
+		return apperror.NewBadRequest("endpoint_url must be an HTTPS origin")
+	}
+	return nil
+}
+
+func validateRegion(value string) error {
+	if len(value) < 1 || len(value) > 128 {
+		return apperror.NewBadRequest("region must be between 1 and 128 characters")
+	}
+	return nil
+}
+
+func validateBucket(value string) error {
+	if len(value) < 1 || len(value) > 255 {
+		return apperror.NewBadRequest("bucket must be between 1 and 255 characters")
+	}
+	return nil
+}
