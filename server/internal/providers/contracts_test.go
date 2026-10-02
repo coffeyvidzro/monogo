@@ -11,14 +11,12 @@ import (
 )
 
 func TestBuiltInProviderRegistryConformance(t *testing.T) {
-	descriptors := []providersdk.Descriptor{
-		deepgram.Provider{}.Descriptor(),
-		groq.Provider{}.Descriptor(),
-		cartesia.Provider{}.Descriptor(),
-		openai.Provider{}.Descriptor(),
-	}
-
-	registry, err := providersdk.NewRegistry(descriptors...)
+	registry, err := providersdk.NewRegistry(
+		deepgram.Provider{},
+		groq.Provider{},
+		cartesia.Provider{},
+		openai.Provider{},
+	)
 	if err != nil {
 		t.Fatalf("NewRegistry() error = %v", err)
 	}
@@ -87,6 +85,19 @@ func TestBuiltInProviderRegistryConformance(t *testing.T) {
 		})
 	}
 
+	if _, ok := registry.STT("deepgram"); !ok {
+		t.Fatal("registry missing Deepgram STT implementation")
+	}
+	if _, ok := registry.LLM("groq"); !ok {
+		t.Fatal("registry missing Groq LLM implementation")
+	}
+	if _, ok := registry.TTS("cartesia"); !ok {
+		t.Fatal("registry missing Cartesia TTS implementation")
+	}
+	if _, ok := registry.Realtime("openai"); !ok {
+		t.Fatal("registry missing OpenAI realtime implementation")
+	}
+
 	if got := len(registry.List(providersdk.KindSTT)); got != 1 {
 		t.Fatalf("STT provider count = %d, want 1", got)
 	}
@@ -102,8 +113,7 @@ func TestBuiltInProviderRegistryConformance(t *testing.T) {
 }
 
 func TestRegistryRejectsDuplicateProviderKind(t *testing.T) {
-	descriptor := deepgram.Provider{}.Descriptor()
-	_, err := providersdk.NewRegistry(descriptor, descriptor)
+	_, err := providersdk.NewRegistry(deepgram.Provider{}, deepgram.Provider{})
 	if err == nil {
 		t.Fatal("NewRegistry() error = nil")
 	}
