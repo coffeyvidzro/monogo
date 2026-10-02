@@ -122,9 +122,9 @@ func (r *Repository) PinUpload(
 ) (sqlc.Recording, error) {
 	return r.queries.PinRecordingUpload(ctx, sqlc.PinRecordingUploadParams{
 		StorageIntegrationID: storageIntegrationID,
-		StorageKey:           key,
-		StorageProvider:      provider,
-		StorageBucket:        bucket,
+		StorageKey:           &key,
+		StorageProvider:      &provider,
+		StorageBucket:        &bucket,
 		OrganizationID:       recording.OrganizationID,
 		ID:                   recording.ID,
 	})
