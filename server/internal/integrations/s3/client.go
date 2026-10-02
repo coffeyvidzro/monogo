@@ -4,6 +4,9 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net"
+	"net/http"
+	"net/netip"
 	"net/url"
 	"strings"
 	"time"
@@ -29,7 +32,7 @@ type Client struct {
 	playbackTTL time.Duration
 }
 
-func New(ctx context.Context, cfg Config) (*Client, error) {
+func New(_ context.Context, cfg Config) (*Client, error) {
 	endpoint, secure, err := parseEndpoint(cfg.Endpoint)
 	if err != nil {
 		return nil, err
@@ -56,6 +59,7 @@ func New(ctx context.Context, cfg Config) (*Client, error) {
 		Secure:       secure,
 		Region:       cfg.Region,
 		BucketLookup: bucketLookup(cfg.UsePathStyle),
+		Transport:    publicTransport(),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("initialize S3 client: %w", err)
@@ -89,6 +93,26 @@ func (c *Client) Test(ctx context.Context) error {
 	); err != nil {
 		return fmt.Errorf("test S3 write access: %w", err)
 	}
+	cleanup := true
+	defer func() {
+		if cleanup {
+			_ = c.client.RemoveObject(
+				context.Background(),
+				c.bucket,
+				key,
+				miniosdk.RemoveObjectOptions{},
+			)
+		}
+	}()
+
+	if _, err := c.client.StatObject(
+		ctx,
+		c.bucket,
+		key,
+		miniosdk.StatObjectOptions{},
+	); err != nil {
+		return fmt.Errorf("test S3 read access: %w", err)
+	}
 	if err := c.client.RemoveObject(
 		ctx,
 		c.bucket,
@@ -97,6 +121,7 @@ func (c *Client) Test(ctx context.Context) error {
 	); err != nil {
 		return fmt.Errorf("test S3 delete access: %w", err)
 	}
+	cleanup = false
 	return nil
 }
 
@@ -171,6 +196,73 @@ func parseEndpoint(value string) (string, bool, error) {
 		return "", false, fmt.Errorf("S3 endpoint must be an HTTP or HTTPS origin")
 	}
 	return parsed.Host, parsed.Scheme == "https", nil
+}
+
+func publicTransport() *http.Transport {
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.Proxy = nil
+	dialer := &net.Dialer{
+		Timeout:   30 * time.Second,
+		KeepAlive: 30 * time.Second,
+	}
+	transport.DialContext = func(
+		ctx context.Context,
+		network string,
+		address string,
+	) (net.Conn, error) {
+		host, port, err := net.SplitHostPort(address)
+		if err != nil {
+			return nil, fmt.Errorf("invalid S3 endpoint address: %w", err)
+		}
+		addresses, err := net.DefaultResolver.LookupIPAddr(ctx, host)
+		if err != nil {
+			return nil, fmt.Errorf("resolve S3 endpoint: %w", err)
+		}
+		var dialErr error
+		for _, resolved := range addresses {
+			if !publicEndpointIP(resolved.IP) {
+				continue
+			}
+			conn, err := dialer.DialContext(
+				ctx,
+				network,
+				net.JoinHostPort(resolved.IP.String(), port),
+			)
+			if err == nil {
+				return conn, nil
+			}
+			dialErr = err
+		}
+		if dialErr != nil {
+			return nil, dialErr
+		}
+		return nil, fmt.Errorf("S3 endpoint resolves to a non-public network")
+	}
+	return transport
+}
+
+func publicEndpointIP(ip net.IP) bool {
+	addr, ok := netip.AddrFromSlice(ip)
+	if !ok {
+		return false
+	}
+	addr = addr.Unmap()
+	if !addr.IsGlobalUnicast() || addr.IsPrivate() ||
+		addr.IsLoopback() || addr.IsLinkLocalUnicast() ||
+		addr.IsMulticast() || addr.IsUnspecified() {
+		return false
+	}
+	for _, blocked := range blockedPublicRanges {
+		if blocked.Contains(addr) {
+			return false
+		}
+	}
+	return true
+}
+
+var blockedPublicRanges = []netip.Prefix{
+	netip.MustParsePrefix("100.64.0.0/10"),
+	netip.MustParsePrefix("198.18.0.0/15"),
 }
 
 func bucketLookup(pathStyle bool) miniosdk.BucketLookupType {
