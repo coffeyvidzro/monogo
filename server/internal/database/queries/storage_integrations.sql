@@ -57,15 +57,11 @@ LIMIT 1;
 UPDATE storage_integrations
 SET
     name = COALESCE(sqlc.narg(name), name),
-    endpoint_url = COALESCE(sqlc.narg(endpoint_url), endpoint_url),
-    region = COALESCE(sqlc.narg(region), region),
-    bucket = COALESCE(sqlc.narg(bucket), bucket),
     access_key_id = COALESCE(sqlc.narg(access_key_id), access_key_id),
     secret_access_key_ciphertext = COALESCE(
         sqlc.narg(secret_access_key_ciphertext),
         secret_access_key_ciphertext
     ),
-    use_path_style = COALESCE(sqlc.narg(use_path_style), use_path_style),
     status = COALESCE(sqlc.narg(status), status),
     updated_at = NOW()
 WHERE id = sqlc.arg(id)
