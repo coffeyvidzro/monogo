@@ -17,6 +17,7 @@ type MinIOConfig struct {
 
 type Config struct {
 	AppEnv                string      `env:"APP_ENV" envDefault:"development"`
+	DeploymentMode        string      `env:"DEPLOYMENT_MODE" envDefault:"cloud"`
 	Domain                string      `env:"DOMAIN"`
 	DatabaseURL           string      `env:"DATABASE_URL,required"`
 	RedisURL              string      `env:"REDIS_URL,required"`
@@ -43,6 +44,9 @@ func Load() (Config, error) {
 	}
 
 	cfg.normalize()
+	if cfg.DeploymentMode != "cloud" && cfg.DeploymentMode != "self-hosted" {
+		return Config{}, fmt.Errorf("DEPLOYMENT_MODE must be cloud or self-hosted")
+	}
 
 	return cfg, nil
 }
@@ -51,8 +55,13 @@ func (c Config) IsDevelopment() bool {
 	return strings.EqualFold(c.AppEnv, "development")
 }
 
+func (c Config) IsSelfHosted() bool {
+	return strings.EqualFold(c.DeploymentMode, "self-hosted")
+}
+
 func (c *Config) normalize() {
 	c.AppEnv = strings.TrimSpace(c.AppEnv)
+	c.DeploymentMode = strings.ToLower(strings.TrimSpace(c.DeploymentMode))
 	c.Domain = strings.TrimSpace(c.Domain)
 	c.DatabaseURL = strings.TrimSpace(c.DatabaseURL)
 	c.RedisURL = strings.TrimSpace(c.RedisURL)
