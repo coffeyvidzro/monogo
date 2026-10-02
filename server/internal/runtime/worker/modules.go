@@ -17,6 +17,7 @@ import (
 	"github.com/coffeyvidzro/monogo/internal/platform/logging"
 	"github.com/coffeyvidzro/monogo/internal/platform/metrics"
 	"github.com/coffeyvidzro/monogo/internal/platform/outbox"
+	platformstorage "github.com/coffeyvidzro/monogo/internal/platform/storage"
 	"github.com/coffeyvidzro/monogo/internal/platform/webhooks"
 	"github.com/coffeyvidzro/monogo/internal/runtime/agent"
 	"github.com/coffeyvidzro/monogo/internal/runtime/calling"
@@ -152,7 +153,14 @@ func newModules(ctx context.Context, cfg config.Config, logger *logging.Logger) 
 		closeDependencies()
 		return nil, fmt.Errorf("initialize recording object storage: %w", err)
 	}
-	recordingStorage := recordings.NewObjectStorage(objectClient)
+	storageService := platformstorage.NewService(
+		platformstorage.NewRepository(queries),
+		credentialCipher,
+	)
+	recordingStorage := recordings.NewResolvedObjectStorage(
+		objectClient,
+		storageService,
+	)
 	recordingsService := recordings.NewService(recordingsRepository, recordingStorage)
 	recordingIngestion, err := recordings.NewIngestionJob(
 		recordingsRepository,

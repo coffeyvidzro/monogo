@@ -7,7 +7,7 @@ INSERT INTO recordings (
     storage_provider,
     storage_bucket,
     storage_url,
-	source_path,
+    source_path,
     file_size_bytes,
     format,
     started_at
@@ -19,7 +19,7 @@ INSERT INTO recordings (
     sqlc.narg(storage_provider),
     sqlc.narg(storage_bucket),
     sqlc.narg(storage_url),
-	sqlc.narg(source_path),
+    sqlc.narg(source_path),
     sqlc.narg(file_size_bytes),
     sqlc.narg(format),
     COALESCE(sqlc.narg(started_at), NOW())
@@ -110,6 +110,7 @@ RETURNING *;
 UPDATE recordings
 SET
     status = 'completed',
+    storage_integration_id = COALESCE(sqlc.narg(storage_integration_id), storage_integration_id),
     storage_key = COALESCE(sqlc.narg(storage_key), storage_key),
     storage_provider = COALESCE(sqlc.narg(storage_provider), storage_provider),
     storage_bucket = COALESCE(sqlc.narg(storage_bucket), storage_bucket),
@@ -156,6 +157,7 @@ WHERE organization_id = sqlc.arg(organization_id)
   AND id = sqlc.arg(id)
   AND status <> 'deleted'
 RETURNING *;
+
 -- name: ListBackofficeRecordings :many
 SELECT r.id::TEXT AS id, r.organization_id::TEXT AS organization_id, o.name AS organization_name,
        r.call_id::TEXT AS call_id, r.status, COALESCE(r.format,'—') AS format,

@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -29,12 +30,29 @@ type IngestionConfig struct {
 }
 
 func DefaultIngestionConfig(stagingPath string) IngestionConfig {
-	return IngestionConfig{Interval: 5 * time.Second, Lease: 2 * time.Minute, BaseRetry: 5 * time.Second, MaxRetry: 15 * time.Minute, MaxAttempts: 10, BatchSize: 50, StagingPath: stagingPath}
+	return IngestionConfig{
+		Interval:    5 * time.Second,
+		Lease:       2 * time.Minute,
+		BaseRetry:   5 * time.Second,
+		MaxRetry:    15 * time.Minute,
+		MaxAttempts: 10,
+		BatchSize:   50,
+		StagingPath: stagingPath,
+	}
 }
 
 type ingestionRepository interface {
 	ListForUpload(context.Context, time.Time, time.Time, int32) ([]sqlc.Recording, error)
-	CompleteUpload(context.Context, sqlc.Recording, string, string, string, string, int64) (sqlc.Recording, error)
+	CompleteUpload(
+		context.Context,
+		sqlc.Recording,
+		*uuid.UUID,
+		string,
+		string,
+		string,
+		string,
+		int64,
+	) (sqlc.Recording, error)
 	RetryUpload(context.Context, sqlc.Recording, time.Time, string) error
 	Fail(context.Context, sqlc.Recording) (sqlc.Recording, error)
 }
@@ -46,7 +64,11 @@ type IngestionJob struct {
 	now     func() time.Time
 }
 
-func NewIngestionJob(repo ingestionRepository, storage *ObjectStorage, config IngestionConfig) (*IngestionJob, error) {
+func NewIngestionJob(
+	repo ingestionRepository,
+	storage *ObjectStorage,
+	config IngestionConfig,
+) (*IngestionJob, error) {
 	if repo == nil || storage == nil {
 		return nil, fmt.Errorf("recording ingestion requires repository and storage")
 	}
@@ -73,7 +95,12 @@ func NewIngestionJob(repo ingestionRepository, storage *ObjectStorage, config In
 	if !filepath.IsAbs(config.StagingPath) {
 		return nil, fmt.Errorf("recording staging path must be absolute")
 	}
-	return &IngestionJob{repo: repo, storage: storage, config: config, now: time.Now}, nil
+	return &IngestionJob{
+		repo:    repo,
+		storage: storage,
+		config:  config,
+		now:     time.Now,
+	}, nil
 }
 
 func (j *IngestionJob) Run(ctx context.Context) error {
@@ -98,7 +125,12 @@ func (j *IngestionJob) runPass(ctx context.Context) {
 
 func (j *IngestionJob) Ingest(ctx context.Context) error {
 	now := j.now().UTC()
-	items, err := j.repo.ListForUpload(ctx, now, now.Add(j.config.Lease), j.config.BatchSize)
+	items, err := j.repo.ListForUpload(
+		ctx,
+		now,
+		now.Add(j.config.Lease),
+		j.config.BatchSize,
+	)
 	if err != nil {
 		return fmt.Errorf("claim recording uploads: %w", err)
 	}
@@ -110,36 +142,76 @@ func (j *IngestionJob) Ingest(ctx context.Context) error {
 	return nil
 }
 
-func (j *IngestionJob) ingestOne(ctx context.Context, recording sqlc.Recording) error {
+func (j *IngestionJob) ingestOne(
+	ctx context.Context,
+	recording sqlc.Recording,
+) error {
 	path, err := j.safeSourcePath(recording)
 	if err != nil {
 		return j.retryOrFail(ctx, recording, err)
 	}
 	file, err := os.Open(path)
 	if err != nil {
-		return j.retryOrFail(ctx, recording, fmt.Errorf("open staged recording: %w", err))
+		return j.retryOrFail(
+			ctx,
+			recording,
+			fmt.Errorf("open staged recording: %w", err),
+		)
 	}
 	defer func() { _ = file.Close() }()
 	info, err := file.Stat()
 	if err != nil {
-		return j.retryOrFail(ctx, recording, fmt.Errorf("stat staged recording: %w", err))
+		return j.retryOrFail(
+			ctx,
+			recording,
+			fmt.Errorf("stat staged recording: %w", err),
+		)
 	}
 	if !info.Mode().IsRegular() || info.Size() <= 0 {
-		return j.retryOrFail(ctx, recording, fmt.Errorf("staged recording is not a non-empty regular file"))
+		return j.retryOrFail(
+			ctx,
+			recording,
+			fmt.Errorf("staged recording is not a non-empty regular file"),
+		)
 	}
+
 	ext := strings.ToLower(strings.TrimPrefix(filepath.Ext(path), "."))
 	if ext == "" {
 		ext = "bin"
 	}
-	key := fmt.Sprintf("recordings/%s/%s/%s.%s", recording.OrganizationID, j.now().UTC().Format("2006/01/02"), recording.ID, ext)
+	key := fmt.Sprintf(
+		"recordings/%s/%s/%s.%s",
+		recording.OrganizationID,
+		j.now().UTC().Format("2006/01/02"),
+		recording.ID,
+		ext,
+	)
 	contentType := mime.TypeByExtension("." + ext)
 	if contentType == "" {
 		contentType = "application/octet-stream"
 	}
-	if err := j.storage.client.Put(ctx, key, contentType, file, info.Size()); err != nil {
+
+	integrationID, provider, bucket, err := j.storage.Put(
+		ctx,
+		recording,
+		key,
+		contentType,
+		file,
+		info.Size(),
+	)
+	if err != nil {
 		return j.retryOrFail(ctx, recording, err)
 	}
-	if _, err := j.repo.CompleteUpload(ctx, recording, key, "s3", j.storage.client.Bucket(), ext, info.Size()); err != nil && !errors.Is(err, pgx.ErrNoRows) {
+	if _, err := j.repo.CompleteUpload(
+		ctx,
+		recording,
+		integrationID,
+		key,
+		provider,
+		bucket,
+		ext,
+		info.Size(),
+	); err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return fmt.Errorf("complete recording upload %s: %w", recording.ID, err)
 	}
 	if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
@@ -148,13 +220,16 @@ func (j *IngestionJob) ingestOne(ctx context.Context, recording sqlc.Recording) 
 	return nil
 }
 
-func (j *IngestionJob) safeSourcePath(recording sqlc.Recording) (string, error) {
+func (j *IngestionJob) safeSourcePath(
+	recording sqlc.Recording,
+) (string, error) {
 	if recording.SourcePath == nil {
 		return "", fmt.Errorf("recording source path is missing")
 	}
 	path := filepath.Clean(strings.TrimSpace(*recording.SourcePath))
 	relative, err := filepath.Rel(j.config.StagingPath, path)
-	if err != nil || relative == "." || relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
+	if err != nil || relative == "." || relative == ".." ||
+		strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
 		return "", fmt.Errorf("recording source path is outside staging directory")
 	}
 	resolvedRoot, err := filepath.EvalSymlinks(j.config.StagingPath)
@@ -166,21 +241,28 @@ func (j *IngestionJob) safeSourcePath(recording sqlc.Recording) (string, error) 
 		return "", fmt.Errorf("resolve staged recording: %w", err)
 	}
 	resolvedRelative, err := filepath.Rel(resolvedRoot, resolvedPath)
-	if err != nil || resolvedRelative == "." || resolvedRelative == ".." || strings.HasPrefix(resolvedRelative, ".."+string(filepath.Separator)) {
+	if err != nil || resolvedRelative == "." || resolvedRelative == ".." ||
+		strings.HasPrefix(resolvedRelative, ".."+string(filepath.Separator)) {
 		return "", fmt.Errorf("recording source path resolves outside staging directory")
 	}
 	return resolvedPath, nil
 }
 
-func (j *IngestionJob) retryOrFail(ctx context.Context, recording sqlc.Recording, cause error) error {
+func (j *IngestionJob) retryOrFail(
+	ctx context.Context,
+	recording sqlc.Recording,
+	cause error,
+) error {
 	if recording.UploadAttempts+1 >= j.config.MaxAttempts {
-		if _, err := j.repo.Fail(ctx, recording); err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		if _, err := j.repo.Fail(ctx, recording); err != nil &&
+			!errors.Is(err, pgx.ErrNoRows) {
 			return fmt.Errorf("fail recording upload %s: %w", recording.ID, err)
 		}
 		return nil
 	}
 	delay := j.config.BaseRetry
-	for attempt := int32(0); attempt < recording.UploadAttempts && delay < j.config.MaxRetry; attempt++ {
+	for attempt := int32(0); attempt < recording.UploadAttempts &&
+		delay < j.config.MaxRetry; attempt++ {
 		delay *= 2
 	}
 	if delay > j.config.MaxRetry {
@@ -190,7 +272,12 @@ func (j *IngestionJob) retryOrFail(ctx context.Context, recording sqlc.Recording
 	if len(message) > 1000 {
 		message = message[:1000]
 	}
-	if err := j.repo.RetryUpload(ctx, recording, j.now().UTC().Add(delay), message); err != nil {
+	if err := j.repo.RetryUpload(
+		ctx,
+		recording,
+		j.now().UTC().Add(delay),
+		message,
+	); err != nil {
 		return fmt.Errorf("schedule recording upload retry %s: %w", recording.ID, err)
 	}
 	return nil

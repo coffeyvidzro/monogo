@@ -17,20 +17,50 @@ type fakeIngestionRepository struct {
 	completed, retries, failed int
 }
 
-func (f *fakeIngestionRepository) ListForUpload(context.Context, time.Time, time.Time, int32) ([]sqlc.Recording, error) {
+func (f *fakeIngestionRepository) ListForUpload(
+	context.Context,
+	time.Time,
+	time.Time,
+	int32,
+) ([]sqlc.Recording, error) {
 	return f.items, nil
 }
-func (f *fakeIngestionRepository) CompleteUpload(_ context.Context, item sqlc.Recording, key, provider, bucket, format string, size int64) (sqlc.Recording, error) {
+
+func (f *fakeIngestionRepository) CompleteUpload(
+	_ context.Context,
+	item sqlc.Recording,
+	storageIntegrationID *uuid.UUID,
+	key string,
+	provider string,
+	bucket string,
+	format string,
+	size int64,
+) (sqlc.Recording, error) {
 	f.completed++
-	item.StorageKey, item.StorageProvider, item.StorageBucket, item.Format, item.FileSizeBytes = &key, &provider, &bucket, &format, &size
+	item.StorageIntegrationID = storageIntegrationID
+	item.StorageKey = &key
+	item.StorageProvider = &provider
+	item.StorageBucket = &bucket
+	item.Format = &format
+	item.FileSizeBytes = &size
 	item.Status = string(StatusCompleted)
 	return item, nil
 }
-func (f *fakeIngestionRepository) RetryUpload(context.Context, sqlc.Recording, time.Time, string) error {
+
+func (f *fakeIngestionRepository) RetryUpload(
+	context.Context,
+	sqlc.Recording,
+	time.Time,
+	string,
+) error {
 	f.retries++
 	return nil
 }
-func (f *fakeIngestionRepository) Fail(_ context.Context, item sqlc.Recording) (sqlc.Recording, error) {
+
+func (f *fakeIngestionRepository) Fail(
+	_ context.Context,
+	item sqlc.Recording,
+) (sqlc.Recording, error) {
 	f.failed++
 	item.Status = string(StatusFailed)
 	return item, nil
@@ -42,13 +72,25 @@ func TestIngestionUploadsAndRemovesStagedFile(t *testing.T) {
 	if err := os.WriteFile(path, []byte("RIFF-recording"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	recording := sqlc.Recording{ID: uuid.New(), OrganizationID: uuid.New(), SourcePath: &path, Status: "uploading"}
-	repo, object := &fakeIngestionRepository{items: []sqlc.Recording{recording}}, &fakeObjectStore{}
-	job, err := NewIngestionJob(repo, NewObjectStorage(object), DefaultIngestionConfig(root))
+	recording := sqlc.Recording{
+		ID:             uuid.New(),
+		OrganizationID: uuid.New(),
+		SourcePath:     &path,
+		Status:         "uploading",
+	}
+	repo := &fakeIngestionRepository{items: []sqlc.Recording{recording}}
+	object := &fakeObjectStore{}
+	job, err := NewIngestionJob(
+		repo,
+		NewObjectStorage(object),
+		DefaultIngestionConfig(root),
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	job.now = func() time.Time { return time.Date(2026, 9, 20, 1, 2, 3, 0, time.UTC) }
+	job.now = func() time.Time {
+		return time.Date(2026, 9, 20, 1, 2, 3, 0, time.UTC)
+	}
 	if err := job.Ingest(context.Background()); err != nil {
 		t.Fatalf("Ingest() error = %v", err)
 	}
@@ -63,11 +105,20 @@ func TestIngestionUploadsAndRemovesStagedFile(t *testing.T) {
 func TestIngestionRetriesThenFails(t *testing.T) {
 	root := t.TempDir()
 	missing := filepath.Join(root, "missing.wav")
-	recording := sqlc.Recording{ID: uuid.New(), OrganizationID: uuid.New(), SourcePath: &missing, Status: "uploading"}
+	recording := sqlc.Recording{
+		ID:             uuid.New(),
+		OrganizationID: uuid.New(),
+		SourcePath:     &missing,
+		Status:         "uploading",
+	}
 	repo := &fakeIngestionRepository{items: []sqlc.Recording{recording}}
 	config := DefaultIngestionConfig(root)
 	config.MaxAttempts = 2
-	job, err := NewIngestionJob(repo, NewObjectStorage(&fakeObjectStore{}), config)
+	job, err := NewIngestionJob(
+		repo,
+		NewObjectStorage(&fakeObjectStore{}),
+		config,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -89,9 +140,18 @@ func TestIngestionRetriesThenFails(t *testing.T) {
 func TestIngestionRejectsPathOutsideStaging(t *testing.T) {
 	root := t.TempDir()
 	outside := filepath.Join(filepath.Dir(root), "outside.wav")
-	recording := sqlc.Recording{ID: uuid.New(), OrganizationID: uuid.New(), SourcePath: &outside, Status: "uploading"}
+	recording := sqlc.Recording{
+		ID:             uuid.New(),
+		OrganizationID: uuid.New(),
+		SourcePath:     &outside,
+		Status:         "uploading",
+	}
 	repo := &fakeIngestionRepository{items: []sqlc.Recording{recording}}
-	job, err := NewIngestionJob(repo, NewObjectStorage(&fakeObjectStore{}), DefaultIngestionConfig(root))
+	job, err := NewIngestionJob(
+		repo,
+		NewObjectStorage(&fakeObjectStore{}),
+		DefaultIngestionConfig(root),
+	)
 	if err != nil {
 		t.Fatal(err)
 	}

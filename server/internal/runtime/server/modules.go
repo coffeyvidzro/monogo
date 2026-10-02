@@ -103,7 +103,6 @@ func newModules(ctx context.Context, cfg config.Config) (*modules, error) {
 		closeDependencies()
 		return nil, fmt.Errorf("initialize recording object storage: %w", err)
 	}
-	recordingStorage := recordings.NewObjectStorage(objectClient)
 
 	queries := sqlc.New(postgresClient.Pool())
 	identityModule := identity.New(
@@ -112,7 +111,15 @@ func newModules(ctx context.Context, cfg config.Config) (*modules, error) {
 		cfg.Domain,
 	)
 	tenancyModule := tenancy.New(queries)
-	platformModule := platform.New(postgresClient.Pool(), queries)
+	platformModule := platform.New(
+		postgresClient.Pool(),
+		queries,
+		credentialCipher,
+	)
+	recordingStorage := recordings.NewResolvedObjectStorage(
+		objectClient,
+		platformModule.Storage.Service,
+	)
 
 	metricsRegistry := metrics.New(redisClient)
 	telephonyModule, err := telephony.New(telephony.Dependencies{
