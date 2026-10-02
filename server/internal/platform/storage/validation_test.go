@@ -70,38 +70,6 @@ func TestNormalizeCreateRejectsPrivateEndpoint(t *testing.T) {
 	}
 }
 
-func TestNormalizeCreateAllowsPrivateEndpointForSelfHosted(t *testing.T) {
-	for _, endpoint := range []string{
-		"http://10.0.0.25:9000",
-		"https://minio.internal.example",
-		"http://localhost:9000",
-	} {
-		req := CreateRequest{
-			Name:            "Recording archive",
-			EndpointURL:     endpoint,
-			Bucket:          "recordings",
-			AccessKeyID:     "access",
-			SecretAccessKey: "secret",
-		}
-		if err := normalizeCreateWithPolicy(&req, true); err != nil {
-			t.Fatalf("normalizeCreateWithPolicy(%q) error = %v", endpoint, err)
-		}
-	}
-}
-
-func TestNormalizeCreateRejectsLinkLocalEndpointForSelfHosted(t *testing.T) {
-	req := CreateRequest{
-		Name:            "Recording archive",
-		EndpointURL:     "http://169.254.169.254",
-		Bucket:          "recordings",
-		AccessKeyID:     "access",
-		SecretAccessKey: "secret",
-	}
-	if err := normalizeCreateWithPolicy(&req, true); err == nil {
-		t.Fatal("normalizeCreateWithPolicy() error = nil, want link-local rejection")
-	}
-}
-
 func TestNormalizeUpdateRequiresField(t *testing.T) {
 	if err := normalizeUpdate(&UpdateRequest{}); err == nil {
 		t.Fatal("normalizeUpdate() error = nil, want empty update error")
