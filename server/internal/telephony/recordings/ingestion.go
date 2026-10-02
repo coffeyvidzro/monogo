@@ -179,13 +179,15 @@ func (j *IngestionJob) ingestOne(
 	if ext == "" {
 		ext = "bin"
 	}
-	key := fmt.Sprintf(
-		"recordings/%s/%s/%s.%s",
+	key, err := recordingObjectKey(
 		recording.OrganizationID,
-		j.now().UTC().Format("2006/01/02"),
 		recording.ID,
+		j.now().UTC(),
 		ext,
 	)
+	if err != nil {
+		return j.retryOrFail(ctx, recording, err)
+	}
 	contentType := mime.TypeByExtension("." + ext)
 	if contentType == "" {
 		contentType = "application/octet-stream"
