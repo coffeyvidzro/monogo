@@ -70,8 +70,7 @@ type Response struct {
 
 type ResolvedIntegration struct {
 	Integration
-	SecretAccessKey      string
-	AllowPrivateEndpoint bool
+	SecretAccessKey string
 }
 
 func response(value Integration) Response {
