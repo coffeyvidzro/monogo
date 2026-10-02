@@ -186,13 +186,12 @@ func customClient(
 	resolved platformstorage.ResolvedIntegration,
 ) (ObjectStore, error) {
 	client, err := s3integration.New(ctx, s3integration.Config{
-		Endpoint:              resolved.EndpointURL,
-		Region:                resolved.Region,
-		Bucket:                resolved.Bucket,
-		AccessKey:             resolved.AccessKeyID,
-		SecretKey:             resolved.SecretAccessKey,
-		UsePathStyle:          resolved.UsePathStyle,
-		AllowPrivateEndpoints: resolved.AllowPrivateEndpoint,
+		Endpoint:     resolved.EndpointURL,
+		Region:       resolved.Region,
+		Bucket:       resolved.Bucket,
+		AccessKey:    resolved.AccessKeyID,
+		SecretKey:    resolved.SecretAccessKey,
+		UsePathStyle: resolved.UsePathStyle,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("initialize recording S3 integration: %w", err)
