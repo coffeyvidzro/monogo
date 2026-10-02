@@ -786,6 +786,65 @@ func (q *Queries) MarkRecordingReadyForUpload(ctx context.Context, arg MarkRecor
 	return i, err
 }
 
+const pinRecordingUpload = `-- name: PinRecordingUpload :one
+UPDATE recordings
+SET storage_integration_id = $1,
+    storage_key = $2,
+    storage_provider = $3,
+    storage_bucket = $4,
+    updated_at = NOW()
+WHERE organization_id = $5
+  AND id = $6
+  AND status = 'uploading'
+  AND storage_key IS NULL
+RETURNING id, organization_id, call_id, storage_integration_id, status, storage_key, storage_provider, storage_bucket, storage_url, source_path, stopped_at, upload_attempts, next_upload_at, upload_error, file_size_bytes, format, duration_seconds, started_at, completed_at, created_at, updated_at
+`
+
+type PinRecordingUploadParams struct {
+	StorageIntegrationID *uuid.UUID `db:"storage_integration_id" json:"storage_integration_id"`
+	StorageKey           *string    `db:"storage_key" json:"storage_key"`
+	StorageProvider      *string    `db:"storage_provider" json:"storage_provider"`
+	StorageBucket        *string    `db:"storage_bucket" json:"storage_bucket"`
+	OrganizationID       uuid.UUID  `db:"organization_id" json:"organization_id"`
+	ID                   uuid.UUID  `db:"id" json:"id"`
+}
+
+func (q *Queries) PinRecordingUpload(ctx context.Context, arg PinRecordingUploadParams) (Recording, error) {
+	row := q.db.QueryRow(ctx, pinRecordingUpload,
+		arg.StorageIntegrationID,
+		arg.StorageKey,
+		arg.StorageProvider,
+		arg.StorageBucket,
+		arg.OrganizationID,
+		arg.ID,
+	)
+	var i Recording
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.CallID,
+		&i.StorageIntegrationID,
+		&i.Status,
+		&i.StorageKey,
+		&i.StorageProvider,
+		&i.StorageBucket,
+		&i.StorageUrl,
+		&i.SourcePath,
+		&i.StoppedAt,
+		&i.UploadAttempts,
+		&i.NextUploadAt,
+		&i.UploadError,
+		&i.FileSizeBytes,
+		&i.Format,
+		&i.DurationSeconds,
+		&i.StartedAt,
+		&i.CompletedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const retryRecordingUpload = `-- name: RetryRecordingUpload :one
 UPDATE recordings
 SET upload_attempts = upload_attempts + 1,
