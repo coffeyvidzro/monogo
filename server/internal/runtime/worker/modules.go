@@ -156,7 +156,6 @@ func newModules(ctx context.Context, cfg config.Config, logger *logging.Logger) 
 	storageService := platformstorage.NewService(
 		platformstorage.NewRepository(queries),
 		credentialCipher,
-		cfg.IsSelfHosted(),
 	)
 	recordingStorage := recordings.NewResolvedObjectStorage(
 		objectClient,
