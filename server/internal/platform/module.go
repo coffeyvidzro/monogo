@@ -1,8 +1,9 @@
 package platform
 
 import (
-	"github.com/jackc/pgx/v5/pgxpool"
 	"net/netip"
+
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
 	"github.com/coffeyvidzro/monogo/internal/platform/audit"
@@ -37,7 +38,7 @@ type AuditModule struct {
 type EntitlementsModule struct {
 	Repository *entitlements.Repository
 	Service    *entitlements.Service
-	Middleware *entitlements.Middleware
+	Middleware *middleware.EntitlementMiddleware
 }
 
 type IdempotencyModule struct {
@@ -50,7 +51,7 @@ type NetworkingModule struct {
 	Repository *networking.Repository
 	Service    *networking.Service
 	Handler    *networking.Handler
-	Middleware *networking.Middleware
+	Middleware *middleware.NetworkingMiddleware
 }
 
 type StorageModule struct {
@@ -120,7 +121,7 @@ func New(
 		Entitlements: EntitlementsModule{
 			Repository: entitlementsRepository,
 			Service:    entitlementsService,
-			Middleware: entitlements.NewMiddleware(entitlementsService),
+			Middleware: middleware.NewEntitlementMiddleware(entitlementsService),
 		},
 		Idempotency: IdempotencyModule{
 			Repository: idempotencyRepository,
@@ -131,8 +132,7 @@ func New(
 			Repository: networkingRepository,
 			Service:    networkingService,
 			Handler:    networking.NewHandler(networkingService),
-			Middleware: networking.NewMiddleware(
-				entitlementsService,
+			Middleware: middleware.NewNetworkingMiddleware(
 				networkingService,
 				trustedProxies,
 			),
