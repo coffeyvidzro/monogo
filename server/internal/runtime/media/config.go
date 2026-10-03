@@ -26,10 +26,6 @@ type Config struct {
 	DrainTimeout     time.Duration `env:"MEDIA_DRAIN_TIMEOUT" envDefault:"30s"`
 	OpenAIAPIKey     string        `env:"OPENAI_API_KEY"`
 	OpenAIEndpoint   string        `env:"OPENAI_REALTIME_ENDPOINT"`
-	DeepgramAPIKey   string        `env:"DEEPGRAM_API_KEY"`
-	GroqAPIKey       string        `env:"GROQ_API_KEY"`
-	CartesiaAPIKey   string        `env:"CARTESIA_API_KEY"`
-	CartesiaVoiceID  string        `env:"CARTESIA_VOICE_ID"`
 }
 
 func loadConfig() (Config, error) {
@@ -58,10 +54,6 @@ func loadConfig() (Config, error) {
 	cfg.ControlToken = strings.TrimSpace(cfg.ControlToken)
 	cfg.OpenAIAPIKey = strings.TrimSpace(cfg.OpenAIAPIKey)
 	cfg.OpenAIEndpoint = strings.TrimSpace(cfg.OpenAIEndpoint)
-	cfg.DeepgramAPIKey = strings.TrimSpace(cfg.DeepgramAPIKey)
-	cfg.GroqAPIKey = strings.TrimSpace(cfg.GroqAPIKey)
-	cfg.CartesiaAPIKey = strings.TrimSpace(cfg.CartesiaAPIKey)
-	cfg.CartesiaVoiceID = strings.TrimSpace(cfg.CartesiaVoiceID)
 	if err := cfg.Validate(); err != nil {
 		return Config{}, err
 	}
@@ -102,21 +94,6 @@ func (c Config) Validate() error {
 	}
 	if c.MaxSessions <= 0 || c.ReadLimit <= 0 {
 		return fmt.Errorf("media limits must be positive")
-	}
-	composableValues := []string{
-		strings.TrimSpace(c.DeepgramAPIKey),
-		strings.TrimSpace(c.GroqAPIKey),
-		strings.TrimSpace(c.CartesiaAPIKey),
-		strings.TrimSpace(c.CartesiaVoiceID),
-	}
-	configured := 0
-	for _, value := range composableValues {
-		if value != "" {
-			configured++
-		}
-	}
-	if configured != 0 && configured != len(composableValues) {
-		return fmt.Errorf("composable media engine requires Deepgram, Groq, Cartesia, and Cartesia voice configuration together")
 	}
 	return nil
 }
