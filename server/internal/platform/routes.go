@@ -12,6 +12,7 @@ import (
 	"github.com/coffeyvidzro/monogo/internal/platform/storage"
 	"github.com/coffeyvidzro/monogo/internal/platform/webhooks"
 	"github.com/coffeyvidzro/monogo/internal/security/scim"
+	"github.com/coffeyvidzro/monogo/internal/security/sso"
 )
 
 func RegisterRoutes(
@@ -42,6 +43,13 @@ func RegisterRoutes(
 		module.Networking.Handler,
 		organizationAccess("networking"),
 		module.Entitlements.Middleware.Require(entitlements.CapabilityPrivateNetworking),
+	)
+
+	sso.RegisterRoutes(
+		router,
+		module.SSO.Handler,
+		organizationAccess("sso"),
+		module.Entitlements.Middleware.Require(entitlements.CapabilitySSO),
 	)
 
 	scim.RegisterManagementRoutes(
