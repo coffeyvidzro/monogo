@@ -275,7 +275,7 @@ SELECT
 FROM scim_group_members AS member
 JOIN scim_user_profiles AS profile
   ON profile.organization_id = member.organization_id
- AND profile.user_id = member.user_id
+ AND profile.identity_id = member.identity_id
 WHERE member.organization_id = sqlc.arg(organization_id)
   AND member.group_id = sqlc.arg(group_id)
 ORDER BY profile.user_name;
@@ -291,21 +291,18 @@ WITH cleared AS (
     INSERT INTO scim_group_members (
         organization_id,
         group_id,
-        user_id
+        identity_id
     )
     SELECT
         sqlc.arg(organization_id),
         sqlc.arg(group_id),
-        profile.user_id
+        profile.identity_id
     FROM requested
     JOIN scim_user_profiles AS profile
       ON profile.organization_id = sqlc.arg(organization_id)
      AND profile.identity_id = requested.identity_id
-    RETURNING user_id
+    RETURNING identity_id
 )
-SELECT profile.identity_id AS id
+SELECT identity_id AS id
 FROM inserted
-JOIN scim_user_profiles AS profile
-  ON profile.organization_id = sqlc.arg(organization_id)
- AND profile.user_id = inserted.user_id
-ORDER BY profile.identity_id;
+ORDER BY identity_id;
