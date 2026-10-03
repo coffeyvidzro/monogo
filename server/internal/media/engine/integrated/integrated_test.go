@@ -41,7 +41,6 @@ func TestEngineStartsOpenAIRealtimeWithSessionVoice(t *testing.T) {
 	registry, err := providersdk.NewRegistry(openai.Provider{
 		Client: openai.NewClient(server.Client()),
 		Config: openai.Config{
-			APIKey:   "secret",
 			Endpoint: "wss" + strings.TrimPrefix(server.URL, "https"),
 			Voice:    "cedar",
 		},
@@ -61,6 +60,13 @@ func TestEngineStartsOpenAIRealtimeWithSessionVoice(t *testing.T) {
 		OutputFormat:   format,
 		Instructions:   "Be concise.",
 		Voice:          "marin",
+		Providers: []session.ProviderRuntime{
+			{
+				Role:     "realtime",
+				Provider: "openai",
+				APIKey:   "secret",
+			},
+		},
 	}
 	engine := Engine{Registry: registry, DefaultProvider: "openai"}
 

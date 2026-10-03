@@ -15,7 +15,6 @@ func builtInProviderRegistry(cfg Config) (*providersdk.Registry, error) {
 		cartesia.Provider{},
 		openai.Provider{
 			Config: openai.Config{
-				APIKey:   cfg.OpenAIAPIKey,
 				Endpoint: cfg.OpenAIEndpoint,
 			},
 		},

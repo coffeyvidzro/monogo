@@ -24,7 +24,6 @@ type Config struct {
 	ReadLimit        int64         `env:"MEDIA_MAX_FRAME_BYTES" envDefault:"65536"`
 	HandshakeTimeout time.Duration `env:"MEDIA_HANDSHAKE_TIMEOUT" envDefault:"5s"`
 	DrainTimeout     time.Duration `env:"MEDIA_DRAIN_TIMEOUT" envDefault:"30s"`
-	OpenAIAPIKey     string        `env:"OPENAI_API_KEY"`
 	OpenAIEndpoint   string        `env:"OPENAI_REALTIME_ENDPOINT"`
 }
 
@@ -52,7 +51,6 @@ func loadConfig() (Config, error) {
 	}
 	cfg.TokenSecret = strings.TrimSpace(cfg.TokenSecret)
 	cfg.ControlToken = strings.TrimSpace(cfg.ControlToken)
-	cfg.OpenAIAPIKey = strings.TrimSpace(cfg.OpenAIAPIKey)
 	cfg.OpenAIEndpoint = strings.TrimSpace(cfg.OpenAIEndpoint)
 	if err := cfg.Validate(); err != nil {
 		return Config{}, err

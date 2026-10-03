@@ -35,9 +35,9 @@ func (p Provider) StartRealtime(
 	cfg session.Config,
 ) (session.Stream, error) {
 	providerConfig := p.Config
-	if strings.TrimSpace(runtime.APIKey) != "" {
-		providerConfig.APIKey = runtime.APIKey
-	}
+	// Credentials are resolved from the organization-owned binding for this
+	// session. Never fall back to process-wide provider configuration.
+	providerConfig.APIKey = strings.TrimSpace(runtime.APIKey)
 	if len(runtime.Config) != 0 {
 		var options struct {
 			Endpoint         string `json:"endpoint"`
