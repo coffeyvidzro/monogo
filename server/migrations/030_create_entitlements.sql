@@ -1,7 +1,7 @@
 CREATE TABLE IF NOT EXISTS entitlements (
     organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
     capability TEXT NOT NULL,
-    enabled BOOLEAN NOT NULL DEFAULT TRUE,
+    enabled BOOLEAN NOT NULL DEFAULT FALSE,
 
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),

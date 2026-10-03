@@ -2,6 +2,7 @@ package networking
 
 import (
 	"context"
+	"net/netip"
 
 	"github.com/coffeyvidzro/monogo/pkg/apperror"
 	"github.com/google/uuid"
@@ -14,6 +15,7 @@ func NewService(repo *Repository) *Service {
 		repo: repo,
 	}
 }
+
 func (s *Service) Create(ctx context.Context, organizationID uuid.UUID, req CreateRequest) (Policy, error) {
 	if organizationID == uuid.Nil {
 		return Policy{}, apperror.NewBadRequest("organization_id is required")
@@ -28,6 +30,7 @@ func (s *Service) Create(ctx context.Context, organizationID uuid.UUID, req Crea
 	}
 	return value, nil
 }
+
 func (s *Service) List(ctx context.Context, organizationID uuid.UUID) ([]Policy, error) {
 	if organizationID == uuid.Nil {
 		return nil, apperror.NewBadRequest("organization_id is required")
@@ -38,6 +41,21 @@ func (s *Service) List(ctx context.Context, organizationID uuid.UUID) ([]Policy,
 	}
 	return values, nil
 }
+
+func (s *Service) Allows(ctx context.Context, organizationID uuid.UUID, address netip.Addr) (bool, error) {
+	if organizationID == uuid.Nil {
+		return false, apperror.NewBadRequest("organization_id is required")
+	}
+	if !address.IsValid() {
+		return false, apperror.NewBadRequest("source address is required")
+	}
+	policies, err := s.repo.List(ctx, organizationID)
+	if err != nil {
+		return false, apperror.NewInternal("list network policies", err)
+	}
+	return Allows(policies, address.Unmap()), nil
+}
+
 func (s *Service) Update(ctx context.Context, organizationID, id uuid.UUID, req UpdateRequest) (Policy, error) {
 	if organizationID == uuid.Nil || id == uuid.Nil {
 		return Policy{}, apperror.NewBadRequest("organization and policy ids are required")
@@ -52,6 +70,7 @@ func (s *Service) Update(ctx context.Context, organizationID, id uuid.UUID, req 
 	}
 	return value, nil
 }
+
 func (s *Service) Delete(ctx context.Context, organizationID, id uuid.UUID) error {
 	if organizationID == uuid.Nil || id == uuid.Nil {
 		return apperror.NewBadRequest("organization and policy ids are required")
