@@ -1,8 +1,8 @@
 -- name: CreateSCIMUser :one
 WITH existing_user AS (
-    SELECT id
+    SELECT users.id
     FROM users
-    WHERE email = sqlc.arg(user_name)
+    WHERE users.email = sqlc.arg(user_name)
 ), created_user AS (
     INSERT INTO users (name, email, email_verified)
     SELECT sqlc.narg(display_name), sqlc.arg(user_name), TRUE
@@ -139,8 +139,8 @@ OFFSET sqlc.arg(offset_count);
 
 -- name: CountSCIMUsers :one
 SELECT COUNT(*)::BIGINT
-FROM scim_user_profiles
-WHERE organization_id = sqlc.arg(organization_id);
+FROM scim_user_profiles AS profile
+WHERE profile.organization_id = sqlc.arg(organization_id);
 
 -- name: ReplaceSCIMUser :one
 WITH target AS (
@@ -183,7 +183,9 @@ SELECT
     updated.created_at,
     updated.updated_at
 FROM updated
-JOIN identity ON identity.id = updated.identity_id;
+JOIN scim_identities AS identity
+  ON identity.id = updated.identity_id
+ AND identity.organization_id = updated.organization_id;
 
 -- name: DeleteSCIMUser :one
 WITH target AS (
@@ -282,9 +284,9 @@ ORDER BY profile.user_name;
 
 -- name: ReplaceSCIMGroupMembers :many
 WITH cleared AS (
-    DELETE FROM scim_group_members
-    WHERE organization_id = sqlc.arg(organization_id)
-      AND group_id = sqlc.arg(group_id)
+    DELETE FROM scim_group_members AS member
+    WHERE member.organization_id = sqlc.arg(organization_id)
+      AND member.group_id = sqlc.arg(group_id)
 ), requested AS (
     SELECT unnest(sqlc.arg(member_ids)::UUID[]) AS identity_id
 ), inserted AS (
@@ -303,6 +305,6 @@ WITH cleared AS (
      AND profile.identity_id = requested.identity_id
     RETURNING identity_id
 )
-SELECT identity_id AS id
+SELECT inserted.identity_id AS id
 FROM inserted
-ORDER BY identity_id;
+ORDER BY inserted.identity_id;
