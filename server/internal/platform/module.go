@@ -2,6 +2,7 @@ package platform
 
 import (
 	"github.com/jackc/pgx/v5/pgxpool"
+	"net/netip"
 
 	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
 	"github.com/coffeyvidzro/monogo/internal/platform/audit"
@@ -45,6 +46,7 @@ type NetworkingModule struct {
 	Repository *networking.Repository
 	Service    *networking.Service
 	Handler    *networking.Handler
+	Middleware *networking.Middleware
 }
 
 type StorageModule struct {
@@ -63,6 +65,7 @@ func New(
 	db *pgxpool.Pool,
 	queries *sqlc.Queries,
 	credentialCipher *encryption.Cipher,
+	trustedProxies []netip.Prefix,
 ) *Module {
 	auditRepository := audit.NewRepository(db)
 	auditService := audit.NewService(auditRepository)
@@ -105,6 +108,11 @@ func New(
 			Repository: networkingRepository,
 			Service:    networkingService,
 			Handler:    networking.NewHandler(networkingService),
+			Middleware: networking.NewMiddleware(
+				entitlementsService,
+				networkingService,
+				trustedProxies,
+			),
 		},
 		Storage: StorageModule{
 			Repository: storageRepository,

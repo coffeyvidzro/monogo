@@ -2,8 +2,6 @@ package networking
 
 import (
 	"context"
-	"net/netip"
-	"strings"
 
 	"github.com/coffeyvidzro/monogo/pkg/apperror"
 	"github.com/google/uuid"
@@ -44,14 +42,9 @@ func (s *Service) Update(ctx context.Context, organizationID, id uuid.UUID, req 
 	if organizationID == uuid.Nil || id == uuid.Nil {
 		return Policy{}, apperror.NewBadRequest("organization and policy ids are required")
 	}
-	var prefix *netip.Prefix
-	if req.SourceCIDR != nil {
-		value, err := netip.ParsePrefix(strings.TrimSpace(*req.SourceCIDR))
-		if err != nil {
-			return Policy{}, apperror.NewBadRequest("source_cidr must be a valid CIDR")
-		}
-		value = value.Masked()
-		prefix = &value
+	req, prefix, err := validateUpdate(req)
+	if err != nil {
+		return Policy{}, err
 	}
 	value, err := s.repo.Update(ctx, organizationID, id, req, prefix)
 	if err != nil {

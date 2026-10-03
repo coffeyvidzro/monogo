@@ -136,3 +136,13 @@ isolation.
 
 Owns organization-level network access configuration. It must not introduce a
 private runtime fleet, runtime registration, or deployment-mode branching.
+
+Active policies are enforced after authentication and organization resolution.
+A matching deny rule takes precedence over every allow rule. When at least one
+active allow rule exists, unmatched addresses are denied; with deny-only or no
+active rules, unmatched addresses are allowed. Disabled rules are ignored.
+
+The direct socket peer is the request source unless it belongs to an
+operator-configured `TRUSTED_PROXY_CIDRS` range. Only then may Leamout walk the
+`X-Forwarded-For` chain from right to left to find the first untrusted client
+address. Forwarding headers from untrusted peers are ignored.

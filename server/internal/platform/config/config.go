@@ -3,6 +3,7 @@ package config
 import (
 	"errors"
 	"fmt"
+	"net/netip"
 	"os"
 	"strings"
 
@@ -30,6 +31,7 @@ type Config struct {
 	TURNAuthSecret        string      `env:"TURN_AUTH_SECRET,required"`
 	TURNPublicURLs        []string    `env:"TURN_PUBLIC_URLS" envSeparator:"," envDefault:"stun:localhost:3478,turn:localhost:3478?transport=udp,turn:localhost:3478?transport=tcp"`
 	CORSOrigins           []string    `env:"CORS_ORIGINS" envSeparator:"," envDefault:"http://localhost:3000,http://127.0.0.1:3000"`
+	TrustedProxyCIDRs     []string    `env:"TRUSTED_PROXY_CIDRS" envSeparator:","`
 }
 
 func Load() (Config, error) {
@@ -67,6 +69,19 @@ func (c *Config) normalize() {
 	c.TURNAuthSecret = strings.TrimSpace(c.TURNAuthSecret)
 	c.TURNPublicURLs = normalizeStrings(c.TURNPublicURLs)
 	c.CORSOrigins = normalizeStrings(c.CORSOrigins)
+	c.TrustedProxyCIDRs = normalizeStrings(c.TrustedProxyCIDRs)
+}
+
+func (c Config) TrustedProxyPrefixes() ([]netip.Prefix, error) {
+	result := make([]netip.Prefix, 0, len(c.TrustedProxyCIDRs))
+	for _, value := range c.TrustedProxyCIDRs {
+		prefix, err := netip.ParsePrefix(value)
+		if err != nil {
+			return nil, fmt.Errorf("parse trusted proxy CIDR %q: %w", value, err)
+		}
+		result = append(result, prefix.Masked())
+	}
+	return result, nil
 }
 
 func normalizeStrings(values []string) []string {
