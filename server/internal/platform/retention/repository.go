@@ -60,12 +60,38 @@ func (r *Repository) ListEnabled(ctx context.Context) ([]Policy, error) {
 func (r *Repository) ListExpiredRecordings(ctx context.Context, organizationID uuid.UUID, before time.Time, batchSize int32) ([]uuid.UUID, error) {
 	return r.queries.ListExpiredRecordingsForRetention(ctx, sqlc.ListExpiredRecordingsForRetentionParams{
 		OrganizationID: organizationID,
-		CreatedBefore: pgtype.Timestamptz{
-			Time:  before.UTC(),
-			Valid: true,
-		},
-		BatchSize: batchSize,
+		CreatedBefore:  timestamp(before),
+		BatchSize:      batchSize,
 	})
+}
+func (r *Repository) ListExpiredConversations(ctx context.Context, organizationID uuid.UUID, before time.Time, batchSize int32) ([]uuid.UUID, error) {
+	return r.queries.ListExpiredConversationsForRetention(ctx, sqlc.ListExpiredConversationsForRetentionParams{
+		OrganizationID: organizationID,
+		CreatedBefore:  timestamp(before),
+		BatchSize:      batchSize,
+	})
+}
+func (r *Repository) DeleteConversation(ctx context.Context, organizationID, id uuid.UUID) error {
+	return r.queries.DeleteConversationForRetention(ctx, sqlc.DeleteConversationForRetentionParams{
+		OrganizationID: organizationID,
+		ID:             id,
+	})
+}
+func (r *Repository) ListExpiredAuditEvents(ctx context.Context, organizationID uuid.UUID, before time.Time, batchSize int32) ([]uuid.UUID, error) {
+	return r.queries.ListExpiredAuditEventsForRetention(ctx, sqlc.ListExpiredAuditEventsForRetentionParams{
+		OrganizationID: organizationID,
+		CreatedBefore:  timestamp(before),
+		BatchSize:      batchSize,
+	})
+}
+func (r *Repository) DeleteAuditEvent(ctx context.Context, organizationID, id uuid.UUID) error {
+	return r.queries.DeleteAuditEventForRetention(ctx, sqlc.DeleteAuditEventForRetentionParams{
+		OrganizationID: organizationID,
+		ID:             id,
+	})
+}
+func timestamp(value time.Time) pgtype.Timestamptz {
+	return pgtype.Timestamptz{Time: value.UTC(), Valid: true}
 }
 func fromRow(row sqlc.RetentionPolicy) Policy {
 	return Policy{
