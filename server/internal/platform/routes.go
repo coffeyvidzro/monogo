@@ -1,9 +1,11 @@
 package platform
 
 import (
+	"context"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
 
 	"github.com/coffeyvidzro/monogo/internal/platform/audit"
 	"github.com/coffeyvidzro/monogo/internal/platform/entitlements"
@@ -57,6 +59,14 @@ func RegisterRoutes(
 		module.SCIM.Handler,
 		organizationAccess("scim"),
 		module.Entitlements.Middleware.Require(entitlements.CapabilitySCIM),
+	)
+	scim.RegisterProvisioningRoutes(
+		router,
+		module.SCIM.Handler,
+		module.SCIM.Middleware.RequireToken,
+		scim.RequireCapability(func(ctx context.Context, organizationID uuid.UUID) error {
+			return module.Entitlements.Service.Require(ctx, organizationID, entitlements.CapabilitySCIM)
+		}),
 	)
 
 	retention.RegisterRoutes(
