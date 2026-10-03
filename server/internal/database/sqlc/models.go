@@ -266,6 +266,22 @@ type RetentionPolicy struct {
 	UpdatedAt      pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 }
 
+type ScimGroup struct {
+	ID             uuid.UUID          `db:"id" json:"id"`
+	OrganizationID uuid.UUID          `db:"organization_id" json:"organization_id"`
+	ExternalID     *string            `db:"external_id" json:"external_id"`
+	DisplayName    string             `db:"display_name" json:"display_name"`
+	CreatedAt      pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	UpdatedAt      pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+}
+
+type ScimGroupMember struct {
+	OrganizationID uuid.UUID          `db:"organization_id" json:"organization_id"`
+	GroupID        uuid.UUID          `db:"group_id" json:"group_id"`
+	IdentityID     uuid.UUID          `db:"identity_id" json:"identity_id"`
+	CreatedAt      pgtype.Timestamptz `db:"created_at" json:"created_at"`
+}
+
 type ScimIdentity struct {
 	ID             uuid.UUID          `db:"id" json:"id"`
 	OrganizationID uuid.UUID          `db:"organization_id" json:"organization_id"`
@@ -284,6 +300,17 @@ type ScimToken struct {
 	ExpiresAt      pgtype.Timestamptz `db:"expires_at" json:"expires_at"`
 	LastUsedAt     pgtype.Timestamptz `db:"last_used_at" json:"last_used_at"`
 	RevokedAt      pgtype.Timestamptz `db:"revoked_at" json:"revoked_at"`
+	CreatedAt      pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	UpdatedAt      pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+}
+
+type ScimUserProfile struct {
+	IdentityID     uuid.UUID          `db:"identity_id" json:"identity_id"`
+	OrganizationID uuid.UUID          `db:"organization_id" json:"organization_id"`
+	UserID         uuid.UUID          `db:"user_id" json:"user_id"`
+	UserName       string             `db:"user_name" json:"user_name"`
+	DisplayName    *string            `db:"display_name" json:"display_name"`
+	Active         bool               `db:"active" json:"active"`
 	CreatedAt      pgtype.Timestamptz `db:"created_at" json:"created_at"`
 	UpdatedAt      pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 }

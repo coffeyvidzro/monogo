@@ -19,7 +19,7 @@ type cleanupRepositoryStub struct {
 	before         time.Time
 
 	deletedConversationIDs []uuid.UUID
-	deletedAuditEventIDs    []uuid.UUID
+	deletedAuditEventIDs   []uuid.UUID
 }
 
 func (s *cleanupRepositoryStub) ListEnabled(context.Context) ([]Policy, error) {
