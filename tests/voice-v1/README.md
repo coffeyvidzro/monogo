@@ -1,6 +1,6 @@
 # Voice v1 acceptance suite
 
-This suite is a Leamout Core release gate for programmable voice.
+This suite is a Leamout Self-Hosted release gate for programmable voice.
 
 It runs against the real Docker Compose telecom stack and uses a synthetic SIP carrier plus a local HTTPS webhook receiver. It does not replace call/media behavior with mocks. A `2xx` response is not enough when an observable media-side assertion is available.
 

@@ -1,10 +1,10 @@
 # Leamout architecture
 
-Leamout is a carrier-grade runtime and control plane for autonomous voice
-agents. It connects customer-owned telephony infrastructure to realtime AI
-agents while providing call control, media orchestration, model orchestration,
-tool execution, interruption handling, routing, observability, and enterprise
-deployment infrastructure.
+Leamout is a carrier-grade platform for autonomous voice agents that can be
+self-hosted or used as a managed cloud service. It connects customer-owned
+telephony infrastructure to realtime AI agents while providing call control,
+media orchestration, model orchestration, tool execution, interruption
+handling, routing, and observability.
 
 This document defines the product and system boundaries that guide Monogo
 development.
@@ -19,8 +19,8 @@ Leamout should:
 - keep provider integrations behind provider-neutral contracts;
 - support both composable and integrated realtime AI engines;
 - make tool execution explicit, authorized, observable, and cancellable;
-- allow self-hosted and private-cloud deployment without changing the product
-  model;
+- support Self-Hosted and Leamout Cloud deployments without changing the
+  execution model;
 - keep durable control-plane state separate from active per-session runtime
   state;
 - remain modular without prematurely turning every module into a network
@@ -143,7 +143,7 @@ Responsibilities:
 - routing policy;
 - credentials and secrets references;
 - public API and authorization;
-- runtime registration and deployment configuration;
+- organization, user, and deployment administration;
 - webhooks and event subscriptions;
 - observability and audit state.
 
@@ -354,9 +354,17 @@ Use PostgreSQL for durable product state:
 
 ## Deployment model
 
-The product architecture is deployment-neutral.
+Leamout has two deployment models:
 
-The same runtime model should support:
+- **Leamout Self-Hosted**, operated by the customer on their infrastructure;
+- **Leamout Cloud**, operated and hosted by us.
+
+Both use the same voice-agent platform and execution architecture. Enterprise
+is optional commercial packaging for support, security, governance, deployment
+assistance, SLAs, and contractual requirements on either deployment model. It
+is not a third architecture or separate control plane.
+
+The deployment-neutral architecture can run in environments such as:
 
 - local development;
 - Docker-based self-hosting;
