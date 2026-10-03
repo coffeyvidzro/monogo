@@ -31,6 +31,8 @@ const (
 	ScopeWebRTCWrite      Scope = "webrtc:write"
 	ScopeNetworkingRead   Scope = "networking:read"
 	ScopeNetworkingWrite  Scope = "networking:write"
+	ScopeSCIMRead         Scope = "scim:read"
+	ScopeSCIMWrite        Scope = "scim:write"
 )
 
 func (s Scope) IsValid() bool {
@@ -48,7 +50,8 @@ func (s Scope) IsValid() bool {
 		ScopeWebhooksRead, ScopeWebhooksWrite,
 		ScopeAuditRead, ScopeAuditWrite,
 		ScopeWebRTCRead, ScopeWebRTCWrite,
-		ScopeNetworkingRead, ScopeNetworkingWrite:
+		ScopeNetworkingRead, ScopeNetworkingWrite,
+		ScopeSCIMRead, ScopeSCIMWrite:
 		return true
 	default:
 		return false

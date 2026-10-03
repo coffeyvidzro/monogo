@@ -13,6 +13,7 @@ import (
 	"github.com/coffeyvidzro/monogo/internal/platform/storage"
 	"github.com/coffeyvidzro/monogo/internal/platform/webhooks"
 	"github.com/coffeyvidzro/monogo/internal/security/encryption"
+	"github.com/coffeyvidzro/monogo/internal/security/scim"
 )
 
 type Module struct {
@@ -21,6 +22,7 @@ type Module struct {
 	Idempotency  IdempotencyModule
 	Networking   NetworkingModule
 	Storage      StorageModule
+	SCIM         SCIMModule
 	Webhooks     WebhooksModule
 }
 
@@ -55,6 +57,13 @@ type StorageModule struct {
 	Handler    *storage.Handler
 }
 
+type SCIMModule struct {
+	Repository *scim.Repository
+	Service    *scim.Service
+	Handler    *scim.Handler
+	Middleware *scim.Middleware
+}
+
 type WebhooksModule struct {
 	Repository *webhooks.Repository
 	Service    *webhooks.Service
@@ -84,6 +93,9 @@ func New(
 
 	storageRepository := storage.NewRepository(queries)
 	storageService := storage.NewService(storageRepository, credentialCipher)
+
+	scimRepository := scim.NewRepository(queries)
+	scimService := scim.NewService(scimRepository)
 
 	webhooksRepository := webhooks.NewRepository(queries)
 	webhooksService := webhooks.NewService(webhooksRepository)
@@ -118,6 +130,12 @@ func New(
 			Repository: storageRepository,
 			Service:    storageService,
 			Handler:    storage.NewHandler(storageService),
+		},
+		SCIM: SCIMModule{
+			Repository: scimRepository,
+			Service:    scimService,
+			Handler:    scim.NewHandler(scimService),
+			Middleware: scim.NewMiddleware(scimService),
 		},
 		Webhooks: WebhooksModule{
 			Repository: webhooksRepository,
