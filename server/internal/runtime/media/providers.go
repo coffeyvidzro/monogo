@@ -10,21 +10,11 @@ import (
 
 func builtInProviderRegistry(cfg Config) (*providersdk.Registry, error) {
 	return providersdk.NewRegistry(
-		deepgram.Provider{
-			Config: deepgram.Config{APIKey: cfg.DeepgramAPIKey},
-		},
-		groq.Provider{
-			Config: groq.Config{APIKey: cfg.GroqAPIKey},
-		},
-		cartesia.Provider{
-			Config: cartesia.Config{
-				APIKey:  cfg.CartesiaAPIKey,
-				VoiceID: cfg.CartesiaVoiceID,
-			},
-		},
+		deepgram.Provider{},
+		groq.Provider{},
+		cartesia.Provider{},
 		openai.Provider{
 			Config: openai.Config{
-				APIKey:   cfg.OpenAIAPIKey,
 				Endpoint: cfg.OpenAIEndpoint,
 			},
 		},

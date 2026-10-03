@@ -12,6 +12,7 @@ x-app-environment: &app-environment
   TURN_AUTH_SECRET: ${TURN_AUTH_SECRET:?TURN_AUTH_SECRET is required}
   TURN_PUBLIC_URLS: "stun:turn.${DOMAIN:?DOMAIN is required}:3478,turn:turn.${DOMAIN:?DOMAIN is required}:3478?transport=udp,turn:turn.${DOMAIN:?DOMAIN is required}:3478?transport=tcp"
   CORS_ORIGINS: ${CORS_ORIGINS:?CORS_ORIGINS is required}
+  TRUSTED_PROXY_CIDRS: ${TRUSTED_PROXY_CIDRS:-}
   MINIO_APP_ACCESS_KEY: ${MINIO_APP_ACCESS_KEY:?MINIO_APP_ACCESS_KEY is required}
   MINIO_APP_SECRET_KEY: ${MINIO_APP_SECRET_KEY:?MINIO_APP_SECRET_KEY is required}
 
@@ -146,11 +147,6 @@ services:
       MEDIA_TOKEN_SECRET: ${MEDIA_TOKEN_SECRET:?MEDIA_TOKEN_SECRET is required}
       MEDIA_CONTROL_TOKEN: ${MEDIA_CONTROL_TOKEN:?MEDIA_CONTROL_TOKEN is required}
       MEDIA_MAX_SESSIONS: ${MEDIA_MAX_SESSIONS:-100}
-      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
-      DEEPGRAM_API_KEY: ${DEEPGRAM_API_KEY:-}
-      GROQ_API_KEY: ${GROQ_API_KEY:-}
-      CARTESIA_API_KEY: ${CARTESIA_API_KEY:-}
-      CARTESIA_VOICE_ID: ${CARTESIA_VOICE_ID:-}
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8090/readyz"]
       interval: 3s

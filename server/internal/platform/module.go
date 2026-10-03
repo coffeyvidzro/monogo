@@ -1,22 +1,32 @@
 package platform
 
 import (
+	"net/netip"
+
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
 	"github.com/coffeyvidzro/monogo/internal/platform/audit"
+	"github.com/coffeyvidzro/monogo/internal/platform/entitlements"
 	"github.com/coffeyvidzro/monogo/internal/platform/idempotency"
 	"github.com/coffeyvidzro/monogo/internal/platform/middleware"
+	"github.com/coffeyvidzro/monogo/internal/platform/networking"
+	"github.com/coffeyvidzro/monogo/internal/platform/retention"
 	"github.com/coffeyvidzro/monogo/internal/platform/storage"
 	"github.com/coffeyvidzro/monogo/internal/platform/webhooks"
 	"github.com/coffeyvidzro/monogo/internal/security/encryption"
+	"github.com/coffeyvidzro/monogo/internal/security/scim"
 )
 
 type Module struct {
-	Audit       AuditModule
-	Idempotency IdempotencyModule
-	Storage     StorageModule
-	Webhooks    WebhooksModule
+	Audit        AuditModule
+	Entitlements EntitlementsModule
+	Idempotency  IdempotencyModule
+	Networking   NetworkingModule
+	Storage      StorageModule
+	SCIM         SCIMModule
+	Retention    RetentionModule
+	Webhooks     WebhooksModule
 }
 
 type AuditModule struct {
@@ -25,16 +35,42 @@ type AuditModule struct {
 	Handler    *audit.Handler
 }
 
+type EntitlementsModule struct {
+	Repository *entitlements.Repository
+	Service    *entitlements.Service
+	Middleware *middleware.EntitlementMiddleware
+}
+
 type IdempotencyModule struct {
 	Repository *idempotency.Repository
 	Service    *idempotency.Service
 	Middleware *middleware.IdempotencyMiddleware
 }
 
+type NetworkingModule struct {
+	Repository *networking.Repository
+	Service    *networking.Service
+	Handler    *networking.Handler
+	Middleware *middleware.NetworkingMiddleware
+}
+
 type StorageModule struct {
 	Repository *storage.Repository
 	Service    *storage.Service
 	Handler    *storage.Handler
+}
+
+type SCIMModule struct {
+	Repository *scim.Repository
+	Service    *scim.Service
+	Handler    *scim.Handler
+	Middleware *scim.Middleware
+}
+
+type RetentionModule struct {
+	Repository *retention.Repository
+	Service    *retention.Service
+	Handler    *retention.Handler
 }
 
 type WebhooksModule struct {
@@ -47,9 +83,13 @@ func New(
 	db *pgxpool.Pool,
 	queries *sqlc.Queries,
 	credentialCipher *encryption.Cipher,
+	trustedProxies []netip.Prefix,
 ) *Module {
 	auditRepository := audit.NewRepository(db)
 	auditService := audit.NewService(auditRepository)
+
+	entitlementsRepository := entitlements.NewRepository(queries)
+	entitlementsService := entitlements.NewService(entitlementsRepository)
 
 	idempotencyRepository := idempotency.NewRepository(queries)
 	idempotencyService := idempotency.NewService(
@@ -57,8 +97,17 @@ func New(
 		idempotency.DefaultConfig(),
 	)
 
+	networkingRepository := networking.NewRepository(queries)
+	networkingService := networking.NewService(networkingRepository)
+
 	storageRepository := storage.NewRepository(queries)
 	storageService := storage.NewService(storageRepository, credentialCipher)
+
+	scimRepository := scim.NewRepository(queries)
+	scimService := scim.NewService(scimRepository)
+
+	retentionRepository := retention.NewRepository(queries)
+	retentionService := retention.NewService(retentionRepository)
 
 	webhooksRepository := webhooks.NewRepository(queries)
 	webhooksService := webhooks.NewService(webhooksRepository)
@@ -69,15 +118,40 @@ func New(
 			Service:    auditService,
 			Handler:    audit.NewHandler(auditService),
 		},
+		Entitlements: EntitlementsModule{
+			Repository: entitlementsRepository,
+			Service:    entitlementsService,
+			Middleware: middleware.NewEntitlementMiddleware(entitlementsService),
+		},
 		Idempotency: IdempotencyModule{
 			Repository: idempotencyRepository,
 			Service:    idempotencyService,
 			Middleware: middleware.NewIdempotencyMiddleware(idempotencyService),
 		},
+		Networking: NetworkingModule{
+			Repository: networkingRepository,
+			Service:    networkingService,
+			Handler:    networking.NewHandler(networkingService),
+			Middleware: middleware.NewNetworkingMiddleware(
+				networkingService,
+				trustedProxies,
+			),
+		},
 		Storage: StorageModule{
 			Repository: storageRepository,
 			Service:    storageService,
 			Handler:    storage.NewHandler(storageService),
+		},
+		SCIM: SCIMModule{
+			Repository: scimRepository,
+			Service:    scimService,
+			Handler:    scim.NewHandler(scimService),
+			Middleware: scim.NewMiddleware(scimService),
+		},
+		Retention: RetentionModule{
+			Repository: retentionRepository,
+			Service:    retentionService,
+			Handler:    retention.NewHandler(retentionService),
 		},
 		Webhooks: WebhooksModule{
 			Repository: webhooksRepository,

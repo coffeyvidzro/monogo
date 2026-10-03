@@ -36,13 +36,17 @@ func (s *Service) ValidateProviderTopology(
 	organizationID, voiceAgentID uuid.UUID,
 	engine session.Engine,
 ) error {
+	if s.providers == nil {
+		return nil
+	}
 	values, err := s.ProviderRuntimes(ctx, organizationID, voiceAgentID)
 	if err != nil {
 		return err
 	}
-	if len(values) == 0 {
-		return nil
-	}
+	return validateProviderTopology(values, engine)
+}
+
+func validateProviderTopology(values []session.ProviderRuntime, engine session.Engine) error {
 	roles := make(map[string]string, len(values))
 	for _, value := range values {
 		roles[value.Role] = value.Provider
@@ -50,11 +54,25 @@ func (s *Service) ValidateProviderTopology(
 	switch engine {
 	case session.EngineIntegrated:
 		if roles["realtime"] != "openai" {
-			return apperror.NewBadRequest("integrated engine requires an OpenAI realtime provider binding")
+			return apperror.NewBadRequest(
+				"Voice Agent requires an OpenAI realtime provider binding",
+			)
 		}
 	case session.EngineComposable:
-		if roles["stt"] != "deepgram" || roles["llm"] != "groq" || roles["tts"] != "cartesia" {
-			return apperror.NewBadRequest("composable engine requires Deepgram STT, Groq LLM, and Cartesia TTS bindings")
+		if roles["stt"] != "deepgram" {
+			return apperror.NewBadRequest(
+				"Voice Agent requires a Deepgram STT provider binding",
+			)
+		}
+		if roles["llm"] != "groq" {
+			return apperror.NewBadRequest(
+				"Voice Agent requires a Groq LLM provider binding",
+			)
+		}
+		if roles["tts"] != "cartesia" {
+			return apperror.NewBadRequest(
+				"Voice Agent requires a Cartesia TTS provider binding",
+			)
 		}
 	}
 	return nil

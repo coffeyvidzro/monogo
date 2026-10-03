@@ -35,21 +35,33 @@ func newRouter(cfg config.Config, logger *logging.Logger, modules *modules) *chi
 		return func(next http.Handler) http.Handler {
 			requireAuthenticated := modules.organizationsContext.RequireAuthenticated(modules.authn)
 			requireAccess := modules.organizationsContext.RequireAccess(resource)
-			return requireAuthenticated(modules.rateLimit.Handle(requireAccess(next)))
+			return requireAuthenticated(
+				modules.platform.Networking.Middleware.Enforce(
+					modules.rateLimit.Handle(requireAccess(next)),
+				),
+			)
 		}
 	}
 	sessionOrganizationAccess := func(resource string) func(http.Handler) http.Handler {
 		return func(next http.Handler) http.Handler {
 			requireAccess := modules.organizationsContext.RequireAccess(resource)
 			return modules.authn.RequireSession(
-				modules.organizationsContext.Require(modules.rateLimit.Handle(requireAccess(next))),
+				modules.organizationsContext.Require(
+					modules.platform.Networking.Middleware.Enforce(
+						modules.rateLimit.Handle(requireAccess(next)),
+					),
+				),
 			)
 		}
 	}
 	organizationContextAccess := func(resource string) func(http.Handler) http.Handler {
 		return func(next http.Handler) http.Handler {
 			requireAccess := modules.organizationsContext.RequireAccess(resource)
-			return modules.organizationsContext.Require(modules.rateLimit.Handle(requireAccess(next)))
+			return modules.organizationsContext.Require(
+				modules.platform.Networking.Middleware.Enforce(
+					modules.rateLimit.Handle(requireAccess(next)),
+				),
+			)
 		}
 	}
 

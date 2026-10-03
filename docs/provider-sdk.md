@@ -91,27 +91,45 @@ Realtime providers therefore support the same Media Runtime event and command
 contract as composable engines, including interruption and tool-result
 submission.
 
-## Runtime credentials and configuration
+## Credentials and provider configuration
 
-Deployment-level provider configuration supplies the defaults used when Media
-Runtime constructs the built-in provider implementations at startup.
+Deepgram, Groq, and Cartesia credentials are organization-scoped application
+data. They are encrypted at rest through the AI provider credential service and
+resolved for the Voice Agent that starts a media session.
 
-A session can override the selected provider, API key, and provider-specific
-configuration through `session.ProviderRuntime` for its role:
+The composable engine therefore does not use deployment-global
+`DEEPGRAM_API_KEY`, `GROQ_API_KEY`, or `CARTESIA_API_KEY` environment variables.
+A composable Voice Agent must bind all three roles:
 
 ```text
-Composable
-├── stt
-├── llm
-└── tts
-
-Integrated
-└── realtime
+Voice Agent
+├── stt -> Deepgram credential
+├── llm -> Groq credential
+└── tts -> Cartesia credential
 ```
 
-The registry does not persist credentials. Provider-specific configuration is
-interpreted by the selected adapter rather than by the composable or integrated
-engine.
+Provider-specific options are stored on the Voice Agent/provider binding and
+travel with the session through `session.ProviderRuntime.Config`. For Cartesia,
+for example, the binding can contain:
+
+```json
+{
+  "voice_id": "cartesia-voice-id",
+  "model": "sonic-3",
+  "language": "en"
+}
+```
+
+The Voice Agent's own `voice` and `language` fields can still override the
+provider binding where the adapter supports those values.
+
+OpenAI Realtime currently retains its optional deployment-level fallback for
+local/self-hosted operation. An organization-scoped realtime provider binding,
+when present, overrides that fallback for the session.
+
+The provider registry itself stores implementations only. It does not persist
+credentials. Provider-specific configuration is interpreted by the selected
+adapter rather than by the composable or integrated engine.
 
 ## Registry
 
