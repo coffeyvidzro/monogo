@@ -12,6 +12,39 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const deleteAuditEventForRetention = `-- name: DeleteAuditEventForRetention :exec
+DELETE FROM audit_events
+WHERE organization_id = $1
+  AND id = $2
+`
+
+type DeleteAuditEventForRetentionParams struct {
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	ID             uuid.UUID `db:"id" json:"id"`
+}
+
+func (q *Queries) DeleteAuditEventForRetention(ctx context.Context, arg DeleteAuditEventForRetentionParams) error {
+	_, err := q.db.Exec(ctx, deleteAuditEventForRetention, arg.OrganizationID, arg.ID)
+	return err
+}
+
+const deleteConversationForRetention = `-- name: DeleteConversationForRetention :exec
+DELETE FROM voice_agent_sessions
+WHERE organization_id = $1
+  AND id = $2
+  AND state IN ('completed', 'failed', 'cancelled')
+`
+
+type DeleteConversationForRetentionParams struct {
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	ID             uuid.UUID `db:"id" json:"id"`
+}
+
+func (q *Queries) DeleteConversationForRetention(ctx context.Context, arg DeleteConversationForRetentionParams) error {
+	_, err := q.db.Exec(ctx, deleteConversationForRetention, arg.OrganizationID, arg.ID)
+	return err
+}
+
 const deleteRetentionPolicy = `-- name: DeleteRetentionPolicy :exec
 DELETE FROM retention_policies
 WHERE organization_id = $1
@@ -82,6 +115,78 @@ func (q *Queries) ListEnabledRetentionPolicies(ctx context.Context) ([]Retention
 			return nil, err
 		}
 		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listExpiredAuditEventsForRetention = `-- name: ListExpiredAuditEventsForRetention :many
+SELECT id
+FROM audit_events
+WHERE organization_id = $1
+  AND occurred_at < $2
+ORDER BY occurred_at
+LIMIT $3
+`
+
+type ListExpiredAuditEventsForRetentionParams struct {
+	OrganizationID uuid.UUID          `db:"organization_id" json:"organization_id"`
+	CreatedBefore  pgtype.Timestamptz `db:"created_before" json:"created_before"`
+	BatchSize      int32              `db:"batch_size" json:"batch_size"`
+}
+
+func (q *Queries) ListExpiredAuditEventsForRetention(ctx context.Context, arg ListExpiredAuditEventsForRetentionParams) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, listExpiredAuditEventsForRetention, arg.OrganizationID, arg.CreatedBefore, arg.BatchSize)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []uuid.UUID{}
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listExpiredConversationsForRetention = `-- name: ListExpiredConversationsForRetention :many
+SELECT id
+FROM voice_agent_sessions
+WHERE organization_id = $1
+  AND state IN ('completed', 'failed', 'cancelled')
+  AND ended_at IS NOT NULL
+  AND ended_at < $2
+ORDER BY ended_at
+LIMIT $3
+`
+
+type ListExpiredConversationsForRetentionParams struct {
+	OrganizationID uuid.UUID          `db:"organization_id" json:"organization_id"`
+	CreatedBefore  pgtype.Timestamptz `db:"created_before" json:"created_before"`
+	BatchSize      int32              `db:"batch_size" json:"batch_size"`
+}
+
+func (q *Queries) ListExpiredConversationsForRetention(ctx context.Context, arg ListExpiredConversationsForRetentionParams) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, listExpiredConversationsForRetention, arg.OrganizationID, arg.CreatedBefore, arg.BatchSize)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []uuid.UUID{}
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
