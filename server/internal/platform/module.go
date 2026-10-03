@@ -7,7 +7,6 @@ import (
 	"github.com/coffeyvidzro/monogo/internal/platform/audit"
 	"github.com/coffeyvidzro/monogo/internal/platform/idempotency"
 	"github.com/coffeyvidzro/monogo/internal/platform/middleware"
-	"github.com/coffeyvidzro/monogo/internal/platform/runtimes"
 	"github.com/coffeyvidzro/monogo/internal/platform/storage"
 	"github.com/coffeyvidzro/monogo/internal/platform/webhooks"
 	"github.com/coffeyvidzro/monogo/internal/security/encryption"
@@ -16,7 +15,6 @@ import (
 type Module struct {
 	Audit       AuditModule
 	Idempotency IdempotencyModule
-	Runtimes    RuntimesModule
 	Storage     StorageModule
 	Webhooks    WebhooksModule
 }
@@ -31,12 +29,6 @@ type IdempotencyModule struct {
 	Repository *idempotency.Repository
 	Service    *idempotency.Service
 	Middleware *middleware.IdempotencyMiddleware
-}
-
-type RuntimesModule struct {
-	Repository *runtimes.Repository
-	Service    *runtimes.Service
-	Handler    *runtimes.Handler
 }
 
 type StorageModule struct {
@@ -65,9 +57,6 @@ func New(
 		idempotency.DefaultConfig(),
 	)
 
-	runtimesRepository := runtimes.NewRepository(queries)
-	runtimesService := runtimes.NewService(runtimesRepository)
-
 	storageRepository := storage.NewRepository(queries)
 	storageService := storage.NewService(storageRepository, credentialCipher)
 
@@ -84,11 +73,6 @@ func New(
 			Repository: idempotencyRepository,
 			Service:    idempotencyService,
 			Middleware: middleware.NewIdempotencyMiddleware(idempotencyService),
-		},
-		Runtimes: RuntimesModule{
-			Repository: runtimesRepository,
-			Service:    runtimesService,
-			Handler:    runtimes.NewHandler(runtimesService),
 		},
 		Storage: StorageModule{
 			Repository: storageRepository,
