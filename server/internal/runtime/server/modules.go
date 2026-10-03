@@ -111,10 +111,16 @@ func newModules(ctx context.Context, cfg config.Config) (*modules, error) {
 		cfg.Domain,
 	)
 	tenancyModule := tenancy.New(queries)
+	trustedProxies, err := cfg.TrustedProxyPrefixes()
+	if err != nil {
+		closeDependencies()
+		return nil, err
+	}
 	platformModule := platform.New(
 		postgresClient.Pool(),
 		queries,
 		credentialCipher,
+		trustedProxies,
 	)
 	recordingStorage := recordings.NewResolvedObjectStorage(
 		objectClient,

@@ -178,7 +178,7 @@ func newLifecycleDB() *lifecycleDB {
 			ID:             uuid.New(),
 			OrganizationID: organizationID,
 			Name:           "support",
-			Engine:         "composable",
+			Engine:         "echo",
 			Instructions:   "Help the caller.",
 			Status:         "active",
 			EngineConfig:   []byte(`{}`),
