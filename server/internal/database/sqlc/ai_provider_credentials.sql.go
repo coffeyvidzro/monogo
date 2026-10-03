@@ -19,7 +19,7 @@ INSERT INTO ai_provider_credentials (
     $1, $2, $3,
     $4, $5
 )
-RETURNING id, organization_id, provider, name, secret_ciphertext, created_at, rotated_at, updated_at
+RETURNING id, organization_id, provider, name, secret_ciphertext, created_at, rotated_at, updated_at, connection_state, verified_at, failure_code
 `
 
 type CreateAIProviderCredentialParams struct {
@@ -48,6 +48,9 @@ func (q *Queries) CreateAIProviderCredential(ctx context.Context, arg CreateAIPr
 		&i.CreatedAt,
 		&i.RotatedAt,
 		&i.UpdatedAt,
+		&i.ConnectionState,
+		&i.VerifiedAt,
+		&i.FailureCode,
 	)
 	return i, err
 }
@@ -87,7 +90,7 @@ func (q *Queries) DeleteVoiceAgentProviderBinding(ctx context.Context, arg Delet
 }
 
 const getAIProviderCredential = `-- name: GetAIProviderCredential :one
-SELECT id, organization_id, provider, name, secret_ciphertext, created_at, rotated_at, updated_at
+SELECT id, organization_id, provider, name, secret_ciphertext, created_at, rotated_at, updated_at, connection_state, verified_at, failure_code
 FROM ai_provider_credentials
 WHERE id = $1
   AND organization_id = $2
@@ -110,12 +113,15 @@ func (q *Queries) GetAIProviderCredential(ctx context.Context, arg GetAIProvider
 		&i.CreatedAt,
 		&i.RotatedAt,
 		&i.UpdatedAt,
+		&i.ConnectionState,
+		&i.VerifiedAt,
+		&i.FailureCode,
 	)
 	return i, err
 }
 
 const listAIProviderCredentials = `-- name: ListAIProviderCredentials :many
-SELECT id, organization_id, provider, name, secret_ciphertext, created_at, rotated_at, updated_at
+SELECT id, organization_id, provider, name, secret_ciphertext, created_at, rotated_at, updated_at, connection_state, verified_at, failure_code
 FROM ai_provider_credentials
 WHERE organization_id = $1
 ORDER BY provider ASC, name ASC, created_at ASC
@@ -139,10 +145,46 @@ func (q *Queries) ListAIProviderCredentials(ctx context.Context, organizationID 
 			&i.CreatedAt,
 			&i.RotatedAt,
 			&i.UpdatedAt,
+			&i.ConnectionState,
+			&i.VerifiedAt,
+			&i.FailureCode,
 		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listVoiceAgentIDsByAIProviderCredential = `-- name: ListVoiceAgentIDsByAIProviderCredential :many
+SELECT voice_agent_id
+FROM voice_agent_provider_bindings
+WHERE organization_id = $1
+  AND credential_id = $2
+ORDER BY voice_agent_id
+`
+
+type ListVoiceAgentIDsByAIProviderCredentialParams struct {
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	CredentialID   uuid.UUID `db:"credential_id" json:"credential_id"`
+}
+
+func (q *Queries) ListVoiceAgentIDsByAIProviderCredential(ctx context.Context, arg ListVoiceAgentIDsByAIProviderCredentialParams) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, listVoiceAgentIDsByAIProviderCredential, arg.OrganizationID, arg.CredentialID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []uuid.UUID{}
+	for rows.Next() {
+		var voice_agent_id uuid.UUID
+		if err := rows.Scan(&voice_agent_id); err != nil {
+			return nil, err
+		}
+		items = append(items, voice_agent_id)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -266,10 +308,13 @@ func (q *Queries) ResolveVoiceAgentProviderBindings(ctx context.Context, arg Res
 const rotateAIProviderCredential = `-- name: RotateAIProviderCredential :one
 UPDATE ai_provider_credentials
 SET secret_ciphertext = $1,
-    rotated_at = now()
+    rotated_at = now(),
+    connection_state = 'unchecked',
+    verified_at = NULL,
+    failure_code = NULL
 WHERE id = $2
   AND organization_id = $3
-RETURNING id, organization_id, provider, name, secret_ciphertext, created_at, rotated_at, updated_at
+RETURNING id, organization_id, provider, name, secret_ciphertext, created_at, rotated_at, updated_at, connection_state, verified_at, failure_code
 `
 
 type RotateAIProviderCredentialParams struct {
@@ -290,6 +335,50 @@ func (q *Queries) RotateAIProviderCredential(ctx context.Context, arg RotateAIPr
 		&i.CreatedAt,
 		&i.RotatedAt,
 		&i.UpdatedAt,
+		&i.ConnectionState,
+		&i.VerifiedAt,
+		&i.FailureCode,
+	)
+	return i, err
+}
+
+const updateAIProviderCredentialVerification = `-- name: UpdateAIProviderCredentialVerification :one
+UPDATE ai_provider_credentials
+SET connection_state = $1,
+    verified_at = now(),
+    failure_code = $2
+WHERE id = $3
+  AND organization_id = $4
+RETURNING id, organization_id, provider, name, secret_ciphertext, created_at, rotated_at, updated_at, connection_state, verified_at, failure_code
+`
+
+type UpdateAIProviderCredentialVerificationParams struct {
+	ConnectionState string    `db:"connection_state" json:"connection_state"`
+	FailureCode     *string   `db:"failure_code" json:"failure_code"`
+	ID              uuid.UUID `db:"id" json:"id"`
+	OrganizationID  uuid.UUID `db:"organization_id" json:"organization_id"`
+}
+
+func (q *Queries) UpdateAIProviderCredentialVerification(ctx context.Context, arg UpdateAIProviderCredentialVerificationParams) (AiProviderCredential, error) {
+	row := q.db.QueryRow(ctx, updateAIProviderCredentialVerification,
+		arg.ConnectionState,
+		arg.FailureCode,
+		arg.ID,
+		arg.OrganizationID,
+	)
+	var i AiProviderCredential
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.Provider,
+		&i.Name,
+		&i.SecretCiphertext,
+		&i.CreatedAt,
+		&i.RotatedAt,
+		&i.UpdatedAt,
+		&i.ConnectionState,
+		&i.VerifiedAt,
+		&i.FailureCode,
 	)
 	return i, err
 }

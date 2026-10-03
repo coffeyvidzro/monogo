@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 
+	"github.com/coffeyvidzro/monogo/internal/ai/providers"
 	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
 	"github.com/coffeyvidzro/monogo/pkg/apperror"
 	"github.com/google/uuid"
@@ -11,9 +12,21 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 )
 
-type Service struct{ repo *Repository }
+type Service struct {
+	repo      *Repository
+	providers *providers.Service
+}
 
-func NewService(repo *Repository) *Service { return &Service{repo: repo} }
+func NewService(repo *Repository, providerServices ...*providers.Service) *Service {
+	var providerService *providers.Service
+	if len(providerServices) > 0 {
+		providerService = providerServices[0]
+	}
+	return &Service{
+		repo:      repo,
+		providers: providerService,
+	}
+}
 
 func (s *Service) Create(ctx context.Context, organizationID uuid.UUID, req CreateRequest) (sqlc.VoiceAgent, error) {
 	if organizationID == uuid.Nil {
@@ -24,7 +37,16 @@ func (s *Service) Create(ctx context.Context, organizationID uuid.UUID, req Crea
 		return sqlc.VoiceAgent{}, err
 	}
 	agent, err := s.repo.Create(ctx, organizationID, normalized)
-	return agent, writeError(err, "create voice agent")
+	if err != nil {
+		return agent, writeError(err, "create voice agent")
+	}
+	if err := s.applyBindings(ctx, organizationID, agent.ID, normalized.Bindings, false); err != nil {
+		return sqlc.VoiceAgent{}, err
+	}
+	if len(normalized.Bindings) > 0 {
+		return s.Get(ctx, organizationID, agent.ID)
+	}
+	return agent, nil
 }
 
 func (s *Service) List(ctx context.Context, organizationID uuid.UUID) ([]sqlc.VoiceAgent, error) {
@@ -55,7 +77,71 @@ func (s *Service) Update(ctx context.Context, organizationID, id uuid.UUID, req 
 		return sqlc.VoiceAgent{}, err
 	}
 	agent, err := s.repo.Update(ctx, organizationID, id, normalized)
-	return agent, writeError(err, "update voice agent")
+	if err != nil {
+		return agent, writeError(err, "update voice agent")
+	}
+	if normalized.Bindings != nil {
+		if err := s.applyBindings(ctx, organizationID, id, *normalized.Bindings, true); err != nil {
+			return sqlc.VoiceAgent{}, err
+		}
+		return s.Get(ctx, organizationID, id)
+	}
+	return agent, nil
+}
+
+func (s *Service) applyBindings(
+	ctx context.Context,
+	organizationID uuid.UUID,
+	agentID uuid.UUID,
+	bindings []ProviderBindingRequest,
+	replace bool,
+) error {
+	if len(bindings) == 0 && !replace {
+		return nil
+	}
+	if s.providers == nil {
+		return apperror.NewServiceUnavailable("AI provider service is unavailable", nil)
+	}
+	if replace {
+		existing, err := s.providers.ListBindings(ctx, organizationID, agentID)
+		if err != nil {
+			return err
+		}
+		requested := make(map[string]struct{}, len(bindings))
+		for _, binding := range bindings {
+			requested[binding.Role] = struct{}{}
+		}
+		for _, binding := range existing {
+			if _, ok := requested[binding.Role]; ok {
+				continue
+			}
+			if err := s.providers.DeleteBinding(
+				ctx,
+				organizationID,
+				agentID,
+				binding.Role,
+			); err != nil {
+				return err
+			}
+		}
+	}
+	for _, binding := range bindings {
+		_, err := s.providers.UpsertBinding(
+			ctx,
+			organizationID,
+			agentID,
+			binding.Role,
+			providers.UpsertBindingRequest{
+				Provider:     binding.Provider,
+				CredentialID: binding.IntegrationID,
+				Config:       binding.Config,
+			},
+		)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (s *Service) Disable(ctx context.Context, organizationID, id uuid.UUID) error {

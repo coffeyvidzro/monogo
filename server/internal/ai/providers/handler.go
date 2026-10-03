@@ -31,25 +31,39 @@ func (h *Handler) CreateCredential(w http.ResponseWriter, r *http.Request) {
 		httputil.Error(w, err)
 		return
 	}
-	httputil.Created(w, credentialResponse(value))
+	httputil.Created(w, credentialResponse(value, []uuid.UUID{}))
 }
 
 func (h *Handler) ListCredentials(w http.ResponseWriter, r *http.Request) {
+	h.listIntegrations(w, r, "provider_credentials")
+}
+
+func (h *Handler) ListIntegrations(w http.ResponseWriter, r *http.Request) {
+	h.listIntegrations(w, r, "ai_integrations")
+}
+
+func (h *Handler) listIntegrations(
+	w http.ResponseWriter,
+	r *http.Request,
+	responseKey string,
+) {
 	organizationID, err := organizationID(r)
 	if err != nil {
 		httputil.Error(w, err)
 		return
 	}
-	values, err := h.service.ListCredentials(r.Context(), organizationID)
+	values, err := h.service.ListIntegrations(r.Context(), organizationID)
 	if err != nil {
 		httputil.Error(w, err)
 		return
 	}
 	out := make([]CredentialResponse, 0, len(values))
 	for _, value := range values {
-		out = append(out, credentialResponse(value))
+		out = append(out, credentialResponse(value.Credential, value.VoiceAgentIDs))
 	}
-	httputil.OK(w, map[string]any{"provider_credentials": out})
+	httputil.OK(w, map[string]any{
+		responseKey: out,
+	})
 }
 
 func (h *Handler) RotateCredential(w http.ResponseWriter, r *http.Request) {
@@ -58,9 +72,9 @@ func (h *Handler) RotateCredential(w http.ResponseWriter, r *http.Request) {
 		httputil.Error(w, err)
 		return
 	}
-	id, err := uuid.Parse(chi.URLParam(r, "credential_id"))
+	id, err := integrationID(r)
 	if err != nil {
-		httputil.Error(w, apperror.NewBadRequest("invalid credential_id"))
+		httputil.Error(w, err)
 		return
 	}
 	req, err := helper.DecodeJSON[RotateCredentialRequest](r)
@@ -73,7 +87,31 @@ func (h *Handler) RotateCredential(w http.ResponseWriter, r *http.Request) {
 		httputil.Error(w, err)
 		return
 	}
-	httputil.OK(w, credentialResponse(value))
+	httputil.OK(w, credentialResponse(value, []uuid.UUID{}))
+}
+
+func (h *Handler) VerifyIntegration(w http.ResponseWriter, r *http.Request) {
+	organizationID, err := organizationID(r)
+	if err != nil {
+		httputil.Error(w, err)
+		return
+	}
+	id, err := uuid.Parse(chi.URLParam(r, "integration_id"))
+	if err != nil {
+		httputil.Error(w, apperror.NewBadRequest("invalid integration_id"))
+		return
+	}
+	value, err := h.service.VerifyIntegration(r.Context(), organizationID, id)
+	if err != nil {
+		httputil.Error(w, err)
+		return
+	}
+	httputil.OK(w, VerificationResponse{
+		ID:              value.ID,
+		ConnectionState: value.ConnectionState,
+		VerifiedAt:      value.VerifiedAt,
+		FailureCode:     value.FailureCode,
+	})
 }
 
 func (h *Handler) DeleteCredential(w http.ResponseWriter, r *http.Request) {
@@ -82,9 +120,9 @@ func (h *Handler) DeleteCredential(w http.ResponseWriter, r *http.Request) {
 		httputil.Error(w, err)
 		return
 	}
-	id, err := uuid.Parse(chi.URLParam(r, "credential_id"))
+	id, err := integrationID(r)
 	if err != nil {
-		httputil.Error(w, apperror.NewBadRequest("invalid credential_id"))
+		httputil.Error(w, err)
 		return
 	}
 	if err := h.service.DeleteCredential(r.Context(), organizationID, id); err != nil {
@@ -162,4 +200,16 @@ func agentIDs(r *http.Request) (uuid.UUID, uuid.UUID, error) {
 		return uuid.Nil, uuid.Nil, apperror.NewBadRequest("invalid voice_agent_id")
 	}
 	return organizationID, agentID, nil
+}
+
+func integrationID(r *http.Request) (uuid.UUID, error) {
+	raw := chi.URLParam(r, "integration_id")
+	if raw == "" {
+		raw = chi.URLParam(r, "credential_id")
+	}
+	id, err := uuid.Parse(raw)
+	if err != nil {
+		return uuid.Nil, apperror.NewBadRequest("invalid integration_id")
+	}
+	return id, nil
 }

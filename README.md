@@ -281,6 +281,11 @@ agent sessions
 General-purpose messaging, managed carrier commerce, telecom resale, telecom
 wallet charging, and payment adapters are outside the current product boundary.
 
+See [the Voice Agent execution plan](docs/voice-agent-execution-plan.md) for the
+ordered delivery plan covering organization AI integrations, agent presets and
+readiness, the golden call lifecycle, operational release gates, and the
+product-facing API and UI.
+
 ## Validation
 
 Run the server checks:

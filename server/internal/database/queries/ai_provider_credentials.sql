@@ -22,10 +22,29 @@ WHERE id = sqlc.arg(id)
 -- name: RotateAIProviderCredential :one
 UPDATE ai_provider_credentials
 SET secret_ciphertext = sqlc.arg(secret_ciphertext),
-    rotated_at = now()
+    rotated_at = now(),
+    connection_state = 'unchecked',
+    verified_at = NULL,
+    failure_code = NULL
 WHERE id = sqlc.arg(id)
   AND organization_id = sqlc.arg(organization_id)
 RETURNING *;
+
+-- name: UpdateAIProviderCredentialVerification :one
+UPDATE ai_provider_credentials
+SET connection_state = sqlc.arg(connection_state),
+    verified_at = now(),
+    failure_code = sqlc.narg(failure_code)
+WHERE id = sqlc.arg(id)
+  AND organization_id = sqlc.arg(organization_id)
+RETURNING *;
+
+-- name: ListVoiceAgentIDsByAIProviderCredential :many
+SELECT voice_agent_id
+FROM voice_agent_provider_bindings
+WHERE organization_id = sqlc.arg(organization_id)
+  AND credential_id = sqlc.arg(credential_id)
+ORDER BY voice_agent_id;
 
 -- name: DeleteAIProviderCredential :exec
 DELETE FROM ai_provider_credentials

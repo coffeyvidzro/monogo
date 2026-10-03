@@ -14,6 +14,18 @@ func normalizeCreate(req CreateRequest) (CreateRequest, error) {
 	if err != nil {
 		return CreateRequest{}, err
 	}
+	if req.Preset != nil {
+		presetID := strings.TrimSpace(*req.Preset)
+		preset, ok := presetByID(presetID)
+		if !ok {
+			return CreateRequest{}, apperror.NewBadRequest("unknown Voice Agent preset")
+		}
+		req.Preset = &presetID
+		req.presetVersion = &preset.Version
+		req.Engine = preset.Engine
+		req.EngineConfig = append(json.RawMessage(nil), preset.EngineConfig...)
+		req.Bindings = applyPresetBindingConfig(req.Bindings, preset)
+	}
 	engine, err := normalizeEngine(req.Engine)
 	if err != nil {
 		return CreateRequest{}, err
@@ -38,11 +50,20 @@ func normalizeCreate(req CreateRequest) (CreateRequest, error) {
 	}
 	req.Name, req.Engine, req.Instructions = name, engine, instructions
 	req.Voice, req.Language = voice, language
+	if req.InterruptionPolicy == "" {
+		req.InterruptionPolicy = InterruptionAllow
+	}
+	if req.RecordingPolicy == "" {
+		req.RecordingPolicy = RecordingNone
+	}
+	if err := validatePolicies(req.InterruptionPolicy, req.RecordingPolicy); err != nil {
+		return CreateRequest{}, err
+	}
 	return req, nil
 }
 
 func normalizeUpdate(req UpdateRequest) (UpdateRequest, error) {
-	if req.Name == nil && req.Engine == nil && req.Instructions == nil && req.Voice == nil && req.Language == nil && req.EngineConfig == nil {
+	if req.Name == nil && req.Engine == nil && req.Instructions == nil && req.Voice == nil && req.Language == nil && req.EngineConfig == nil && req.Preset == nil && req.Bindings == nil && req.InterruptionPolicy == nil && req.RecordingPolicy == nil {
 		return UpdateRequest{}, apperror.NewBadRequest("at least one field is required")
 	}
 	if req.Name != nil {
@@ -58,6 +79,27 @@ func normalizeUpdate(req UpdateRequest) (UpdateRequest, error) {
 			return UpdateRequest{}, err
 		}
 		req.Engine = &value
+	}
+	if req.Preset != nil {
+		presetID := strings.TrimSpace(*req.Preset)
+		preset, ok := presetByID(presetID)
+		if !ok {
+			return UpdateRequest{}, apperror.NewBadRequest("unknown Voice Agent preset")
+		}
+		req.Preset = &presetID
+		req.presetVersion = &preset.Version
+		req.updatePreset = true
+		req.Engine = &preset.Engine
+		config := append(json.RawMessage(nil), preset.EngineConfig...)
+		req.EngineConfig = &config
+		bindings := []ProviderBindingRequest{}
+		if req.Bindings != nil {
+			bindings = *req.Bindings
+		}
+		bindings = applyPresetBindingConfig(bindings, preset)
+		req.Bindings = &bindings
+	} else if req.Engine != nil || req.EngineConfig != nil {
+		req.updatePreset = true
 	}
 	if req.Instructions != nil {
 		value, err := normalizeRequired(*req.Instructions, "instructions", 20000)
@@ -78,7 +120,46 @@ func normalizeUpdate(req UpdateRequest) (UpdateRequest, error) {
 			return UpdateRequest{}, err
 		}
 	}
+	if req.InterruptionPolicy != nil || req.RecordingPolicy != nil {
+		interruption := InterruptionAllow
+		recording := RecordingNone
+		if req.InterruptionPolicy != nil {
+			interruption = strings.TrimSpace(*req.InterruptionPolicy)
+			req.InterruptionPolicy = &interruption
+		}
+		if req.RecordingPolicy != nil {
+			recording = strings.TrimSpace(*req.RecordingPolicy)
+			req.RecordingPolicy = &recording
+		}
+		if err := validatePolicies(interruption, recording); err != nil {
+			return UpdateRequest{}, err
+		}
+	}
 	return req, nil
+}
+
+func applyPresetBindingConfig(
+	bindings []ProviderBindingRequest,
+	preset Preset,
+) []ProviderBindingRequest {
+	result := make([]ProviderBindingRequest, 0, len(bindings))
+	for _, binding := range bindings {
+		if config, ok := preset.ProviderConfig[binding.Role]; ok && len(binding.Config) == 0 {
+			binding.Config = append(json.RawMessage(nil), config...)
+		}
+		result = append(result, binding)
+	}
+	return result
+}
+
+func validatePolicies(interruption string, recording string) error {
+	if interruption != InterruptionAllow && interruption != InterruptionDisabled {
+		return apperror.NewBadRequest("interruption_policy must be allow or disabled")
+	}
+	if recording != RecordingNone && recording != RecordingAll {
+		return apperror.NewBadRequest("recording_policy must be none or all")
+	}
+	return nil
 }
 
 func validateEngineConfig(value json.RawMessage) error {

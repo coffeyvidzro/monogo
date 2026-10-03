@@ -13,13 +13,17 @@ func NewRepository(queries *sqlc.Queries) *Repository { return &Repository{queri
 
 func (r *Repository) Create(ctx context.Context, organizationID uuid.UUID, req CreateRequest) (sqlc.VoiceAgent, error) {
 	return r.queries.CreateVoiceAgent(ctx, sqlc.CreateVoiceAgentParams{
-		OrganizationID: organizationID,
-		Name:           req.Name,
-		Engine:         req.Engine,
-		Instructions:   req.Instructions,
-		Voice:          req.Voice,
-		Language:       req.Language,
-		EngineConfig:   []byte(req.EngineConfig),
+		OrganizationID:     organizationID,
+		Name:               req.Name,
+		Engine:             req.Engine,
+		Instructions:       req.Instructions,
+		Voice:              req.Voice,
+		Language:           req.Language,
+		EngineConfig:       []byte(req.EngineConfig),
+		Preset:             req.Preset,
+		PresetVersion:      req.presetVersion,
+		InterruptionPolicy: req.InterruptionPolicy,
+		RecordingPolicy:    req.RecordingPolicy,
 	})
 }
 
@@ -37,15 +41,34 @@ func (r *Repository) Update(ctx context.Context, organizationID, id uuid.UUID, r
 		engineConfig = []byte(*req.EngineConfig)
 	}
 	return r.queries.UpdateVoiceAgent(ctx, sqlc.UpdateVoiceAgentParams{
-		Name:           req.Name,
-		Engine:         req.Engine,
-		Instructions:   req.Instructions,
-		Voice:          req.Voice,
-		Language:       req.Language,
-		EngineConfig:   engineConfig,
-		ID:             id,
-		OrganizationID: organizationID,
+		Name:               req.Name,
+		Engine:             req.Engine,
+		Instructions:       req.Instructions,
+		Voice:              req.Voice,
+		Language:           req.Language,
+		EngineConfig:       engineConfig,
+		Preset:             req.Preset,
+		PresetVersion:      req.presetVersion,
+		UpdatePreset:       req.updatePreset,
+		InterruptionPolicy: req.InterruptionPolicy,
+		RecordingPolicy:    req.RecordingPolicy,
+		ID:                 id,
+		OrganizationID:     organizationID,
 	})
+}
+
+func (r *Repository) Activate(
+	ctx context.Context,
+	organizationID uuid.UUID,
+	id uuid.UUID,
+) (sqlc.VoiceAgent, error) {
+	return r.queries.ActivateVoiceAgent(
+		ctx,
+		sqlc.ActivateVoiceAgentParams{
+			ID:             id,
+			OrganizationID: organizationID,
+		},
+	)
 }
 
 func (r *Repository) Disable(ctx context.Context, organizationID, id uuid.UUID) error {

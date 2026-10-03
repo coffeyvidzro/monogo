@@ -98,6 +98,40 @@ func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+func (h *Handler) ListPresets(w http.ResponseWriter, _ *http.Request) {
+	httputil.OK(w, map[string]any{
+		"presets": Presets(),
+	})
+}
+
+func (h *Handler) Readiness(w http.ResponseWriter, r *http.Request) {
+	organizationID, agentID, err := ids(r)
+	if err != nil {
+		httputil.Error(w, err)
+		return
+	}
+	report, err := h.service.Readiness(r.Context(), organizationID, agentID)
+	if err != nil {
+		httputil.Error(w, err)
+		return
+	}
+	httputil.OK(w, report)
+}
+
+func (h *Handler) Activate(w http.ResponseWriter, r *http.Request) {
+	organizationID, agentID, err := ids(r)
+	if err != nil {
+		httputil.Error(w, err)
+		return
+	}
+	agent, _, err := h.service.Activate(r.Context(), organizationID, agentID)
+	if err != nil {
+		httputil.Error(w, err)
+		return
+	}
+	httputil.OK(w, response(agent))
+}
+
 func (h *Handler) CreateBinding(w http.ResponseWriter, r *http.Request) {
 	organizationID, agentID, err := ids(r)
 	if err != nil {

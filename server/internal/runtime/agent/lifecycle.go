@@ -85,33 +85,27 @@ func (r *Runtime) attach(ctx context.Context, call sqlc.Call, channelID string) 
 		InputFormat:    profile.InputFormat,
 		OutputFormat:   profile.OutputFormat,
 	})
-	toolDefinitions, err := r.orchestrator.ToolDefinitions(
-		ctx,
-		call.OrganizationID,
-		*call.VoiceAgentID,
-	)
+	toolDefinitions, err := orchestration.ToolDefinitionsFromSnapshot(record.ToolsSnapshot)
 	if err != nil {
 		_ = r.failSession(ctx, call, time.Now().UTC())
 		return fmt.Errorf("resolve Voice Agent tools: %w", err)
 	}
 	cfg.Tools = toolDefinitions
-	if err := r.orchestrator.ValidateProviderTopology(
+	providerRuntimes, err := r.orchestrator.ProviderRuntimesFromSnapshot(
 		ctx,
 		call.OrganizationID,
-		*call.VoiceAgentID,
-		session.Engine(record.Engine),
-	); err != nil {
-		_ = r.failSession(ctx, call, time.Now().UTC())
-		return fmt.Errorf("validate Voice Agent provider topology: %w", err)
-	}
-	providerRuntimes, err := r.orchestrator.ProviderRuntimes(
-		ctx,
-		call.OrganizationID,
-		*call.VoiceAgentID,
+		record.ProviderBindingsSnapshot,
 	)
 	if err != nil {
 		_ = r.failSession(ctx, call, time.Now().UTC())
 		return fmt.Errorf("resolve Voice Agent providers: %w", err)
+	}
+	if err := orchestration.ValidateProviderRuntimeTopology(
+		providerRuntimes,
+		session.Engine(record.Engine),
+	); err != nil {
+		_ = r.failSession(ctx, call, time.Now().UTC())
+		return fmt.Errorf("validate Voice Agent provider topology: %w", err)
 	}
 	cfg.Providers = providerRuntimes
 

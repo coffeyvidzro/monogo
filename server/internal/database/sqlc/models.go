@@ -20,6 +20,9 @@ type AiProviderCredential struct {
 	CreatedAt        pgtype.Timestamptz `db:"created_at" json:"created_at"`
 	RotatedAt        pgtype.Timestamptz `db:"rotated_at" json:"rotated_at"`
 	UpdatedAt        pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+	ConnectionState  string             `db:"connection_state" json:"connection_state"`
+	VerifiedAt       pgtype.Timestamptz `db:"verified_at" json:"verified_at"`
+	FailureCode      *string            `db:"failure_code" json:"failure_code"`
 }
 
 type AuditEvent struct {
@@ -409,17 +412,32 @@ type User struct {
 }
 
 type VoiceAgent struct {
-	ID             uuid.UUID          `db:"id" json:"id"`
-	OrganizationID uuid.UUID          `db:"organization_id" json:"organization_id"`
-	Name           string             `db:"name" json:"name"`
-	Engine         string             `db:"engine" json:"engine"`
-	Instructions   string             `db:"instructions" json:"instructions"`
-	Voice          *string            `db:"voice" json:"voice"`
-	Language       *string            `db:"language" json:"language"`
-	Status         string             `db:"status" json:"status"`
-	EngineConfig   []byte             `db:"engine_config" json:"engine_config"`
-	CreatedAt      pgtype.Timestamptz `db:"created_at" json:"created_at"`
-	UpdatedAt      pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+	ID                       uuid.UUID          `db:"id" json:"id"`
+	OrganizationID           uuid.UUID          `db:"organization_id" json:"organization_id"`
+	Name                     string             `db:"name" json:"name"`
+	Engine                   string             `db:"engine" json:"engine"`
+	Instructions             string             `db:"instructions" json:"instructions"`
+	Voice                    *string            `db:"voice" json:"voice"`
+	Language                 *string            `db:"language" json:"language"`
+	Status                   string             `db:"status" json:"status"`
+	EngineConfig             []byte             `db:"engine_config" json:"engine_config"`
+	CreatedAt                pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	UpdatedAt                pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+	Preset                   *string            `db:"preset" json:"preset"`
+	PresetVersion            *int32             `db:"preset_version" json:"preset_version"`
+	InterruptionPolicy       string             `db:"interruption_policy" json:"interruption_policy"`
+	RecordingPolicy          string             `db:"recording_policy" json:"recording_policy"`
+	ConfigurationRevision    int32              `db:"configuration_revision" json:"configuration_revision"`
+	ActiveRevision           *int32             `db:"active_revision" json:"active_revision"`
+	ActiveEngine             *string            `db:"active_engine" json:"active_engine"`
+	ActiveInstructions       *string            `db:"active_instructions" json:"active_instructions"`
+	ActiveVoice              *string            `db:"active_voice" json:"active_voice"`
+	ActiveLanguage           *string            `db:"active_language" json:"active_language"`
+	ActiveEngineConfig       []byte             `db:"active_engine_config" json:"active_engine_config"`
+	ActiveInterruptionPolicy *string            `db:"active_interruption_policy" json:"active_interruption_policy"`
+	ActiveRecordingPolicy    *string            `db:"active_recording_policy" json:"active_recording_policy"`
+	ActiveProviderBindings   []byte             `db:"active_provider_bindings" json:"active_provider_bindings"`
+	ActiveTools              []byte             `db:"active_tools" json:"active_tools"`
 }
 
 type VoiceAgentBinding struct {
@@ -443,24 +461,29 @@ type VoiceAgentProviderBinding struct {
 }
 
 type VoiceAgentSession struct {
-	ID                     uuid.UUID          `db:"id" json:"id"`
-	OrganizationID         uuid.UUID          `db:"organization_id" json:"organization_id"`
-	CallID                 uuid.UUID          `db:"call_id" json:"call_id"`
-	VoiceAgentID           uuid.UUID          `db:"voice_agent_id" json:"voice_agent_id"`
-	Engine                 string             `db:"engine" json:"engine"`
-	InstructionsSnapshot   string             `db:"instructions_snapshot" json:"instructions_snapshot"`
-	EngineConfigSnapshot   []byte             `db:"engine_config_snapshot" json:"engine_config_snapshot"`
-	Voice                  *string            `db:"voice" json:"voice"`
-	Language               *string            `db:"language" json:"language"`
-	State                  string             `db:"state" json:"state"`
-	TurnCount              int32              `db:"turn_count" json:"turn_count"`
-	InterruptionCount      int32              `db:"interruption_count" json:"interruption_count"`
-	FirstResponseLatencyMs *int32             `db:"first_response_latency_ms" json:"first_response_latency_ms"`
-	AvgTurnLatencyMs       *int32             `db:"avg_turn_latency_ms" json:"avg_turn_latency_ms"`
-	StartedAt              pgtype.Timestamptz `db:"started_at" json:"started_at"`
-	EndedAt                pgtype.Timestamptz `db:"ended_at" json:"ended_at"`
-	CreatedAt              pgtype.Timestamptz `db:"created_at" json:"created_at"`
-	UpdatedAt              pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+	ID                       uuid.UUID          `db:"id" json:"id"`
+	OrganizationID           uuid.UUID          `db:"organization_id" json:"organization_id"`
+	CallID                   uuid.UUID          `db:"call_id" json:"call_id"`
+	VoiceAgentID             uuid.UUID          `db:"voice_agent_id" json:"voice_agent_id"`
+	Engine                   string             `db:"engine" json:"engine"`
+	InstructionsSnapshot     string             `db:"instructions_snapshot" json:"instructions_snapshot"`
+	EngineConfigSnapshot     []byte             `db:"engine_config_snapshot" json:"engine_config_snapshot"`
+	Voice                    *string            `db:"voice" json:"voice"`
+	Language                 *string            `db:"language" json:"language"`
+	State                    string             `db:"state" json:"state"`
+	TurnCount                int32              `db:"turn_count" json:"turn_count"`
+	InterruptionCount        int32              `db:"interruption_count" json:"interruption_count"`
+	FirstResponseLatencyMs   *int32             `db:"first_response_latency_ms" json:"first_response_latency_ms"`
+	AvgTurnLatencyMs         *int32             `db:"avg_turn_latency_ms" json:"avg_turn_latency_ms"`
+	StartedAt                pgtype.Timestamptz `db:"started_at" json:"started_at"`
+	EndedAt                  pgtype.Timestamptz `db:"ended_at" json:"ended_at"`
+	CreatedAt                pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	UpdatedAt                pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+	ConfigurationRevision    int32              `db:"configuration_revision" json:"configuration_revision"`
+	InterruptionPolicy       string             `db:"interruption_policy" json:"interruption_policy"`
+	RecordingPolicy          string             `db:"recording_policy" json:"recording_policy"`
+	ProviderBindingsSnapshot []byte             `db:"provider_bindings_snapshot" json:"provider_bindings_snapshot"`
+	ToolsSnapshot            []byte             `db:"tools_snapshot" json:"tools_snapshot"`
 }
 
 type VoiceAgentTool struct {
