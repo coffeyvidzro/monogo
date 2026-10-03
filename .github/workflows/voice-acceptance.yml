@@ -19,7 +19,7 @@ concurrency:
 
 jobs:
   smoke:
-    name: Leamout Core programmable voice
+    name: Leamout Self-Hosted programmable voice
     runs-on: ubuntu-latest
     timeout-minutes: 45
 

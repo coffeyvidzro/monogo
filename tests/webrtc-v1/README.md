@@ -1,6 +1,6 @@
 # WebRTC v1 forced-TURN acceptance
 
-This gate proves the Leamout Core browser voice path against the real Compose stack.
+This gate proves the Leamout Self-Hosted browser voice path against the real Compose stack.
 It provisions a SIP domain and subscriber through the public API, requests short-lived
 ICE credentials from `/v1/webrtc/ice-credentials`, registers Chromium to OpenSIPS
 over WSS, and calls the FreeSWITCH `9196` echo service through RTPengine.

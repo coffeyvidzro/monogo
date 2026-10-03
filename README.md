@@ -1,6 +1,7 @@
 # Monogo
 
-**Leamout is a carrier-grade runtime and control plane for autonomous voice agents. It connects customer-owned telephony infrastructure to realtime AI agents while providing call control, media orchestration, model orchestration, tool execution, interruption handling, routing, observability, and enterprise deployment infrastructure.**
+**Leamout is a carrier-grade platform for autonomous voice agents. Run it
+yourself or use Leamout Cloud.**
 
 Monogo is the core runtime implementation behind Leamout.
 
@@ -22,7 +23,7 @@ Leamout is organized around three explicit runtime boundaries:
 |                         CONTROL PLANE                            |
 |                                                                  |
 |  Auth  Tenancy  Agents  Routing  Credentials  API  Webhooks      |
-|  Observability  Runtime registration  Deployment configuration   |
+|  Observability  Organizations  Voice Agents  Credentials         |
 +-------------------------------+----------------------------------+
                                 |
                                 | configuration and control
@@ -68,10 +69,15 @@ Leamout provides:
 - turn detection and interruption handling;
 - composable STT, LLM, and TTS orchestration;
 - integrated realtime model support;
-- enterprise tool execution;
+- secure tool execution;
 - routing and human handoff;
 - recordings, events, webhooks, and observability;
-- self-hosted, private-cloud, and cloud deployment infrastructure.
+- Self-Hosted and Leamout Cloud deployment options.
+
+The same voice-agent platform underlies both options. Enterprise is optional
+commercial support, security, governance, deployment assistance, and
+contractual packaging for Cloud or Self-Hosted; it is not a separate product
+architecture.
 
 Leamout does not buy or resell carrier minutes, phone numbers, SMS, WhatsApp
 capacity, or managed carrier services.
@@ -191,7 +197,7 @@ The control plane owns durable configuration and management:
 - SIP trunks and routing policy;
 - model and tool credentials;
 - API and authorization;
-- runtime registration and deployment configuration;
+- organization, user, and deployment administration;
 - events, webhooks, diagnostics, and observability.
 
 Its infrastructure includes:
