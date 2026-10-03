@@ -7,17 +7,27 @@ INSERT INTO voice_agent_sessions (
     instructions_snapshot,
     engine_config_snapshot,
     voice,
-    language
+    language,
+    configuration_revision,
+    interruption_policy,
+    recording_policy,
+    provider_bindings_snapshot,
+    tools_snapshot
 )
 SELECT
     sqlc.arg(organization_id),
     c.id,
     agent.id,
-    agent.engine,
-    agent.instructions,
-    agent.engine_config,
-    agent.voice,
-    agent.language
+    agent.active_engine,
+    agent.active_instructions,
+    agent.active_engine_config,
+    agent.active_voice,
+    agent.active_language,
+    agent.active_revision,
+    agent.active_interruption_policy,
+    agent.active_recording_policy,
+    agent.active_provider_bindings,
+    agent.active_tools
 FROM calls AS c
 JOIN organizations AS o
   ON o.id = c.organization_id
@@ -30,6 +40,7 @@ WHERE c.id = sqlc.arg(call_id)
   AND c.state IN ('answered', 'active')
   AND c.ended_at IS NULL
   AND agent.status = 'active'
+  AND agent.active_revision IS NOT NULL
   AND o.status = 'active'
   AND o.deleted_at IS NULL
 RETURNING *;

@@ -31,6 +31,30 @@ func (s *Service) ProviderRuntimes(
 	return out, nil
 }
 
+func (s *Service) ProviderRuntimesFromSnapshot(
+	ctx context.Context,
+	organizationID uuid.UUID,
+	snapshot []byte,
+) ([]session.ProviderRuntime, error) {
+	if s.providers == nil {
+		return nil, nil
+	}
+	values, err := s.providers.ResolveSnapshot(ctx, organizationID, snapshot)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]session.ProviderRuntime, 0, len(values))
+	for _, value := range values {
+		out = append(out, session.ProviderRuntime{
+			Role:     value.Role,
+			Provider: value.Provider,
+			APIKey:   value.APIKey,
+			Config:   append([]byte(nil), value.Config...),
+		})
+	}
+	return out, nil
+}
+
 func (s *Service) ValidateProviderTopology(
 	ctx context.Context,
 	organizationID, voiceAgentID uuid.UUID,
@@ -76,4 +100,11 @@ func validateProviderTopology(values []session.ProviderRuntime, engine session.E
 		}
 	}
 	return nil
+}
+
+func ValidateProviderRuntimeTopology(
+	values []session.ProviderRuntime,
+	engine session.Engine,
+) error {
+	return validateProviderTopology(values, engine)
 }

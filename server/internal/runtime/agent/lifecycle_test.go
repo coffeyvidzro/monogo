@@ -170,20 +170,36 @@ type lifecycleDB struct {
 func newLifecycleDB() *lifecycleDB {
 	now := pgTimestamp(time.Now().UTC())
 	organizationID := uuid.New()
+	activeRevision := int32(1)
+	activeEngine := "echo"
+	activeInstructions := "Help the caller."
+	activeInterruptionPolicy := "allow"
+	activeRecordingPolicy := "none"
 	return &lifecycleDB{
 		organizationID: organizationID,
 		callID:         uuid.New(),
 		sessionID:      uuid.New(),
 		agent: sqlc.VoiceAgent{
-			ID:             uuid.New(),
-			OrganizationID: organizationID,
-			Name:           "support",
-			Engine:         "echo",
-			Instructions:   "Help the caller.",
-			Status:         "active",
-			EngineConfig:   []byte(`{}`),
-			CreatedAt:      now,
-			UpdatedAt:      now,
+			ID:                       uuid.New(),
+			OrganizationID:           organizationID,
+			Name:                     "support",
+			Engine:                   "echo",
+			Instructions:             "Help the caller.",
+			Status:                   "active",
+			EngineConfig:             []byte(`{}`),
+			InterruptionPolicy:       "allow",
+			RecordingPolicy:          "none",
+			ConfigurationRevision:    1,
+			ActiveRevision:           &activeRevision,
+			ActiveEngine:             &activeEngine,
+			ActiveInstructions:       &activeInstructions,
+			ActiveEngineConfig:       []byte(`{}`),
+			ActiveInterruptionPolicy: &activeInterruptionPolicy,
+			ActiveRecordingPolicy:    &activeRecordingPolicy,
+			ActiveProviderBindings:   []byte(`[]`),
+			ActiveTools:              []byte(`[]`),
+			CreatedAt:                now,
+			UpdatedAt:                now,
 		},
 	}
 }
@@ -229,19 +245,24 @@ func (db *lifecycleDB) QueryRow(_ context.Context, query string, args ...interfa
 		db.creates++
 		now := pgTimestamp(time.Now().UTC())
 		db.session = &sqlc.VoiceAgentSession{
-			ID:                   db.sessionID,
-			OrganizationID:       db.organizationID,
-			CallID:               db.callID,
-			VoiceAgentID:         db.agent.ID,
-			Engine:               db.agent.Engine,
-			InstructionsSnapshot: db.agent.Instructions,
-			EngineConfigSnapshot: append([]byte(nil), db.agent.EngineConfig...),
-			Voice:                db.agent.Voice,
-			Language:             db.agent.Language,
-			State:                "active",
-			StartedAt:            now,
-			CreatedAt:            now,
-			UpdatedAt:            now,
+			ID:                       db.sessionID,
+			OrganizationID:           db.organizationID,
+			CallID:                   db.callID,
+			VoiceAgentID:             db.agent.ID,
+			Engine:                   db.agent.Engine,
+			InstructionsSnapshot:     db.agent.Instructions,
+			EngineConfigSnapshot:     append([]byte(nil), db.agent.EngineConfig...),
+			Voice:                    db.agent.Voice,
+			Language:                 db.agent.Language,
+			ConfigurationRevision:    *db.agent.ActiveRevision,
+			InterruptionPolicy:       db.agent.InterruptionPolicy,
+			RecordingPolicy:          db.agent.RecordingPolicy,
+			ProviderBindingsSnapshot: append([]byte(nil), db.agent.ActiveProviderBindings...),
+			ToolsSnapshot:            append([]byte(nil), db.agent.ActiveTools...),
+			State:                    "active",
+			StartedAt:                now,
+			CreatedAt:                now,
+			UpdatedAt:                now,
 		}
 		return lifecycleRow{values: voiceAgentSessionValues(*db.session)}
 	case strings.Contains(query, "-- name: CompleteVoiceAgentSession"):
@@ -331,6 +352,21 @@ func voiceAgentValues(agent sqlc.VoiceAgent) []interface{} {
 		agent.EngineConfig,
 		agent.CreatedAt,
 		agent.UpdatedAt,
+		agent.Preset,
+		agent.PresetVersion,
+		agent.InterruptionPolicy,
+		agent.RecordingPolicy,
+		agent.ConfigurationRevision,
+		agent.ActiveRevision,
+		agent.ActiveEngine,
+		agent.ActiveInstructions,
+		agent.ActiveVoice,
+		agent.ActiveLanguage,
+		agent.ActiveEngineConfig,
+		agent.ActiveInterruptionPolicy,
+		agent.ActiveRecordingPolicy,
+		agent.ActiveProviderBindings,
+		agent.ActiveTools,
 	}
 }
 
@@ -354,6 +390,11 @@ func voiceAgentSessionValues(record sqlc.VoiceAgentSession) []interface{} {
 		record.EndedAt,
 		record.CreatedAt,
 		record.UpdatedAt,
+		record.ConfigurationRevision,
+		record.InterruptionPolicy,
+		record.RecordingPolicy,
+		record.ProviderBindingsSnapshot,
+		record.ToolsSnapshot,
 	}
 }
 

@@ -130,6 +130,13 @@ for example, the binding can contain:
 The Voice Agent's own `voice` and `language` fields can still override the
 provider binding where the adapter supports those values.
 
+Built-in bindings reject unknown fields and values of the wrong JSON type before
+activation. The initial schemas support model and language selection for
+Deepgram, model and temperature for Groq, model/voice/language for Cartesia, and
+model/voice for OpenAI. Activation snapshots the validated bindings, including
+their integration ids, into the active Voice Agent revision. Provider secrets
+remain outside that snapshot and are resolved only when a media session starts.
+
 OpenAI Realtime currently retains its optional deployment-level fallback for
 local/self-hosted operation. An organization-scoped realtime provider binding,
 when present, overrides that fallback for the session. Rotating an integration

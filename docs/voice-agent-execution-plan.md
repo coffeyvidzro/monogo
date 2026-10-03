@@ -61,6 +61,22 @@ mutate the immutable configuration of a session that is already active.
 
 ## Phase 2: Voice Agent configuration and presets
 
+Implemented product contracts:
+
+- `GET /voice-agents/presets` returns the versioned preset catalog;
+- Voice Agent create and update payloads accept `preset`, provider-neutral
+  interruption and recording policies, and explicit `bindings`;
+- `GET /voice-agents/{id}/readiness` returns stable issue codes, field paths,
+  and remediation without exposing provider secrets;
+- `POST /voice-agents/{id}/activate` atomically copies the current draft and
+  provider bindings into an immutable active revision;
+- live sessions snapshot the activated revision and resolve providers from its
+  binding snapshot rather than mutable draft bindings.
+
+Provider binding configuration is validated by the selected adapter boundary.
+Changing a draft increments `configuration_revision`; it does not alter
+`active_revision` or calls already using an activated snapshot.
+
 Expose two engine modes in the product API:
 
 1. **Composable**: one `stt`, one `llm`, and one `tts` integration.

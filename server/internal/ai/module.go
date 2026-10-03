@@ -54,15 +54,15 @@ func New(queries *sqlc.Queries, dependencies ...Dependencies) *Module {
 		deps = dependencies[0]
 	}
 
-	agentsRepository := agents.NewRepository(queries)
-	agentsService := agents.NewService(agentsRepository)
-
 	toolsRepository := tools.NewRepository(queries)
 	toolsService := tools.NewService(toolsRepository, deps.CredentialCipher)
 	toolsExecutor := tools.NewExecutor(toolsService, deps.Calls)
 
 	providersRepository := providers.NewRepository(queries)
 	providersService := providers.NewService(providersRepository, deps.CredentialCipher)
+
+	agentsRepository := agents.NewRepository(queries)
+	agentsService := agents.NewService(agentsRepository, providersService)
 
 	conversationsRepository := conversations.NewRepository(queries)
 	conversationsService := conversations.NewService(conversationsRepository)

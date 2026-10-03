@@ -11,11 +11,13 @@ func TestMediaConfigFromSessionUsesDurableSnapshot(t *testing.T) {
 	voice := "voice-a"
 	language := "en"
 	record := sqlc.VoiceAgentSession{
-		EngineConfigSnapshot: []byte(`{"model":"realtime-test"}`),
-		Engine:               "integrated",
-		InstructionsSnapshot: "snapshot instructions",
-		Voice:                &voice,
-		Language:             &language,
+		EngineConfigSnapshot:     []byte(`{"model":"realtime-test"}`),
+		ConfigurationRevision:    7,
+		ProviderBindingsSnapshot: []byte(`[{"role":"realtime","provider":"openai"}]`),
+		Engine:                   "integrated",
+		InstructionsSnapshot:     "snapshot instructions",
+		Voice:                    &voice,
+		Language:                 &language,
 	}
 	got := MediaConfigFromSession(record, session.Config{
 		Engine:       session.EngineEcho,

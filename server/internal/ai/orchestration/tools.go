@@ -40,6 +40,14 @@ func (s *Service) ToolDefinitions(
 	return result, nil
 }
 
+func ToolDefinitionsFromSnapshot(value []byte) ([]session.ToolDefinition, error) {
+	var definitions []session.ToolDefinition
+	if err := json.Unmarshal(value, &definitions); err != nil {
+		return nil, err
+	}
+	return definitions, nil
+}
+
 func (s *Service) ResolveToolByName(
 	ctx context.Context,
 	organizationID, voiceAgentID uuid.UUID,

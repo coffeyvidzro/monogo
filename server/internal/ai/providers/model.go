@@ -124,6 +124,15 @@ type Integration struct {
 	VoiceAgentIDs []uuid.UUID
 }
 
+type BindingStatus struct {
+	Role            string
+	Provider        string
+	IntegrationID   uuid.UUID
+	ConnectionState string
+	FailureCode     *string
+	Config          json.RawMessage
+}
+
 func bindingResponse(value Binding) BindingResponse {
 	return BindingResponse(value)
 }

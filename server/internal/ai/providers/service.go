@@ -305,11 +305,8 @@ func (s *Service) UpsertBinding(
 		req.Config = json.RawMessage(`{}`)
 	}
 
-	var object map[string]json.RawMessage
-	if err := json.Unmarshal(req.Config, &object); err != nil || object == nil {
-		return Binding{}, apperror.NewBadRequest(
-			"provider config must be a JSON object",
-		)
+	if err := validateProviderConfig(req.Provider, req.Config); err != nil {
+		return Binding{}, err
 	}
 
 	credential, _, err := s.repo.GetCredentialCiphertext(
@@ -338,6 +335,86 @@ func (s *Service) UpsertBinding(
 	}
 
 	return value, nil
+}
+
+func (s *Service) BindingStatuses(
+	ctx context.Context,
+	organizationID uuid.UUID,
+	agentID uuid.UUID,
+) ([]BindingStatus, error) {
+	bindings, err := s.ListBindings(ctx, organizationID, agentID)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]BindingStatus, 0, len(bindings))
+	for _, binding := range bindings {
+		credential, _, err := s.repo.GetCredentialCiphertext(
+			ctx,
+			organizationID,
+			binding.CredentialID,
+		)
+		if err != nil {
+			return nil, dbError(err, "AI integration not found")
+		}
+		result = append(result, BindingStatus{
+			Role:            binding.Role,
+			Provider:        binding.Provider,
+			IntegrationID:   binding.CredentialID,
+			ConnectionState: credential.ConnectionState,
+			FailureCode:     credential.FailureCode,
+			Config:          append(json.RawMessage(nil), binding.Config...),
+		})
+	}
+	return result, nil
+}
+
+func validateProviderConfig(provider string, value json.RawMessage) error {
+	var object map[string]json.RawMessage
+	if err := json.Unmarshal(value, &object); err != nil || object == nil {
+		return apperror.NewBadRequest("provider config must be a JSON object")
+	}
+	allowed := map[string]string{}
+	switch provider {
+	case ProviderDeepgram:
+		allowed = map[string]string{
+			"model":    "string",
+			"language": "string",
+		}
+	case ProviderGroq:
+		allowed = map[string]string{
+			"model":       "string",
+			"temperature": "number",
+		}
+	case ProviderCartesia:
+		allowed = map[string]string{
+			"model":    "string",
+			"voice_id": "string",
+			"language": "string",
+		}
+	case ProviderOpenAI:
+		allowed = map[string]string{
+			"model": "string",
+			"voice": "string",
+		}
+	default:
+		return apperror.NewBadRequest("unsupported AI provider")
+	}
+	for key, raw := range object {
+		kind, ok := allowed[key]
+		if !ok {
+			return apperror.NewBadRequest("unsupported provider config field: " + key)
+		}
+		var target any
+		if kind == "string" {
+			target = new(string)
+		} else {
+			target = new(float64)
+		}
+		if err := json.Unmarshal(raw, target); err != nil {
+			return apperror.NewBadRequest("invalid provider config field: " + key)
+		}
+	}
+	return nil
 }
 
 func (s *Service) ListBindings(
@@ -415,6 +492,65 @@ func (s *Service) Resolve(
 		})
 	}
 
+	return result, nil
+}
+
+func (s *Service) ResolveSnapshot(
+	ctx context.Context,
+	organizationID uuid.UUID,
+	value json.RawMessage,
+) ([]ResolvedBinding, error) {
+	var bindings []struct {
+		Role         string          `json:"role"`
+		Provider     string          `json:"provider"`
+		CredentialID uuid.UUID       `json:"credential_id"`
+		Config       json.RawMessage `json:"config"`
+	}
+	if err := json.Unmarshal(value, &bindings); err != nil {
+		return nil, apperror.NewInternal("decode provider binding snapshot", err)
+	}
+	if len(bindings) == 0 {
+		return nil, nil
+	}
+	if s.cipher == nil {
+		return nil, apperror.NewServiceUnavailable(
+			"AI provider credential encryption is unavailable",
+			nil,
+		)
+	}
+	result := make([]ResolvedBinding, 0, len(bindings))
+	for _, binding := range bindings {
+		credential, ciphertext, err := s.repo.GetCredentialCiphertext(
+			ctx,
+			organizationID,
+			binding.CredentialID,
+		)
+		if err != nil {
+			return nil, dbError(err, "snapshotted AI integration not found")
+		}
+		if credential.Provider != binding.Provider {
+			return nil, apperror.NewInternal(
+				"snapshotted AI integration provider mismatch",
+				nil,
+			)
+		}
+		secret, err := s.cipher.DecryptForScope(
+			credentialScope(organizationID, binding.CredentialID),
+			ciphertext,
+		)
+		if err != nil {
+			return nil, apperror.NewInternal(
+				"decrypt snapshotted AI integration",
+				err,
+			)
+		}
+		result = append(result, ResolvedBinding{
+			Role:     binding.Role,
+			Provider: binding.Provider,
+			APIKey:   secret,
+			Config:   append(json.RawMessage(nil), binding.Config...),
+		})
+	}
 	return result, nil
 }
 

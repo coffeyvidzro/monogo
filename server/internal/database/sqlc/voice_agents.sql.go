@@ -11,6 +11,133 @@ import (
 	"github.com/google/uuid"
 )
 
+const activateVoiceAgent = `-- name: ActivateVoiceAgent :one
+UPDATE voice_agents AS va
+SET active_revision = va.configuration_revision,
+    active_engine = va.engine,
+    active_instructions = va.instructions,
+    active_voice = va.voice,
+    active_language = va.language,
+    active_engine_config = va.engine_config,
+    active_interruption_policy = va.interruption_policy,
+    active_recording_policy = va.recording_policy,
+    active_provider_bindings = COALESCE((
+        SELECT jsonb_agg(
+            jsonb_build_object(
+                'role', binding.role,
+                'provider', binding.provider,
+                'credential_id', binding.credential_id,
+                'config', binding.config
+            )
+            ORDER BY binding.role
+        )
+        FROM voice_agent_provider_bindings AS binding
+        WHERE binding.organization_id = va.organization_id
+          AND binding.voice_agent_id = va.id
+    ), '[]'::jsonb),
+    active_tools = COALESCE((
+        SELECT jsonb_agg(
+            jsonb_build_object(
+                'id', tool.id,
+                'name', tool.name,
+                'description', tool.description,
+                'parameters', tool.parameters
+            )
+            ORDER BY tool.name
+        )
+        FROM voice_agent_tools AS tool
+        WHERE tool.organization_id = va.organization_id
+          AND tool.voice_agent_id = va.id
+          AND tool.enabled = TRUE
+    ), '[]'::jsonb),
+    updated_at = NOW()
+WHERE va.id = $1
+  AND va.organization_id = $2
+  AND va.status = 'active'
+  AND NOT EXISTS (
+      SELECT 1
+      FROM voice_agent_provider_bindings AS binding
+      JOIN ai_provider_credentials AS integration
+        ON integration.id = binding.credential_id
+       AND integration.organization_id = binding.organization_id
+      WHERE binding.organization_id = va.organization_id
+        AND binding.voice_agent_id = va.id
+        AND integration.connection_state <> 'ready'
+  )
+  AND (
+      (va.engine = 'integrated' AND (
+          SELECT count(*)
+          FROM voice_agent_provider_bindings AS binding
+          WHERE binding.organization_id = va.organization_id
+            AND binding.voice_agent_id = va.id
+            AND binding.role = 'realtime'
+            AND binding.provider = 'openai'
+      ) = 1 AND (
+          SELECT count(*)
+          FROM voice_agent_provider_bindings AS binding
+          WHERE binding.organization_id = va.organization_id
+            AND binding.voice_agent_id = va.id
+      ) = 1)
+      OR
+      (va.engine = 'composable' AND (
+          SELECT count(*)
+          FROM voice_agent_provider_bindings AS binding
+          WHERE binding.organization_id = va.organization_id
+            AND binding.voice_agent_id = va.id
+            AND (
+                (binding.role = 'stt' AND binding.provider = 'deepgram') OR
+                (binding.role = 'llm' AND binding.provider = 'groq') OR
+                (binding.role = 'tts' AND binding.provider = 'cartesia')
+            )
+      ) = 3 AND (
+          SELECT count(*)
+          FROM voice_agent_provider_bindings AS binding
+          WHERE binding.organization_id = va.organization_id
+            AND binding.voice_agent_id = va.id
+      ) = 3)
+  )
+RETURNING va.id, va.organization_id, va.name, va.engine, va.instructions, va.voice, va.language, va.status, va.engine_config, va.created_at, va.updated_at, va.preset, va.preset_version, va.interruption_policy, va.recording_policy, va.configuration_revision, va.active_revision, va.active_engine, va.active_instructions, va.active_voice, va.active_language, va.active_engine_config, va.active_interruption_policy, va.active_recording_policy, va.active_provider_bindings, va.active_tools
+`
+
+type ActivateVoiceAgentParams struct {
+	ID             uuid.UUID `db:"id" json:"id"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+}
+
+func (q *Queries) ActivateVoiceAgent(ctx context.Context, arg ActivateVoiceAgentParams) (VoiceAgent, error) {
+	row := q.db.QueryRow(ctx, activateVoiceAgent, arg.ID, arg.OrganizationID)
+	var i VoiceAgent
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.Name,
+		&i.Engine,
+		&i.Instructions,
+		&i.Voice,
+		&i.Language,
+		&i.Status,
+		&i.EngineConfig,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Preset,
+		&i.PresetVersion,
+		&i.InterruptionPolicy,
+		&i.RecordingPolicy,
+		&i.ConfigurationRevision,
+		&i.ActiveRevision,
+		&i.ActiveEngine,
+		&i.ActiveInstructions,
+		&i.ActiveVoice,
+		&i.ActiveLanguage,
+		&i.ActiveEngineConfig,
+		&i.ActiveInterruptionPolicy,
+		&i.ActiveRecordingPolicy,
+		&i.ActiveProviderBindings,
+		&i.ActiveTools,
+	)
+	return i, err
+}
+
 const createVoiceAgent = `-- name: CreateVoiceAgent :one
 INSERT INTO voice_agents (
     organization_id,
@@ -19,7 +146,11 @@ INSERT INTO voice_agents (
     instructions,
     voice,
     language,
-    engine_config
+    engine_config,
+    preset,
+    preset_version,
+    interruption_policy,
+    recording_policy
 )
 SELECT
     $1,
@@ -28,22 +159,30 @@ SELECT
     $4,
     $5,
     $6,
-    COALESCE($7::jsonb, '{}'::jsonb)
+    COALESCE($7::jsonb, '{}'::jsonb),
+    $8,
+    $9,
+    $10,
+    $11
 FROM organizations AS o
 WHERE o.id = $1
   AND o.status = 'active'
   AND o.deleted_at IS NULL
-RETURNING id, organization_id, name, engine, instructions, voice, language, status, engine_config, created_at, updated_at
+RETURNING id, organization_id, name, engine, instructions, voice, language, status, engine_config, created_at, updated_at, preset, preset_version, interruption_policy, recording_policy, configuration_revision, active_revision, active_engine, active_instructions, active_voice, active_language, active_engine_config, active_interruption_policy, active_recording_policy, active_provider_bindings, active_tools
 `
 
 type CreateVoiceAgentParams struct {
-	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
-	Name           string    `db:"name" json:"name"`
-	Engine         string    `db:"engine" json:"engine"`
-	Instructions   string    `db:"instructions" json:"instructions"`
-	Voice          *string   `db:"voice" json:"voice"`
-	Language       *string   `db:"language" json:"language"`
-	EngineConfig   []byte    `db:"engine_config" json:"engine_config"`
+	OrganizationID     uuid.UUID `db:"organization_id" json:"organization_id"`
+	Name               string    `db:"name" json:"name"`
+	Engine             string    `db:"engine" json:"engine"`
+	Instructions       string    `db:"instructions" json:"instructions"`
+	Voice              *string   `db:"voice" json:"voice"`
+	Language           *string   `db:"language" json:"language"`
+	EngineConfig       []byte    `db:"engine_config" json:"engine_config"`
+	Preset             *string   `db:"preset" json:"preset"`
+	PresetVersion      *int32    `db:"preset_version" json:"preset_version"`
+	InterruptionPolicy string    `db:"interruption_policy" json:"interruption_policy"`
+	RecordingPolicy    string    `db:"recording_policy" json:"recording_policy"`
 }
 
 func (q *Queries) CreateVoiceAgent(ctx context.Context, arg CreateVoiceAgentParams) (VoiceAgent, error) {
@@ -55,6 +194,10 @@ func (q *Queries) CreateVoiceAgent(ctx context.Context, arg CreateVoiceAgentPara
 		arg.Voice,
 		arg.Language,
 		arg.EngineConfig,
+		arg.Preset,
+		arg.PresetVersion,
+		arg.InterruptionPolicy,
+		arg.RecordingPolicy,
 	)
 	var i VoiceAgent
 	err := row.Scan(
@@ -69,6 +212,21 @@ func (q *Queries) CreateVoiceAgent(ctx context.Context, arg CreateVoiceAgentPara
 		&i.EngineConfig,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Preset,
+		&i.PresetVersion,
+		&i.InterruptionPolicy,
+		&i.RecordingPolicy,
+		&i.ConfigurationRevision,
+		&i.ActiveRevision,
+		&i.ActiveEngine,
+		&i.ActiveInstructions,
+		&i.ActiveVoice,
+		&i.ActiveLanguage,
+		&i.ActiveEngineConfig,
+		&i.ActiveInterruptionPolicy,
+		&i.ActiveRecordingPolicy,
+		&i.ActiveProviderBindings,
+		&i.ActiveTools,
 	)
 	return i, err
 }
@@ -98,7 +256,7 @@ func (q *Queries) DisableVoiceAgent(ctx context.Context, arg DisableVoiceAgentPa
 }
 
 const getVoiceAgentByID = `-- name: GetVoiceAgentByID :one
-SELECT va.id, va.organization_id, va.name, va.engine, va.instructions, va.voice, va.language, va.status, va.engine_config, va.created_at, va.updated_at
+SELECT va.id, va.organization_id, va.name, va.engine, va.instructions, va.voice, va.language, va.status, va.engine_config, va.created_at, va.updated_at, va.preset, va.preset_version, va.interruption_policy, va.recording_policy, va.configuration_revision, va.active_revision, va.active_engine, va.active_instructions, va.active_voice, va.active_language, va.active_engine_config, va.active_interruption_policy, va.active_recording_policy, va.active_provider_bindings, va.active_tools
 FROM voice_agents AS va
 JOIN organizations AS o ON o.id = va.organization_id
 WHERE va.id = $1
@@ -129,12 +287,27 @@ func (q *Queries) GetVoiceAgentByID(ctx context.Context, arg GetVoiceAgentByIDPa
 		&i.EngineConfig,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Preset,
+		&i.PresetVersion,
+		&i.InterruptionPolicy,
+		&i.RecordingPolicy,
+		&i.ConfigurationRevision,
+		&i.ActiveRevision,
+		&i.ActiveEngine,
+		&i.ActiveInstructions,
+		&i.ActiveVoice,
+		&i.ActiveLanguage,
+		&i.ActiveEngineConfig,
+		&i.ActiveInterruptionPolicy,
+		&i.ActiveRecordingPolicy,
+		&i.ActiveProviderBindings,
+		&i.ActiveTools,
 	)
 	return i, err
 }
 
 const listVoiceAgentsByOrganizationID = `-- name: ListVoiceAgentsByOrganizationID :many
-SELECT va.id, va.organization_id, va.name, va.engine, va.instructions, va.voice, va.language, va.status, va.engine_config, va.created_at, va.updated_at
+SELECT va.id, va.organization_id, va.name, va.engine, va.instructions, va.voice, va.language, va.status, va.engine_config, va.created_at, va.updated_at, va.preset, va.preset_version, va.interruption_policy, va.recording_policy, va.configuration_revision, va.active_revision, va.active_engine, va.active_instructions, va.active_voice, va.active_language, va.active_engine_config, va.active_interruption_policy, va.active_recording_policy, va.active_provider_bindings, va.active_tools
 FROM voice_agents AS va
 JOIN organizations AS o ON o.id = va.organization_id
 WHERE va.organization_id = $1
@@ -165,6 +338,21 @@ func (q *Queries) ListVoiceAgentsByOrganizationID(ctx context.Context, organizat
 			&i.EngineConfig,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.Preset,
+			&i.PresetVersion,
+			&i.InterruptionPolicy,
+			&i.RecordingPolicy,
+			&i.ConfigurationRevision,
+			&i.ActiveRevision,
+			&i.ActiveEngine,
+			&i.ActiveInstructions,
+			&i.ActiveVoice,
+			&i.ActiveLanguage,
+			&i.ActiveEngineConfig,
+			&i.ActiveInterruptionPolicy,
+			&i.ActiveRecordingPolicy,
+			&i.ActiveProviderBindings,
+			&i.ActiveTools,
 		); err != nil {
 			return nil, err
 		}
@@ -185,26 +373,36 @@ SET
     voice = COALESCE($4, va.voice),
     language = COALESCE($5, va.language),
     engine_config = COALESCE($6::jsonb, va.engine_config),
+    preset = CASE WHEN $7::boolean THEN $8 ELSE va.preset END,
+    preset_version = CASE WHEN $7::boolean THEN $9 ELSE va.preset_version END,
+    interruption_policy = COALESCE($10, va.interruption_policy),
+    recording_policy = COALESCE($11, va.recording_policy),
+    configuration_revision = va.configuration_revision + 1,
     updated_at = NOW()
 FROM organizations AS o
-WHERE va.id = $7
-  AND va.organization_id = $8
+WHERE va.id = $12
+  AND va.organization_id = $13
   AND va.status = 'active'
   AND o.id = va.organization_id
   AND o.status = 'active'
   AND o.deleted_at IS NULL
-RETURNING va.id, va.organization_id, va.name, va.engine, va.instructions, va.voice, va.language, va.status, va.engine_config, va.created_at, va.updated_at
+RETURNING va.id, va.organization_id, va.name, va.engine, va.instructions, va.voice, va.language, va.status, va.engine_config, va.created_at, va.updated_at, va.preset, va.preset_version, va.interruption_policy, va.recording_policy, va.configuration_revision, va.active_revision, va.active_engine, va.active_instructions, va.active_voice, va.active_language, va.active_engine_config, va.active_interruption_policy, va.active_recording_policy, va.active_provider_bindings, va.active_tools
 `
 
 type UpdateVoiceAgentParams struct {
-	Name           *string   `db:"name" json:"name"`
-	Engine         *string   `db:"engine" json:"engine"`
-	Instructions   *string   `db:"instructions" json:"instructions"`
-	Voice          *string   `db:"voice" json:"voice"`
-	Language       *string   `db:"language" json:"language"`
-	EngineConfig   []byte    `db:"engine_config" json:"engine_config"`
-	ID             uuid.UUID `db:"id" json:"id"`
-	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	Name               *string   `db:"name" json:"name"`
+	Engine             *string   `db:"engine" json:"engine"`
+	Instructions       *string   `db:"instructions" json:"instructions"`
+	Voice              *string   `db:"voice" json:"voice"`
+	Language           *string   `db:"language" json:"language"`
+	EngineConfig       []byte    `db:"engine_config" json:"engine_config"`
+	UpdatePreset       bool      `db:"update_preset" json:"update_preset"`
+	Preset             *string   `db:"preset" json:"preset"`
+	PresetVersion      *int32    `db:"preset_version" json:"preset_version"`
+	InterruptionPolicy *string   `db:"interruption_policy" json:"interruption_policy"`
+	RecordingPolicy    *string   `db:"recording_policy" json:"recording_policy"`
+	ID                 uuid.UUID `db:"id" json:"id"`
+	OrganizationID     uuid.UUID `db:"organization_id" json:"organization_id"`
 }
 
 func (q *Queries) UpdateVoiceAgent(ctx context.Context, arg UpdateVoiceAgentParams) (VoiceAgent, error) {
@@ -215,6 +413,11 @@ func (q *Queries) UpdateVoiceAgent(ctx context.Context, arg UpdateVoiceAgentPara
 		arg.Voice,
 		arg.Language,
 		arg.EngineConfig,
+		arg.UpdatePreset,
+		arg.Preset,
+		arg.PresetVersion,
+		arg.InterruptionPolicy,
+		arg.RecordingPolicy,
 		arg.ID,
 		arg.OrganizationID,
 	)
@@ -231,6 +434,21 @@ func (q *Queries) UpdateVoiceAgent(ctx context.Context, arg UpdateVoiceAgentPara
 		&i.EngineConfig,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Preset,
+		&i.PresetVersion,
+		&i.InterruptionPolicy,
+		&i.RecordingPolicy,
+		&i.ConfigurationRevision,
+		&i.ActiveRevision,
+		&i.ActiveEngine,
+		&i.ActiveInstructions,
+		&i.ActiveVoice,
+		&i.ActiveLanguage,
+		&i.ActiveEngineConfig,
+		&i.ActiveInterruptionPolicy,
+		&i.ActiveRecordingPolicy,
+		&i.ActiveProviderBindings,
+		&i.ActiveTools,
 	)
 	return i, err
 }

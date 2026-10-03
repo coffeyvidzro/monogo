@@ -25,7 +25,7 @@ SET
 WHERE session.id = $7
   AND session.organization_id = $8
   AND session.state = 'active'
-RETURNING session.id, session.organization_id, session.call_id, session.voice_agent_id, session.engine, session.instructions_snapshot, session.engine_config_snapshot, session.voice, session.language, session.state, session.turn_count, session.interruption_count, session.first_response_latency_ms, session.avg_turn_latency_ms, session.started_at, session.ended_at, session.created_at, session.updated_at
+RETURNING session.id, session.organization_id, session.call_id, session.voice_agent_id, session.engine, session.instructions_snapshot, session.engine_config_snapshot, session.voice, session.language, session.state, session.turn_count, session.interruption_count, session.first_response_latency_ms, session.avg_turn_latency_ms, session.started_at, session.ended_at, session.created_at, session.updated_at, session.configuration_revision, session.interruption_policy, session.recording_policy, session.provider_bindings_snapshot, session.tools_snapshot
 `
 
 type CompleteVoiceAgentSessionParams struct {
@@ -70,6 +70,11 @@ func (q *Queries) CompleteVoiceAgentSession(ctx context.Context, arg CompleteVoi
 		&i.EndedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ConfigurationRevision,
+		&i.InterruptionPolicy,
+		&i.RecordingPolicy,
+		&i.ProviderBindingsSnapshot,
+		&i.ToolsSnapshot,
 	)
 	return i, err
 }
@@ -83,17 +88,27 @@ INSERT INTO voice_agent_sessions (
     instructions_snapshot,
     engine_config_snapshot,
     voice,
-    language
+    language,
+    configuration_revision,
+    interruption_policy,
+    recording_policy,
+    provider_bindings_snapshot,
+    tools_snapshot
 )
 SELECT
     $1,
     c.id,
     agent.id,
-    agent.engine,
-    agent.instructions,
-    agent.engine_config,
-    agent.voice,
-    agent.language
+    agent.active_engine,
+    agent.active_instructions,
+    agent.active_engine_config,
+    agent.active_voice,
+    agent.active_language,
+    agent.active_revision,
+    agent.active_interruption_policy,
+    agent.active_recording_policy,
+    agent.active_provider_bindings,
+    agent.active_tools
 FROM calls AS c
 JOIN organizations AS o
   ON o.id = c.organization_id
@@ -106,9 +121,10 @@ WHERE c.id = $2
   AND c.state IN ('answered', 'active')
   AND c.ended_at IS NULL
   AND agent.status = 'active'
+  AND agent.active_revision IS NOT NULL
   AND o.status = 'active'
   AND o.deleted_at IS NULL
-RETURNING id, organization_id, call_id, voice_agent_id, engine, instructions_snapshot, engine_config_snapshot, voice, language, state, turn_count, interruption_count, first_response_latency_ms, avg_turn_latency_ms, started_at, ended_at, created_at, updated_at
+RETURNING id, organization_id, call_id, voice_agent_id, engine, instructions_snapshot, engine_config_snapshot, voice, language, state, turn_count, interruption_count, first_response_latency_ms, avg_turn_latency_ms, started_at, ended_at, created_at, updated_at, configuration_revision, interruption_policy, recording_policy, provider_bindings_snapshot, tools_snapshot
 `
 
 type CreateVoiceAgentSessionParams struct {
@@ -139,12 +155,17 @@ func (q *Queries) CreateVoiceAgentSession(ctx context.Context, arg CreateVoiceAg
 		&i.EndedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ConfigurationRevision,
+		&i.InterruptionPolicy,
+		&i.RecordingPolicy,
+		&i.ProviderBindingsSnapshot,
+		&i.ToolsSnapshot,
 	)
 	return i, err
 }
 
 const getActiveVoiceAgentSessionByCallID = `-- name: GetActiveVoiceAgentSessionByCallID :one
-SELECT session.id, session.organization_id, session.call_id, session.voice_agent_id, session.engine, session.instructions_snapshot, session.engine_config_snapshot, session.voice, session.language, session.state, session.turn_count, session.interruption_count, session.first_response_latency_ms, session.avg_turn_latency_ms, session.started_at, session.ended_at, session.created_at, session.updated_at
+SELECT session.id, session.organization_id, session.call_id, session.voice_agent_id, session.engine, session.instructions_snapshot, session.engine_config_snapshot, session.voice, session.language, session.state, session.turn_count, session.interruption_count, session.first_response_latency_ms, session.avg_turn_latency_ms, session.started_at, session.ended_at, session.created_at, session.updated_at, session.configuration_revision, session.interruption_policy, session.recording_policy, session.provider_bindings_snapshot, session.tools_snapshot
 FROM voice_agent_sessions AS session
 JOIN organizations AS o ON o.id = session.organization_id
 WHERE session.organization_id = $1
@@ -182,12 +203,17 @@ func (q *Queries) GetActiveVoiceAgentSessionByCallID(ctx context.Context, arg Ge
 		&i.EndedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ConfigurationRevision,
+		&i.InterruptionPolicy,
+		&i.RecordingPolicy,
+		&i.ProviderBindingsSnapshot,
+		&i.ToolsSnapshot,
 	)
 	return i, err
 }
 
 const getVoiceAgentSessionByID = `-- name: GetVoiceAgentSessionByID :one
-SELECT session.id, session.organization_id, session.call_id, session.voice_agent_id, session.engine, session.instructions_snapshot, session.engine_config_snapshot, session.voice, session.language, session.state, session.turn_count, session.interruption_count, session.first_response_latency_ms, session.avg_turn_latency_ms, session.started_at, session.ended_at, session.created_at, session.updated_at
+SELECT session.id, session.organization_id, session.call_id, session.voice_agent_id, session.engine, session.instructions_snapshot, session.engine_config_snapshot, session.voice, session.language, session.state, session.turn_count, session.interruption_count, session.first_response_latency_ms, session.avg_turn_latency_ms, session.started_at, session.ended_at, session.created_at, session.updated_at, session.configuration_revision, session.interruption_policy, session.recording_policy, session.provider_bindings_snapshot, session.tools_snapshot
 FROM voice_agent_sessions AS session
 WHERE session.id = $1
   AND session.organization_id = $2
@@ -221,6 +247,11 @@ func (q *Queries) GetVoiceAgentSessionByID(ctx context.Context, arg GetVoiceAgen
 		&i.EndedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ConfigurationRevision,
+		&i.InterruptionPolicy,
+		&i.RecordingPolicy,
+		&i.ProviderBindingsSnapshot,
+		&i.ToolsSnapshot,
 	)
 	return i, err
 }
