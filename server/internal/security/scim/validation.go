@@ -73,7 +73,7 @@ func page(startIndex, count int) (int, int32, int32) {
 	if startIndex < 1 {
 		startIndex = 1
 	}
-	if count <= 0 {
+	if count < 0 {
 		count = defaultPageCount
 	}
 	if count > maxPageCount {
