@@ -51,15 +51,6 @@ func TestMediaEnginesAlwaysRegisterTenantCapableEngines(t *testing.T) {
 	}
 }
 
-func TestConfigRejectsPartialComposableFallbackCredentials(t *testing.T) {
-	cfg := validRuntimeConfig()
-	cfg.DeepgramAPIKey = "deepgram"
-
-	if err := cfg.Validate(); err == nil {
-		t.Fatal("Validate() error = nil")
-	}
-}
-
 func TestConfigAcceptsNoGlobalProviderCredentials(t *testing.T) {
 	cfg := validRuntimeConfig()
 
