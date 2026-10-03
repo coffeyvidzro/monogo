@@ -10,6 +10,7 @@ import (
 	"github.com/coffeyvidzro/monogo/internal/platform/idempotency"
 	"github.com/coffeyvidzro/monogo/internal/platform/middleware"
 	"github.com/coffeyvidzro/monogo/internal/platform/networking"
+	"github.com/coffeyvidzro/monogo/internal/platform/retention"
 	"github.com/coffeyvidzro/monogo/internal/platform/storage"
 	"github.com/coffeyvidzro/monogo/internal/platform/webhooks"
 	"github.com/coffeyvidzro/monogo/internal/security/encryption"
@@ -23,6 +24,7 @@ type Module struct {
 	Networking   NetworkingModule
 	Storage      StorageModule
 	SCIM         SCIMModule
+	Retention    RetentionModule
 	Webhooks     WebhooksModule
 }
 
@@ -64,6 +66,12 @@ type SCIMModule struct {
 	Middleware *scim.Middleware
 }
 
+type RetentionModule struct {
+	Repository *retention.Repository
+	Service    *retention.Service
+	Handler    *retention.Handler
+}
+
 type WebhooksModule struct {
 	Repository *webhooks.Repository
 	Service    *webhooks.Service
@@ -96,6 +104,9 @@ func New(
 
 	scimRepository := scim.NewRepository(queries)
 	scimService := scim.NewService(scimRepository)
+
+	retentionRepository := retention.NewRepository(queries)
+	retentionService := retention.NewService(retentionRepository)
 
 	webhooksRepository := webhooks.NewRepository(queries)
 	webhooksService := webhooks.NewService(webhooksRepository)
@@ -136,6 +147,11 @@ func New(
 			Service:    scimService,
 			Handler:    scim.NewHandler(scimService),
 			Middleware: scim.NewMiddleware(scimService),
+		},
+		Retention: RetentionModule{
+			Repository: retentionRepository,
+			Service:    retentionService,
+			Handler:    retention.NewHandler(retentionService),
 		},
 		Webhooks: WebhooksModule{
 			Repository: webhooksRepository,

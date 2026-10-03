@@ -34,3 +34,18 @@ RETURNING *;
 DELETE FROM retention_policies
 WHERE organization_id = sqlc.arg(organization_id)
   AND resource = sqlc.arg(resource);
+
+-- name: ListEnabledRetentionPolicies :many
+SELECT *
+FROM retention_policies
+WHERE enabled
+ORDER BY organization_id, resource;
+
+-- name: ListExpiredRecordingsForRetention :many
+SELECT id
+FROM recordings
+WHERE organization_id = sqlc.arg(organization_id)
+  AND status = 'completed'
+  AND created_at < sqlc.arg(created_before)
+ORDER BY created_at
+LIMIT sqlc.arg(batch_size);

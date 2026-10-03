@@ -17,6 +17,7 @@ import (
 	"github.com/coffeyvidzro/monogo/internal/platform/logging"
 	"github.com/coffeyvidzro/monogo/internal/platform/metrics"
 	"github.com/coffeyvidzro/monogo/internal/platform/outbox"
+	"github.com/coffeyvidzro/monogo/internal/platform/retention"
 	platformstorage "github.com/coffeyvidzro/monogo/internal/platform/storage"
 	"github.com/coffeyvidzro/monogo/internal/platform/webhooks"
 	"github.com/coffeyvidzro/monogo/internal/runtime/agent"
@@ -45,6 +46,7 @@ type modules struct {
 	recordingReconciliation *recordings.ReconciliationJob
 	recordingIngestion      *recordings.IngestionJob
 	idempotencyCleanup      *idempotency.CleanupJob
+	retentionCleanup        *retention.CleanupJob
 	trunkHealth             *trunks.HealthCheckJob
 }
 
@@ -179,6 +181,15 @@ func newModules(ctx context.Context, cfg config.Config, logger *logging.Logger) 
 		closeDependencies()
 		return nil, fmt.Errorf("initialize recording reconciliation: %w", err)
 	}
+	retentionCleanup, err := retention.NewCleanupJob(
+		retention.NewRepository(queries),
+		recordingsService,
+		retention.DefaultCleanupJobConfig(),
+	)
+	if err != nil {
+		closeDependencies()
+		return nil, fmt.Errorf("initialize retention cleanup: %w", err)
+	}
 
 	idempotencyCleanup, err := idempotency.NewCleanupJob(
 		idempotency.NewRepository(queries),
@@ -237,6 +248,7 @@ func newModules(ctx context.Context, cfg config.Config, logger *logging.Logger) 
 		recordingReconciliation: recordingReconciliation,
 		recordingIngestion:      recordingIngestion,
 		idempotencyCleanup:      idempotencyCleanup,
+		retentionCleanup:        retentionCleanup,
 		trunkHealth:             trunkHealth,
 	}, nil
 }

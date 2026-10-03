@@ -9,6 +9,7 @@ import (
 	"context"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const deleteRetentionPolicy = `-- name: DeleteRetentionPolicy :exec
@@ -52,6 +53,76 @@ func (q *Queries) GetRetentionPolicy(ctx context.Context, arg GetRetentionPolicy
 		&i.UpdatedAt,
 	)
 	return i, err
+}
+
+const listEnabledRetentionPolicies = `-- name: ListEnabledRetentionPolicies :many
+SELECT organization_id, resource, retention_days, enabled, created_at, updated_at
+FROM retention_policies
+WHERE enabled
+ORDER BY organization_id, resource
+`
+
+func (q *Queries) ListEnabledRetentionPolicies(ctx context.Context) ([]RetentionPolicy, error) {
+	rows, err := q.db.Query(ctx, listEnabledRetentionPolicies)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []RetentionPolicy{}
+	for rows.Next() {
+		var i RetentionPolicy
+		if err := rows.Scan(
+			&i.OrganizationID,
+			&i.Resource,
+			&i.RetentionDays,
+			&i.Enabled,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listExpiredRecordingsForRetention = `-- name: ListExpiredRecordingsForRetention :many
+SELECT id
+FROM recordings
+WHERE organization_id = $1
+  AND status = 'completed'
+  AND created_at < $2
+ORDER BY created_at
+LIMIT $3
+`
+
+type ListExpiredRecordingsForRetentionParams struct {
+	OrganizationID uuid.UUID          `db:"organization_id" json:"organization_id"`
+	CreatedBefore  pgtype.Timestamptz `db:"created_before" json:"created_before"`
+	BatchSize      int32              `db:"batch_size" json:"batch_size"`
+}
+
+func (q *Queries) ListExpiredRecordingsForRetention(ctx context.Context, arg ListExpiredRecordingsForRetentionParams) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, listExpiredRecordingsForRetention, arg.OrganizationID, arg.CreatedBefore, arg.BatchSize)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []uuid.UUID{}
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listRetentionPolicies = `-- name: ListRetentionPolicies :many

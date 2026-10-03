@@ -132,6 +132,13 @@ Owns organization retention policies and scheduled cleanup work. Retention
 deletion must respect existing recording-storage ownership and tenant
 isolation.
 
+Recording retention cleanup selects only completed recordings older than the
+organization's configured cutoff. It delegates deletion to the recording
+service rather than deleting rows directly, so the object is removed from its
+pinned Leamout-managed or organization BYOS destination before metadata is
+marked deleted. A storage deletion failure stops the cleanup batch and leaves
+the recording metadata intact for a later retry.
+
 ### `platform/networking`
 
 Owns organization-level network access configuration. It must not introduce a
