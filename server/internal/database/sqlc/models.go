@@ -238,21 +238,6 @@ type Recording struct {
 	UpdatedAt            pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 }
 
-type Runtime struct {
-	ID             uuid.UUID          `db:"id" json:"id"`
-	OrganizationID uuid.UUID          `db:"organization_id" json:"organization_id"`
-	Name           string             `db:"name" json:"name"`
-	Status         string             `db:"status" json:"status"`
-	Version        *string            `db:"version" json:"version"`
-	Region         *string            `db:"region" json:"region"`
-	Capabilities   []string           `db:"capabilities" json:"capabilities"`
-	Capacity       int32              `db:"capacity" json:"capacity"`
-	ActiveSessions int32              `db:"active_sessions" json:"active_sessions"`
-	LastSeenAt     pgtype.Timestamptz `db:"last_seen_at" json:"last_seen_at"`
-	CreatedAt      pgtype.Timestamptz `db:"created_at" json:"created_at"`
-	UpdatedAt      pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
-}
-
 type Session struct {
 	ID         uuid.UUID          `db:"id" json:"id"`
 	UserID     uuid.UUID          `db:"user_id" json:"user_id"`

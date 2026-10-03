@@ -6,7 +6,6 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/coffeyvidzro/monogo/internal/platform/audit"
-	"github.com/coffeyvidzro/monogo/internal/platform/runtimes"
 	"github.com/coffeyvidzro/monogo/internal/platform/storage"
 	"github.com/coffeyvidzro/monogo/internal/platform/webhooks"
 )
@@ -26,12 +25,6 @@ func RegisterRoutes(
 		router,
 		module.Audit.Handler,
 		organizationAccess("audit"),
-	)
-
-	runtimes.RegisterRoutes(
-		router,
-		module.Runtimes.Handler,
-		organizationAccess("runtimes"),
 	)
 
 	storage.RegisterRoutes(
