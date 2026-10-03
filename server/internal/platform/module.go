@@ -8,6 +8,7 @@ import (
 	"github.com/coffeyvidzro/monogo/internal/platform/entitlements"
 	"github.com/coffeyvidzro/monogo/internal/platform/idempotency"
 	"github.com/coffeyvidzro/monogo/internal/platform/middleware"
+	"github.com/coffeyvidzro/monogo/internal/platform/networking"
 	"github.com/coffeyvidzro/monogo/internal/platform/storage"
 	"github.com/coffeyvidzro/monogo/internal/platform/webhooks"
 	"github.com/coffeyvidzro/monogo/internal/security/encryption"
@@ -17,6 +18,7 @@ type Module struct {
 	Audit        AuditModule
 	Entitlements EntitlementsModule
 	Idempotency  IdempotencyModule
+	Networking   NetworkingModule
 	Storage      StorageModule
 	Webhooks     WebhooksModule
 }
@@ -30,12 +32,19 @@ type AuditModule struct {
 type EntitlementsModule struct {
 	Repository *entitlements.Repository
 	Service    *entitlements.Service
+	Middleware *entitlements.Middleware
 }
 
 type IdempotencyModule struct {
 	Repository *idempotency.Repository
 	Service    *idempotency.Service
 	Middleware *middleware.IdempotencyMiddleware
+}
+
+type NetworkingModule struct {
+	Repository *networking.Repository
+	Service    *networking.Service
+	Handler    *networking.Handler
 }
 
 type StorageModule struct {
@@ -67,6 +76,9 @@ func New(
 		idempotency.DefaultConfig(),
 	)
 
+	networkingRepository := networking.NewRepository(queries)
+	networkingService := networking.NewService(networkingRepository)
+
 	storageRepository := storage.NewRepository(queries)
 	storageService := storage.NewService(storageRepository, credentialCipher)
 
@@ -82,11 +94,17 @@ func New(
 		Entitlements: EntitlementsModule{
 			Repository: entitlementsRepository,
 			Service:    entitlementsService,
+			Middleware: entitlements.NewMiddleware(entitlementsService),
 		},
 		Idempotency: IdempotencyModule{
 			Repository: idempotencyRepository,
 			Service:    idempotencyService,
 			Middleware: middleware.NewIdempotencyMiddleware(idempotencyService),
+		},
+		Networking: NetworkingModule{
+			Repository: networkingRepository,
+			Service:    networkingService,
+			Handler:    networking.NewHandler(networkingService),
 		},
 		Storage: StorageModule{
 			Repository: storageRepository,
