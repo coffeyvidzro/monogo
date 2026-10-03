@@ -49,3 +49,32 @@ WHERE organization_id = sqlc.arg(organization_id)
   AND created_at < sqlc.arg(created_before)
 ORDER BY created_at
 LIMIT sqlc.arg(batch_size);
+
+-- name: ListExpiredConversationsForRetention :many
+SELECT id
+FROM voice_agent_sessions
+WHERE organization_id = sqlc.arg(organization_id)
+  AND state IN ('completed', 'failed', 'cancelled')
+  AND ended_at IS NOT NULL
+  AND ended_at < sqlc.arg(created_before)
+ORDER BY ended_at
+LIMIT sqlc.arg(batch_size);
+
+-- name: DeleteConversationForRetention :exec
+DELETE FROM voice_agent_sessions
+WHERE organization_id = sqlc.arg(organization_id)
+  AND id = sqlc.arg(id)
+  AND state IN ('completed', 'failed', 'cancelled');
+
+-- name: ListExpiredAuditEventsForRetention :many
+SELECT id
+FROM audit_events
+WHERE organization_id = sqlc.arg(organization_id)
+  AND occurred_at < sqlc.arg(created_before)
+ORDER BY occurred_at
+LIMIT sqlc.arg(batch_size);
+
+-- name: DeleteAuditEventForRetention :exec
+DELETE FROM audit_events
+WHERE organization_id = sqlc.arg(organization_id)
+  AND id = sqlc.arg(id);
