@@ -1,18 +1,18 @@
--- name: ListOrganizationEntitlements :many
+-- name: ListEntitlements :many
 SELECT *
-FROM organization_entitlements
+FROM entitlements
 WHERE organization_id = sqlc.arg(organization_id)
 ORDER BY capability;
 
--- name: GetOrganizationEntitlement :one
+-- name: GetEntitlement :one
 SELECT *
-FROM organization_entitlements
+FROM entitlements
 WHERE organization_id = sqlc.arg(organization_id)
   AND capability = sqlc.arg(capability)
 LIMIT 1;
 
--- name: UpsertOrganizationEntitlement :one
-INSERT INTO organization_entitlements (
+-- name: UpsertEntitlement :one
+INSERT INTO entitlements (
     organization_id,
     capability,
     enabled

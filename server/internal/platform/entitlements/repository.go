@@ -22,7 +22,7 @@ func (r *Repository) List(
 	ctx context.Context,
 	organizationID uuid.UUID,
 ) ([]Entitlement, error) {
-	rows, err := r.queries.ListOrganizationEntitlements(ctx, organizationID)
+	rows, err := r.queries.ListEntitlements(ctx, organizationID)
 	if err != nil {
 		return nil, err
 	}
@@ -39,9 +39,9 @@ func (r *Repository) Get(
 	organizationID uuid.UUID,
 	capability Capability,
 ) (Entitlement, error) {
-	row, err := r.queries.GetOrganizationEntitlement(
+	row, err := r.queries.GetEntitlement(
 		ctx,
-		sqlc.GetOrganizationEntitlementParams{
+		sqlc.GetEntitlementParams{
 			OrganizationID: organizationID,
 			Capability:     string(capability),
 		},
@@ -58,9 +58,9 @@ func (r *Repository) Set(
 	capability Capability,
 	enabled bool,
 ) (Entitlement, error) {
-	row, err := r.queries.UpsertOrganizationEntitlement(
+	row, err := r.queries.UpsertEntitlement(
 		ctx,
-		sqlc.UpsertOrganizationEntitlementParams{
+		sqlc.UpsertEntitlementParams{
 			OrganizationID: organizationID,
 			Capability:     string(capability),
 			Enabled:        enabled,
@@ -72,7 +72,7 @@ func (r *Repository) Set(
 	return entitlementFromRow(row), nil
 }
 
-func entitlementFromRow(row sqlc.OrganizationEntitlement) Entitlement {
+func entitlementFromRow(row sqlc.Entitlement) Entitlement {
 	return Entitlement{
 		OrganizationID: row.OrganizationID,
 		Capability:     Capability(row.Capability),

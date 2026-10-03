@@ -93,6 +93,14 @@ type CallParticipant struct {
 	UpdatedAt      pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 }
 
+type Entitlement struct {
+	OrganizationID uuid.UUID          `db:"organization_id" json:"organization_id"`
+	Capability     string             `db:"capability" json:"capability"`
+	Enabled        bool               `db:"enabled" json:"enabled"`
+	CreatedAt      pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	UpdatedAt      pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+}
+
 type Idempotency struct {
 	Scope               string             `db:"scope" json:"scope"`
 	IdempotencyKey      string             `db:"idempotency_key" json:"idempotency_key"`
@@ -109,6 +117,17 @@ type Idempotency struct {
 	ExpiresAt           pgtype.Timestamptz `db:"expires_at" json:"expires_at"`
 	CreatedAt           pgtype.Timestamptz `db:"created_at" json:"created_at"`
 	UpdatedAt           pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+}
+
+type NetworkPolicy struct {
+	ID             uuid.UUID          `db:"id" json:"id"`
+	OrganizationID uuid.UUID          `db:"organization_id" json:"organization_id"`
+	Name           string             `db:"name" json:"name"`
+	Action         string             `db:"action" json:"action"`
+	SourceCidr     netip.Prefix       `db:"source_cidr" json:"source_cidr"`
+	Status         string             `db:"status" json:"status"`
+	CreatedAt      pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	UpdatedAt      pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 }
 
 type OpensipsInboundTrunkCredential struct {
@@ -134,14 +153,6 @@ type Organization struct {
 	CreatedAt pgtype.Timestamptz `db:"created_at" json:"created_at"`
 	UpdatedAt pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 	DeletedAt pgtype.Timestamptz `db:"deleted_at" json:"deleted_at"`
-}
-
-type OrganizationEntitlement struct {
-	OrganizationID uuid.UUID          `db:"organization_id" json:"organization_id"`
-	Capability     string             `db:"capability" json:"capability"`
-	Enabled        bool               `db:"enabled" json:"enabled"`
-	CreatedAt      pgtype.Timestamptz `db:"created_at" json:"created_at"`
-	UpdatedAt      pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 }
 
 type OrganizationInvitation struct {
@@ -246,6 +257,37 @@ type Recording struct {
 	UpdatedAt            pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 }
 
+type RetentionPolicy struct {
+	OrganizationID uuid.UUID          `db:"organization_id" json:"organization_id"`
+	Resource       string             `db:"resource" json:"resource"`
+	RetentionDays  int32              `db:"retention_days" json:"retention_days"`
+	Enabled        bool               `db:"enabled" json:"enabled"`
+	CreatedAt      pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	UpdatedAt      pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+}
+
+type ScimIdentity struct {
+	ID             uuid.UUID          `db:"id" json:"id"`
+	OrganizationID uuid.UUID          `db:"organization_id" json:"organization_id"`
+	UserID         uuid.UUID          `db:"user_id" json:"user_id"`
+	ExternalID     string             `db:"external_id" json:"external_id"`
+	CreatedAt      pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	UpdatedAt      pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+}
+
+type ScimToken struct {
+	ID             uuid.UUID          `db:"id" json:"id"`
+	OrganizationID uuid.UUID          `db:"organization_id" json:"organization_id"`
+	Name           string             `db:"name" json:"name"`
+	TokenPrefix    string             `db:"token_prefix" json:"token_prefix"`
+	TokenHash      string             `db:"token_hash" json:"token_hash"`
+	ExpiresAt      pgtype.Timestamptz `db:"expires_at" json:"expires_at"`
+	LastUsedAt     pgtype.Timestamptz `db:"last_used_at" json:"last_used_at"`
+	RevokedAt      pgtype.Timestamptz `db:"revoked_at" json:"revoked_at"`
+	CreatedAt      pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	UpdatedAt      pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+}
+
 type Session struct {
 	ID         uuid.UUID          `db:"id" json:"id"`
 	UserID     uuid.UUID          `db:"user_id" json:"user_id"`
@@ -257,6 +299,19 @@ type Session struct {
 	LastSeenAt pgtype.Timestamptz `db:"last_seen_at" json:"last_seen_at"`
 	RevokedAt  pgtype.Timestamptz `db:"revoked_at" json:"revoked_at"`
 	CreatedAt  pgtype.Timestamptz `db:"created_at" json:"created_at"`
+}
+
+type SsoConnection struct {
+	ID               uuid.UUID          `db:"id" json:"id"`
+	OrganizationID   uuid.UUID          `db:"organization_id" json:"organization_id"`
+	Name             string             `db:"name" json:"name"`
+	Protocol         string             `db:"protocol" json:"protocol"`
+	Issuer           string             `db:"issuer" json:"issuer"`
+	Configuration    []byte             `db:"configuration" json:"configuration"`
+	SecretCiphertext *string            `db:"secret_ciphertext" json:"secret_ciphertext"`
+	Status           string             `db:"status" json:"status"`
+	CreatedAt        pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	UpdatedAt        pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 }
 
 type StorageIntegration struct {

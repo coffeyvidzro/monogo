@@ -72,6 +72,41 @@ accidentally enabling commercial or security-sensitive behavior. Capability
 modules must still perform their own authorization and tenant-scope checks;
 an entitlement never replaces authorization.
 
+## PostgreSQL ownership
+
+Enterprise-capability state remains ordinary organization-scoped application
+state in PostgreSQL:
+
+```text
+PostgreSQL
+├── Enterprise access
+│   ├── entitlements
+│   ├── sso_connections
+│   ├── scim_tokens
+│   └── scim_identities
+├── Retention
+│   └── retention_policies
+└── Networking
+    └── network_policies
+```
+
+- `entitlements` records which optional capabilities an organization may use.
+- `sso_connections` stores organization SAML or OIDC configuration. Secret
+  material is ciphertext; list queries intentionally omit it.
+- `scim_tokens` stores only hashes of credentials presented by external SCIM
+  clients. Plaintext bearer tokens are never persisted.
+- `scim_identities` maps external directory identifiers to Leamout users in
+  the same organization.
+- `retention_policies` stores per-resource retention periods for an
+  organization.
+- `network_policies` stores organization-level source-network access rules.
+
+All normal reads and writes are scoped by `organization_id`. Authentication by
+token hash is the deliberate exception for locating a SCIM principal; the
+resolved token still carries its owning organization into subsequent access.
+These tables contain configuration and access state, not subscription billing
+or a parallel Enterprise control plane.
+
 ## Capability modules
 
 ### `security/sso`
