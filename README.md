@@ -308,3 +308,13 @@ docker compose --env-file .env.example -f deploy/compose.yaml config --quiet
 
 Copy `.env.example` to a protected environment file and replace every example
 secret before starting a deployment.
+
+## License
+
+The software in this repository is licensed under the [Apache License 2.0](LICENSE).
+See [NOTICE](NOTICE) for attribution information.
+
+The Apache License 2.0 does not grant permission to use Leamout trade names,
+trademarks, service marks, or product names except as permitted by the license.
+Separately distributed Leamout Cloud, enterprise, or proprietary software may
+be provided under different terms.

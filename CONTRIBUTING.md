@@ -206,6 +206,23 @@ When modifying schema or sqlc queries:
 
 Avoid unrelated schema cleanup in the same pull request unless it is required for the change.
 
+## Contribution license
+
+Unless you explicitly state otherwise, any contribution you intentionally submit
+for inclusion in this repository is provided under the terms of the Apache
+License 2.0, without additional terms or conditions.
+
+By submitting a pull request, patch, commit, issue attachment, or other material
+for inclusion in Monogo, you represent that you have the right to submit that
+material under the Apache License 2.0.
+
+Do not submit code, documentation, media, generated output, or other material
+that you do not have permission to license to the project. If a contribution
+contains third-party material, clearly identify its source and license in the
+pull request.
+
+See [LICENSE](LICENSE) for the complete license terms.
+
 ## Pull requests
 
 Keep pull requests focused enough to review confidently.
