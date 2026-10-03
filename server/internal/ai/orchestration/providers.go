@@ -40,16 +40,13 @@ func (s *Service) ValidateProviderTopology(
 	if err != nil {
 		return err
 	}
-	if len(values) == 0 {
-		return nil
-	}
 	roles := make(map[string]string, len(values))
 	for _, value := range values {
 		roles[value.Role] = value.Provider
 	}
 	switch engine {
 	case session.EngineIntegrated:
-		if roles["realtime"] != "openai" {
+		if len(values) != 0 && roles["realtime"] != "openai" {
 			return apperror.NewBadRequest("integrated engine requires an OpenAI realtime provider binding")
 		}
 	case session.EngineComposable:
