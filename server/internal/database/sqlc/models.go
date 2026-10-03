@@ -136,6 +136,14 @@ type Organization struct {
 	DeletedAt pgtype.Timestamptz `db:"deleted_at" json:"deleted_at"`
 }
 
+type OrganizationEntitlement struct {
+	OrganizationID uuid.UUID          `db:"organization_id" json:"organization_id"`
+	Capability     string             `db:"capability" json:"capability"`
+	Enabled        bool               `db:"enabled" json:"enabled"`
+	CreatedAt      pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	UpdatedAt      pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+}
+
 type OrganizationInvitation struct {
 	ID             uuid.UUID          `db:"id" json:"id"`
 	OrganizationID uuid.UUID          `db:"organization_id" json:"organization_id"`

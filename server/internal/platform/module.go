@@ -5,6 +5,7 @@ import (
 
 	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
 	"github.com/coffeyvidzro/monogo/internal/platform/audit"
+	"github.com/coffeyvidzro/monogo/internal/platform/entitlements"
 	"github.com/coffeyvidzro/monogo/internal/platform/idempotency"
 	"github.com/coffeyvidzro/monogo/internal/platform/middleware"
 	"github.com/coffeyvidzro/monogo/internal/platform/storage"
@@ -13,16 +14,22 @@ import (
 )
 
 type Module struct {
-	Audit       AuditModule
-	Idempotency IdempotencyModule
-	Storage     StorageModule
-	Webhooks    WebhooksModule
+	Audit        AuditModule
+	Entitlements EntitlementsModule
+	Idempotency  IdempotencyModule
+	Storage      StorageModule
+	Webhooks     WebhooksModule
 }
 
 type AuditModule struct {
 	Repository *audit.Repository
 	Service    *audit.Service
 	Handler    *audit.Handler
+}
+
+type EntitlementsModule struct {
+	Repository *entitlements.Repository
+	Service    *entitlements.Service
 }
 
 type IdempotencyModule struct {
@@ -51,6 +58,9 @@ func New(
 	auditRepository := audit.NewRepository(db)
 	auditService := audit.NewService(auditRepository)
 
+	entitlementsRepository := entitlements.NewRepository(queries)
+	entitlementsService := entitlements.NewService(entitlementsRepository)
+
 	idempotencyRepository := idempotency.NewRepository(queries)
 	idempotencyService := idempotency.NewService(
 		idempotencyRepository,
@@ -68,6 +78,10 @@ func New(
 			Repository: auditRepository,
 			Service:    auditService,
 			Handler:    audit.NewHandler(auditService),
+		},
+		Entitlements: EntitlementsModule{
+			Repository: entitlementsRepository,
+			Service:    entitlementsService,
 		},
 		Idempotency: IdempotencyModule{
 			Repository: idempotencyRepository,
