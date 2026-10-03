@@ -69,20 +69,20 @@ EXECUTE FUNCTION set_updated_at();
 CREATE TABLE IF NOT EXISTS scim_group_members (
     organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
     group_id UUID NOT NULL,
-    user_id UUID NOT NULL,
+    identity_id UUID NOT NULL,
 
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
 
-    PRIMARY KEY (organization_id, group_id, user_id),
+    PRIMARY KEY (organization_id, group_id, identity_id),
     CONSTRAINT fk_scim_group_members_group_scope
         FOREIGN KEY (group_id, organization_id)
         REFERENCES scim_groups(id, organization_id)
         ON DELETE CASCADE,
-    CONSTRAINT fk_scim_group_members_membership
-        FOREIGN KEY (organization_id, user_id)
-        REFERENCES organization_members(organization_id, user_id)
+    CONSTRAINT fk_scim_group_members_identity_scope
+        FOREIGN KEY (identity_id, organization_id)
+        REFERENCES scim_user_profiles(identity_id, organization_id)
         ON DELETE CASCADE
 );
 
-CREATE INDEX IF NOT EXISTS idx_scim_group_members_user
-    ON scim_group_members (organization_id, user_id, group_id);
+CREATE INDEX IF NOT EXISTS idx_scim_group_members_identity
+    ON scim_group_members (organization_id, identity_id, group_id);
