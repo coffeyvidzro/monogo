@@ -373,7 +373,7 @@ func validateProviderConfig(provider string, value json.RawMessage) error {
 	if err := json.Unmarshal(value, &object); err != nil || object == nil {
 		return apperror.NewBadRequest("provider config must be a JSON object")
 	}
-	allowed := map[string]string{}
+	var allowed map[string]string
 	switch provider {
 	case ProviderDeepgram:
 		allowed = map[string]string{
