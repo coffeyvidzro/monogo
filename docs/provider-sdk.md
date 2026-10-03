@@ -93,9 +93,16 @@ submission.
 
 ## Credentials and provider configuration
 
-Deepgram, Groq, and Cartesia credentials are organization-scoped application
-data. They are encrypted at rest through the AI provider credential service and
-resolved for the Voice Agent that starts a media session.
+Deepgram, Groq, Cartesia, and OpenAI credentials are organization-scoped AI
+integrations. Secret material is write-only through the public API, encrypted at
+rest, and resolved only for the Voice Agent that starts a media session.
+
+Organization integrations expose a sanitized connection state (`unchecked`,
+`ready`, `invalid`, or `unavailable`), last verification time, provider
+capabilities, and the Voice Agents using the integration. Explicit verification
+performs a minimal provider API request and stores only a stable failure code;
+provider response bodies and secret-derived diagnostics are never persisted or
+returned.
 
 The composable engine therefore does not use deployment-global
 `DEEPGRAM_API_KEY`, `GROQ_API_KEY`, or `CARTESIA_API_KEY` environment variables.
@@ -125,7 +132,9 @@ provider binding where the adapter supports those values.
 
 OpenAI Realtime currently retains its optional deployment-level fallback for
 local/self-hosted operation. An organization-scoped realtime provider binding,
-when present, overrides that fallback for the session.
+when present, overrides that fallback for the session. Rotating an integration
+returns it to `unchecked` without changing credentials already copied into an
+active, immutable media session.
 
 The provider registry itself stores implementations only. It does not persist
 credentials. Provider-specific configuration is interpreted by the selected

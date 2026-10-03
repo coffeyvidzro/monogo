@@ -3,11 +3,11 @@ package providers
 import (
 	"context"
 	"encoding/json"
+	"time"
 
 	"github.com/coffeyvidzro/monogo/internal/database/pgconv"
 	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgtype"
 )
 
 type Repository struct {
@@ -40,15 +40,7 @@ func (r *Repository) CreateCredential(
 		return Credential{}, err
 	}
 
-	return credentialFromRow(
-		row.ID,
-		row.OrganizationID,
-		row.Provider,
-		row.Name,
-		row.CreatedAt,
-		row.RotatedAt,
-		row.UpdatedAt,
-	), nil
+	return credentialFromRow(row), nil
 }
 
 func (r *Repository) ListCredentials(
@@ -62,18 +54,7 @@ func (r *Repository) ListCredentials(
 
 	result := make([]Credential, 0, len(rows))
 	for _, row := range rows {
-		result = append(
-			result,
-			credentialFromRow(
-				row.ID,
-				row.OrganizationID,
-				row.Provider,
-				row.Name,
-				row.CreatedAt,
-				row.RotatedAt,
-				row.UpdatedAt,
-			),
-		)
+		result = append(result, credentialFromRow(row))
 	}
 
 	return result, nil
@@ -95,15 +76,7 @@ func (r *Repository) GetCredentialCiphertext(
 		return Credential{}, "", err
 	}
 
-	return credentialFromRow(
-		row.ID,
-		row.OrganizationID,
-		row.Provider,
-		row.Name,
-		row.CreatedAt,
-		row.RotatedAt,
-		row.UpdatedAt,
-	), row.SecretCiphertext, nil
+	return credentialFromRow(row), row.SecretCiphertext, nil
 }
 
 func (r *Repository) RotateCredential(
@@ -124,15 +97,43 @@ func (r *Repository) RotateCredential(
 		return Credential{}, err
 	}
 
-	return credentialFromRow(
-		row.ID,
-		row.OrganizationID,
-		row.Provider,
-		row.Name,
-		row.CreatedAt,
-		row.RotatedAt,
-		row.UpdatedAt,
-	), nil
+	return credentialFromRow(row), nil
+}
+
+func (r *Repository) UpdateVerification(
+	ctx context.Context,
+	organizationID uuid.UUID,
+	id uuid.UUID,
+	state string,
+	failureCode *string,
+) (Credential, error) {
+	row, err := r.queries.UpdateAIProviderCredentialVerification(
+		ctx,
+		sqlc.UpdateAIProviderCredentialVerificationParams{
+			ConnectionState: state,
+			FailureCode:     failureCode,
+			ID:              id,
+			OrganizationID:  organizationID,
+		},
+	)
+	if err != nil {
+		return Credential{}, err
+	}
+	return credentialFromRow(row), nil
+}
+
+func (r *Repository) ListVoiceAgentIDs(
+	ctx context.Context,
+	organizationID uuid.UUID,
+	credentialID uuid.UUID,
+) ([]uuid.UUID, error) {
+	return r.queries.ListVoiceAgentIDsByAIProviderCredential(
+		ctx,
+		sqlc.ListVoiceAgentIDsByAIProviderCredentialParams{
+			OrganizationID: organizationID,
+			CredentialID:   credentialID,
+		},
+	)
 }
 
 func (r *Repository) DeleteCredential(
@@ -265,23 +266,23 @@ func (r *Repository) ResolveBindings(
 	return result, nil
 }
 
-func credentialFromRow(
-	id uuid.UUID,
-	organizationID uuid.UUID,
-	provider string,
-	name string,
-	createdAt pgtype.Timestamptz,
-	rotatedAt pgtype.Timestamptz,
-	updatedAt pgtype.Timestamptz,
-) Credential {
+func credentialFromRow(row sqlc.AiProviderCredential) Credential {
+	var verifiedAt *time.Time
+	if row.VerifiedAt.Valid {
+		value := pgconv.TimestamptzToTime(row.VerifiedAt)
+		verifiedAt = &value
+	}
 	return Credential{
-		ID:             id,
-		OrganizationID: organizationID,
-		Provider:       provider,
-		Name:           name,
-		CreatedAt:      pgconv.TimestamptzToTime(createdAt),
-		RotatedAt:      pgconv.TimestamptzToTime(rotatedAt),
-		UpdatedAt:      pgconv.TimestamptzToTime(updatedAt),
+		ID:              row.ID,
+		OrganizationID:  row.OrganizationID,
+		Provider:        row.Provider,
+		Name:            row.Name,
+		ConnectionState: row.ConnectionState,
+		VerifiedAt:      verifiedAt,
+		FailureCode:     row.FailureCode,
+		CreatedAt:       pgconv.TimestamptzToTime(row.CreatedAt),
+		RotatedAt:       pgconv.TimestamptzToTime(row.RotatedAt),
+		UpdatedAt:       pgconv.TimestamptzToTime(row.UpdatedAt),
 	}
 }
 

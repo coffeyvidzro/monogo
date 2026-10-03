@@ -20,6 +20,9 @@ type AiProviderCredential struct {
 	CreatedAt        pgtype.Timestamptz `db:"created_at" json:"created_at"`
 	RotatedAt        pgtype.Timestamptz `db:"rotated_at" json:"rotated_at"`
 	UpdatedAt        pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+	ConnectionState  string             `db:"connection_state" json:"connection_state"`
+	VerifiedAt       pgtype.Timestamptz `db:"verified_at" json:"verified_at"`
+	FailureCode      *string            `db:"failure_code" json:"failure_code"`
 }
 
 type AuditEvent struct {

@@ -15,14 +15,24 @@ import (
 )
 
 type Service struct {
-	repo   *Repository
-	cipher *encryption.Cipher
+	repo     *Repository
+	cipher   *encryption.Cipher
+	verifier *Verifier
 }
 
-func NewService(repo *Repository, cipher *encryption.Cipher) *Service {
+func NewService(
+	repo *Repository,
+	cipher *encryption.Cipher,
+	verifiers ...*Verifier,
+) *Service {
+	verifier := NewVerifier(nil)
+	if len(verifiers) > 0 && verifiers[0] != nil {
+		verifier = verifiers[0]
+	}
 	return &Service{
-		repo:   repo,
-		cipher: cipher,
+		repo:     repo,
+		cipher:   cipher,
+		verifier: verifier,
 	}
 }
 
@@ -106,6 +116,93 @@ func (s *Service) ListCredentials(
 	}
 
 	return values, nil
+}
+
+func (s *Service) ListIntegrations(
+	ctx context.Context,
+	organizationID uuid.UUID,
+) ([]Integration, error) {
+	credentials, err := s.ListCredentials(ctx, organizationID)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]Integration, 0, len(credentials))
+	for _, credential := range credentials {
+		voiceAgentIDs, err := s.repo.ListVoiceAgentIDs(
+			ctx,
+			organizationID,
+			credential.ID,
+		)
+		if err != nil {
+			return nil, apperror.NewInternal(
+				"list AI integration usage",
+				err,
+			)
+		}
+		result = append(result, Integration{
+			Credential:    credential,
+			VoiceAgentIDs: voiceAgentIDs,
+		})
+	}
+	return result, nil
+}
+
+func (s *Service) VerifyIntegration(
+	ctx context.Context,
+	organizationID uuid.UUID,
+	id uuid.UUID,
+) (Credential, error) {
+	if organizationID == uuid.Nil || id == uuid.Nil {
+		return Credential{}, apperror.NewBadRequest(
+			"organization and integration ids are required",
+		)
+	}
+	credential, ciphertext, err := s.repo.GetCredentialCiphertext(
+		ctx,
+		organizationID,
+		id,
+	)
+	if err != nil {
+		return Credential{}, dbError(err, "AI integration not found")
+	}
+	if s.cipher == nil {
+		return Credential{}, apperror.NewServiceUnavailable(
+			"AI provider credential encryption is unavailable",
+			nil,
+		)
+	}
+	secret, err := s.cipher.DecryptForScope(
+		credentialScope(organizationID, id),
+		ciphertext,
+	)
+	if err != nil {
+		return Credential{}, apperror.NewInternal(
+			"decrypt AI provider credential",
+			err,
+		)
+	}
+	result, err := s.verifier.Verify(ctx, credential.Provider, secret)
+	if err != nil {
+		return Credential{}, apperror.NewInternal(
+			"verify AI integration",
+			err,
+		)
+	}
+	var failureCode *string
+	if result.FailureCode != "" {
+		failureCode = &result.FailureCode
+	}
+	value, err := s.repo.UpdateVerification(
+		ctx,
+		organizationID,
+		id,
+		result.State,
+		failureCode,
+	)
+	if err != nil {
+		return Credential{}, dbError(err, "update AI integration verification")
+	}
+	return value, nil
 }
 
 func (s *Service) RotateCredential(
