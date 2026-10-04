@@ -20,6 +20,6 @@ VALUES (
     'graceful-drain-acceptance',
     'Y6rtC8BR465xPLxeDGcWiQyGBL6zR5L9JcqWYj8naWE',
     'lm_org_v1smoke0',
-    '["calls:read","calls:write","numbers:read","numbers:write","trunks:read","trunks:write"]'::jsonb
+    '["calls:read","calls:write","numbers:read","numbers:write","trunks:read","trunks:write","voice-agents:read","voice-agents:write"]'::jsonb
 )
 ON CONFLICT (id) DO NOTHING;
