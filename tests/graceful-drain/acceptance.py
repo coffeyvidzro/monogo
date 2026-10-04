@@ -238,6 +238,18 @@ def provision():
         {"cidr": "172.30.0.50/32"},
         (201,),
     )
+    endpoint = api(
+        "POST",
+        f"/v1/trunks/{trunk['id']}/endpoints",
+        {
+            "host": "graceful-drain-carrier",
+            "port": 5060,
+            "transport": "udp",
+            "direction": "bidirectional",
+        },
+        (201,),
+    )
+    STATE["endpoint"] = endpoint
 
     number = api(
         "POST",
@@ -254,74 +266,45 @@ def provision():
     if number.get("trunk_id") != trunk["id"]:
         raise Failure("test DID was not created on the SIP trunk")
 
-    app = api(
+    caller = api(
         "POST",
-        "/v1/voice-applications/",
-        {"name": "Graceful drain ingress", "caller_id": CALLER},
+        "/v1/numbers/",
+        {
+            "number": CALLER,
+            "country_code": "US",
+            "trunk_id": trunk["id"],
+            "voice_enabled": True,
+        },
         (201,),
     )
-    STATE["app"] = app
-    api(
-        "POST",
-        f"/v1/voice-applications/{app['id']}/bindings",
-        {"phone_number_id": number["id"]},
-        (201,),
-    )
+    STATE["caller_number"] = caller
+    if caller.get("trunk_id") != trunk["id"]:
+        raise Failure("caller identity was not created on the SIP trunk")
 
 
 def establish_call():
-    before = {call["id"] for call in api("GET", "/v1/calls/?limit=100")["calls"]}
-
-    originate_uuid = str(uuid.uuid4())
-    originate_command = (
-        "originate "
-        f"{{origination_uuid={originate_uuid},origination_caller_id_number={CALLER},originate_timeout=15}}"
-        f"sofia/internal/{DID}@opensips:5060 &park()"
+    call = api(
+        "POST",
+        "/v1/calls/",
+        {
+            "trunk_id": STATE["trunk"]["id"],
+            "from_uri": CALLER,
+            "to_uri": DID,
+        },
+        (201,),
     )
-    originate = subprocess.Popen(
-        fs_args("graceful-drain-carrier", originate_command),
-        text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-    )
-    STATE["originate"] = originate
-    STATE["originate_uuid"] = originate_uuid
-
-    def inbound_call():
-        calls = api("GET", "/v1/calls/?limit=100")["calls"]
-        call = next(
-            (
-                item
-                for item in calls
-                if item["id"] not in before and item.get("direction") == "inbound"
-            ),
-            None,
-        )
-        if call is not None:
-            return call
-
-        if originate.poll() is not None:
-            output, _ = originate.communicate()
-            raise Failure(
-                "carrier originate ended before Leamout created an inbound call "
-                f"(exit={originate.returncode}, uuid={originate_uuid}): {output.strip()!r}"
-            )
-        return None
-
-    call = wait("inbound call record", inbound_call, 30)
     STATE["call"] = call
-    if not call.get("sip_call_id"):
-        raise Failure("inbound call is missing SIP Call-ID attribution")
-
-    # The action endpoint returns an acknowledgement, not a CallResponse.
-    # Poll the persisted call after executing the real FreeSWITCH answer action.
-    api("POST", f"/v1/calls/{call['id']}/answer")
 
     def connected_call():
         current = api("GET", f"/v1/calls/{call['id']}")
-        return current if current.get("state") in ("answered", "active") else None
+        return (
+            current
+            if current.get("sip_call_id")
+            and current.get("state") in ("answered", "active")
+            else None
+        )
 
-    current = wait("answered call state", connected_call, 20)
+    current = wait("answered outbound call state", connected_call, 30)
     STATE["call"] = current
     STATE["channel_id"] = channel_for_call(current)
     if not channel_exists("freeswitch", STATE["channel_id"]):
@@ -407,15 +390,7 @@ def cleanup_call():
     wait("OpenSIPS dialog cleanup", lambda: opensips_dialogs() == 0, 20)
     wait("RTPengine media cleanup", lambda: rtpengine_media_sockets() == 0, 20)
 
-    originate = STATE.get("originate")
-    if originate is not None and originate.poll() is None:
-        try:
-            originate.communicate(timeout=5)
-        except subprocess.TimeoutExpired:
-            originate.terminate()
-            originate.communicate(timeout=5)
-
-    print("PASS call cleanup released SIP, application, and media state")
+    print("PASS call cleanup released SIP and media state")
 
 
 def main():
