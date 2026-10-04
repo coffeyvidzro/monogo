@@ -219,7 +219,6 @@ services:
     restart: unless-stopped
     stop_grace_period: 30s
     environment:
-      OPENSIPS_ADVERTISED_ADDRESS: ${OPENSIPS_ADVERTISED_ADDRESS:-${PUBLIC_IP:?PUBLIC_IP is required}}
       OPENSIPS_DATABASE_URL: postgres://leamout:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@postgres:5432/leamout
     volumes:
       - /etc/leamout/certs/fullchain.pem:/etc/opensips/tls/fullchain.pem:ro
