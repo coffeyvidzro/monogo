@@ -2,22 +2,23 @@
 set -eu
 
 config=${OPENSIPS_CONFIG:-/etc/opensips/opensips.cfg}
-sip_domain=${SIP_DOMAIN:-sip.leamout.com}
+advertised_address=${OPENSIPS_ADVERTISED_ADDRESS:?OPENSIPS_ADVERTISED_ADDRESS must be set}
 : "${OPENSIPS_DATABASE_URL:?OPENSIPS_DATABASE_URL must be set}"
 
-# The public SIP hostname is deployment configuration and is provided to the
-# Cloud image at runtime.
+# OpenSIPS advertises the address of this deployment. It is routing
+# infrastructure for customer-provided SIP trunks, not a Leamout-owned SIP
+# hostname or managed carrier edge.
 tmp=$(mktemp)
-awk -v domain="$sip_domain" '
+awk -v address="$advertised_address" '
   BEGIN { replaced = 0 }
 
   /^[[:space:]]*#?[[:space:]]*advertised_address[[:space:]]*=/ {
     if (!replaced) {
-      print "advertised_address = \"" domain "\""
-      print "alias = udp:" domain ":5060"
-      print "alias = tcp:" domain ":5060"
-      print "alias = tls:" domain ":5061"
-      print "alias = wss:" domain ":5062"
+      print "advertised_address = \"" address "\""
+      print "alias = udp:" address ":5060"
+      print "alias = tcp:" address ":5060"
+      print "alias = tls:" address ":5061"
+      print "alias = wss:" address ":5062"
       replaced = 1
     }
     next
@@ -42,7 +43,8 @@ cat "$tmp" > "$config"
 rm -f "$tmp"
 
 # Keep database credentials in deployment configuration instead of baking them
-# into the image. Both modules must use the same Cloud database.
+# into the image. Routing queries and digest authentication use the same
+# deployment database.
 tmp=$(mktemp)
 awk -v url="$OPENSIPS_DATABASE_URL" '
   /^modparam\("sqlops", "db_url",/ {
