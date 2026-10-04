@@ -89,6 +89,17 @@ class Handler(BaseHTTPRequestHandler):
     def log_message(self, fmt, *args):
         return
 
+    def send_json(self, status, value):
+        body = json.dumps(value).encode()
+        self.send_response(status)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def authorized(self):
+        return self.headers.get("Authorization") == "Bearer tenant-provider-test-token"
+
     def do_GET(self):
         if self.path == "/healthz":
             body = b"ok"
@@ -109,6 +120,24 @@ class Handler(BaseHTTPRequestHandler):
             self.wfile.write(body)
             return
 
+        if self.path == "/v1/models":
+            if not self.authorized():
+                self.send_json(401, {"error": {"message": "invalid API key"}})
+                return
+            self.send_json(
+                200,
+                {
+                    "object": "list",
+                    "data": [
+                        {
+                            "id": "gpt-realtime",
+                            "object": "model",
+                        }
+                    ],
+                },
+            )
+            return
+
         if not self.path.startswith("/v1/realtime"):
             self.send_error(404)
             return
@@ -116,7 +145,7 @@ class Handler(BaseHTTPRequestHandler):
         if self.headers.get("Upgrade", "").lower() != "websocket":
             self.send_error(400)
             return
-        if self.headers.get("Authorization") != "Bearer tenant-provider-test-token":
+        if not self.authorized():
             self.send_error(401)
             return
 
