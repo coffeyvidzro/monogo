@@ -164,7 +164,7 @@ def setup_carrier():
     )
 
 
-def setup_voice_application():
+def setup_numbers():
     number = api(
         "POST", "/v1/numbers/",
         {
@@ -175,7 +175,8 @@ def setup_voice_application():
         },
         expected={201},
     )[1]
-    api(
+    STATE["number_id"] = number["id"]
+    caller = api(
         "POST", "/v1/numbers/",
         {
             "number": CALLER,
@@ -184,19 +185,12 @@ def setup_voice_application():
             "voice_enabled": True,
         },
         expected={201},
-    )
-    application = api(
-        "POST", "/v1/voice-applications/",
-        {"name": "voice-agent-v1", "caller_id": CALLER},
-        expected={201},
     )[1]
-    STATE["application_id"] = application["id"]
-    api(
-        "POST",
-        f"/v1/voice-applications/{application['id']}/bindings",
-        {"phone_number_id": number["id"]},
-        expected={201},
-    )
+    STATE["caller_number_id"] = caller["id"]
+    if number.get("trunk_id") != STATE["trunk_id"]:
+        raise AcceptanceError("Voice Agent DID was not created on the SIP trunk")
+    if caller.get("trunk_id") != STATE["trunk_id"]:
+        raise AcceptanceError("Voice Agent caller identity was not created on the SIP trunk")
 
 
 def setup_voice_agent():
@@ -235,22 +229,13 @@ def setup_voice_agent():
             "provider": "openai",
             "credential_id": provider_credential["id"],
             "config": {
-                "endpoint": "wss://voice-agent-v1-openai:8444/v1/realtime"
+                "endpoint": "wss://voice-agent-v1-openai/v1/realtime"
             },
         },
         expected={200},
     )[1]
     if provider_binding["credential_id"] != provider_credential["id"]:
         raise AcceptanceError("Voice Agent provider binding was not persisted")
-
-    binding = api(
-        "POST",
-        f"/v1/voice-agents/{agent['id']}/bindings",
-        {"voice_application_id": STATE["application_id"]},
-        expected={201},
-    )[1]
-    if binding["voice_application_id"] != STATE["application_id"]:
-        raise AcceptanceError("Voice Agent binding was not persisted")
 
     webhook_tool = api(
         "POST",
@@ -307,12 +292,50 @@ def setup_voice_agent():
     )[1]
     STATE["tool_id"] = builtin["id"]
 
+    verification = api(
+        "POST",
+        f"/v1/ai-integrations/{provider_credential['id']}/verify",
+        expected={200},
+    )[1]
+    if verification.get("connection_state") != "ready":
+        raise AcceptanceError(
+            f"OpenAI integration verification state = {verification.get('connection_state')!r}"
+        )
+
+    readiness = api(
+        "GET",
+        f"/v1/voice-agents/{agent['id']}/readiness",
+        expected={200},
+    )[1]
+    if not readiness.get("ready"):
+        raise AcceptanceError(
+            f"Voice Agent readiness failed: {json.dumps(readiness.get('issues') or [])}"
+        )
+
+    activated = api(
+        "POST",
+        f"/v1/voice-agents/{agent['id']}/activate",
+        expected={200},
+    )[1]
+    if activated.get("active_revision") is None:
+        raise AcceptanceError("Voice Agent activation did not persist an active revision")
+    STATE["active_revision"] = activated["active_revision"]
+
+    binding = api(
+        "POST",
+        f"/v1/voice-agents/{agent['id']}/bindings",
+        {"phone_number_id": STATE["number_id"]},
+        expected={201},
+    )[1]
+    if binding["phone_number_id"] != STATE["number_id"]:
+        raise AcceptanceError("Voice Agent phone-number binding was not persisted")
+
 
 def originate_call():
     call = api(
         "POST", "/v1/calls/",
         {
-            "application_id": STATE["application_id"],
+            "voice_agent_id": STATE["agent_id"],
             "trunk_id": STATE["trunk_id"],
             "from_uri": CALLER,
             "to_uri": DID,
@@ -320,6 +343,8 @@ def originate_call():
         expected={201},
     )[1]
     STATE["call_id"] = call["id"]
+    if call.get("voice_agent_id") != STATE["agent_id"]:
+        raise AcceptanceError("outbound call was not attributed to the Voice Agent")
 
     def answered():
         current = get_call(call["id"])
@@ -372,6 +397,15 @@ def wait_voice_agent_session():
     )
     if count != "1":
         raise AcceptanceError(f"Voice Agent session count = {count}, want 1")
+
+    revision = psql(
+        "SELECT configuration_revision::text FROM voice_agent_sessions "
+        f"WHERE id='{session_id}'"
+    )
+    if revision != str(STATE["active_revision"]):
+        raise AcceptanceError(
+            f"session revision = {revision!r}, want active revision {STATE['active_revision']}"
+        )
 
     marker = fs_cli(
         "freeswitch",
@@ -437,6 +471,8 @@ def verify_provider_credential_isolation():
     )
     if "secret" in current:
         raise AcceptanceError("provider credential secret leaked from list API")
+    if current.get("connection_state") != "ready":
+        raise AcceptanceError("verified provider credential did not remain ready")
 
     ciphertext = psql(
         "SELECT secret_ciphertext FROM ai_provider_credentials "
@@ -579,6 +615,7 @@ def verify_audio_roundtrip():
         f"audio_fork={json.dumps(fork, sort_keys=True)}"
     )
 
+
 def verify_durable_realtime_history():
     def tool_execution():
         row = psql(
@@ -677,14 +714,14 @@ def hangup_and_verify_completion():
 def main():
     setup_carrier()
     print("PASS 01 SIP trunk configured")
-    setup_voice_application()
-    print("PASS 02 voice application and numbers configured")
+    setup_numbers()
+    print("PASS 02 BYOC DID and caller identity configured")
     setup_voice_agent()
-    print("PASS 03 Voice Agent binding and tool secret lifecycle verified")
+    print("PASS 03 provider verified, Voice Agent activated, DID bound, and tool secrets verified")
     originate_call()
-    print("PASS 04 outbound call reached answered state")
+    print("PASS 04 outbound Voice Agent call reached answered state")
     wait_voice_agent_session()
-    print("PASS 05 one durable Voice Agent session attached to FreeSWITCH")
+    print("PASS 05 active Voice Agent revision attached as one durable session")
     verify_media_placement()
     print("PASS 06 Redis placement assigned session ownership to a healthy media node")
     verify_provider_session()
