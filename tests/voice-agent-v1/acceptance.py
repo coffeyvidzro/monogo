@@ -228,9 +228,7 @@ def setup_voice_agent():
         {
             "provider": "openai",
             "credential_id": provider_credential["id"],
-            "config": {
-                "endpoint": "wss://voice-agent-v1-openai/v1/realtime"
-            },
+            "config": {},
         },
         expected={200},
     )[1]
