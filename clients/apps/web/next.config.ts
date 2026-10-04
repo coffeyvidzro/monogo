@@ -24,6 +24,25 @@ const nextConfig: NextConfig = {
       },
     ];
   },
+  async redirects() {
+    return [
+      {
+        source: "/llms.txt",
+        destination: "https://docs.leamout.com/llms.txt",
+        permanent: true,
+      },
+      {
+        source: "/llms-full.txt",
+        destination: "https://docs.leamout.com/llms-full.txt",
+        permanent: true,
+      },
+      {
+        source: "/docs/:path*",
+        destination: "https://docs.leamout.com/:path*",
+        permanent: true,
+      },
+    ];
+  },
 };
 
 export default nextConfig;
