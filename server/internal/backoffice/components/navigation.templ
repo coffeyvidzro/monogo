@@ -1,0 +1,31 @@
+package components
+
+templ Navigation(active string) {
+	<div class="drawer-side">
+		<label for="backoffice-drawer" aria-label="Close navigation" class="drawer-overlay"></label>
+		<aside class="min-h-full w-72 border-r border-base-300 bg-base-100 p-4">
+			<div class="px-4 py-4 text-lg font-bold">Leamout</div>
+			<ul class="menu w-full gap-1">
+				@NavigationItem("Dashboard", "/", "dashboard", active)
+				<li><span class="menu-title">Customers</span></li>
+				@NavigationItem("Organizations", "/organizations", "organizations", active)
+				@NavigationItem("Users", "/users", "users", active)
+				<li><span class="menu-title">Telecom</span></li>
+				@NavigationItem("Calls", "/calls", "calls", active)
+				@NavigationItem("Phone Numbers", "/numbers", "numbers", active)
+				@NavigationItem("SIP Trunks", "/trunks", "trunks", active)
+				@NavigationItem("Voice Applications", "/voice-applications", "voiceapplications", active)
+				@NavigationItem("Recordings", "/recordings", "recordings", active)
+				<li><span class="menu-title">Carriers</span></li>
+				@NavigationItem("Managed Providers", "/providers", "providers", active)
+				@NavigationItem("Provider CDRs", "/provider-cdrs", "providercdrs", active)
+				<li><span class="menu-title">Commercial</span></li>
+				@NavigationItem("Commercial", "/commercial", "commercial", active)
+			</ul>
+		</aside>
+	</div>
+}
+
+templ NavigationItem(label string, href string, name string, active string) {
+	<li><a href={ templ.SafeURL(href) } class={ templ.KV("menu-active", name == active) }>{ label }</a></li>
+}

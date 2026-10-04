@@ -1,0 +1,63 @@
+package components
+
+type ResourceListProps struct {
+	Title       string
+	Eyebrow     string
+	Description string
+	Active      string
+	Headers     []string
+	Rows        [][]string
+	Links       []TableCellLink
+}
+
+type ResourceField struct{ Label, Value string }
+type ResourceSection struct {
+	Title  string
+	Fields []ResourceField
+}
+type ResourceDetailProps struct {
+	Title, Eyebrow, Active, BackLabel, BackHref, ID, Status string
+	Stats                                                   []ResourceField
+	Sections                                                []ResourceSection
+}
+
+templ ResourceListPage(props ResourceListProps) {
+	@Layout(props.Title, props.Active, ResourceListContent(props))
+}
+
+templ ResourceListContent(props ResourceListProps) {
+	<div class="mb-6"><p class="text-sm font-semibold uppercase tracking-wider text-base-content/60">{ props.Eyebrow }</p><h1 class="mt-2 text-3xl font-bold">{ props.Title }</h1><p class="mt-2 text-base-content/70">{ props.Description }</p></div>
+	if len(props.Rows) == 0 {
+		<div class="alert"><span>No { props.Title } found.</span></div>
+	} else {
+		@TableWithLinks(props.Headers, props.Rows, props.Links)
+	}
+}
+
+templ ResourceDetailPage(props ResourceDetailProps) {
+	@Layout(props.Title, props.Active, ResourceDetailContent(props))
+}
+
+templ ResourceDetailContent(props ResourceDetailProps) {
+	@Breadcrumbs(BreadcrumbsProps{{Label: props.BackLabel, Attrs: templ.Attributes{"href": props.BackHref}}, {Label: props.Title}})
+	<div class="mt-2 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between"><div><p class="text-sm font-semibold uppercase tracking-wider text-base-content/60">{ props.Eyebrow }</p><h1 class="mt-2 text-3xl font-bold">{ props.Title }</h1><p class="mt-2 font-mono text-xs text-base-content/60">{ props.ID }</p></div><span class="badge badge-outline badge-lg">{ props.Status }</span></div>
+	if len(props.Stats) > 0 {
+		<div class="stats stats-vertical lg:stats-horizontal mt-6 w-full border border-base-300 bg-base-100 shadow-sm">
+			for _, stat := range props.Stats {
+				<div class="stat"><div class="stat-title">{ stat.Label }</div><div class="stat-value text-2xl">{ stat.Value }</div></div>
+			}
+		</div>
+	}
+	<div class="mt-6 grid gap-6 xl:grid-cols-2">
+		for _, section := range props.Sections {
+			<section class="rounded-box border border-base-300 bg-base-100 p-6">
+				<h2 class="text-lg font-semibold">{ section.Title }</h2>
+				<dl class="mt-5 grid gap-5 sm:grid-cols-2">
+					for _, field := range section.Fields {
+						<div><dt class="text-sm text-base-content/60">{ field.Label }</dt><dd class="mt-1 break-all font-medium">{ field.Value }</dd></div>
+					}
+				</dl>
+			</section>
+		}
+	</div>
+}

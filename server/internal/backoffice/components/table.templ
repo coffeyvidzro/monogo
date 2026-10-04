@@ -1,0 +1,54 @@
+package components
+
+type TableCellLink struct {
+	Row    int
+	Column int
+	Href   string
+	Class  string
+}
+
+templ Table(headers []string, rows [][]string) {
+	@table(headers, rows, nil)
+}
+
+templ TableWithLinks(headers []string, rows [][]string, links []TableCellLink) {
+	@table(headers, rows, links)
+}
+
+templ table(headers []string, rows [][]string, links []TableCellLink) {
+	<div class="overflow-x-auto rounded-box border border-base-300 bg-base-100">
+		<table class="table">
+			<thead>
+				<tr>
+					for _, header := range headers {
+						<th>{ header }</th>
+					}
+				</tr>
+			</thead>
+			<tbody>
+				for rowIndex, row := range rows {
+					<tr>
+						for columnIndex, cell := range row {
+							<td>
+								if link, ok := tableCellLink(links, rowIndex, columnIndex); ok {
+									<a class={ link.Class } href={ templ.SafeURL(link.Href) }>{ cell }</a>
+								} else {
+									{ cell }
+								}
+							</td>
+						}
+					</tr>
+				}
+			</tbody>
+		</table>
+	</div>
+}
+
+func tableCellLink(links []TableCellLink, row int, column int) (TableCellLink, bool) {
+	for _, link := range links {
+		if link.Row == row && link.Column == column {
+			return link, true
+		}
+	}
+	return TableCellLink{}, false
+}
