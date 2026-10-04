@@ -3,9 +3,6 @@ services:
     ports:
       - "127.0.0.1:8080:8080"
   opensips:
-    environment:
-      # In-dialog ACK/BYE must route back to this container from both SIP peers.
-      OPENSIPS_ADVERTISED_ADDRESS: opensips
     volumes:
       - ${BYOC_V1_CERT_DIR:?BYOC_V1_CERT_DIR is required}/fullchain.pem:/etc/opensips/tls/fullchain.pem:ro
       - ${BYOC_V1_CERT_DIR:?BYOC_V1_CERT_DIR is required}/privkey.pem:/etc/opensips/tls/privkey.pem:ro
