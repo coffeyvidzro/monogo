@@ -1,5 +1,9 @@
 services:
   server:
+    environment:
+      SSL_CERT_FILE: /voice-agent-v1-certs/ca.crt
+    volumes:
+      - ${VOICE_AGENT_V1_CERT_DIR:?VOICE_AGENT_V1_CERT_DIR is required}/ca.crt:/voice-agent-v1-certs/ca.crt:ro
     ports:
       - "127.0.0.1:8080:8080"
 
@@ -46,20 +50,23 @@ services:
       - --key
       - /certs/openai.key
       - --port
-      - "8444"
+      - "443"
     volumes:
       - ${VOICE_AGENT_V1_SUITE_DIR:?VOICE_AGENT_V1_SUITE_DIR is required}/fake_openai.py:/app/fake_openai.py:ro
       - ${VOICE_AGENT_V1_CERT_DIR:?VOICE_AGENT_V1_CERT_DIR is required}/ca.crt:/certs/ca.crt:ro
       - ${VOICE_AGENT_V1_CERT_DIR:?VOICE_AGENT_V1_CERT_DIR is required}/openai.crt:/certs/openai.crt:ro
       - ${VOICE_AGENT_V1_CERT_DIR:?VOICE_AGENT_V1_CERT_DIR is required}/openai.key:/certs/openai.key:ro
     ports:
-      - "18444:8444"
+      - "18444:443"
     healthcheck:
-      test: ["CMD", "python", "-c", "import socket; s=socket.create_connection(('127.0.0.1',8444),2); s.close()"]
+      test: ["CMD", "python", "-c", "import socket; s=socket.create_connection(('127.0.0.1',443),2); s.close()"]
       interval: 2s
       timeout: 2s
       retries: 30
-    networks: [control]
+    networks:
+      control:
+        aliases:
+          - api.openai.com
 
 networks:
   signaling:
