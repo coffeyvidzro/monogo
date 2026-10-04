@@ -9,7 +9,7 @@ VALUES (
     'byoc-v1-acceptance',
     'Y6rtC8BR465xPLxeDGcWiQyGBL6zR5L9JcqWYj8naWE',
     'lm_org_v1smoke0',
-    '["calls:read","calls:write","carriers:read","carriers:write","numbers:read","numbers:write","trunks:read","trunks:write","voice-applications:read","voice-applications:write"]'::jsonb
+    '["calls:read","calls:write","numbers:read","numbers:write","trunks:read","trunks:write"]'::jsonb
 )
 ON CONFLICT (id) DO NOTHING;
 
@@ -24,11 +24,6 @@ VALUES (
     'byoc-v1-acceptance-tenant-b',
     'PsluPk0pxyRogrUeTi6j2Roc2WZi3zO_ac2M9Agd-ps',
     'lm_org_v1smoke1',
-    '["calls:read","calls:write","carriers:read","carriers:write","numbers:read","numbers:write","trunks:read","trunks:write","voice-applications:read","voice-applications:write"]'::jsonb
+    '["calls:read","calls:write","numbers:read","numbers:write","trunks:read","trunks:write"]'::jsonb
 )
 ON CONFLICT (id) DO NOTHING;
-
-
-
-
-
