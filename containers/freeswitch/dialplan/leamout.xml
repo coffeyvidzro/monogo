@@ -8,12 +8,12 @@
     </extension>
 
     <!-- OpenSIPS has already authenticated the carrier source and resolved the
-         DID to a trusted voice application. Keep the call unanswered and park
-         it so the Leamout ESL consumer owns its lifecycle and the public call
+         DID to a trusted Voice Agent. Keep the call unanswered and park it so
+         the Leamout ESL consumer owns its lifecycle and the public call
          controls decide whether to answer, reject, or execute media actions. -->
-    <extension name="inbound-voice-application">
-      <condition field="${sip_h_X-Leamout-Voice-Application-ID}" expression="^.+$">
-        <action application="log" data="NOTICE Leamout parking inbound call application=${sip_h_X-Leamout-Voice-Application-ID} did=${destination_number}"/>
+    <extension name="inbound-voice-agent">
+      <condition field="${sip_h_X-Leamout-Voice-Agent-ID}" expression="^.+$">
+        <action application="log" data="NOTICE Leamout parking inbound call voice_agent=${sip_h_X-Leamout-Voice-Agent-ID} did=${destination_number}"/>
         <action application="ring_ready"/>
         <action application="park"/>
       </condition>
