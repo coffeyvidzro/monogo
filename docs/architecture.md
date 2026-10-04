@@ -19,7 +19,7 @@ Leamout should:
 - keep provider integrations behind provider-neutral contracts;
 - support both composable and integrated realtime AI engines;
 - make tool execution explicit, authorized, observable, and cancellable;
-- support Self-Hosted and Leamout Cloud deployments without changing the
+- support both Self-Hosted and Leamout Cloud deployments without changing the
   execution model;
 - keep durable control-plane state separate from active per-session runtime
   state;
@@ -32,11 +32,11 @@ Leamout has three primary planes.
 
 ### 1. Telephony Runtime
 
-The Telephony Runtime owns SIP signaling, call execution, RTP anchoring, and
-integration with the realtime media process.
+The Telephony Runtime owns SIP signaling, database-backed SIP routing, call
+execution, RTP anchoring, and integration with the realtime media process.
 
 ```text
-Customer carrier / PBX / SBC
+customer carrier / PBX / SBC
              |
              | SIP
              v
@@ -56,7 +56,7 @@ Customer carrier / PBX / SBC
 Responsibilities:
 
 - SIP ingress and egress;
-- authentication and routing;
+- authentication and routing using customer-owned trunk configuration;
 - call establishment and teardown;
 - answer, bridge, transfer, hold, playback, DTMF, and recording;
 - codec and media negotiation;
@@ -65,10 +65,14 @@ Responsibilities:
 
 Component roles:
 
-- **OpenSIPS** is the SIP edge and routing layer.
+- **OpenSIPS** performs SIP routing, authentication, and policy enforcement
+  against database-backed customer trunk configuration.
 - **FreeSWITCH** is the B2BUA, call-application, and media-control runtime.
 - **RTPengine** is the RTP anchoring and media boundary.
 - **Coturn** provides STUN/TURN for WebRTC scenarios that require ICE relay.
+
+OpenSIPS is not a Leamout-managed carrier or shared SIP network. It is part of
+the telephony runtime of the deployment in which Leamout is running.
 
 Coturn is not a required hop for normal SIP trunk traffic.
 
@@ -77,7 +81,7 @@ Coturn is not a required hop for normal SIP trunk traffic.
 Leamout models the technical SIP connection rather than the commercial carrier
 relationship. A trunk is the tenant-owned connectivity root and contains its
 authentication policy, source CIDRs, codecs, admission limits, and one or more
-gateway endpoints.
+remote SIP endpoints.
 
 ```text
 SIP Trunk
@@ -85,17 +89,55 @@ SIP Trunk
    +-- authentication / source CIDRs
    +-- codecs / CPS / concurrency
    |
-   +-- gateway endpoint 1
-   +-- gateway endpoint 2
+   +-- remote endpoint 1
+   +-- remote endpoint 2
    +-- ...
 ```
 
-The peer on the other side may be a carrier, enterprise SBC, PBX, or another
-SIP platform. Provider identity is not a separate runtime domain object.
+The remote endpoint is supplied by the customer or the customer's carrier,
+PBX, SBC, or SIP platform. Leamout stores and resolves it from PostgreSQL.
+
+For example:
+
+```text
+mytrunk.pstn.twilio.com:5061
+sip.provider.example:5060
+pbx.customer.example:5061
+10.20.30.40:5060
+```
+
+Provider identity is not a separate runtime domain object.
 
 Phone numbers known to Leamout are routing identities attached directly to an
 inbound-capable trunk. Calls are attributed to the selected trunk and, for
-outbound calls, the selected gateway endpoint.
+outbound calls, the selected remote endpoint.
+
+The routing model is:
+
+```text
+Control Plane API
+      |
+      v
+PostgreSQL
+  |
+  +-- trunks
+  +-- trunk_endpoints
+  +-- trunk credentials
+  +-- source networks
+  +-- phone numbers
+      |
+      v
+OpenSIPS validates/routes
+      |
+      v
+FreeSWITCH
+      |
+      v
+customer-provided SIP peer
+```
+
+Leamout does not insert a Leamout-owned carrier endpoint between the runtime and
+that customer-provided peer.
 
 ### 2. Agent Runtime
 
@@ -139,7 +181,7 @@ Responsibilities:
 
 - identity and tenancy;
 - agents and agent configuration;
-- telephony connections;
+- SIP trunks and remote endpoints;
 - routing policy;
 - credentials and secrets references;
 - public API and authorization;
@@ -207,7 +249,7 @@ audio -> speech recognition -> language model -> speech synthesis -> audio
 ```
 
 Turn detection can be supplied by the speech-recognition provider or by an
-optional local detector such as Silero.
+optional local detector.
 
 ### Integrated
 
@@ -345,7 +387,7 @@ Use PostgreSQL for durable product state:
 
 - organizations and users;
 - agent configuration;
-- telephony configuration;
+- SIP trunk configuration and remote endpoints;
 - routing policy;
 - conversation metadata;
 - call records;
@@ -364,6 +406,13 @@ is optional commercial packaging for support, security, governance, deployment
 assistance, SLAs, and contractual requirements on either deployment model. It
 is not a third architecture or separate control plane.
 
+Deployment mode must not change the BYOC boundary. Customers continue to own
+their carrier accounts, SIP peers, phone numbers, and carrier spend.
+
+A hosted deployment may expose its own ingress address as ordinary deployment
+infrastructure, but that does not turn Leamout into a carrier or create a
+Leamout-managed carrier product.
+
 The deployment-neutral architecture can run in environments such as:
 
 - local development;
@@ -372,9 +421,6 @@ The deployment-neutral architecture can run in environments such as:
 - Kubernetes deployments;
 - Leamout-managed cloud infrastructure.
 
-Deployment mode must not change the BYOC boundary: customer carrier
-relationships and carrier spend remain customer-owned.
-
 ## Service boundaries
 
 The expected process boundaries are intentionally small:
@@ -382,7 +428,7 @@ The expected process boundaries are intentionally small:
 - `server` for HTTP control-plane APIs;
 - `worker` for asynchronous work;
 - `media` for the realtime media and agent hot path;
-- OpenSIPS;
+- OpenSIPS for database-backed SIP routing and policy;
 - FreeSWITCH;
 - RTPengine;
 - Coturn when required;
@@ -399,6 +445,7 @@ The current Leamout architecture does not include:
 
 - managed carrier resale;
 - Leamout-owned carrier minutes;
+- a Leamout-owned shared SIP carrier network;
 - retail or wholesale telecom rating;
 - prepaid telecom wallets;
 - carrier payment settlement;

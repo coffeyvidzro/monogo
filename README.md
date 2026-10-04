@@ -41,7 +41,7 @@ Leamout is organized around three explicit runtime boundaries:
 |                       TELEPHONY RUNTIME                          |
 |                                                                  |
 |  OpenSIPS        FreeSWITCH        RTPengine        Coturn        |
-|  SIP edge        Call execution    Media boundary   WebRTC TURN   |
+|  SIP routing     Call execution    Media boundary   WebRTC TURN   |
 +-------------------------------+----------------------------------+
                                 |
                                 v
@@ -111,9 +111,13 @@ Customer carrier / PBX / SBC
     Leamout Agent Runtime
 ```
 
-A SIP trunk is Leamout's technical connectivity primitive. The peer on the
-other side may be a carrier, PBX, SBC, or another SIP platform; provider
-identity is not a separate runtime domain object.
+A SIP trunk is Leamout's technical connectivity primitive. Its remote endpoints,
+authentication, source networks, codecs, and limits are stored in the control
+plane database. OpenSIPS validates and routes against that customer-owned trunk
+configuration; it is not a Leamout-provided carrier or shared SIP service.
+
+The peer may be a carrier, PBX, SBC, or another SIP platform. Provider identity
+is not a separate runtime domain object.
 
 ## Agent runtime
 
@@ -178,12 +182,13 @@ asynchronously after the runtime has acted.
 
 The telephony layer remains a first-class part of the product.
 
-- **OpenSIPS**: SIP edge, authentication, routing, and policy enforcement.
+- **OpenSIPS**: SIP routing, authentication, and policy enforcement using the
+  deployment's database-backed trunk configuration.
 - **FreeSWITCH**: B2BUA, call application, and media-control runtime.
 - **RTPengine**: RTP anchoring and media boundary.
 - **Coturn**: STUN/TURN services when WebRTC connectivity requires them.
 - **SIP trunks**: organization-owned authentication, source CIDRs, codecs,
-  admission limits, and gateway endpoints.
+  admission limits, and remote gateway endpoints.
 - **Phone numbers**: customer-owned voice bindings attached directly to trunks.
 - **Calls and recordings**: programmable voice primitives used by
   the Agent Runtime.
@@ -247,7 +252,7 @@ Customer carrier spend remains outside Leamout.
 - `server`: HTTP control plane and public API.
 - `worker`: asynchronous jobs, event consumers, and background coordination.
 - `media`: low-latency realtime audio and AI-provider orchestration.
-- `opensips`: public SIP edge and routing.
+- `opensips`: SIP routing and policy enforcement for customer-provided trunks.
 - `freeswitch`: call application and media runtime.
 - `rtpengine`: RTP/media boundary.
 - `coturn`: WebRTC STUN/TURN when required.
