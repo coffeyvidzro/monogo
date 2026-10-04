@@ -10,8 +10,6 @@ services:
       - ${VOICE_AGENT_V1_CERT_DIR:?VOICE_AGENT_V1_CERT_DIR is required}/ca.crt:/voice-agent-v1-certs/ca.crt:ro
 
   opensips:
-    environment:
-      OPENSIPS_ADVERTISED_ADDRESS: opensips
     volumes:
       - ${VOICE_AGENT_V1_CERT_DIR:?VOICE_AGENT_V1_CERT_DIR is required}/opensips-fullchain.pem:/etc/opensips/tls/fullchain.pem:ro
       - ${VOICE_AGENT_V1_CERT_DIR:?VOICE_AGENT_V1_CERT_DIR is required}/opensips-privkey.pem:/etc/opensips/tls/privkey.pem:ro
