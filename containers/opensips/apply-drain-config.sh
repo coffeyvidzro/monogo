@@ -12,35 +12,35 @@ if ! grep -Fq 'route(LEAMOUT_DRAIN);' "$config"; then
 ' "$config"
 fi
 
-carrier_dialog_line=$(
+trunk_dialog_line=$(
   awk '
-    /^route\[CARRIER_INGRESS\] \{/ { inside=1 }
+    /^route\[TRUNK_INGRESS\] \{/ { inside=1 }
     inside && /if \(!create_dialog\(\)\)/ { print NR; exit }
   ' "$config"
 )
-carrier_record_line=$(
+trunk_record_line=$(
   awk '
-    /^route\[CARRIER_INGRESS\] \{/ { inside=1 }
+    /^route\[TRUNK_INGRESS\] \{/ { inside=1 }
     inside && /^[[:space:]]*record_route\(\);[[:space:]]*$/ { print NR; exit }
   ' "$config"
 )
 
-[ -n "$carrier_dialog_line" ] || {
-  echo "carrier ingress create_dialog() anchor is missing" >&2
+[ -n "$trunk_dialog_line" ] || {
+  echo "trunk ingress create_dialog() anchor is missing" >&2
   exit 1
 }
-[ -n "$carrier_record_line" ] || {
-  echo "carrier ingress record_route() anchor is missing" >&2
+[ -n "$trunk_record_line" ] || {
+  echo "trunk ingress record_route() anchor is missing" >&2
   exit 1
 }
 
 # The dialog module can only embed its dialog identifier into the route set if
 # Record-Route already exists when create_dialog() runs. Keep this ordering so
 # sequential requests such as BYE match the tracked dialog and release media.
-if [ "$carrier_record_line" -gt "$carrier_dialog_line" ]; then
+if [ "$trunk_record_line" -gt "$trunk_dialog_line" ]; then
   tmp=$(mktemp)
   awk '
-    /^route\[CARRIER_INGRESS\] \{/ { inside=1 }
+    /^route\[TRUNK_INGRESS\] \{/ { inside=1 }
     inside && /if \(!create_dialog\(\)\)/ && !inserted {
       print "    # Establish the route set before dialog creation so OpenSIPS can"
       print "    # attach its dialog identifier for reliable in-dialog BYE matching."
@@ -56,21 +56,21 @@ if [ "$carrier_record_line" -gt "$carrier_dialog_line" ]; then
   rm -f "$tmp"
 fi
 
-carrier_dialog_line=$(
+trunk_dialog_line=$(
   awk '
-    /^route\[CARRIER_INGRESS\] \{/ { inside=1 }
+    /^route\[TRUNK_INGRESS\] \{/ { inside=1 }
     inside && /if \(!create_dialog\(\)\)/ { print NR; exit }
   ' "$config"
 )
-carrier_record_line=$(
+trunk_record_line=$(
   awk '
-    /^route\[CARRIER_INGRESS\] \{/ { inside=1 }
+    /^route\[TRUNK_INGRESS\] \{/ { inside=1 }
     inside && /^[[:space:]]*record_route\(\);[[:space:]]*$/ { print NR; exit }
   ' "$config"
 )
 
-[ "$carrier_record_line" -lt "$carrier_dialog_line" ] || {
-  echo "carrier ingress must record-route before create_dialog()" >&2
+[ "$trunk_record_line" -lt "$trunk_dialog_line" ] || {
+  echo "trunk ingress must record-route before create_dialog()" >&2
   exit 1
 }
 
