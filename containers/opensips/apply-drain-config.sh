@@ -4,12 +4,33 @@ set -eu
 config=${1:-/etc/opensips/opensips.cfg}
 
 if ! grep -Fq 'include_file "drain.cfg"' "$config"; then
+  if ! grep -Fq 'include_file "tls.cfg"' "$config"; then
+    echo "tls include anchor is missing" >&2
+    exit 1
+  fi
   sed -i '/include_file "tls.cfg"/a include_file "drain.cfg"' "$config"
 fi
 
 if ! grep -Fq 'route(LEAMOUT_DRAIN);' "$config"; then
-  sed -i '/^    # REGISTER is authenticated against PostgreSQL/i\    route(LEAMOUT_DRAIN);\
-' "$config"
+  tmp=$(mktemp)
+  if ! awk '
+    /^[[:space:]]*if \(!is_method\("INVITE\|MESSAGE"\)\)/ && !inserted {
+      print "    route(LEAMOUT_DRAIN);"
+      print ""
+      inserted=1
+    }
+    { print }
+    END { if (!inserted) exit 42 }
+  ' "$config" > "$tmp"; then
+    rc=$?
+    rm -f "$tmp"
+    if [ "$rc" -eq 42 ]; then
+      echo "out-of-dialog admission anchor is missing" >&2
+    fi
+    exit "$rc"
+  fi
+  cat "$tmp" > "$config"
+  rm -f "$tmp"
 fi
 
 trunk_dialog_line=$(
@@ -74,5 +95,11 @@ trunk_record_line=$(
   exit 1
 }
 
-grep -Fq 'include_file "drain.cfg"' "$config"
-grep -Fq 'route(LEAMOUT_DRAIN);' "$config"
+grep -Fq 'include_file "drain.cfg"' "$config" || {
+  echo "drain config include is missing" >&2
+  exit 1
+}
+grep -Fq 'route(LEAMOUT_DRAIN);' "$config" || {
+  echo "drain admission hook is missing" >&2
+  exit 1
+}
