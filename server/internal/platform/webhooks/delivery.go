@@ -26,7 +26,7 @@ type HTTPSender struct {
 
 func NewHTTPSender() *HTTPSender {
 	return &HTTPSender{client: &http.Client{
-		Timeout: 10 * time.Second,
+		Timeout:   10 * time.Second,
 		Transport: httpclient.PublicTransport(),
 		CheckRedirect: func(_ *http.Request, _ []*http.Request) error {
 			return http.ErrUseLastResponse
@@ -89,7 +89,7 @@ func sendTest(c context.Context, endpoint sqlc.WebhookEndpoint) (int, error) {
 	req.Header.Set("X-Leamout-Timestamp", fmt.Sprintf("%d", now.Unix()))
 	req.Header.Set(signatureHeader, sign(endpoint.SigningSecret, body, now))
 	client := &http.Client{
-		Timeout: 10 * time.Second,
+		Timeout:   10 * time.Second,
 		Transport: httpclient.PublicTransport(),
 		CheckRedirect: func(_ *http.Request, _ []*http.Request) error {
 			return http.ErrUseLastResponse

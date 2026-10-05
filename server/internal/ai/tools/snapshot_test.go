@@ -17,7 +17,10 @@ func TestToolSnapshotPinsIdentityAndExecutableConfiguration(t *testing.T) {
 	if tool.ID != id || tool.EndpointUrl == nil || *tool.EndpointUrl != "https://original.example/tool" || tool.TimeoutMs != 3000 || !json.Valid(tool.Parameters) {
 		t.Fatalf("unexpected snapshot tool: %+v", tool)
 	}
-	for _, request := range []struct { id uuid.UUID; name string }{
+	for _, request := range []struct {
+		id   uuid.UUID
+		name string
+	}{
 		{uuid.New(), "lookup"}, {id, "replacement"}, {uuid.Nil, "new_tool"},
 	} {
 		if _, err := toolFromSnapshot(value, request.id, request.name); err == nil {

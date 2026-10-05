@@ -11,13 +11,13 @@ import (
 
 func toolFromSnapshot(snapshot []byte, id uuid.UUID, name string) (sqlc.VoiceAgentTool, error) {
 	var definitions []struct {
-		ID uuid.UUID `json:"id"`
-		Name string `json:"name"`
-		Description string `json:"description"`
-		Parameters json.RawMessage `json:"parameters"`
-		Type string `json:"type"`
-		EndpointURL *string `json:"endpoint_url"`
-		TimeoutMS int32 `json:"timeout_ms"`
+		ID          uuid.UUID       `json:"id"`
+		Name        string          `json:"name"`
+		Description string          `json:"description"`
+		Parameters  json.RawMessage `json:"parameters"`
+		Type        string          `json:"type"`
+		EndpointURL *string         `json:"endpoint_url"`
+		TimeoutMS   int32           `json:"timeout_ms"`
 	}
 	if err := json.Unmarshal(snapshot, &definitions); err != nil {
 		return sqlc.VoiceAgentTool{}, apperror.NewForbidden("invalid session tool snapshot")
@@ -29,13 +29,13 @@ func toolFromSnapshot(snapshot []byte, id uuid.UUID, name string) (sqlc.VoiceAge
 				return sqlc.VoiceAgentTool{}, apperror.NewForbidden("session tool snapshot is incomplete; reactivate the agent for new calls")
 			}
 			return sqlc.VoiceAgentTool{
-				ID: tool.ID,
-				Name: tool.Name,
+				ID:          tool.ID,
+				Name:        tool.Name,
 				Description: tool.Description,
-				Parameters: []byte(tool.Parameters),
-				Type: tool.Type,
+				Parameters:  []byte(tool.Parameters),
+				Type:        tool.Type,
 				EndpointUrl: tool.EndpointURL,
-				TimeoutMs: tool.TimeoutMS,
+				TimeoutMs:   tool.TimeoutMS,
 			}, nil
 		}
 	}

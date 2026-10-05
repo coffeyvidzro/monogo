@@ -15,8 +15,8 @@ import (
 
 	"github.com/coffeyvidzro/monogo/internal/database/pgconv"
 	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
-	"github.com/coffeyvidzro/monogo/internal/telephony/calls"
 	"github.com/coffeyvidzro/monogo/internal/security/httpclient"
+	"github.com/coffeyvidzro/monogo/internal/telephony/calls"
 	"github.com/coffeyvidzro/monogo/pkg/apperror"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -125,7 +125,7 @@ func (e *Executor) Execute(ctx context.Context, req ExecuteRequest) (ExecuteResu
 	}
 
 	record, err := e.service.repo.queries.GetVoiceAgentSessionByID(ctx, sqlc.GetVoiceAgentSessionByIDParams{
-		ID: req.SessionID,
+		ID:             req.SessionID,
 		OrganizationID: req.OrganizationID,
 	})
 	if err != nil {

@@ -1,8 +1,8 @@
 package agent
 
 import (
-	"strings"
 	"encoding/json"
+	"strings"
 
 	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
 	"sync"
@@ -149,11 +149,11 @@ func (s *conversationState) assistantTurn(event session.Event) (conversations.Cr
 		turnLatency = &value
 	}
 	metadata, _ := json.Marshal(turnSummary{
-		InterruptionCount: s.interruptionCount,
+		InterruptionCount:      s.interruptionCount,
 		FirstResponseLatencyMS: latencyMilliseconds(s.firstResponseLatency),
 	})
 	return conversations.CreateTurnRequest{
-		Metadata: metadata,
+		Metadata:      metadata,
 		Sequence:      sequence,
 		Role:          "assistant",
 		Content:       text,
@@ -223,7 +223,7 @@ func durationMilliseconds(value time.Duration) int32 {
 
 // Per-turn summary metadata survives process loss without storing model secrets.
 type turnSummary struct {
-	InterruptionCount int32 `json:"interruption_count"`
+	InterruptionCount      int32  `json:"interruption_count"`
 	FirstResponseLatencyMS *int32 `json:"first_response_latency_ms,omitempty"`
 }
 

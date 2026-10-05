@@ -18,7 +18,7 @@ import (
 
 type controlHTTPError struct {
 	status int
-	err error
+	err    error
 }
 
 func (e *controlHTTPError) Error() string {
@@ -265,12 +265,12 @@ func (r *Runtime) executeRealtimeTool(
 	}
 	execution, err := r.orchestrator.ExecuteTool(ctx, tools.ExecuteRequest{
 		OrganizationID: call.OrganizationID,
-		VoiceAgentID: *call.VoiceAgentID,
-		SessionID: sessionID,
-		CallID: call.ID,
-		ToolName: toolCall.Name,
-		ToolCallID: toolCall.ID,
-		Arguments: toolCall.Arguments,
+		VoiceAgentID:   *call.VoiceAgentID,
+		SessionID:      sessionID,
+		CallID:         call.ID,
+		ToolName:       toolCall.Name,
+		ToolCallID:     toolCall.ID,
+		Arguments:      toolCall.Arguments,
 	})
 	if err == nil {
 		result.Name = execution.Name

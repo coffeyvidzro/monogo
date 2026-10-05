@@ -102,4 +102,3 @@ func isCarrierGradeNAT(address netip.Addr) bool {
 	prefix := netip.MustParsePrefix("100.64.0.0/10")
 	return prefix.Contains(address)
 }
-

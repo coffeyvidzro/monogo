@@ -8,8 +8,8 @@ import (
 
 	"golang.org/x/sync/errgroup"
 
-	"github.com/coffeyvidzro/monogo/internal/integrations/freeswitch"
 	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
+	"github.com/coffeyvidzro/monogo/internal/integrations/freeswitch"
 	"github.com/coffeyvidzro/monogo/internal/platform/logging"
 	"github.com/coffeyvidzro/monogo/internal/runtime/calling"
 )
