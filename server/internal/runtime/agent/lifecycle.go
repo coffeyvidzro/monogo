@@ -191,7 +191,7 @@ func (r *Runtime) finish(
 	}
 	summary, sessionID := r.conversationSummary(call.ID)
 	if sessionID == uuid.Nil {
-		record, attached, err := r.orchestrator.AttachCall(ctx, call.OrganizationID, call.ID, *call.VoiceAgentID)
+		record, attached, err := r.orchestrator.ActiveSessionForCall(ctx, call.OrganizationID, call.ID)
 		if err != nil {
 			return err
 		}
@@ -236,7 +236,7 @@ func (r *Runtime) failSession(ctx context.Context, call sqlc.Call, endedAt time.
 	}
 	summary, sessionID := r.conversationSummary(call.ID)
 	if sessionID == uuid.Nil {
-		record, attached, err := r.orchestrator.AttachCall(ctx, call.OrganizationID, call.ID, *call.VoiceAgentID)
+		record, attached, err := r.orchestrator.ActiveSessionForCall(ctx, call.OrganizationID, call.ID)
 		if err != nil {
 			return err
 		}

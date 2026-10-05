@@ -142,6 +142,16 @@ func appErrorCode(err error, code string) bool {
 func (s *Service) ListTurns(ctx context.Context, organizationID, sessionID uuid.UUID) ([]sqlc.VoiceAgentTurn, error) {
 	return s.conversations.ListTurns(ctx, conversations.Identity{
 		OrganizationID: organizationID,
-		SessionID:      sessionID,
+		SessionID: sessionID,
 	})
+}
+
+// ActiveSessionForCall reads existing state without creating a session for a
+// terminal lifecycle event that never attached media.
+func (s *Service) ActiveSessionForCall(ctx context.Context, organizationID, callID uuid.UUID) (sqlc.VoiceAgentSession, bool, error) {
+	active, err := s.conversations.GetActiveByCall(ctx, organizationID, callID)
+	if appErrorCode(err, "NOT_FOUND") {
+		return sqlc.VoiceAgentSession{}, false, nil
+	}
+	return active, err == nil, err
 }

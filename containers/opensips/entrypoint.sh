@@ -23,8 +23,8 @@ esac
 external=$(ip -4 route get 1.1.1.1 | awk '{ for (i = 1; i <= NF; i++) if ($i == "src") { print $(i+1); exit } }')
 tmp=$(mktemp)
 # A wildcard bind accepts packets, but is not a usable SIP routing identity.
-# Bind each global IPv4 interface explicitly; no customer trunk or advertised
-# address environment variable is involved. Preserve deployment-specific sockets.
+# Bind each global IPv4 interface explicitly. Only the default-route socket
+# advertises the public deployment identity; preserve internal/custom sockets.
 addresses=$(ip -4 -o address show scope global | awk '{ split($4, addr, "/"); print addr[1] }')
 if [ -z "$addresses" ]; then
   echo "OpenSIPS requires a global IPv4 interface address" >&2

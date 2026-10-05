@@ -531,3 +531,65 @@ func TestManagerDrainClosesMultipleAttachedSessionsAndRejectsNewWork(t *testing.
 		}
 	}
 }
+
+func TestControlReconnectReplaysOnlyUnansweredToolCalls(t *testing.T) {
+	cfg := validConfig()
+	stream := newFakeStream()
+	manager, err := session.NewManager(1, time.Minute, map[session.Engine]session.Starter{
+		session.EngineEcho: fakeStarter{stream: stream},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := manager.Start(t.Context(), cfg); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = manager.Stop(context.Background(), cfg.ID) })
+	control, err := manager.AttachControl(cfg.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	connection := newFakeConnection(cfg)
+	done := make(chan error, 1)
+	go func() { done <- manager.Attach(t.Context(), connection) }()
+	stream.events <- session.Event{
+		Type: session.EventToolCall,
+		ToolCall: &session.ToolCallEvent{ID: "pending-call", Name: "lookup", Arguments: []byte(`{}`)},
+	}
+	select {
+	case event := <-control.Events():
+		if event.ToolCall == nil || event.ToolCall.ID != "pending-call" {
+			t.Fatal("tool call was not published")
+		}
+	case <-time.After(time.Second):
+		t.Fatal("tool call was not published")
+	}
+	control.Close()
+	reconnected, err := manager.AttachControl(cfg.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case event := <-reconnected.Events():
+		if event.ToolCall == nil || event.ToolCall.ID != "pending-call" {
+			t.Fatal("pending tool call was not replayed")
+		}
+	case <-time.After(time.Second):
+		t.Fatal("pending tool call was not replayed")
+	}
+	result := session.ToolResult{ToolCallID: "pending-call", Name: "lookup", Content: `{}`}
+	if err := reconnected.Command(t.Context(), session.Command{Type: session.CommandToolResult, ToolResult: &result}); err != nil {
+		t.Fatal(err)
+	}
+	reconnected.Close()
+	final, err := manager.AttachControl(cfg.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer final.Close()
+	select {
+	case event := <-final.Events():
+		t.Fatalf("answered tool call replayed: %+v", event)
+	default:
+	}
+}

@@ -47,6 +47,7 @@ func (r *Runtime) resumeControl(ctx context.Context, call sqlc.Call, record sqlc
 // RunRecovery reconnects live calls after worker loss or a control socket failure.
 // It never creates a replacement audio fork for an already attached session.
 func (r *Runtime) RunRecovery(ctx context.Context, queries *sqlc.Queries, channels *calling.ChannelStore) error {
+	defer r.closeControls()
 	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()
 	for {
@@ -68,7 +69,7 @@ func (r *Runtime) recoverCalls(ctx context.Context, queries *sqlc.Queries, chann
 	}
 	var failures []error
 	for _, call := range calls {
-		callCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+		callCtx, cancel := context.WithTimeout(ctx, 10 * time.Second)
 		channelID, err := channels.Get(callCtx, call.ID)
 		if err == nil {
 			err = r.attach(callCtx, call, channelID)
@@ -84,4 +85,16 @@ func (r *Runtime) recoverCalls(ctx context.Context, queries *sqlc.Queries, chann
 		}
 	}
 	return errors.Join(failures...)
+}
+
+func (r *Runtime) closeControls() {
+	r.mu.Lock()
+	controls := make([]*mediaControl, 0, len(r.controls))
+	for _, control := range r.controls {
+		controls = append(controls, control)
+	}
+	r.mu.Unlock()
+	for _, control := range controls {
+		_ = control.Close()
+	}
 }

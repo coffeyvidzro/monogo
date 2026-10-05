@@ -25,6 +25,9 @@ func TestWorkerRestartReattachesExistingControlWithoutRestartingAudio(t *testing
 	if err := control.Close(); err != nil {
 		t.Fatal(err)
 	}
+	if err := first.freeSwitch.Close(); err != nil {
+		t.Fatal(err)
+	}
 	second := newLifecycleRuntime(t, db, media.URL, fs)
 	if err := second.HandleLifecycle(t.Context(), call, event); err != nil {
 		t.Fatal(err)
