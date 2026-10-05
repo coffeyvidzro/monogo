@@ -553,7 +553,7 @@ func TestControlReconnectReplaysOnlyUnansweredToolCalls(t *testing.T) {
 	done := make(chan error, 1)
 	go func() { done <- manager.Attach(t.Context(), connection) }()
 	stream.events <- session.Event{
-		Type: session.EventToolCall,
+		Type:     session.EventToolCall,
 		ToolCall: &session.ToolCallEvent{ID: "pending-call", Name: "lookup", Arguments: []byte(`{}`)},
 	}
 	select {

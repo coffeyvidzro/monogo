@@ -69,7 +69,7 @@ func (r *Runtime) recoverCalls(ctx context.Context, queries *sqlc.Queries, chann
 	}
 	var failures []error
 	for _, call := range calls {
-		callCtx, cancel := context.WithTimeout(ctx, 10 * time.Second)
+		callCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 		channelID, err := channels.Get(callCtx, call.ID)
 		if err == nil {
 			err = r.attach(callCtx, call, channelID)
