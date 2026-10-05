@@ -107,6 +107,61 @@ func TestTranslateFreeSWITCHHangupKeepsCauseAsReason(t *testing.T) {
 	}
 }
 
+func TestTranslateFreeSWITCHHangupOutcome(t *testing.T) {
+	for _, test := range []struct {
+		name     string
+		cause    string
+		answered bool
+		want     LifecycleType
+	}{
+		{
+			name:  "unanswered normal clearing",
+			cause: "NORMAL_CLEARING",
+			want:  LifecycleCancelled,
+		},
+		{
+			name:  "originator cancellation",
+			cause: "ORIGINATOR_CANCEL",
+			want:  LifecycleCancelled,
+		},
+		{
+			name:     "answered normal clearing",
+			cause:    "NORMAL_CLEARING",
+			answered: true,
+			want:     LifecycleCompleted,
+		},
+		{
+			name:  "unanswered busy",
+			cause: "USER_BUSY",
+			want:  LifecycleFailed,
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			headers := map[string]string{
+				"Unique-ID":                uuid.NewString(),
+				"variable_leamout_call_id": uuid.NewString(),
+				"variable_hangup_cause":    test.cause,
+			}
+			if test.answered {
+				headers["variable_answer_epoch"] = "1"
+			}
+			event, err := TranslateFreeSWITCHEvent(freeswitch.Event{
+				Name:    "CHANNEL_HANGUP_COMPLETE",
+				Headers: headers,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if event.Type != test.want {
+				t.Fatalf("type = %q, want %q", event.Type, test.want)
+			}
+			if event.HangupReason == nil || *event.HangupReason != test.cause {
+				t.Fatalf("hangup reason = %v, want %q", event.HangupReason, test.cause)
+			}
+		})
+	}
+}
+
 func TestTranslateInboundFreeSWITCHEvent(t *testing.T) {
 	organizationID := uuid.New()
 	voiceAgentID := uuid.New()

@@ -178,12 +178,12 @@ if [ "$sip_ready" -ne 1 ]; then
     exit 1
 fi
 
-# Verify the effective Record-Route address before originating a call.
-$COMPOSE exec -T opensips grep -Fx \
-    'advertised_address = "opensips"' /etc/opensips/opensips.cfg >/dev/null || {
-    echo "OpenSIPS must advertise the Docker-reachable hostname opensips" >&2
+# Verify that runtime socket expansion removed unusable SIP routing identities.
+if $COMPOSE exec -T opensips grep -Eq \
+    '^socket = [a-z]+:0\.0\.0\.0:' /etc/opensips/opensips.cfg; then
+    echo "OpenSIPS must bind concrete interface addresses for SIP routing" >&2
     exit 1
-}
+fi
 
 # Acceptance-only wire diagnostics. On failure these traces tell us whether a
 # hangup leaves FreeSWITCH, reaches OpenSIPS, or bypasses the proxy entirely.

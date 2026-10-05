@@ -140,7 +140,6 @@ def deploy():
     return "signaling and control stack is running"
 
 
-
 def assert_digest_runtime(secret_name, expected_ha1):
     trunk_id = S["trunk"]["id"]
     stored = psql(
@@ -211,7 +210,7 @@ def trunk():
     return f"trunk {item['id']} routes to endpoint {endpoint['id']}"
 
 
-def number_and_app():
+def number_and_agent():
     number = api(
         "POST",
         "/v1/numbers/",
@@ -242,20 +241,26 @@ def number_and_app():
     if caller.get("trunk_id") != S["trunk"]["id"]:
         raise Failure("caller identity ownership was not assigned at creation")
 
-    app = api(
+    agent = api(
         "POST",
-        "/v1/voice-applications/",
-        {"name": "BYOC ingress", "caller_id": CALLER},
+        "/v1/voice-agents/",
+        {
+            "name": "BYOC ingress route",
+            "engine": "integrated",
+            "instructions": "Route the BYOC acceptance DID.",
+        },
         (201,),
     )
-    S["app"] = app
-    api(
+    S["agent"] = agent
+    binding = api(
         "POST",
-        f"/v1/voice-applications/{app['id']}/bindings",
+        f"/v1/voice-agents/{agent['id']}/bindings",
         {"phone_number_id": number["id"]},
         (201,),
     )
-    return "DID and caller identity ownership plus application binding use public APIs"
+    if binding.get("phone_number_id") != number["id"]:
+        raise Failure("DID Voice Agent binding was not persisted")
+    return "DID and caller ownership plus Voice Agent routing use public APIs"
 
 
 def reject_cross_org_did_ownership():
@@ -288,7 +293,6 @@ def outbound(label):
         "POST",
         "/v1/calls/",
         {
-            "application_id": S["app"]["id"],
             "trunk_id": S["trunk"]["id"],
             "from_uri": CALLER,
             "to_uri": DID,
@@ -444,7 +448,7 @@ def main():
         ("Deploy BYOC stack", deploy),
         ("Activate first outbound digest credential", trunk_and_auth),
         ("Provision trunk endpoint", trunk),
-        ("Assign DID ownership", number_and_app),
+        ("Assign DID routing", number_and_agent),
         ("Reject cross-org DID ownership", reject_cross_org_did_ownership),
         ("Authenticate outbound with first secret", first_authenticated_outbound),
         (

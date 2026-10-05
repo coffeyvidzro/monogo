@@ -299,7 +299,7 @@ def configure_provider():
     return f"trunk {trunk['id']} routes to the synthetic SIP peer"
 
 
-def create_voice_application():
+def create_voice_route():
     _, number = api(
         "POST",
         "/v1/numbers/",
@@ -334,22 +334,26 @@ def create_voice_application():
             "caller identity was not created on the SIP trunk"
         )
 
-    _, application = api(
+    _, agent = api(
         "POST",
-        "/v1/voice-applications/",
-        {"name": "voice-v1-acceptance", "caller_id": CALLER},
+        "/v1/voice-agents/",
+        {
+            "name": "voice-v1-route",
+            "engine": "integrated",
+            "instructions": "Route the Voice v1 acceptance DID.",
+        },
         expected={201},
     )
-    STATE["application_id"] = application["id"]
+    STATE["voice_agent_id"] = agent["id"]
     _, binding = api(
         "POST",
-        f"/v1/voice-applications/{application['id']}/bindings",
+        f"/v1/voice-agents/{agent['id']}/bindings",
         {"phone_number_id": number["id"]},
         expected={201},
     )
     if binding.get("phone_number_id") != number["id"]:
-        raise AcceptanceError("DID binding was not persisted")
-    return f"voice application {application['id']} is bound to {DID}"
+        raise AcceptanceError("DID Voice Agent binding was not persisted")
+    return f"Voice Agent {agent['id']} routes inbound calls for {DID}"
 
 
 def configure_webhook():
@@ -412,19 +416,11 @@ def inbound_call():
     return f"carrier ingress created live inbound call {inbound['id']}"
 
 
-def answer_inbound():
+def hangup_inbound():
     call_id = STATE["inbound_call_id"]
     try:
-        # Call-control POST endpoints acknowledge actions; state changes are
-        # observed asynchronously through FreeSWITCH lifecycle events.
-        api("POST", f"/v1/calls/{call_id}/answer", expected={200})
-        wait_call(
-            call_id,
-            lambda call: call["state"] in {"answered", "active"},
-            "answered inbound call",
-            timeout=30,
-        )
-
+        # This gate validates telephony call control without attaching the AI
+        # runtime. Answered Voice Agent lifecycle is covered by voice-agent-v1.
         api("POST", f"/v1/calls/{call_id}/hangup", expected={200})
         ended = wait_call(
             call_id,
@@ -434,7 +430,7 @@ def answer_inbound():
         )
         STATE["terminal_call_id"] = call_id
         STATE["terminal_state"] = ended["state"]
-        return f"inbound answer and hangup persisted {ended['state']}"
+        return f"inbound hangup persisted {ended['state']}"
     finally:
         carrier_uuid = STATE.get("inbound_carrier_uuid")
         if carrier_uuid:
@@ -446,7 +442,6 @@ def outbound_call():
         "POST",
         "/v1/calls/",
         {
-            "application_id": STATE["application_id"],
             "trunk_id": STATE["trunk_id"],
             "from_uri": CALLER,
             "to_uri": DID,
@@ -579,7 +574,6 @@ def hangup_outbound():
     return f"outbound cleanup persisted {call['state']}"
 
 
-
 def normalized_events():
     required = {
         "call.initiated",
@@ -699,7 +693,7 @@ def main():
         return print_summary() or 1
     if not record(2, "Configure a SIP endpoint/provider", configure_provider):
         return print_summary() or 1
-    if not record(3, "Create a voice application", create_voice_application):
+    if not record(3, "Create Voice Agent DID route", create_voice_route):
         return print_summary() or 1
 
     try:
@@ -710,7 +704,7 @@ def main():
 
     inbound_ok = record(4, "Receive an inbound call", inbound_call)
     if inbound_ok:
-        record(6, "Answer/hang up", answer_inbound)
+        record(6, "Hang up inbound call", hangup_inbound)
 
     if record(5, "Originate an outbound call", outbound_call):
         record(8, "Hold/resume", hold_resume)
@@ -725,7 +719,7 @@ def main():
             if RESULTS.get(6, ("FAIL",))[0] == "PASS":
                 RESULTS[6] = (
                     "FAIL",
-                    "Answer/hang up",
+                    "Hang up inbound call",
                     f"outbound hangup failed: {error}",
                 )
 

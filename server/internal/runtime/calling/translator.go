@@ -205,7 +205,8 @@ func lifecycleEventType(event freeswitch.Event) (LifecycleType, error) {
 		if eventAnswered(event) {
 			return LifecycleCompleted, nil
 		}
-		if strings.EqualFold(strings.TrimSpace(event.Header("Hangup-Cause")), "ORIGINATOR_CANCEL") {
+		cause := strings.ToUpper(strings.TrimSpace(firstNonEmpty(event.Header("Hangup-Cause"), event.Header("variable_hangup_cause"))))
+		if cause == "ORIGINATOR_CANCEL" || cause == "NORMAL_CLEARING" {
 			return LifecycleCancelled, nil
 		}
 		return LifecycleFailed, nil

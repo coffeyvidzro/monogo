@@ -3,6 +3,8 @@ package transport
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -14,6 +16,60 @@ import (
 	"github.com/coffeyvidzro/monogo/internal/media/session"
 	"github.com/google/uuid"
 )
+
+func TestWebSocketConnectionReceivesAudioForkGoodbye(t *testing.T) {
+	for _, test := range []struct {
+		name    string
+		payload string
+		wantEOF bool
+	}{
+		{name: "goodbye", payload: `{"type":"bye"}`, wantEOF: true},
+		{name: "unexpected command", payload: `{"type":"clear"}`},
+		{name: "malformed goodbye", payload: `{"type":"bye"`},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			received := make(chan error, 1)
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				ws, err := websocket.Accept(w, r, nil)
+				if err != nil {
+					received <- err
+					return
+				}
+				defer func() { _ = ws.CloseNow() }()
+				connection := &webSocketConnection{connection: ws}
+				_, err = connection.ReceiveAudio(r.Context())
+				received <- err
+			}))
+			defer server.Close()
+
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+			defer cancel()
+			client, response, err := websocket.Dial(ctx, "ws"+strings.TrimPrefix(server.URL, "http"), nil)
+			if response != nil && response.Body != nil {
+				defer func() { _ = response.Body.Close() }()
+			}
+			if err != nil {
+				t.Fatalf("Dial() error = %v", err)
+			}
+			defer func() { _ = client.CloseNow() }()
+			if err := client.Write(ctx, websocket.MessageText, []byte(test.payload)); err != nil {
+				t.Fatalf("Write() error = %v", err)
+			}
+			select {
+			case err := <-received:
+				if test.wantEOF {
+					if !errors.Is(err, io.EOF) {
+						t.Fatalf("ReceiveAudio() error = %v, want EOF", err)
+					}
+				} else if err == nil || errors.Is(err, io.EOF) {
+					t.Fatalf("ReceiveAudio() error = %v, want protocol error", err)
+				}
+			case <-ctx.Done():
+				t.Fatal("ReceiveAudio() did not return")
+			}
+		})
+	}
+}
 
 func TestWebSocketHandlerAuthenticatesAndEchoesAudio(t *testing.T) {
 	cfg := session.Config{

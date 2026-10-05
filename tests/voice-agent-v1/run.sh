@@ -41,7 +41,9 @@ cleanup() {
         printf '\n%s\n' "=== Voice Agent v1 diagnostics: service logs ==="
         (
             cd "$REPO_ROOT" &&
-                $COMPOSE logs --no-color --tail=300                     server worker media freeswitch opensips rtpengine                     postgres redis nats voice-agent-v1-carrier voice-agent-v1-openai
+                $COMPOSE logs --no-color --tail=300 \
+                    server worker media freeswitch opensips rtpengine \
+                    postgres redis nats voice-agent-v1-carrier voice-agent-v1-openai
         ) || true
     fi
 
@@ -60,17 +62,32 @@ command -v openssl >/dev/null 2>&1 || { echo "openssl is required" >&2; exit 1; 
 command -v python3 >/dev/null 2>&1 || { echo "python3 is required" >&2; exit 1; }
 
 cat >"$CERT_DIR/openai.ext" <<'EOF'
-subjectAltName=DNS:voice-agent-v1-openai,IP:127.0.0.1
+subjectAltName=DNS:voice-agent-v1-openai,DNS:api.openai.com,IP:127.0.0.1
 extendedKeyUsage=serverAuth
 EOF
 
-openssl req -x509 -newkey rsa:2048 -nodes -days 1     -keyout "$CERT_DIR/ca.key"     -out "$CERT_DIR/ca.crt"     -subj "/CN=Leamout Voice Agent v1 Acceptance CA" >/dev/null 2>&1
+openssl req -x509 -newkey rsa:2048 -nodes -days 1 \
+    -keyout "$CERT_DIR/ca.key" \
+    -out "$CERT_DIR/ca.crt" \
+    -subj "/CN=Leamout Voice Agent v1 Acceptance CA" >/dev/null 2>&1
 
-openssl req -newkey rsa:2048 -nodes     -keyout "$CERT_DIR/openai.key"     -out "$CERT_DIR/openai.csr"     -subj "/CN=voice-agent-v1-openai" >/dev/null 2>&1
+openssl req -newkey rsa:2048 -nodes \
+    -keyout "$CERT_DIR/openai.key" \
+    -out "$CERT_DIR/openai.csr" \
+    -subj "/CN=voice-agent-v1-openai" >/dev/null 2>&1
 
-openssl x509 -req     -in "$CERT_DIR/openai.csr"     -CA "$CERT_DIR/ca.crt"     -CAkey "$CERT_DIR/ca.key"     -CAcreateserial -days 1     -out "$CERT_DIR/openai.crt"     -extfile "$CERT_DIR/openai.ext" >/dev/null 2>&1
+openssl x509 -req \
+    -in "$CERT_DIR/openai.csr" \
+    -CA "$CERT_DIR/ca.crt" \
+    -CAkey "$CERT_DIR/ca.key" \
+    -CAcreateserial -days 1 \
+    -out "$CERT_DIR/openai.crt" \
+    -extfile "$CERT_DIR/openai.ext" >/dev/null 2>&1
 
-openssl req -x509 -newkey rsa:2048 -nodes -days 1     -keyout "$CERT_DIR/opensips-privkey.pem"     -out "$CERT_DIR/opensips-fullchain.pem"     -subj '/CN=voice-agent-v1.local' >/dev/null 2>&1
+openssl req -x509 -newkey rsa:2048 -nodes -days 1 \
+    -keyout "$CERT_DIR/opensips-privkey.pem" \
+    -out "$CERT_DIR/opensips-fullchain.pem" \
+    -subj '/CN=voice-agent-v1.local' >/dev/null 2>&1
 cp "$CERT_DIR/opensips-fullchain.pem" "$CERT_DIR/opensips-carrier-ca.pem"
 
 chmod 0644 "$CERT_DIR/ca.crt" "$CERT_DIR/openai.crt" "$CERT_DIR/opensips-fullchain.pem" "$CERT_DIR/opensips-carrier-ca.pem"
@@ -124,7 +141,9 @@ done
 
 printf '%s\n' "Applying migrations..."
 $COMPOSE up --build --no-deps --exit-code-from migrate migrate
-$COMPOSE exec -T postgres     psql -v ON_ERROR_STOP=1 -U leamout -d leamout     <tests/voice-agent-v1/bootstrap.sql >/dev/null
+$COMPOSE exec -T postgres \
+    psql -v ON_ERROR_STOP=1 -U leamout -d leamout \
+    <tests/voice-agent-v1/bootstrap.sql >/dev/null
 
 printf '%s\n' "Starting media, RTPengine, FreeSWITCH, and synthetic carrier..."
 $COMPOSE up -d --build media rtpengine freeswitch voice-agent-v1-carrier

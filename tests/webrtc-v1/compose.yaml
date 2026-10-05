@@ -29,8 +29,6 @@ services:
       - "${WEBRTC_V1_TURN_MIN_PORT:?WEBRTC_V1_TURN_MIN_PORT is required}-${WEBRTC_V1_TURN_MAX_PORT:?WEBRTC_V1_TURN_MAX_PORT is required}:${WEBRTC_V1_TURN_MIN_PORT:?WEBRTC_V1_TURN_MIN_PORT is required}-${WEBRTC_V1_TURN_MAX_PORT:?WEBRTC_V1_TURN_MAX_PORT is required}/udp"
 
   opensips:
-    environment:
-      OPENSIPS_ADVERTISED_ADDRESS: 127.0.0.1
     volumes:
       - ${WEBRTC_V1_CERT_DIR:?WEBRTC_V1_CERT_DIR is required}/opensips-fullchain.pem:/etc/opensips/tls/fullchain.pem:ro
       - ${WEBRTC_V1_CERT_DIR:?WEBRTC_V1_CERT_DIR is required}/opensips-privkey.pem:/etc/opensips/tls/privkey.pem:ro

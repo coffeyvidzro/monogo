@@ -3,7 +3,7 @@ FROM debian:bookworm-slim
 ARG OPENSIPS_VERSION=4.0.1
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends ca-certificates curl openssl \
+    && apt-get install -y --no-install-recommends ca-certificates curl openssl iproute2 \
     && curl -fsSL https://apt.opensips.org/keyring.gpg \
         -o /usr/share/keyrings/opensips.gpg \
     && printf '%s\n' \

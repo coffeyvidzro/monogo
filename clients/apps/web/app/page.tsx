@@ -12,17 +12,12 @@ export default function Home() {
             </div>
 
             <div className="relative mt-6 min-h-[320px]">
-              <div className="mx-auto w-fit rounded-lg border border-border bg-background px-4 py-3 text-center">
-                <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
-                  Your application
-                </p>
-              </div>
-
-              <div className="mx-auto h-10 w-px bg-brand-orange" />
-
               <div className="mx-auto w-fit rounded-lg bg-brand-charcoal px-5 py-3 text-center text-brand-white">
                 <p className="font-heading text-sm font-semibold tracking-[-0.02em]">
                   Leamout
+                </p>
+                <p className="mt-1 font-mono text-[10px] uppercase tracking-[0.12em] text-brand-white/70">
+                  Voice Agent Runtime
                 </p>
               </div>
 
@@ -36,17 +31,31 @@ export default function Home() {
               <div className="grid grid-cols-2 gap-3">
                 <div className="rounded-lg border border-border bg-background px-3 py-4 text-center">
                   <p className="font-mono text-[10px] uppercase tracking-[0.11em] text-muted-foreground">
-                    Your carrier
+                    Your SIP peer
                   </p>
-                  <p className="mt-1 text-xs text-foreground">BYOC</p>
+                  <p className="mt-1 text-xs text-foreground">Carrier · PBX · SBC</p>
+                  <p className="mt-1 font-mono text-[10px] uppercase tracking-[0.11em] text-muted-foreground">
+                    BYOC
+                  </p>
                 </div>
 
                 <div className="rounded-lg border border-border bg-background px-3 py-4 text-center">
                   <p className="font-mono text-[10px] uppercase tracking-[0.11em] text-muted-foreground">
-                    Leamout carrier
+                    Your AI provider
                   </p>
-                  <p className="mt-1 text-xs text-foreground">Managed</p>
+                  <p className="mt-1 text-xs text-foreground">Realtime · STT · LLM · TTS</p>
+                  <p className="mt-1 font-mono text-[10px] uppercase tracking-[0.11em] text-muted-foreground">
+                    BYOAI
+                  </p>
                 </div>
+              </div>
+
+              <div className="mx-auto h-10 w-px bg-brand-orange" />
+
+              <div className="mx-auto w-fit rounded-lg border border-border bg-background px-4 py-3 text-center">
+                <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
+                  Your application
+                </p>
               </div>
             </div>
           </div>
