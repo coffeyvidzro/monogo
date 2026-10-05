@@ -16,6 +16,11 @@ if grep -Fq 'modparam("auth_db", "skip_version_check",' "$config"; then
   auth_db_has_skip=1
 fi
 
+advertised=${OPENSIPS_ADVERTISED_ADDRESS:-}
+case "$advertised" in
+  *[!a-zA-Z0-9.-]*) echo "Invalid SIP advertised address" >&2; exit 1 ;;
+esac
+external=$(ip -4 route get 1.1.1.1 | awk '{ for (i = 1; i <= NF; i++) if ($i == "src") { print $(i+1); exit } }')
 tmp=$(mktemp)
 # A wildcard bind accepts packets, but is not a usable SIP routing identity.
 # Bind each global IPv4 interface explicitly; no customer trunk or advertised
@@ -25,12 +30,16 @@ if [ -z "$addresses" ]; then
   echo "OpenSIPS requires a global IPv4 interface address" >&2
   exit 1
 fi
-awk -v url="$OPENSIPS_DATABASE_URL" -v has_skip="$auth_db_has_skip" -v addresses="$addresses" '
+awk -v url="$OPENSIPS_DATABASE_URL" -v has_skip="$auth_db_has_skip" -v addresses="$addresses" -v advertised="$advertised" -v external="$external" '
   /^socket = (udp|tcp|tls|wss):0\.0\.0\.0:[0-9]+$/ {
     split($3, socket, ":")
     count = split(addresses, ips, "\n")
     for (i = 1; i <= count; i++) {
-      print "socket = " socket[1] ":" ips[i] ":" socket[3]
+      line = "socket = " socket[1] ":" ips[i] ":" socket[3]
+      if (advertised != "" && ips[i] == external) {
+        line = line " as " advertised ":" socket[3]
+      }
+      print line
     }
     next
   }

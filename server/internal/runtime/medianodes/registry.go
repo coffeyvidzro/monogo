@@ -23,6 +23,8 @@ const (
 	leaseTTL       = 45 * time.Second
 )
 
+var ErrOwnerUnavailable = errors.New("media session owner unavailable")
+
 type Node struct {
 	ID         string    `json:"id"`
 	ControlURL string    `json:"control_url"`
@@ -124,7 +126,7 @@ func (r *Registry) Owner(ctx context.Context, sessionID uuid.UUID) (Node, error)
 	}
 	nodeID, err := r.redis.Get(ctx, ownerKey(sessionID))
 	if errors.Is(err, redisv9.Nil) {
-		return Node{}, fmt.Errorf("media session ownership not found")
+		return Node{}, ErrOwnerUnavailable
 	}
 	if err != nil {
 		return Node{}, err
@@ -132,7 +134,7 @@ func (r *Registry) Owner(ctx context.Context, sessionID uuid.UUID) (Node, error)
 	var node Node
 	if err := r.redis.GetJSON(ctx, nodeKey(nodeID), &node); err != nil {
 		if errors.Is(err, redisv9.Nil) {
-			return Node{}, fmt.Errorf("media session owner node is unavailable")
+			return Node{}, ErrOwnerUnavailable
 		}
 		return Node{}, err
 	}

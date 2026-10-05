@@ -16,6 +16,17 @@ import (
 	"github.com/google/uuid"
 )
 
+type controlHTTPError struct {
+	status int
+	err error
+}
+
+func (e *controlHTTPError) Error() string {
+	return fmt.Sprintf("connect media control: HTTP %d: %v", e.status, e.err)
+}
+
+func (e *controlHTTPError) Unwrap() error { return e.err }
+
 type mediaControl struct {
 	connection *websocket.Conn
 	events     chan session.Event
@@ -39,7 +50,7 @@ func (c *mediaClient) OpenControl(ctx context.Context, rawURL string) (*mediaCon
 	}
 	if err != nil {
 		if response != nil {
-			return nil, fmt.Errorf("connect media control: HTTP %d: %w", response.StatusCode, err)
+			return nil, &controlHTTPError{status: response.StatusCode, err: err}
 		}
 		return nil, fmt.Errorf("connect media control: %w", err)
 	}
@@ -113,6 +124,20 @@ func (r *Runtime) registerControl(
 	sessionID uuid.UUID,
 	rawURL string,
 ) error {
+	r.mu.Lock()
+	state := r.states[sessionID]
+	r.mu.Unlock()
+	if state == nil {
+		record, _, err := r.orchestrator.AttachCall(ctx, call.OrganizationID, call.ID, *call.VoiceAgentID)
+		if err != nil {
+			return err
+		}
+		turns, err := r.orchestrator.ListTurns(ctx, call.OrganizationID, sessionID)
+		if err != nil {
+			return err
+		}
+		state = restoreConversationState(record, turns)
+	}
 	control, err := r.media.OpenControl(ctx, rawURL)
 	if err != nil {
 		return err
@@ -126,7 +151,7 @@ func (r *Runtime) registerControl(
 	}
 	r.controls[sessionID] = control
 	if r.states[sessionID] == nil {
-		r.states[sessionID] = newConversationState()
+		r.states[sessionID] = state
 	}
 	r.callSessions[call.ID] = sessionID
 	r.mu.Unlock()
@@ -238,27 +263,18 @@ func (r *Runtime) executeRealtimeTool(
 		ToolCallID: toolCall.ID,
 		Name:       toolCall.Name,
 	}
-	tool, err := r.orchestrator.ResolveToolByName(
-		ctx,
-		call.OrganizationID,
-		*call.VoiceAgentID,
-		toolCall.Name,
-	)
+	execution, err := r.orchestrator.ExecuteTool(ctx, tools.ExecuteRequest{
+		OrganizationID: call.OrganizationID,
+		VoiceAgentID: *call.VoiceAgentID,
+		SessionID: sessionID,
+		CallID: call.ID,
+		ToolName: toolCall.Name,
+		ToolCallID: toolCall.ID,
+		Arguments: toolCall.Arguments,
+	})
 	if err == nil {
-		var execution tools.ExecuteResult
-		execution, err = r.orchestrator.ExecuteTool(ctx, tools.ExecuteRequest{
-			OrganizationID: call.OrganizationID,
-			VoiceAgentID:   *call.VoiceAgentID,
-			SessionID:      sessionID,
-			CallID:         call.ID,
-			ToolID:         tool.ID,
-			ToolCallID:     toolCall.ID,
-			Arguments:      toolCall.Arguments,
-		})
-		if err == nil {
-			result.Name = execution.Name
-			result.Content = string(execution.Body)
-		}
+		result.Name = execution.Name
+		result.Content = string(execution.Body)
 	}
 	if err != nil {
 		result.IsError = true

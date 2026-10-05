@@ -39,6 +39,8 @@ func (r *Runtime) HandleLifecycle(
 }
 
 func (r *Runtime) attach(ctx context.Context, call sqlc.Call, channelID string) error {
+	r.attachMu.Lock()
+	defer r.attachMu.Unlock()
 	if call.VoiceAgentID == nil {
 		return nil
 	}
@@ -67,7 +69,7 @@ func (r *Runtime) attach(ctx context.Context, call sqlc.Call, channelID string) 
 	existing = strings.TrimSpace(existing)
 	if existing != "" && existing != "_undef_" {
 		if existing == record.ID.String() {
-			return nil
+			return r.resumeControl(ctx, call, record)
 		}
 		return fmt.Errorf("FreeSWITCH channel is already attached to Voice Agent session %s", existing)
 	}
@@ -184,7 +186,24 @@ func (r *Runtime) finish(
 	state string,
 	endedAt time.Time,
 ) error {
+	if call.VoiceAgentID == nil {
+		return nil
+	}
 	summary, sessionID := r.conversationSummary(call.ID)
+	if sessionID == uuid.Nil {
+		record, attached, err := r.orchestrator.AttachCall(ctx, call.OrganizationID, call.ID, *call.VoiceAgentID)
+		if err != nil {
+			return err
+		}
+		if attached {
+			turns, err := r.orchestrator.ListTurns(ctx, call.OrganizationID, record.ID)
+			if err != nil {
+				return err
+			}
+			summary = restoreConversationState(record, turns).summary()
+			sessionID = record.ID
+		}
+	}
 	record, completed, err := r.orchestrator.CompleteCallWithSummary(
 		ctx,
 		call.OrganizationID,
@@ -212,7 +231,24 @@ func (r *Runtime) finish(
 }
 
 func (r *Runtime) failSession(ctx context.Context, call sqlc.Call, endedAt time.Time) error {
+	if call.VoiceAgentID == nil {
+		return nil
+	}
 	summary, sessionID := r.conversationSummary(call.ID)
+	if sessionID == uuid.Nil {
+		record, attached, err := r.orchestrator.AttachCall(ctx, call.OrganizationID, call.ID, *call.VoiceAgentID)
+		if err != nil {
+			return err
+		}
+		if attached {
+			turns, err := r.orchestrator.ListTurns(ctx, call.OrganizationID, record.ID)
+			if err != nil {
+				return err
+			}
+			summary = restoreConversationState(record, turns).summary()
+			sessionID = record.ID
+		}
+	}
 	_, _, err := r.orchestrator.CompleteCallWithSummary(
 		ctx,
 		call.OrganizationID,

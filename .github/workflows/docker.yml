@@ -38,6 +38,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7.0.1
 
+      - name: Test SIP edge configuration rendering
+        run: python3 tests/sip-edge/test_entrypoint.py
+
       - name: Validate Docker Compose configuration
         run: docker compose --env-file .env.example -f deploy/compose.yaml config --quiet
 

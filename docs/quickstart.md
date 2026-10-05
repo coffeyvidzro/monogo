@@ -699,3 +699,32 @@ or a Leamout-owned SIP network.
 - [Voice Agent execution plan](voice-agent-execution-plan.md)
 - [Storage](storage.md)
 - [Provider SDK](provider-sdk.md)
+
+### Upgrading the runtime review fixes
+
+Use Docker Compose 2.33.1 or newer: the signaling network must own the default
+route so published SIP ports reach the external listener. Compose passes the
+existing `PUBLIC_IP` to that listener for Via and Record-Route, while internal
+listeners retain their private identities. UDP/TCP, TLS and WSS retain ports
+5060, 5061 and 5062 respectively. Permit bidirectional carrier traffic on those
+published ports and verify ACK, BYE and re-INVITE from outside Docker.
+
+The control network now uses `172.29.0.0/24`, a private subnet. Recreate the
+Compose network during an upgrade; schedule this while calls are drained.
+
+Webhook delivery and webhook tests accept HTTPS destinations on public
+addresses only. Private, loopback, link-local and CGNAT addresses are blocked
+at connection time, and environment proxies are disabled for these requests.
+Private services should be exposed through an authenticated public endpoint
+before configuring a webhook.
+
+Reactivate existing Voice Agents before starting new calls with tools. New
+sessions snapshot the executable tool type, endpoint and timeout as well as
+the exposed definition. Older snapshots lack those fields and fail closed;
+live disable/delete still revokes a tool and signing-secret rotation remains
+immediate. Agent edits do not change an already running session's tool target.
+
+Workers periodically recover control of active Voice Agent calls. Existing
+provider and audio sessions remain in place, unanswered tool calls are replayed,
+and conversation sequence/counters resume from durable turns. A vanished media
+session causes the phone call to terminate instead of remaining silently active.

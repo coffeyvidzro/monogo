@@ -1,5 +1,9 @@
 services:
   server:
+    networks:
+      - control
+      - edge
+      - webhook-public
     ports:
       - "127.0.0.1:8080:8080"
     environment:
@@ -8,12 +12,18 @@ services:
       - ${VOICE_V1_CERT_DIR:?VOICE_V1_CERT_DIR is required}/ca.crt:/voice-v1-certs/ca.crt:ro
 
   worker:
+    networks:
+      - control
+      - edge
+      - webhook-public
     environment:
       SSL_CERT_FILE: /voice-v1-certs/ca.crt
     volumes:
       - ${VOICE_V1_CERT_DIR:?VOICE_V1_CERT_DIR is required}/ca.crt:/voice-v1-certs/ca.crt:ro
 
   opensips:
+    environment:
+      OPENSIPS_ADVERTISED_ADDRESS: ""
     volumes:
       - ${VOICE_V1_CERT_DIR:?VOICE_V1_CERT_DIR is required}/opensips-fullchain.pem:/etc/opensips/tls/fullchain.pem:ro
       - ${VOICE_V1_CERT_DIR:?VOICE_V1_CERT_DIR is required}/opensips-privkey.pem:/etc/opensips/tls/privkey.pem:ro
@@ -64,10 +74,15 @@ services:
     ports:
       - "18443:8443"
     networks:
-      - control
+      webhook-public:
+        ipv4_address: 203.0.113.10
 
 # Acceptance carriers bind to fixed addresses on the signaling network.
 networks:
+  webhook-public:
+    ipam:
+      config:
+        - subnet: 203.0.113.0/24
   signaling:
     ipam:
       config:

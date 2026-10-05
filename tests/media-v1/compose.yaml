@@ -22,7 +22,7 @@ services:
       retries: 30
     networks:
       control:
-        ipv4_address: 172.32.0.30
+        ipv4_address: 172.29.0.30
 
   freeswitch:
     build:
@@ -41,10 +41,10 @@ services:
       start_period: 10s
     networks:
       control:
-        ipv4_address: 172.32.0.20
+        ipv4_address: 172.29.0.20
 
 networks:
   control:
     ipam:
       config:
-        - subnet: 172.32.0.0/24
+        - subnet: 172.29.0.0/24

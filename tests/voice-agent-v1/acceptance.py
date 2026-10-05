@@ -656,6 +656,32 @@ def verify_durable_realtime_history():
         raise AcceptanceError(f"unexpected assistant turn: {parsed[2]}")
 
 
+def verify_worker_restart_during_live_call():
+    before = psql(
+        "SELECT COALESCE(MAX(sequence), 0) FROM voice_agent_turns "
+        f"WHERE session_id='{STATE['session_id']}'"
+    )
+    compose("restart", "worker")
+    wait_for(
+        "worker recovery readiness",
+        lambda: compose("exec", "-T", "worker", "wget", "-qO-", "http://127.0.0.1:8081/readyz", check=False) == "ready",
+    )
+    cert_dir = os.environ["VOICE_AGENT_V1_CERT_DIR"]
+    context = ssl.create_default_context(cafile=os.path.join(cert_dir, "ca.crt"))
+    with urllib.request.urlopen("https://127.0.0.1:18444/next-turn", context=context, timeout=5) as response:
+        response.read()
+    wait_for("tool result after live worker restart", lambda: fake_openai_state().get("tool_results", 0) == 2)
+    wait_for("assistant turn after live worker restart", lambda: psql(
+        "SELECT COUNT(*) FROM voice_agent_turns "
+        f"WHERE session_id='{STATE['session_id']}' AND role='assistant' AND sequence>{int(before)}"
+    ) == "1")
+    if psql(f"SELECT COUNT(*) FROM voice_agent_sessions WHERE call_id='{STATE['call_id']}'") != "1":
+        raise AcceptanceError("worker restart created another durable session")
+    if fake_openai_state().get("session_updates") != 1:
+        raise AcceptanceError("worker restart replaced the live provider session")
+    verify_live_media_attachment()
+
+
 def hangup_and_verify_completion():
     api("POST", f"/v1/calls/{STATE['call_id']}/hangup", expected={200})
 
@@ -686,8 +712,8 @@ def hangup_and_verify_completion():
         f"WHERE id='{STATE['session_id']}'"
     )
     turn_count, interruption_count, first_latency, avg_latency = summary.split("|", 3)
-    if turn_count != "1":
-        raise AcceptanceError(f"turn_count = {turn_count}, want 1")
+    if turn_count != "2":
+        raise AcceptanceError(f"turn_count = {turn_count}, want 2")
     if interruption_count != "0":
         raise AcceptanceError(
             f"interruption_count = {interruption_count}, want 0"
@@ -732,8 +758,10 @@ def main():
     print("PASS 10 audio and realtime tool-result round trip completed")
     verify_durable_realtime_history()
     print("PASS 11 user, tool, and assistant turns persisted durably")
+    verify_worker_restart_during_live_call()
+    print("PASS 12 live worker restart preserved provider, tools, and conversation history")
     hangup_and_verify_completion()
-    print("PASS 12 session completion persisted conversation summary metrics")
+    print("PASS 13 session completion persisted conversation summary metrics")
     print("Voice Agent v1 realtime release gate passed")
 
 

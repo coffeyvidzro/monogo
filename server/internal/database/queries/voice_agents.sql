@@ -105,7 +105,10 @@ SET active_revision = va.configuration_revision,
                 'id', tool.id,
                 'name', tool.name,
                 'description', tool.description,
-                'parameters', tool.parameters
+                'parameters', tool.parameters,
+                'type', tool.type,
+                'endpoint_url', tool.endpoint_url,
+                'timeout_ms', tool.timeout_ms
             )
             ORDER BY tool.name
         )

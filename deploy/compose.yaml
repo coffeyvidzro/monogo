@@ -194,7 +194,7 @@ services:
       - recordings-data:/var/lib/freeswitch/recordings
     networks:
       control:
-        ipv4_address: 172.32.0.20
+        ipv4_address: 172.29.0.20
 
   rtpengine:
     build:
@@ -208,7 +208,7 @@ services:
       - "23000-32768:23000-32768/udp"
     networks:
       control:
-        ipv4_address: 172.32.0.10
+        ipv4_address: 172.29.0.10
       media:
         ipv4_address: 172.31.0.10
 
@@ -219,6 +219,7 @@ services:
     restart: unless-stopped
     stop_grace_period: 30s
     environment:
+      OPENSIPS_ADVERTISED_ADDRESS: ${PUBLIC_IP:?PUBLIC_IP is required}
       OPENSIPS_DATABASE_URL: postgres://leamout:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@postgres:5432/leamout
     volumes:
       - /etc/leamout/certs/fullchain.pem:/etc/opensips/tls/fullchain.pem:ro
@@ -237,7 +238,10 @@ services:
       - "5060:5060/tcp"
       - "5061:5061/tcp"
       - "5062:5062/tcp"
-    networks: [control, signaling]
+    networks:
+      control: {}
+      signaling:
+        gw_priority: 1
 
   coturn:
     build:
@@ -274,7 +278,7 @@ networks:
   control:
     ipam:
       config:
-        - subnet: 172.32.0.0/24
+        - subnet: 172.29.0.0/24
   media:
     ipam:
       config:

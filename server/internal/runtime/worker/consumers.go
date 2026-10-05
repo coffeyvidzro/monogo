@@ -9,6 +9,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/coffeyvidzro/monogo/internal/integrations/freeswitch"
+	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
 	"github.com/coffeyvidzro/monogo/internal/platform/logging"
 	"github.com/coffeyvidzro/monogo/internal/runtime/calling"
 )
@@ -172,6 +173,9 @@ func runWorkloads(ctx context.Context, logger *logging.Logger, modules *modules)
 	run("webhook consumer", modules.webhookConsumer.Run)
 	run("webhook delivery worker", modules.webhookDelivery.Run)
 	run("call reconciliation", modules.callReconciliation.Run)
+	run("Voice Agent recovery", func(ctx context.Context) error {
+		return modules.agentRuntime.RunRecovery(ctx, sqlc.New(modules.postgres.Pool()), calling.NewChannelStore(modules.redis))
+	})
 	run("recording reconciliation", modules.recordingReconciliation.Run)
 	run("recording ingestion", modules.recordingIngestion.Run)
 	run("idempotency cleanup", modules.idempotencyCleanup.Run)

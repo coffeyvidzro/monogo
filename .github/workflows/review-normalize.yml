@@ -1,0 +1,28 @@
+name: Normalize review branch
+on:
+  pull_request:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  normalize:
+    if: github.head_ref == 'fix/runtime-review-gaps'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-go@v7.0.0
+        with:
+          go-version-file: server/go.mod
+      - name: Normalize Go and SQL bindings
+        working-directory: server
+        run: |
+          go install github.com/sqlc-dev/sqlc/cmd/sqlc@v1.31.1
+          go install golang.org/x/tools/cmd/goimports@latest
+          sqlc generate
+          gofmt -w internal
+          goimports -w internal/security/httpclient internal/runtime/agent internal/runtime/worker/consumers.go internal/ai/tools internal/platform/webhooks/delivery.go internal/platform/webhooks/delivery_test.go
+      - name: Formatter patch
+        run: git diff --binary
+      - name: Focused regression tests
+        working-directory: server
+        run: go test -race ./internal/runtime/agent ./internal/ai/tools ./internal/security/httpclient ./internal/platform/webhooks ./internal/media/session ./internal/runtime/worker ./internal/ai/orchestration

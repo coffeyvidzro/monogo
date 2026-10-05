@@ -19,6 +19,7 @@ type Runtime struct {
 	logger       *logging.Logger
 	mediaNodes   *medianodes.Registry
 
+	attachMu     sync.Mutex
 	mu           sync.Mutex
 	controls     map[uuid.UUID]*mediaControl
 	states       map[uuid.UUID]*conversationState

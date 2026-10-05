@@ -230,6 +230,9 @@ func (m *Manager) AttachControl(id uuid.UUID) (*ControlAttachment, error) {
 		return nil, ErrControlAlreadyAttached
 	}
 	events := make(chan Event, 64)
+	for _, event := range managed.pendingTools {
+		events <- event
+	}
 	managed.control = events
 	managed.controlOpen = true
 	return &ControlAttachment{manager: m, id: id, session: managed, events: events}, nil
@@ -392,6 +395,7 @@ type managedSession struct {
 	complete chan struct{}
 
 	mu           sync.Mutex
+	pendingTools map[string]Event
 	control      chan Event
 	controlOpen  bool
 	controlDone  chan struct{}
@@ -458,7 +462,13 @@ func (s *managedSession) submitToolResult(ctx context.Context, result ToolResult
 	}
 	stream := s.stream
 	s.mu.Unlock()
-	return stream.SubmitToolResult(ctx, result)
+	if err := stream.SubmitToolResult(ctx, result); err != nil {
+		return err
+	}
+	s.mu.Lock()
+	delete(s.pendingTools, result.ToolCallID)
+	s.mu.Unlock()
+	return nil
 }
 
 func (s *managedSession) interrupt(ctx context.Context) error {
@@ -484,6 +494,15 @@ func (s *managedSession) interrupt(ctx context.Context) error {
 func (s *managedSession) publish(event Event) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if event.Type == EventToolCall && event.ToolCall != nil {
+		if s.pendingTools == nil {
+			s.pendingTools = make(map[string]Event)
+		}
+		if _, exists := s.pendingTools[event.ToolCall.ID]; !exists && len(s.pendingTools) >= 64 {
+			return ErrControlBackpressure
+		}
+		s.pendingTools[event.ToolCall.ID] = event
+	}
 	if !s.controlOpen || s.control == nil {
 		return nil
 	}

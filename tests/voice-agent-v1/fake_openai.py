@@ -110,6 +110,12 @@ class Handler(BaseHTTPRequestHandler):
             self.wfile.write(body)
             return
 
+        if self.path == "/next-turn":
+            with LOCK:
+                STATE["next_turn"] = True
+            self.send_json(200, {"ok": True})
+            return
+
         if self.path == "/state":
             with LOCK:
                 body = json.dumps(STATE).encode()
@@ -165,6 +171,7 @@ class Handler(BaseHTTPRequestHandler):
 
         sent_tool_call = False
         sent_final_response = False
+        round_number = 1
         while True:
             try:
                 opcode, payload = read_frame(self.rfile)
@@ -195,6 +202,10 @@ class Handler(BaseHTTPRequestHandler):
             if event_type == "input_audio_buffer.append":
                 with LOCK:
                     STATE["audio_appends"] += 1
+                    if STATE.pop("next_turn", False):
+                        round_number += 1
+                        sent_tool_call = False
+                        sent_final_response = False
 
                 if sent_tool_call:
                     continue
@@ -235,7 +246,7 @@ class Handler(BaseHTTPRequestHandler):
                         "type": "response.function_call_arguments.done",
                         "event_id": "evt-tool-call",
                         "response_id": "resp-tool",
-                        "call_id": "tool-call-1",
+                        "call_id": f"tool-call-{round_number}",
                         "name": "send_dtmf",
                         "arguments": json.dumps({"digits": "5"}),
                     },

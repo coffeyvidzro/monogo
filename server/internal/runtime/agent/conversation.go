@@ -2,6 +2,9 @@ package agent
 
 import (
 	"strings"
+	"encoding/json"
+
+	"github.com/coffeyvidzro/monogo/internal/database/sqlc"
 	"sync"
 	"time"
 
@@ -145,7 +148,12 @@ func (s *conversationState) assistantTurn(event session.Event) (conversations.Cr
 		value := durationMilliseconds(event.OccurredAt.Sub(s.speechStoppedAt))
 		turnLatency = &value
 	}
+	metadata, _ := json.Marshal(turnSummary{
+		InterruptionCount: s.interruptionCount,
+		FirstResponseLatencyMS: latencyMilliseconds(s.firstResponseLatency),
+	})
 	return conversations.CreateTurnRequest{
+		Metadata: metadata,
 		Sequence:      sequence,
 		Role:          "assistant",
 		Content:       text,
@@ -211,4 +219,54 @@ func durationMilliseconds(value time.Duration) int32 {
 		return int32(maxInt32)
 	}
 	return int32(ms)
+}
+
+// Per-turn summary metadata survives process loss without storing model secrets.
+type turnSummary struct {
+	InterruptionCount int32 `json:"interruption_count"`
+	FirstResponseLatencyMS *int32 `json:"first_response_latency_ms,omitempty"`
+}
+
+func latencyMilliseconds(value *time.Duration) *int32 {
+	if value == nil {
+		return nil
+	}
+	ms := durationMilliseconds(*value)
+	return &ms
+}
+
+func restoreConversationState(record sqlc.VoiceAgentSession, turns []sqlc.VoiceAgentTurn) *conversationState {
+	state := newConversationState()
+	state.interruptionCount = record.InterruptionCount
+	if record.FirstResponseLatencyMs != nil {
+		latency := time.Duration(*record.FirstResponseLatencyMs) * time.Millisecond
+		state.firstResponseLatency = &latency
+	}
+	for _, turn := range turns {
+		if turn.Sequence >= state.nextSequence {
+			state.nextSequence = turn.Sequence + 1
+		}
+		if turn.Role != "assistant" {
+			continue
+		}
+		state.turnCount++
+		if turn.TurnLatencyMs != nil {
+			state.totalTurnLatency += time.Duration(*turn.TurnLatencyMs) * time.Millisecond
+			state.turnLatencyCount++
+		}
+		var summary turnSummary
+		if json.Unmarshal(turn.Metadata, &summary) == nil {
+			if summary.InterruptionCount > state.interruptionCount {
+				state.interruptionCount = summary.InterruptionCount
+			}
+			if state.firstResponseLatency == nil && summary.FirstResponseLatencyMS != nil {
+				latency := time.Duration(*summary.FirstResponseLatencyMS) * time.Millisecond
+				state.firstResponseLatency = &latency
+			}
+		}
+	}
+	if state.turnCount < record.TurnCount {
+		state.turnCount = record.TurnCount
+	}
+	return state
 }

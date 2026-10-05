@@ -138,3 +138,10 @@ func appErrorCode(err error, code string) bool {
 	var appErr *apperror.AppError
 	return errors.As(err, &appErr) && appErr.Code == code
 }
+
+func (s *Service) ListTurns(ctx context.Context, organizationID, sessionID uuid.UUID) ([]sqlc.VoiceAgentTurn, error) {
+	return s.conversations.ListTurns(ctx, conversations.Identity{
+		OrganizationID: organizationID,
+		SessionID: sessionID,
+	})
+}
