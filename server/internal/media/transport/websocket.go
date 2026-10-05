@@ -268,6 +268,15 @@ func (c *webSocketConnection) ReceiveAudio(ctx context.Context) (session.AudioFr
 		return session.AudioFrame{}, err
 	}
 	if messageType != websocket.MessageBinary {
+		if messageType == websocket.MessageText {
+			var message struct {
+				Type string `json:"type"`
+			}
+			// mod_audio_fork drains audio and sends bye before its close handshake.
+			if err := json.Unmarshal(payload, &message); err == nil && message.Type == "bye" {
+				return session.AudioFrame{}, io.EOF
+			}
+		}
 		return session.AudioFrame{}, fmt.Errorf("unexpected media text frame")
 	}
 	frame := session.AudioFrame{Data: payload, Format: c.metadata.Format, CapturedAt: time.Now().UTC()}
